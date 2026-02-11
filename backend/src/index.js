@@ -1,5 +1,4 @@
 import 'dotenv/config'
-import fs from 'fs'
 import express from 'express'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
@@ -63,25 +62,7 @@ app.use('/api/friends', friendsRouter)
 app.use('/api/invites', invitesRouter)
 app.use('/api/version', versionRouter)
 
-// Redirect /updates/download to latest installer (for download page when frontend is on Vercel)
-app.get('/updates/download', (req, res) => {
-  const updatesDir = path.join(__dirname, '../updates')
-  const latestYml = path.join(updatesDir, 'latest.yml')
-  if (!fs.existsSync(latestYml)) {
-    return res.status(404).json({ error: 'No installer available yet' })
-  }
-  const yml = fs.readFileSync(latestYml, 'utf8')
-  const pathMatch = yml.match(/^path:\s*(.+)$/m)
-  const installerName = pathMatch ? pathMatch[1].trim() : null
-  if (!installerName || !fs.existsSync(path.join(updatesDir, installerName))) {
-    return res.status(404).json({ error: 'Installer not found' })
-  }
-  res.redirect(302, `/updates/${encodeURIComponent(installerName)}`)
-})
-
-app.use('/updates', express.static(path.join(__dirname, '../updates')))
-
-// Frontend is on Vercel — Fly only serves API, Socket.io, and /updates
+// Updates are on GitHub Releases — Fly only serves API and Socket.io
 
 const chatNamespace = io.of('/chat')
 const voiceNamespace = io.of('/voice')

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import type { Channel } from '../types'
 import { useVoice, type VoiceParticipant } from '../contexts/VoiceContext'
 import { RemoteAudio } from './RemoteAudio'
-import { MicIcon, MicOffIcon, HeadphonesIcon, HeadphonesOffIcon } from './icons/VoiceIcons'
+import { MicOffIcon, HeadphonesIcon, HeadphonesOffIcon } from './icons/VoiceIcons'
 
 interface VoiceViewProps {
   channel: Channel

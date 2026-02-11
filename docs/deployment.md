@@ -13,7 +13,7 @@ User (Electron)   → loads from Vercel or local
 Both connect to:
    https://nepsis-chat.fly.dev   (Fly.io — backend)
                    ├─ /api/*       → Express API (data from Supabase Postgres)
-                   ├─ /updates/*   → Electron update files + /updates/download redirect
+                   ├─ (updates on GitHub Releases)
                    └─ /socket.io   → Socket.io (chat + voice signaling)
 
 Supabase (external)
@@ -113,25 +113,21 @@ Push to GitHub — Vercel auto-deploys. ~1 min.
 | Region | `ord` (Chicago) |
 | Internal port | 8080 |
 
-### Deploy (~100MB, not 9GB)
+### Deploy (~50MB)
 
-Build context is **backend only** (`fly.toml` uses `context = "backend"`). Fly no longer pushes electron (~11GB) or frontend (~2GB).
-
-**Before deploy:** `npm run deploy` runs `clean-updates` first to remove old installers from `backend/updates/` — otherwise Fly would push 8+ GB of old .exe files. If clean-updates fails (EBUSY), close any apps that may have the installer open, then run `npm run clean-updates` manually.
-
-**Backend only** (no frontend in image):
+Build context is **backend only** (`fly.toml` uses `context = "backend"`). Updates are on GitHub Releases — Fly only deploys API + Socket.io.
 
 ```bash
-npm run deploy   # clean-updates + flyctl deploy
+npm run deploy   # flyctl deploy
 ```
 
-**For desktop release** (installer in /updates):
+**Desktop release** (publish installer to GitHub):
 
 ```bash
-npm run release   # package:full + publish-update + clean-updates + deploy
+npm run release   # electron-builder --win -p always (uploads to GitHub Releases)
 ```
 
-The download page (on Vercel) links to `https://nepsis-chat.fly.dev/updates/download` which redirects to the latest installer.
+Requires `GH_TOKEN` env with `repo` scope. The download page links to `https://github.com/skelleya/nepsis-chat/releases/latest/download/NepsisChat-Setup.exe`.
 
 ### Logs and status
 
@@ -185,7 +181,7 @@ docker system prune -a -f
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `UPDATE_URL` | `https://nepsis-chat.fly.dev/updates` | Auto-update feed URL |
+| `UPDATE_URL` | GitHub Releases (skelleya/nepsis-chat) | Auto-update feed |
 | `APP_URL` | `http://localhost:5173` | Dev-mode URL to load |
 
 ---

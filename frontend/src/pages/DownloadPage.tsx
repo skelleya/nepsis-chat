@@ -1,12 +1,9 @@
 import { Link } from 'react-router-dom'
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
-const BACKEND_URL = API_BASE.replace(/\/api\/?$/, '')
+// Installer is on GitHub Releases — fixed artifact name for stable URL
+const GITHUB_DOWNLOAD_URL = 'https://github.com/skelleya/nepsis-chat/releases/latest/download/NepsisChat-Setup.exe'
 
 export function DownloadPage() {
-  // When frontend is on Vercel: installer is on backend at /updates/download
-  // When single deploy (Fly): installer is at ./NepsisChat-Setup.exe from public/
-  const downloadUrl = BACKEND_URL ? `${BACKEND_URL}/updates/download` : './NepsisChat-Setup.exe'
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-app-darker">
@@ -17,10 +14,9 @@ export function DownloadPage() {
           Get the desktop app for Windows. Voice chat with WebRTC and Opus audio.
         </p>
         <a
-          href={downloadUrl}
-          download={downloadUrl.startsWith('http') ? undefined : 'NepsisChat.exe'}
-          target={downloadUrl.startsWith('http') ? '_blank' : undefined}
-          rel={downloadUrl.startsWith('http') ? 'noopener noreferrer' : undefined}
+          href={GITHUB_DOWNLOAD_URL}
+          target="_blank"
+          rel="noopener noreferrer"
           className="inline-block px-8 py-4 rounded-lg bg-app-accent hover:bg-app-accent-hover text-white font-semibold transition-colors"
         >
           Download for Windows (.exe)

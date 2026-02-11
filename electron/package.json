@@ -47,7 +47,8 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "NepsisChat-Setup.${ext}"
     },
     "extraResources": [
       {
