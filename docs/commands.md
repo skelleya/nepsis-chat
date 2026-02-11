@@ -14,6 +14,9 @@ All npm scripts and CLI commands for Nepsis Chat.
 | `npm run start:backend` | Start backend (no watch) |
 | `npm run electron` | Run Electron desktop app |
 | `npm run package` | Build Electron installer (from electron/) |
+| `npm run package:full` | Full Electron build (package + publish + copy + bump) |
+| `npm run deploy` | Deploy to Fly.io |
+| `npm run release` | **All-in-one**: package:full + deploy to Fly.io |
 
 ---
 
@@ -75,11 +78,16 @@ cd frontend; npm run dev
 cd electron; npm start
 ```
 
-### Release a new version
+### Release a new version (one command)
 ```powershell
-cd electron
-npm run package:full
-# Restart backend to serve new update files
+npm run release
+```
+This runs `package:full` (build frontend, package Electron installer, publish update files, copy exe, bump version) then deploys to Fly.io.
+
+### Release steps separately
+```powershell
+npm run package:full    # Build + publish + copy + bump
+npm run deploy          # Deploy to Fly.io
 ```
 
 ### Manual steps (instead of package:full)

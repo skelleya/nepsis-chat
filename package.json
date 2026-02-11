@@ -8,6 +8,9 @@
     "build:frontend": "cd frontend && npm run build",
     "start:backend": "cd backend && npm start",
     "electron": "cd electron && npm start",
-    "package": "cd electron && npm run package"
+    "package": "cd electron && npm run package",
+    "package:full": "cd electron && npm run package:full",
+    "deploy": "fly deploy --app nepsis-chat --local-only",
+    "release": "cd electron && npm run package:full && cd .. && fly deploy --app nepsis-chat --local-only"
   }
 }

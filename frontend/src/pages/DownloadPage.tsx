@@ -6,7 +6,7 @@ export function DownloadPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-app-darker">
       <div className="w-full max-w-lg p-8 rounded-xl bg-app-dark text-center">
-        <img src="./logo.png" alt="Nepsis" className="h-14 mx-auto mb-4 object-contain" />
+        <img src="./logo.png" alt="Nepsis" className="h-14 mx-auto mb-4 object-contain bg-white rounded-full p-1" />
         <h1 className="text-2xl font-bold text-white mb-2">Download Nepsis Chat</h1>
         <p className="text-app-muted mb-6">
           Get the desktop app for Windows. Voice chat with WebRTC and Opus audio.

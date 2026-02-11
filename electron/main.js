@@ -1,10 +1,17 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu } = require('electron')
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } = require('electron')
 const path = require('path')
 const { autoUpdater } = require('electron-updater')
 
 const isDev = process.env.NODE_ENV === 'development'
 const APP_URL = process.env.APP_URL || 'http://localhost:5173'
-const UPDATE_URL = process.env.UPDATE_URL || 'https://nepsis-chat.fly.dev/updates'
+const PROD_URL = process.env.PROD_URL || 'https://nepsis-chat.fly.dev'
+const UPDATE_URL = process.env.UPDATE_URL || `${PROD_URL}/updates`
+
+// Set AppUserModelId early — required for Windows to show the custom icon
+// in the taskbar instead of the default Electron icon.
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.nepsis.chat')
+}
 
 let mainWindow = null
 let tray = null
@@ -15,13 +22,20 @@ if (!isDev && app.isPackaged) {
   autoUpdater.autoInstallOnAppQuit = true
 }
 
-function getTrayIconPath() {
-  return path.join(__dirname, 'icon.png')
+function loadIcon() {
+  const iconPath = path.join(__dirname, 'icon.png')
+  const icon = nativeImage.createFromPath(iconPath)
+  if (icon.isEmpty()) {
+    console.warn('Failed to load icon from', iconPath)
+    return undefined
+  }
+  return icon
 }
 
 function createTray() {
-  const iconPath = getTrayIconPath()
-  tray = new Tray(iconPath)
+  const icon = loadIcon()
+  if (!icon) return
+  tray = new Tray(icon)
   tray.setToolTip('Nepsis Chat')
 
   const contextMenu = Menu.buildFromTemplate([
@@ -37,15 +51,13 @@ function createTray() {
   tray.on('click', () => mainWindow?.show())
 }
 
-function getIconPath() {
-  return path.join(__dirname, 'icon.png')
-}
-
 function createWindow() {
+  const icon = loadIcon()
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
-    icon: getIconPath(),
+    icon: icon,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -53,9 +65,17 @@ function createWindow() {
     },
   })
 
+  // Explicitly set the icon on the window (ensures taskbar picks it up)
+  if (icon) mainWindow.setIcon(icon)
+
   if (app.isPackaged) {
-    const indexPath = path.join(process.resourcesPath, 'app', 'index.html')
-    mainWindow.loadFile(indexPath)
+    // Load from the production server (same-origin avoids CORS issues with
+    // file:// protocol).  Fall back to local files if the server is unreachable.
+    mainWindow.loadURL(PROD_URL)
+    mainWindow.webContents.once('did-fail-load', () => {
+      const indexPath = path.join(process.resourcesPath, 'app', 'index.html')
+      mainWindow.loadFile(indexPath)
+    })
   } else {
     mainWindow.loadURL(APP_URL)
     mainWindow.webContents.once('did-fail-load', (_, errorCode, errorDescription, validatedURL) => {

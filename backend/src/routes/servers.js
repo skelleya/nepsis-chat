@@ -1,20 +1,43 @@
 import { Router } from 'express'
-import db from '../db/init.js'
+import supabase from '../db/supabase.js'
 
 export const serversRouter = Router()
 
-serversRouter.get('/', (req, res) => {
-  const servers = db.prepare('SELECT * FROM servers').all()
-  res.json(servers)
+serversRouter.get('/', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('servers').select('*')
+    if (error) throw error
+    res.json(data)
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch servers' })
+  }
 })
 
-serversRouter.get('/:id', (req, res) => {
-  const server = db.prepare('SELECT * FROM servers WHERE id = ?').get(req.params.id)
-  if (!server) return res.status(404).json({ error: 'Server not found' })
-  res.json(server)
+serversRouter.get('/:id', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('servers')
+      .select('*')
+      .eq('id', req.params.id)
+      .single()
+    if (error) throw error
+    if (!data) return res.status(404).json({ error: 'Server not found' })
+    res.json(data)
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch server' })
+  }
 })
 
-serversRouter.get('/:id/channels', (req, res) => {
-  const channels = db.prepare('SELECT * FROM channels WHERE server_id = ? ORDER BY "order"').all(req.params.id)
-  res.json(channels)
+serversRouter.get('/:id/channels', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('channels')
+      .select('*')
+      .eq('server_id', req.params.id)
+      .order('order')
+    if (error) throw error
+    res.json(data)
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch channels' })
+  }
 })

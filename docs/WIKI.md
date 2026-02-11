@@ -24,11 +24,12 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 
 | Task | Command |
 |------|---------|
-| Start backend | `cd backend; npm run dev` |
-| Start frontend | `cd frontend; npm run dev` |
-| Run desktop app | `cd electron; npm start` |
-| Full release build | `cd electron; npm run package:full` |
-| Deploy to Fly.io | `fly deploy` |
+| Start backend | `npm run dev:backend` |
+| Start frontend | `npm run dev:frontend` |
+| Run desktop app | `npm run electron` |
+| Full release build | `npm run package:full` |
+| Deploy to Fly.io | `npm run deploy` |
+| **Release everything** | **`npm run release`** |
 
 ---
 

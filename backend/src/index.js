@@ -1,10 +1,11 @@
+import 'dotenv/config'
 import express from 'express'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
 import cors from 'cors'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import './db/init.js'
+// Supabase client is imported by each route — no SQLite init needed
 import { authRouter } from './routes/auth.js'
 import { serversRouter } from './routes/servers.js'
 import { messagesRouter } from './routes/messages.js'
@@ -16,16 +17,31 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
 const httpServer = createServer(app)
 
-// CORS: allow env-configured origins, plus localhost for dev
-const allowedOrigins = process.env.CORS_ORIGINS
-  ? process.env.CORS_ORIGINS.split(',')
-  : ['http://localhost:5173', 'http://127.0.0.1:5173']
+// CORS: allow env-configured origins, plus localhost for dev.
+// CORS_ORIGINS=* means allow all; otherwise comma-separated list of origins.
+// Also allow null origin which is sent by Electron's file:// protocol.
+const rawOrigins = process.env.CORS_ORIGINS || ''
+const allowAll = rawOrigins.trim() === '*'
+const allowedOrigins = allowAll
+  ? true // cors package: true = reflect request origin (allow all)
+  : ['http://localhost:5173', 'http://127.0.0.1:5173',
+     ...rawOrigins.split(',').map((o) => o.trim()).filter(Boolean)]
+
+// Custom origin handler to also accept null origin (Electron file://)
+const corsOrigin = allowAll
+  ? true
+  : function (origin, callback) {
+      // Allow requests with no origin (Electron file://, server-to-server, curl)
+      if (!origin) return callback(null, true)
+      if (allowedOrigins.includes(origin)) return callback(null, true)
+      callback(new Error('Not allowed by CORS'))
+    }
 
 const io = new Server(httpServer, {
-  cors: { origin: allowedOrigins },
+  cors: { origin: corsOrigin },
 })
 
-app.use(cors({ origin: allowedOrigins }))
+app.use(cors({ origin: corsOrigin }))
 app.use(express.json())
 
 // API routes

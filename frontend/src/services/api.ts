@@ -1,5 +1,6 @@
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
 
+// Guest login (username only)
 export async function login(username: string) {
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: 'POST',
@@ -7,6 +8,17 @@ export async function login(username: string) {
     body: JSON.stringify({ username }),
   })
   if (!res.ok) throw new Error('Login failed')
+  return res.json()
+}
+
+// Email auth callback — links Supabase Auth user to app user
+export async function authCallback(authId: string, email: string, username?: string) {
+  const res = await fetch(`${API_BASE}/auth/auth/callback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ auth_id: authId, email, username }),
+  })
+  if (!res.ok) throw new Error('Auth callback failed')
   return res.json()
 }
 

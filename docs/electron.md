@@ -6,14 +6,15 @@ Desktop app wrapper and packaging.
 
 ## Overview
 
-- **Installed app**: Loads the bundled frontend from `resources/app/` via `file://` protocol (works offline)
+- **Installed app**: Loads from the production URL (`https://nepsis-chat.fly.dev`) so API calls are same-origin (no CORS issues). Falls back to bundled frontend from `resources/app/` via `file://` if server is unreachable.
 - **Dev mode**: Loads from URL (default: `http://localhost:5173`)
 - NSIS installer installs to Program Files
 - electron-updater for auto-updates
 - Green "Update Available" button when a new version is pushed
 - **System tray**: Closing the window hides to tray (does not quit). Right-click tray → Show or Quit.
 - **Routing**: Frontend uses `HashRouter` (not `BrowserRouter`) so routes work with both `http://` and `file://` protocols. URLs use hashes: `/#/`, `/#/download`.
-- **App icon**: In dev mode, Windows taskbar shows Electron's default logo (from `electron.exe`). The Nepsis logo only appears in the taskbar for the packaged/installed app where it is embedded into the `.exe` by electron-builder.
+- **App icon**: Uses `app.setAppUserModelId('com.nepsis.chat')` + `nativeImage.createFromPath()` + `mainWindow.setIcon()` for proper Windows taskbar icon in both dev and packaged modes. Electron-builder embeds the icon into the `.exe` for the installer.
+- **Session persistence**: User login is saved to `localStorage` so users stay logged in across app restarts.
 
 ---
 
@@ -47,8 +48,9 @@ Exposed to the renderer via `window.electronAPI`:
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| APP_URL | http://localhost:5173 | URL the app loads |
-| UPDATE_URL | http://localhost:3000/updates | Update server URL |
+| APP_URL | http://localhost:5173 | URL the app loads (dev mode) |
+| PROD_URL | https://nepsis-chat.fly.dev | Production URL (packaged app loads this) |
+| UPDATE_URL | `${PROD_URL}/updates` | Update server URL |
 | NODE_ENV | — | `development` = dev tools |
 
 ---

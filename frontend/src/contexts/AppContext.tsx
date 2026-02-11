@@ -1,10 +1,13 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import * as api from '../services/api'
+import { supabase } from '../services/supabase'
 
 interface User {
   id: string
   username: string
+  email?: string
   avatar_url?: string
+  is_guest?: boolean
 }
 
 interface Server {
@@ -39,6 +42,8 @@ interface AppContextValue {
   currentServerId: string | null
   currentChannelId: string | null
   login: (username: string) => Promise<void>
+  loginWithEmail: (email: string, password: string) => Promise<void>
+  logout: () => void
   setCurrentServer: (id: string) => void
   setCurrentChannel: (id: string) => void
   loadChannels: (serverId: string) => Promise<void>
@@ -56,20 +61,113 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentServerId, setCurrentServerId] = useState<string | null>(null)
   const [currentChannelId, setCurrentChannelId] = useState<string | null>(null)
 
+  // Load servers after user is set
+  const loadServers = useCallback(async () => {
+    try {
+      const s = await api.getServers()
+      setServers(s)
+      if (s.length > 0) setCurrentServerId((prev) => prev || s[0].id)
+    } catch {
+      setServers([{ id: '1', name: 'Nepsis Chat', owner_id: 'u1' }])
+      setCurrentServerId('1')
+    }
+  }, [])
+
+  // Restore session on mount
+  useEffect(() => {
+    const restoreSession = async () => {
+      // Try Supabase Auth session first
+      if (supabase) {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user) {
+          try {
+            const u = await api.authCallback(session.user.id, session.user.email || '')
+            setUser(u)
+            localStorage.setItem('nepsis_user', JSON.stringify(u))
+            await loadServers()
+            return
+          } catch {
+            // Fall through to local restore
+          }
+        }
+      }
+
+      // Fall back to localStorage (guest session)
+      const saved = localStorage.getItem('nepsis_user')
+      if (!saved) return
+      try {
+        const savedUser: User = JSON.parse(saved)
+        setUser(savedUser)
+        await loadServers()
+      } catch {
+        localStorage.removeItem('nepsis_user')
+      }
+    }
+    restoreSession()
+  }, [loadServers])
+
+  // Listen for Supabase Auth state changes (email login/logout)
+  useEffect(() => {
+    if (!supabase) return
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_IN' && session?.user) {
+          try {
+            const u = await api.authCallback(session.user.id, session.user.email || '')
+            setUser(u)
+            localStorage.setItem('nepsis_user', JSON.stringify(u))
+            await loadServers()
+          } catch (err) {
+            console.error('Auth state change error:', err)
+          }
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null)
+          localStorage.removeItem('nepsis_user')
+          setServers([])
+          setChannels([])
+          setMessages({})
+          setCurrentServerId(null)
+          setCurrentChannelId(null)
+        }
+      }
+    )
+    return () => subscription.unsubscribe()
+  }, [loadServers])
+
+  // Guest login (username only, no email/password)
   const login = useCallback(async (username: string) => {
     try {
       const u = await api.login(username)
       setUser(u)
-      const s = await api.getServers()
-      setServers(s)
-      if (s.length > 0) {
-        setCurrentServerId((prev) => prev || s[0].id)
-      }
+      localStorage.setItem('nepsis_user', JSON.stringify(u))
+      await loadServers()
     } catch {
-      setUser({ id: 'u1', username })
+      const fallbackUser: User = { id: 'u1', username, is_guest: true }
+      setUser(fallbackUser)
+      localStorage.setItem('nepsis_user', JSON.stringify(fallbackUser))
       setServers([{ id: '1', name: 'Nepsis Chat', owner_id: 'u1' }])
       setCurrentServerId('1')
     }
+  }, [loadServers])
+
+  // Email login via Supabase Auth
+  const loginWithEmail = useCallback(async (email: string, password: string) => {
+    if (!supabase) throw new Error('Email auth not configured')
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) throw error
+    // The onAuthStateChange listener above will handle setting the user
+    if (!data.session?.user) throw new Error('No session returned')
+  }, [])
+
+  const logout = useCallback(() => {
+    supabase?.auth.signOut()
+    setUser(null)
+    localStorage.removeItem('nepsis_user')
+    setServers([])
+    setChannels([])
+    setMessages({})
+    setCurrentServerId(null)
+    setCurrentChannelId(null)
   }, [])
 
   const loadChannels = useCallback(async (serverId: string) => {
@@ -145,6 +243,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         currentServerId,
         currentChannelId,
         login,
+        loginWithEmail,
+        logout,
         setCurrentServer,
         setCurrentChannel,
         loadChannels,

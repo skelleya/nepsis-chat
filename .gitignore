@@ -8,10 +8,13 @@ electron/dist/
 # Database
 backend/data.sqlite
 
-# Env files (keep .env.production and .env.development, ignore local overrides)
+# Env files — NEVER commit secrets (Supabase keys, service role, etc.)
 .env
 .env.local
 *.env.local
+backend/.env
+frontend/.env.local
+Nepsis Chat DB.txt
 
 # Logs
 logs/
