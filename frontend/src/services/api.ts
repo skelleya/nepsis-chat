@@ -345,7 +345,7 @@ export async function sendFriendRequest(userId: string, targetUserId: string): P
 
 export async function updatePresence(
   userId: string,
-  status: 'online' | 'offline' | 'in-voice',
+  status: 'online' | 'offline' | 'in-voice' | 'away' | 'dnd',
   voiceChannelId?: string | null
 ) {
   const res = await fetch(`${API_BASE}/users/${userId}/presence`, {
@@ -354,5 +354,43 @@ export async function updatePresence(
     body: JSON.stringify({ status, voiceChannelId }),
   })
   if (!res.ok) throw new Error('Failed to update presence')
+  return res.json()
+}
+
+// ─── User profile ──────────────────────────────────────
+
+export async function updateUserProfile(
+  userId: string,
+  data: { username?: string; avatar_url?: string; banner_url?: string }
+) {
+  const res = await fetch(`${API_BASE}/users/${userId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to update profile')
+  }
+  return res.json()
+}
+
+export async function getUserProfiles(userId: string) {
+  const res = await fetch(`${API_BASE}/users/${userId}/profiles`)
+  if (!res.ok) throw new Error('Failed to fetch profiles')
+  return res.json()
+}
+
+export async function saveUserProfile(
+  userId: string,
+  profileType: 'personal' | 'work',
+  data: { display_name?: string; avatar_url?: string; banner_url?: string }
+) {
+  const res = await fetch(`${API_BASE}/users/${userId}/profiles`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ profile_type: profileType, ...data }),
+  })
+  if (!res.ok) throw new Error('Failed to save profile')
   return res.json()
 }

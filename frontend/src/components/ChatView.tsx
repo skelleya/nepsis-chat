@@ -3,6 +3,7 @@ import type { Channel, Message, User } from '../types'
 import { useApp } from '../contexts/AppContext'
 import * as api from '../services/api'
 import { EmojiPicker } from './EmojiPicker'
+import { ChatInput } from './ChatInput'
 
 interface ServerEmoji {
   id: string
@@ -14,6 +15,7 @@ interface ChatViewProps {
   channel: Channel
   messages: Message[]
   users: User[]
+  members?: { id: string; username: string }[]
   serverEmojis?: ServerEmoji[]
   onSendMessage?: (content: string, options?: { replyToId?: string; attachments?: { url: string; type: string; filename?: string }[] }) => void
   currentUserId: string
@@ -24,6 +26,7 @@ export function ChatView({
   channel,
   messages,
   users,
+  members = [],
   serverEmojis = [],
   onSendMessage,
   currentUserId,
@@ -318,7 +321,7 @@ export function ChatView({
             ))}
           </div>
         )}
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <input
             ref={fileInputRef}
             type="file"
@@ -327,47 +330,64 @@ export function ChatView({
             className="hidden"
             onChange={handleFileSelect}
           />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="p-2 text-app-muted hover:text-app-text disabled:opacity-50"
-            title="Upload file"
-          >
-            {uploading ? '⏳' : '📎'}
-          </button>
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowInputEmojiPicker(!showInputEmojiPicker)}
-              className="p-2 text-app-muted hover:text-app-text"
-              title="Add emoji"
-            >
-              😀
-            </button>
-            {showInputEmojiPicker && (
-              <div className="absolute left-0 bottom-full mb-1 z-50">
-                <EmojiPicker
-                  serverEmojis={serverEmojis}
-                  onSelect={(emoji) => { setInput((i) => i + emoji); setShowInputEmojiPicker(false) }}
-                  onClose={() => setShowInputEmojiPicker(false)}
-                />
-              </div>
-            )}
-          </div>
-          <input
-            type="text"
+          <ChatInput
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={setInput}
+            onSubmit={() => {
+              const text = input.trim()
+              if (text && onSendMessage) {
+                onSendMessage(text, { replyToId: replyTo?.id, attachments: attachments.length ? attachments : undefined })
+                setInput('')
+                setReplyTo(null)
+                setAttachments([])
+              }
+            }}
             placeholder={`Message #${channel.name}`}
-            className="flex-1 bg-app-dark rounded-lg px-4 py-3 text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent"
+            disabled={!onSendMessage}
+            members={members}
+            serverEmojis={serverEmojis}
+            leftButtons={
+              <>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="p-2 text-app-muted hover:text-app-text disabled:opacity-50"
+                  title="Upload file"
+                >
+                  {uploading ? '⏳' : '📎'}
+                </button>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowInputEmojiPicker(!showInputEmojiPicker)}
+                    className="p-2 text-app-muted hover:text-app-text"
+                    title="Add emoji"
+                  >
+                    😀
+                  </button>
+                  {showInputEmojiPicker && (
+                    <div className="absolute left-0 bottom-full mb-1 z-50">
+                      <EmojiPicker
+                        serverEmojis={serverEmojis}
+                        onSelect={(emoji) => { setInput((i) => i + emoji); setShowInputEmojiPicker(false) }}
+                        onClose={() => setShowInputEmojiPicker(false)}
+                      />
+                    </div>
+                  )}
+                </div>
+              </>
+            }
           />
           <button
             type="submit"
             disabled={!input.trim()}
-            className="px-4 py-2 rounded-lg bg-app-accent text-white font-medium hover:bg-app-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
+            className="p-2 rounded-lg bg-app-accent text-white hover:bg-app-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+            title="Send"
           >
-            Send
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+            </svg>
           </button>
         </div>
       </form>

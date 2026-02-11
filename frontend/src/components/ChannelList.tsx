@@ -23,6 +23,7 @@ interface VoiceUserInfo {
   userId: string
   username: string
   isMuted?: boolean
+  isDeafened?: boolean
 }
 
 interface VoiceConnectionInfo {
@@ -137,12 +138,21 @@ function SortableChannelItem({
                   <div className="w-5 h-5 rounded-full bg-app-accent/80 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
                     {vu.username.charAt(0).toUpperCase()}
                   </div>
-                  <span className="text-xs truncate">{vu.username}</span>
-                  {vu.isMuted && (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="text-red-400 flex-shrink-0 ml-auto">
-                      <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27 6.05 7.3C6.02 7.46 6 7.62 6 7.79v4.26c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5-2.24-5-5h1.7c0 2.25 1.83 4.08 4.06 4.08.48 0 .94-.09 1.38-.24L19.73 21 21 19.73 4.27 3z"/>
-                    </svg>
-                  )}
+                  <span className="text-xs truncate flex-1 min-w-0">{vu.username}</span>
+                  <div className="flex items-center gap-0.5 ml-auto flex-shrink-0">
+                    {vu.isMuted && (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="text-red-400" title="Muted">
+                        <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+                      </svg>
+                    )}
+                    {vu.isDeafened && (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-400" title="Deafened">
+                        <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+                        <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+                        <line x1="2" y1="2" x2="22" y2="22"/>
+                      </svg>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -393,16 +403,19 @@ export function ChannelList({
           <div className="border-t border-app-dark/80 bg-[#232428] px-3 py-2">
             <div className="flex items-center justify-between mb-1.5">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-semibold text-[#23a559]">Voice Connected</span>
-                  {voiceConnection.ping != null && (
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-[#23a559] flex-shrink-0 shadow-[0_0_6px_#23a559]" title="Connected" />
+                  {voiceConnection.ping != null ? (
                     <span className={`text-[10px] font-mono font-bold ${
                       voiceConnection.ping < 100 ? 'text-[#23a559]' :
                       voiceConnection.ping < 200 ? 'text-yellow-400' : 'text-red-400'
-                    }`}>
+                    }`} title="Latency">
                       {voiceConnection.ping}ms
                     </span>
+                  ) : (
+                    <span className="text-[10px] font-mono text-app-muted" title="Latency">--</span>
                   )}
+                  <span className="text-xs font-semibold text-[#23a559]">Voice Connected</span>
                 </div>
                 <div className="text-[11px] text-app-muted truncate">{voiceConnection.channelName}</div>
               </div>

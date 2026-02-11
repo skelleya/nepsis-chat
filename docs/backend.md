@@ -24,7 +24,10 @@ Node.js + Express + Socket.io + SQLite.
 | POST | `/api/servers/:id/members/:userId/move-voice` | Move user to another voice channel (`targetChannelId`, `adminUserId`) — owner/admin only |
 | PATCH | `/api/servers/:id/channels/:channelId` | Update channel (`order`, `name`, `categoryId`) |
 | PUT | `/api/servers/:id/channels/reorder` | Bulk reorder channels (`updates: [{ id, order }]`) |
-| PUT | `/api/users/:id/presence` | Update presence (`status`, `voiceChannelId`) |
+| PUT | `/api/users/:id/presence` | Update presence (`status`: online, away, dnd, offline, in-voice; `voiceChannelId`) |
+| PATCH | `/api/users/:id` | Update profile (`username`, `avatar_url`, `banner_url`) |
+| GET | `/api/users/:id/profiles` | List user profiles (personal, work) |
+| PUT | `/api/users/:id/profiles` | Upsert profile (`profile_type`, `display_name`, `avatar_url`, `banner_url`) |
 | POST | `/api/dm/conversations` | Create or get DM between two users (`userId`, `targetUserId`) |
 | POST | `/api/friends/request` | Send friend request (`userId`, `targetUserId`) — requires `friend_requests` migration |
 | GET | `/api/version` | App version |
@@ -41,7 +44,7 @@ Node.js + Express + Socket.io + SQLite.
 
 | Table | Columns |
 |-------|---------|
-| users | id, username, avatar_url, created_at |
+| users | id, username, avatar_url, banner_url, created_at |
 | servers | id, name, icon_url, owner_id |
 | channels | id, server_id, name, type (text/voice), order |
 | messages | id, channel_id, user_id, content, created_at |

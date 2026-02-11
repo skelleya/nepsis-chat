@@ -57,6 +57,13 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Split deployment — Frontend on Vercel (git push, ~1 min), backend on Fly.io (API + Socket.io). Download page links to /updates/download redirect |
 | + | Voice status server-scoped — "In voice" and voice connection bar only show for the server where the user is actually in voice; no cross-server confusion |
 | + | Layout cache — Channels and categories cached in localStorage; instant server preview on switch; background refresh when tab becomes visible; preload for other servers |
+| + | Voice UI v4 — Green circle glows when speaking (UserPanel); mute/deafen icons next to username (UserPanel + channel list voice users); signal dot + ping on left of "Voice Connected" bar |
+| + | Voice UI v5 — Discord-style big square participant tiles in voice channel view; large circular avatars in grid layout; 1 person = prominent single tile, 2–4 = 2-column grid |
+| + | Download banner — Web-only banner overlay prompting users to download the desktop app; dismissible with close button; state persisted in localStorage; hidden on /download page |
+| + | Last channel per server — When switching servers, auto-restore the last selected channel for that server; persisted in localStorage (nepsis_last_channel); cleared on logout |
+| + | Emoji picker — Click-outside-to-close; improved styling (rounded-xl, shadow-2xl, better spacing, active scale feedback) |
+| + | Chat input — Send button uses up-arrow icon; @mention autocomplete (@everyone, @username); :emoji: shortcode autocomplete (e.g. :smile:) |
+| + | User settings — Full settings modal with tabs (My Account, Profiles, Privacy & Safety, Appearance, Voice & Video, Notifications); avatar + banner upload; username change; Personal/Work profile switch (non-guest); status dropdown (Online, Away, DND, Offline) in UserPanel |
 
 ---
 

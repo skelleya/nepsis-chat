@@ -19,6 +19,7 @@ interface User {
   username: string
   email?: string
   avatar_url?: string
+  banner_url?: string
   is_guest?: boolean
 }
 
@@ -59,8 +60,13 @@ interface Message {
   reactions?: { user_id: string; emoji: string }[]
 }
 
+export type UserStatus = 'online' | 'away' | 'dnd' | 'offline'
+
 interface AppContextValue {
   user: User | null
+  userStatus: UserStatus
+  setUserStatus: (status: UserStatus) => void
+  updateUser: (data: Partial<User>) => void
   servers: Server[]
   channels: Channel[]
   categories: Category[]
@@ -91,8 +97,50 @@ interface AppContextValue {
 
 const AppContext = createContext<AppContextValue | null>(null)
 
+const LAST_CHANNEL_KEY = 'nepsis_last_channel'
+const USER_STATUS_KEY = 'nepsis_user_status'
+
+function getLastChannelStorage(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(LAST_CHANNEL_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch {
+    return {}
+  }
+}
+
+function saveLastChannel(serverId: string, channelId: string) {
+  try {
+    const store = getLastChannelStorage()
+    store[serverId] = channelId
+    localStorage.setItem(LAST_CHANNEL_KEY, JSON.stringify(store))
+  } catch {
+    /* ignore */
+  }
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
+  const [userStatus, setUserStatusState] = useState<UserStatus>(() => {
+    try {
+      const s = localStorage.getItem(USER_STATUS_KEY)
+      return (s as UserStatus) || 'online'
+    } catch {
+      return 'online'
+    }
+  })
+  const setUserStatus = useCallback((status: UserStatus) => {
+    setUserStatusState(status)
+    localStorage.setItem(USER_STATUS_KEY, status)
+  }, [])
+  const updateUser = useCallback((data: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return null
+      const next = { ...prev, ...data }
+      localStorage.setItem('nepsis_user', JSON.stringify(next))
+      return next
+    })
+  }, [])
   const [servers, setServers] = useState<Server[]>([])
   const [channels, setChannels] = useState<Channel[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -163,6 +211,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         } else if (event === 'SIGNED_OUT') {
           setUser(null)
           localStorage.removeItem('nepsis_user')
+          localStorage.removeItem(LAST_CHANNEL_KEY)
           clearLayoutCache()
           setServers([])
           setChannels([])
@@ -215,6 +264,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     setUser(null)
     localStorage.removeItem('nepsis_user')
+    localStorage.removeItem(LAST_CHANNEL_KEY)
     clearLayoutCache()
     setServers([])
     setChannels([])
@@ -416,6 +466,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       await loadChannels(currentServerId)
       if (currentChannelId === channelId) {
         setCurrentChannelId(null)
+        const store = getLastChannelStorage()
+        if (store[currentServerId] === channelId) {
+          delete store[currentServerId]
+          try {
+            localStorage.setItem(LAST_CHANNEL_KEY, JSON.stringify(store))
+          } catch { /* ignore */ }
+        }
       }
     } catch (err) {
       console.error('Failed to delete channel:', err)
@@ -464,6 +521,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ─── Navigation ───────────────────────────────────────
 
   const setCurrentServer = useCallback((id: string) => {
+    // Save current channel as last for current server before switching
+    if (currentServerId && currentChannelId) {
+      saveLastChannel(currentServerId, currentChannelId)
+    }
+
     const cached = getCachedLayout(id)
     if (cached) {
       setChannels(cached.channels)
@@ -473,16 +535,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setCategories([])
     }
     setCurrentServerId(id)
-    setCurrentChannelId(null)
-  }, [])
+
+    const lastId = getLastChannelStorage()[id] || null
+    const channelsForNewServer = cached?.channels || []
+    const channelExists = channelsForNewServer.some((c) => c.id === lastId && c.server_id === id)
+    setCurrentChannelId(channelExists ? lastId : null)
+  }, [currentServerId, currentChannelId])
 
   const setCurrentChannel = useCallback((id: string) => {
     setCurrentChannelId(id)
-  }, [])
+    if (currentServerId) saveLastChannel(currentServerId, id)
+  }, [currentServerId])
 
   useEffect(() => {
     if (currentServerId) loadChannels(currentServerId)
   }, [currentServerId, loadChannels])
+
+  // Restore last channel when channels load asynchronously (e.g. no cache on first visit)
+  useEffect(() => {
+    if (!currentServerId || currentChannelId || channels.length === 0) return
+    const lastId = getLastChannelStorage()[currentServerId]
+    if (!lastId) return
+    const exists = channels.some((c) => c.id === lastId && c.server_id === currentServerId)
+    if (exists) setCurrentChannelId(lastId)
+  }, [currentServerId, currentChannelId, channels])
 
   // Preload cache for other servers in background (instant preview when switching)
   useEffect(() => {
@@ -641,6 +717,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider
       value={{
         user,
+        userStatus,
+        setUserStatus,
+        updateUser,
         servers,
         channels,
         categories,

@@ -69,7 +69,7 @@ export function ServerBar({ servers, currentServerId, onSelectServer, onCreateSe
 
   return (
     <>
-      <div className="w-[72px] bg-app-dark flex flex-col items-center py-3 gap-2 flex-shrink-0">
+      <div className="w-[72px] min-w-[72px] bg-app-dark flex flex-col items-center py-3 gap-2 flex-shrink-0 overflow-x-hidden">
         {/* Home / DM button */}
         <div className="relative group">
           <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-1 rounded-r-full bg-white transition-all h-0 group-hover:h-5" />
@@ -82,7 +82,7 @@ export function ServerBar({ servers, currentServerId, onSelectServer, onCreateSe
         <div className="w-8 h-0.5 bg-app-channel rounded-full mx-auto" />
 
         {/* Server list */}
-        <div className="flex-1 overflow-y-auto flex flex-col items-center gap-2 w-full px-3 scrollbar-none">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col items-center gap-2 w-full px-3 min-w-0">
           {servers.map((server) => (
             <ServerIcon
               key={server.id}

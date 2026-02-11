@@ -72,7 +72,7 @@ function useSpeakingDetector(stream: MediaStream | null, enabled = true): boolea
   return speaking
 }
 
-// Individual participant card with speaking detection
+// Discord-style big square participant tile
 function ParticipantCard({
   participant,
   isLocal,
@@ -92,19 +92,31 @@ function ParticipantCard({
   const speaking = useSpeakingDetector(detectStream, isLocal ? !isMuted : true)
 
   return (
-    <div className="flex items-center gap-3 p-3 rounded-lg bg-app-dark/50 hover:bg-app-dark transition-colors">
-      {/* Avatar with green speaking ring */}
-      <div className={`w-10 h-10 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-base transition-shadow duration-150 ${
-        speaking
-          ? 'ring-[3px] ring-[#23a559] shadow-[0_0_8px_rgba(35,165,89,0.5)]'
-          : 'ring-2 ring-transparent'
-      }`}>
-        {participant.username.charAt(0).toUpperCase()}
+    <div className="flex flex-col items-center justify-center rounded-xl bg-app-dark/60 overflow-hidden border border-app-hover/50 min-h-[240px]">
+      {/* Big circular avatar - Discord-style prominent display */}
+      <div className="flex-1 w-full flex items-center justify-center p-6">
+        <div
+          className={`relative w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 rounded-full flex items-center justify-center text-white font-bold text-4xl sm:text-5xl transition-all duration-150 bg-app-accent ${
+            speaking
+              ? 'ring-4 ring-[#23a559] shadow-[0_0_16px_rgba(35,165,89,0.6)] scale-105'
+              : 'ring-2 ring-transparent'
+          }`}
+        >
+          {participant.username.charAt(0).toUpperCase()}
+          {isLocal && isMuted && (
+            <div className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-red-600 flex items-center justify-center">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27 6.05 7.3C6.02 7.46 6 7.62 6 7.79v4.26c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5-2.24-5-5h1.7c0 2.25 1.83 4.08 4.06 4.08.48 0 .94-.09 1.38-.24L19.73 21 21 19.73 4.27 3z"/>
+              </svg>
+            </div>
+          )}
+        </div>
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="font-semibold text-app-text text-sm">
-          {participant.username}{' '}
-          {participant.userId === currentUserId && <span className="text-app-muted font-normal">(you)</span>}
+      {/* Username & status */}
+      <div className="w-full px-3 pb-3 text-center">
+        <div className="font-semibold text-app-text text-sm truncate">
+          {participant.username}
+          {participant.userId === currentUserId && <span className="text-app-muted font-normal"> (you)</span>}
         </div>
         <div className="text-app-muted text-xs">
           {isLocal
@@ -114,9 +126,6 @@ function ParticipantCard({
       </div>
       {!isLocal && participant.stream && (
         <RemoteAudio stream={participant.stream} muted={isDeafened} />
-      )}
-      {!isLocal && participant.stream && (
-        <div className={`w-2 h-2 rounded-full ${speaking ? 'bg-app-online' : 'bg-app-online/50'}`} />
       )}
     </div>
   )
@@ -200,8 +209,13 @@ export function VoiceView({ channel, currentUserId, currentUsername }: VoiceView
           </div>
         )}
 
-        {/* Participant cards with per-participant speaking detection */}
-        <div className="space-y-2">
+        {/* Participant grid - Discord-style big squares */}
+        <div
+          className={`grid gap-4 ${allParticipants.length === 1 ? 'max-w-md mx-auto' : ''}`}
+          style={{
+            gridTemplateColumns: allParticipants.length === 1 ? '1fr' : allParticipants.length <= 4 ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(220px, 1fr))',
+          }}
+        >
           {allParticipants.map((p) => (
             <ParticipantCard
               key={p.userId}

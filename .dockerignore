@@ -15,8 +15,10 @@ backend/data.sqlite
 **/*.blockmap
 # Allow installer for download page (run "npm run package" + "copy-exe" before deploy)
 !frontend/public/NepsisChat-Setup.exe
+# Allow installer in backend/updates for /updates/download (run "npm run release")
+!backend/updates/*.exe
 
-# ── Updates: run "npm run clean-updates" before deploy to avoid multi-GB upload of old installers ──
+# ── Updates: run "npm run release" to populate before deploy ──
 backend/updates/
 !backend/updates/
 

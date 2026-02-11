@@ -9,6 +9,7 @@ import { VoiceView } from './components/VoiceView'
 import { MembersSidebar, type ServerMember } from './components/MembersSidebar'
 import { LoginPage } from './components/LoginPage'
 import { UpdateButton } from './components/UpdateButton'
+import { DownloadBanner } from './components/DownloadBanner'
 import { UserPanel } from './components/UserPanel'
 import { ServerSettingsModal } from './components/ServerSettingsModal'
 import { mockChannels } from './data/mockData'
@@ -64,7 +65,7 @@ function AppContent() {
 }
 
 interface MainLayoutProps {
-  user: { id: string; username: string; avatar_url?: string; is_guest?: boolean }
+  user: { id: string; username: string; avatar_url?: string; banner_url?: string; is_guest?: boolean }
   servers: { id: string; name: string; icon_url?: string; owner_id: string }[]
   channels: { id: string; server_id: string; name: string; type: 'text' | 'voice'; order: number; category_id?: string | null }[]
   categories: { id: string; server_id: string; name: string; order: number }[]
@@ -113,6 +114,7 @@ function MainLayout({
     setTimeout(() => setNotification(null), 3000)
   }
 
+  const { userStatus, setUserStatus, updateUser } = useApp()
   const currentUserRole = serverMembers.find((m) => m.userId === user.id)?.role ?? 'member'
 
   useEffect(() => {
@@ -146,12 +148,13 @@ function MainLayout({
     return () => clearInterval(interval)
   }, [currentServerId, user?.id])
 
-  // Update presence (online / in-voice)
+  // Update presence (online / in-voice / away / dnd) — in-voice overrides when in voice
+  const { userStatus } = useApp()
   useEffect(() => {
     if (!user) return
-    const status = voice.voiceChannelId ? 'in-voice' : 'online'
+    const status = voice.voiceChannelId ? 'in-voice' : userStatus
     api.updatePresence(user.id, status, voice.voiceChannelId ?? null).catch(() => {})
-  }, [user?.id, voice.voiceChannelId])
+  }, [user?.id, voice.voiceChannelId, userStatus])
 
   const handleKick = useCallback(
     async (targetUserId: string) => {
@@ -186,7 +189,7 @@ function MainLayout({
 
   // Build voice users map from ALL server members' presence — so users see who's in
   // each voice channel BEFORE entering (not just when they're already in one).
-  const voiceUsers: Record<string, { userId: string; username: string; isMuted?: boolean }[]> = {}
+  const voiceUsers: Record<string, { userId: string; username: string; isMuted?: boolean; isDeafened?: boolean }[]> = {}
   if (currentServerId && displayChannels.length > 0) {
     for (const member of serverMembers) {
       const chId = member.voiceChannelId
@@ -199,6 +202,7 @@ function MainLayout({
         userId: member.userId,
         username: member.username,
         isMuted: isCurrentUser ? voice.isMuted : undefined,
+        isDeafened: isCurrentUser ? voice.isDeafened : undefined,
       })
     }
     // When current user is in voice, merge real-time participants (for accurate mute state)
@@ -240,7 +244,7 @@ function MainLayout({
   }, [showServerSettings])
 
   return (
-    <div className="h-screen flex bg-app-darker">
+    <div className="h-screen flex bg-app-darker overflow-x-hidden">
       <ServerBar
         servers={servers.map((s) => ({ id: s.id, name: s.name, iconUrl: s.icon_url, ownerId: s.owner_id }))}
         currentServerId={currentServerId}
@@ -267,14 +271,16 @@ function MainLayout({
           isOwner={currentServer?.owner_id === user.id}
         />
         <UserPanel
-          username={user.username}
-          userId={user.id}
-          avatarUrl={user.avatar_url}
+          user={user}
           isMuted={voice.isMuted}
           isDeafened={voice.isDeafened}
+          isSpeaking={voice.isSpeaking}
+          userStatus={userStatus}
+          onSetStatus={setUserStatus}
           onToggleMute={() => voice.setIsMuted(!voice.isMuted)}
           onToggleDeafen={() => voice.setIsDeafened(!voice.isDeafened)}
           onLogout={logout}
+          onUserUpdate={updateUser}
         />
       </div>
 
@@ -282,6 +288,7 @@ function MainLayout({
       {currentChannel && currentChannel.type === 'text' ? (
         <ChatView
           channel={{ id: currentChannel.id, name: currentChannel.name, type: currentChannel.type, serverId: currentChannel.server_id, order: currentChannel.order }}
+          members={serverMembers.map((m) => ({ id: m.userId, username: m.username }))}
           serverEmojis={serverEmojis}
           messages={channelMessages.map((m) => ({
             id: m.id,
@@ -390,6 +397,7 @@ function MainLayout({
 export default function App() {
   return (
     <AppProvider>
+      <DownloadBanner />
       <UpdateButton />
       <Routes>
         <Route path="/" element={<AppContent />} />

@@ -37,6 +37,7 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 |-------|-------|----------|
 | Downloaded file corrupt/unreadable | Link pointed to non-existent exe | Run `npm run package:full` (or `copy-exe`) before deploy so `frontend/public/NepsisChat-Setup.exe` exists. Also ensure `.dockerignore` allows the exe (see deployment.md) |
 | Download link 404 / can't download exe | Exe excluded from Docker image or deploy without package:full | Deploy with `npm run release` (not just `npm run deploy`). The `.dockerignore` must allow `!frontend/public/NepsisChat-Setup.exe` |
+| **White screen + "Cannot GET /updates/download"** | (1) Installer not in backend/updates; release script skipped publish-update; .exe excluded from Docker. (2) Vercel missing `VITE_API_URL` — download link points to wrong host. | Run **`npm run release`** (not just `npm run deploy`). Release runs: package:full → publish-update → clean-updates → deploy. `.dockerignore` must include `!backend/updates/*.exe`. On Vercel, set `VITE_API_URL=https://nepsis-chat.fly.dev/api` so the download link points to the backend. |
 
 ---
 
