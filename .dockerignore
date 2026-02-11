@@ -1,12 +1,25 @@
-node_modules
-frontend/node_modules
-backend/node_modules
-electron/node_modules
-electron/dist
+# Exclude ALL node_modules (Docker build runs npm ci fresh)
+**/node_modules
+
+# Electron — not needed for server deployment
+electron/
+
+# Build artifacts
 frontend/dist
 backend/data.sqlite
+
+# Binaries
 *.exe
+
+# Git
 .git
+
+# Env overrides
 .env
 .env.local
-docs
+
+# Docs (not needed in image)
+docs/
+
+# Misc
+*.md
