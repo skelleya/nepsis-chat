@@ -1,7 +1,12 @@
 import { Link } from 'react-router-dom'
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+const BACKEND_URL = API_BASE.replace(/\/api\/?$/, '')
+
 export function DownloadPage() {
-  const downloadUrl = './NepsisChat-Setup.exe' // Installer in frontend/public/ - run "npm run package" then "npm run copy-exe" from electron
+  // When frontend is on Vercel: installer is on backend at /updates/download
+  // When single deploy (Fly): installer is at ./NepsisChat-Setup.exe from public/
+  const downloadUrl = BACKEND_URL ? `${BACKEND_URL}/updates/download` : './NepsisChat-Setup.exe'
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-app-darker">
@@ -13,7 +18,9 @@ export function DownloadPage() {
         </p>
         <a
           href={downloadUrl}
-          download="NepsisChat.exe"
+          download={downloadUrl.startsWith('http') ? undefined : 'NepsisChat.exe'}
+          target={downloadUrl.startsWith('http') ? '_blank' : undefined}
+          rel={downloadUrl.startsWith('http') ? 'noopener noreferrer' : undefined}
           className="inline-block px-8 py-4 rounded-lg bg-app-accent hover:bg-app-accent-hover text-white font-semibold transition-colors"
         >
           Download for Windows (.exe)

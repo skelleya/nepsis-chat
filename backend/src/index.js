@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import fs from 'fs'
 import express from 'express'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
@@ -9,6 +10,11 @@ import { fileURLToPath } from 'url'
 import { authRouter } from './routes/auth.js'
 import { serversRouter } from './routes/servers.js'
 import { messagesRouter } from './routes/messages.js'
+import { uploadsRouter } from './routes/uploads.js'
+import { emojisRouter } from './routes/emojis.js'
+import { usersRouter } from './routes/users.js'
+import { dmRouter } from './routes/dm.js'
+import { friendsRouter } from './routes/friends.js'
 import { versionRouter } from './routes/version.js'
 import { registerChatHandlers } from './socket/chat.js'
 import { registerVoiceHandlers } from './socket/voice.js'
@@ -48,22 +54,47 @@ app.use(express.json())
 app.use('/api/auth', authRouter)
 app.use('/api/servers', serversRouter)
 app.use('/api/messages', messagesRouter)
+app.use('/api/uploads', uploadsRouter)
+app.use('/api/emojis', emojisRouter)
+app.use('/api/users', usersRouter)
+app.use('/api/dm', dmRouter)
+app.use('/api/friends', friendsRouter)
 app.use('/api/version', versionRouter)
+
+// Redirect /updates/download to latest installer (for download page when frontend is on Vercel)
+app.get('/updates/download', (req, res) => {
+  const updatesDir = path.join(__dirname, '../updates')
+  const latestYml = path.join(updatesDir, 'latest.yml')
+  if (!fs.existsSync(latestYml)) {
+    return res.status(404).json({ error: 'No installer available yet' })
+  }
+  const yml = fs.readFileSync(latestYml, 'utf8')
+  const pathMatch = yml.match(/^path:\s*(.+)$/m)
+  const installerName = pathMatch ? pathMatch[1].trim() : null
+  if (!installerName || !fs.existsSync(path.join(updatesDir, installerName))) {
+    return res.status(404).json({ error: 'Installer not found' })
+  }
+  res.redirect(302, `/updates/${encodeURIComponent(installerName)}`)
+})
+
 app.use('/updates', express.static(path.join(__dirname, '../updates')))
 
-// Serve frontend static files in production
+// Serve frontend static files (only when bundled with backend — e.g. single Fly deploy)
 const frontendPath = path.join(__dirname, '../public')
-app.use(express.static(frontendPath))
-// SPA fallback — any non-API route serves index.html
-app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api/') || req.path.startsWith('/updates') || req.path.startsWith('/socket.io')) {
-    return next()
-  }
-  res.sendFile(path.join(frontendPath, 'index.html'))
-})
+if (fs.existsSync(path.join(frontendPath, 'index.html'))) {
+  app.use(express.static(frontendPath))
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/') || req.path.startsWith('/updates') || req.path.startsWith('/socket.io')) {
+      return next()
+    }
+    res.sendFile(path.join(frontendPath, 'index.html'))
+  })
+}
 
 const chatNamespace = io.of('/chat')
 const voiceNamespace = io.of('/voice')
+
+app.set('voiceNamespace', voiceNamespace)
 
 registerChatHandlers(chatNamespace)
 registerVoiceHandlers(voiceNamespace)

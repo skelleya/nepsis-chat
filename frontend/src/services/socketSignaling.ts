@@ -32,25 +32,40 @@ export function createSocketSignaling(
     socket.emit('ice-candidate', { to, candidate })
   }
 
-  const onMessage = (handler: (msg: { type: string; from?: string; fromUserId?: string; sdp?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit; userId?: string; socketId?: string; username?: string }) => void) => {
+  const onMessage = (handler: (msg: {
+    type: string
+    from?: string
+    fromUserId?: string
+    username?: string
+    sdp?: RTCSessionDescriptionInit
+    candidate?: RTCIceCandidateInit
+    userId?: string
+    socketId?: string
+    peers?: { socketId: string; userId: string; username: string }[]
+  }) => void) => {
     socket.on('peer-joined', (data: { socketId: string; userId: string; username: string }) => {
       handler({ type: 'peer-joined', socketId: data.socketId, userId: data.userId, username: data.username })
     })
     socket.on('peer-left', (data: { userId: string }) => {
       handler({ type: 'peer-left', userId: data.userId })
     })
-    socket.on('offer', (data: { from: string; fromUserId?: string; sdp: RTCSessionDescriptionInit }) => {
-      handler({ type: 'offer', from: data.from, fromUserId: data.fromUserId, sdp: data.sdp })
+    socket.on('room-peers', (data: { peers: { socketId: string; userId: string; username: string }[] }) => {
+      handler({ type: 'room-peers', peers: data.peers })
     })
-    socket.on('answer', (data: { from: string; fromUserId?: string; sdp: RTCSessionDescriptionInit }) => {
-      handler({ type: 'answer', from: data.from, fromUserId: data.fromUserId, sdp: data.sdp })
+    // FIX: Forward fromUsername as 'username' so webrtc.ts can use it for display
+    socket.on('offer', (data: { from: string; fromUserId?: string; fromUsername?: string; sdp: RTCSessionDescriptionInit }) => {
+      handler({ type: 'offer', from: data.from, fromUserId: data.fromUserId, username: data.fromUsername, sdp: data.sdp })
     })
-    socket.on('ice-candidate', (data: { from: string; fromUserId?: string; candidate: RTCIceCandidateInit }) => {
-      handler({ type: 'ice-candidate', from: data.from, fromUserId: data.fromUserId, candidate: data.candidate })
+    socket.on('answer', (data: { from: string; fromUserId?: string; fromUsername?: string; sdp: RTCSessionDescriptionInit }) => {
+      handler({ type: 'answer', from: data.from, fromUserId: data.fromUserId, username: data.fromUsername, sdp: data.sdp })
+    })
+    socket.on('ice-candidate', (data: { from: string; fromUserId?: string; fromUsername?: string; candidate: RTCIceCandidateInit }) => {
+      handler({ type: 'ice-candidate', from: data.from, fromUserId: data.fromUserId, username: data.fromUsername, candidate: data.candidate })
     })
     return () => {
       socket.off('peer-joined')
       socket.off('peer-left')
+      socket.off('room-peers')
       socket.off('offer')
       socket.off('answer')
       socket.off('ice-candidate')
@@ -73,5 +88,10 @@ export function createSocketSignaling(
 
   const getSocketId = () => socket.id
 
-  return { sendOffer, sendAnswer, sendIceCandidate, onMessage, join, leave, close, getSocketId }
+  const onAdminMove = (callback: (data: { channelId: string; channelName: string }) => void) => {
+    socket.on('admin-move-to-channel', callback)
+    return () => socket.off('admin-move-to-channel', callback)
+  }
+
+  return { sendOffer, sendAnswer, sendIceCandidate, onMessage, join, leave, close, getSocketId, onAdminMove }
 }

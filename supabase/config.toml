@@ -1,0 +1,15 @@
+# Supabase local project config
+# Run: supabase init (already done), supabase link, supabase db push
+# See: https://supabase.com/docs/guides/cli
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+
+[db]
+port = 54322
+
+[studio]
+enabled = true
+port = 54323

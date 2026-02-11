@@ -2,7 +2,8 @@
 node_modules/
 **/node_modules/
 
-# ── Electron — not needed for server deployment ──
+# ── Electron — NOT needed for server (~11 GB of installers + win-unpacked) ──
+electron
 electron/
 
 # ── Build artifacts ──
@@ -12,7 +13,12 @@ backend/data.sqlite
 # ── Large binaries ──
 **/*.exe
 **/*.blockmap
+# Allow installer for download page (run "npm run package" + "copy-exe" before deploy)
+!frontend/public/NepsisChat-Setup.exe
+
+# ── Updates: run "npm run clean-updates" before deploy to avoid multi-GB upload of old installers ──
 backend/updates/
+!backend/updates/
 
 # ── Git ──
 .git/
@@ -27,3 +33,4 @@ docs/
 # ── Misc ──
 *.md
 scripts/
+supabase/

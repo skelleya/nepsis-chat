@@ -1,21 +1,44 @@
 # Deployment
 
-Fly.io deployment, Supabase, Docker, and environment config.
+Split deployment: **Vercel** (frontend) + **Fly.io** (backend). Supabase for DB.
 
 ---
 
-## Architecture
+## Architecture (split)
 
 ```
-User/Electron → https://nepsis-chat.fly.dev
+User (browser)    → https://nepsis-chat.vercel.app   (Vercel — frontend only)
+User (Electron)   → loads from Vercel or local
+
+Both connect to:
+   https://nepsis-chat.fly.dev   (Fly.io — backend)
                    ├─ /api/*       → Express API (data from Supabase Postgres)
-                   ├─ /updates/*   → Electron update files
-                   ├─ /socket.io   → Socket.io (chat + voice signaling)
-                   └─ /*           → Frontend static files (React SPA)
+                   ├─ /updates/*   → Electron update files + /updates/download redirect
+                   └─ /socket.io   → Socket.io (chat + voice signaling)
 
 Supabase (external)
    ├─ Postgres      → All app data (users, servers, channels, messages)
    └─ Auth          → Email sign up / sign in
+```
+
+---
+
+## Quick deploy (frontend changes only)
+
+```bash
+git push   # Vercel auto-deploys from GitHub — ~1 min
+```
+
+---
+
+## Full deploy (backend or desktop release)
+
+```bash
+# Backend only (no Electron)
+npm run deploy
+
+# Full release (includes desktop installer)
+npm run release
 ```
 
 ---
@@ -52,7 +75,36 @@ Schema is in `backend/supabase-migration.sql`. Run it in the Supabase SQL Editor
 
 ---
 
-## Fly.io
+## Vercel (frontend)
+
+| Item | Value |
+|------|-------|
+| Project | Connect repo to Vercel |
+| Root | Set **Root Directory** to `frontend` |
+| Build | Auto (uses `frontend/vercel.json`) |
+
+### Env vars (set in Vercel dashboard)
+
+| Variable | Value |
+|----------|-------|
+| `VITE_API_URL` | `https://nepsis-chat.fly.dev/api` |
+| `VITE_SUPABASE_URL` | (from Supabase) |
+| `VITE_SUPABASE_ANON_KEY` | (from Supabase) |
+
+### Deploy
+
+Push to GitHub — Vercel auto-deploys. ~1 min.
+
+### First-time setup
+
+1. Go to [vercel.com](https://vercel.com) → New Project → Import your GitHub repo
+2. Set **Root Directory** to `frontend` (required for monorepo)
+3. Add env vars: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+4. Deploy
+
+---
+
+## Fly.io (backend)
 
 | Item | Value |
 |------|-------|
@@ -63,9 +115,19 @@ Schema is in `backend/supabase-migration.sql`. Run it in the Supabase SQL Editor
 
 ### Deploy
 
+**Backend only** (no frontend in image — Dockerfile is backend-only):
+
 ```bash
-flyctl deploy --app nepsis-chat --local-only
+npm run deploy   # flyctl deploy
 ```
+
+**For desktop release** (installer in /updates):
+
+```bash
+npm run release   # package:full + clean-updates + deploy
+```
+
+The download page (on Vercel) links to `https://nepsis-chat.fly.dev/updates/download` which redirects to the latest installer.
 
 ### Logs and status
 
@@ -84,12 +146,9 @@ flyctl status --app nepsis-chat
 
 ---
 
-## Docker
+## Docker (backend only)
 
-The `Dockerfile` is a multi-stage build:
-
-1. **Stage 1** (`frontend-build`): Installs frontend deps, runs `npm run build`
-2. **Stage 2** (`production`): Installs backend deps, copies backend source + built frontend into `backend/public/`
+The `Dockerfile` is backend-only — no frontend. Frontend is on Vercel.
 
 After deploying, free disk space with:
 

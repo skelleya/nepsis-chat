@@ -1,5 +1,6 @@
+import { useState, useRef, useEffect } from 'react'
 import type { Channel } from '../types'
-import { useVoiceChannel } from '../hooks/useVoiceChannel'
+import { useVoice, type VoiceParticipant } from '../contexts/VoiceContext'
 import { RemoteAudio } from './RemoteAudio'
 
 interface VoiceViewProps {
@@ -8,101 +9,296 @@ interface VoiceViewProps {
   currentUsername: string
 }
 
+function VideoElement({ stream, muted = false, label }: { stream: MediaStream; muted?: boolean; label: string }) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream
+    }
+  }, [stream])
+  return (
+    <div className="relative aspect-video bg-black rounded-lg overflow-hidden border border-app-hover">
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted={muted}
+        className="w-full h-full object-cover"
+      />
+      <div className="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded text-xs text-white">
+        {label}
+      </div>
+    </div>
+  )
+}
+
+// Hook for voice activity detection on any MediaStream
+function useSpeakingDetector(stream: MediaStream | null, enabled = true): boolean {
+  const [speaking, setSpeaking] = useState(false)
+  useEffect(() => {
+    if (!stream || !enabled) {
+      setSpeaking(false)
+      return
+    }
+    const audioTracks = stream.getAudioTracks()
+    if (audioTracks.length === 0) {
+      setSpeaking(false)
+      return
+    }
+    let running = true
+    let audioCtx: AudioContext | null = null
+    try {
+      audioCtx = new AudioContext()
+      const analyser = audioCtx.createAnalyser()
+      analyser.fftSize = 256
+      const source = audioCtx.createMediaStreamSource(stream)
+      source.connect(analyser)
+      const dataArray = new Uint8Array(analyser.frequencyBinCount)
+
+      const check = () => {
+        if (!running) return
+        analyser.getByteFrequencyData(dataArray)
+        const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length
+        setSpeaking(avg > 12)
+        setTimeout(check, 100)
+      }
+      check()
+    } catch { /* AudioContext not available */ }
+    return () => {
+      running = false
+      audioCtx?.close()
+    }
+  }, [stream, enabled])
+  return speaking
+}
+
+// Individual participant card with speaking detection
+function ParticipantCard({
+  participant,
+  isLocal,
+  localStream,
+  isMuted,
+  isDeafened,
+  currentUserId,
+}: {
+  participant: { userId: string; username: string; stream: MediaStream | null; isSpeaking: boolean }
+  isLocal: boolean
+  localStream: MediaStream | null
+  isMuted: boolean
+  isDeafened: boolean
+  currentUserId: string
+}) {
+  const detectStream = isLocal ? localStream : participant.stream
+  const speaking = useSpeakingDetector(detectStream, isLocal ? !isMuted : true)
+
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-lg bg-app-dark/50 hover:bg-app-dark transition-colors">
+      {/* Avatar with green speaking ring */}
+      <div className={`w-10 h-10 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-base transition-shadow duration-150 ${
+        speaking
+          ? 'ring-[3px] ring-[#23a559] shadow-[0_0_8px_rgba(35,165,89,0.5)]'
+          : 'ring-2 ring-transparent'
+      }`}>
+        {participant.username.charAt(0).toUpperCase()}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="font-semibold text-app-text text-sm">
+          {participant.username}{' '}
+          {participant.userId === currentUserId && <span className="text-app-muted font-normal">(you)</span>}
+        </div>
+        <div className="text-app-muted text-xs">
+          {isLocal
+            ? (isMuted ? 'Muted' : speaking ? 'Speaking' : 'Connected')
+            : (participant.stream ? 'Connected' : 'Connecting...')}
+        </div>
+      </div>
+      {!isLocal && participant.stream && (
+        <RemoteAudio stream={participant.stream} muted={isDeafened} />
+      )}
+      {!isLocal && participant.stream && (
+        <div className={`w-2 h-2 rounded-full ${speaking ? 'bg-app-online' : 'bg-app-online/50'}`} />
+      )}
+    </div>
+  )
+}
+
 export function VoiceView({ channel, currentUserId, currentUsername }: VoiceViewProps) {
+  const voice = useVoice()
   const {
     participants,
-    localStream,
     isMuted,
     setIsMuted,
     isDeafened,
     setIsDeafened,
-    join,
-    leave,
+    isCameraOn,
+    isScreenSharing,
+    toggleCamera,
+    toggleScreenShare,
+    videoStream,
+    screenStream,
+    leaveVoice,
+    voiceChannelId,
+    localStream,
     error,
-  } = useVoiceChannel(channel.id, currentUserId, currentUsername)
+  } = voice
 
-  const isInVoice = !!localStream
-  const allParticipants = isInVoice
-    ? [
-        { userId: currentUserId, username: currentUsername, stream: null, isSpeaking: !isMuted },
-        ...participants,
-      ]
+  const isInThisChannel = voiceChannelId === channel.id
+
+  const localParticipant = {
+    userId: currentUserId,
+    username: currentUsername,
+    stream: null as MediaStream | null,
+    isSpeaking: false,
+  }
+
+  const allParticipants: (VoiceParticipant | typeof localParticipant)[] = isInThisChannel
+    ? [localParticipant, ...participants]
     : participants
+
+  const hasVideo = isInThisChannel && (isCameraOn || isScreenSharing)
 
   return (
     <div className="flex-1 flex flex-col bg-app-darker">
+      {/* Header */}
       <div className="h-12 px-4 flex items-center border-b border-app-dark shadow-sm">
-        <span className="text-xl text-app-muted">🔊</span>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-app-muted">
+          <path d="M11.383 3.07904C11.009 2.92504 10.579 3.01004 10.293 3.29604L6.586 7.00304H4C3.45 7.00304 3 7.45304 3 8.00304V16.003C3 16.553 3.45 17.003 4 17.003H6.586L10.293 20.71C10.579 20.996 11.009 21.082 11.383 20.927C11.757 20.772 12 20.407 12 20.003V4.00304C12 3.59904 11.757 3.23404 11.383 3.07904Z"/>
+          <path d="M14 9.00304C14 9.00304 16 10.003 16 12.003C16 14.003 14 15.003 14 15.003" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/>
+          <path d="M17 7.00304C17 7.00304 20 9.00304 20 12.003C20 15.003 17 17.003 17 17.003" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/>
+        </svg>
         <span className="ml-2 font-semibold text-app-text">{channel.name}</span>
+        {isInThisChannel && (
+          <span className="ml-2 text-xs text-app-muted">/ {allParticipants.length} connected</span>
+        )}
       </div>
+
       {error && (
         <div className="mx-4 mt-2 p-2 rounded bg-red-900/50 text-red-200 text-sm">{error}</div>
       )}
+
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="text-app-muted text-sm mb-4">
-          {allParticipants.length} in voice
-        </div>
-        <div className="space-y-3">
+        {/* Video / Screen share grid */}
+        {hasVideo && (
+          <div className="mb-4 grid gap-2" style={{ gridTemplateColumns: isCameraOn && isScreenSharing ? '1fr 1fr' : '1fr' }}>
+            {isScreenSharing && screenStream && (
+              <VideoElement stream={screenStream} muted label="Screen Share" />
+            )}
+            {isCameraOn && videoStream && (
+              <VideoElement stream={videoStream} muted label={`${currentUsername} (Camera)`} />
+            )}
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!isInThisChannel && allParticipants.length === 0 && (
+          <div className="text-center py-10">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor" className="text-app-muted/50 mx-auto mb-3">
+              <path d="M11.383 3.07904C11.009 2.92504 10.579 3.01004 10.293 3.29604L6.586 7.00304H4C3.45 7.00304 3 7.45304 3 8.00304V16.003C3 16.553 3.45 17.003 4 17.003H6.586L10.293 20.71C10.579 20.996 11.009 21.082 11.383 20.927C11.757 20.772 12 20.407 12 20.003V4.00304C12 3.59904 11.757 3.23404 11.383 3.07904Z"/>
+            </svg>
+            <h3 className="text-lg font-semibold text-app-text mb-1">{channel.name}</h3>
+            <p className="text-sm text-app-muted mb-4">No one is currently in this voice channel.</p>
+          </div>
+        )}
+
+        {/* Participant cards with per-participant speaking detection */}
+        <div className="space-y-2">
           {allParticipants.map((p) => (
-            <div
+            <ParticipantCard
               key={p.userId}
-              className="flex items-center gap-3 p-3 rounded-lg bg-app-dark/50 hover:bg-app-dark"
-            >
-              <div className="w-12 h-12 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-lg">
-                {p.username.charAt(0)}
-              </div>
-              <div className="flex-1">
-                <div className="font-semibold text-app-text">
-                  {p.username} {p.userId === currentUserId && '(you)'}
-                </div>
-                <div className="text-app-muted text-sm">
-                  {p.userId === currentUserId ? (isMuted ? 'Muted' : 'Speaking') : (p.stream ? 'Connected' : 'Connecting...')}
-                </div>
-              </div>
-              {p.stream && (
-                <RemoteAudio stream={p.stream} muted={isDeafened} />
-              )}
-              {p.stream && <div className="w-2 h-2 rounded-full bg-app-online" />}
-            </div>
+              participant={p}
+              isLocal={p.userId === currentUserId}
+              localStream={localStream}
+              isMuted={isMuted}
+              isDeafened={isDeafened}
+              currentUserId={currentUserId}
+            />
           ))}
         </div>
       </div>
+
+      {/* Bottom controls */}
       <div className="p-4 border-t border-app-dark">
-        {isInVoice ? (
+        {isInThisChannel ? (
           <div className="flex items-center justify-center gap-2">
             <button
               onClick={() => setIsMuted(!isMuted)}
               className={`p-3 rounded-full transition-colors ${
-                isMuted ? 'bg-red-600 hover:bg-red-700' : 'bg-app-hover hover:bg-app-channel'
+                isMuted ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-app-hover hover:bg-app-channel text-app-text'
               }`}
               title={isMuted ? 'Unmute' : 'Mute'}
             >
-              {isMuted ? '🔇' : '🎤'}
+              {isMuted ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27 6.05 7.3C6.02 7.46 6 7.62 6 7.79v4.26c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5-2.24-5-5h1.7c0 2.25 1.83 4.08 4.06 4.08.48 0 .94-.09 1.38-.24L19.73 21 21 19.73 4.27 3z"/>
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
+                </svg>
+              )}
             </button>
             <button
               onClick={() => setIsDeafened(!isDeafened)}
               className={`p-3 rounded-full transition-colors ${
-                isDeafened ? 'bg-red-600 hover:bg-red-700' : 'bg-app-hover hover:bg-app-channel'
+                isDeafened ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-app-hover hover:bg-app-channel text-app-text'
               }`}
               title={isDeafened ? 'Undeafen' : 'Deafen'}
             >
-              {isDeafened ? '🔇' : '🔊'}
+              {isDeafened ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 1a9 9 0 0 0-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h3c1.66 0 3-1.34 3-3v-7a9 9 0 0 0-9-9z"/>
+                  <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 1a9 9 0 0 0-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h3c1.66 0 3-1.34 3-3v-7a9 9 0 0 0-9-9z"/>
+                </svg>
+              )}
             </button>
             <button
-              onClick={leave}
-              className="p-3 rounded-full bg-red-600 hover:bg-red-700 transition-colors"
-              title="Leave channel"
+              onClick={toggleCamera}
+              className={`p-3 rounded-full transition-colors ${
+                isCameraOn ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-app-hover hover:bg-app-channel text-app-text'
+              }`}
+              title={isCameraOn ? 'Turn Off Camera' : 'Turn On Camera'}
             >
-              📞
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                {isCameraOn ? (
+                  <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
+                ) : (
+                  <path d="M21 6.5l-4 4V7c0-.55-.45-1-1-1H9.82L21 17.18V6.5zM3.27 2L2 3.27 4.73 6H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.21 0 .39-.08.54-.18L19.73 21 21 19.73 3.27 2z"/>
+                )}
+              </svg>
+            </button>
+            <button
+              onClick={toggleScreenShare}
+              className={`p-3 rounded-full transition-colors ${
+                isScreenSharing ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-app-hover hover:bg-app-channel text-app-text'
+              }`}
+              title={isScreenSharing ? 'Stop Sharing' : 'Share Your Screen'}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/>
+                {isScreenSharing && (
+                  <path d="M9 14L12 10L15 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/>
+                )}
+              </svg>
+            </button>
+            <button
+              onClick={leaveVoice}
+              className="p-3 rounded-full bg-red-600 hover:bg-red-700 transition-colors text-white"
+              title="End Call"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 00-2.67-1.85.996.996 0 01-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
+                <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+              </svg>
             </button>
           </div>
         ) : (
-          <button
-            onClick={join}
-            className="w-full px-6 py-3 rounded-full bg-app-accent hover:bg-app-accent-hover text-white font-semibold transition-colors"
-          >
-            Join Voice
-          </button>
+          <div className="text-center text-app-muted text-sm">
+            Click to join this voice channel
+          </div>
         )}
       </div>
     </div>

@@ -35,7 +35,8 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 
 | Error | Cause | Solution |
 |-------|-------|----------|
-| Downloaded file corrupt/unreadable | Link pointed to non-existent exe | Vite served index.html. Run `npm run package:full` (or `copy-exe`) so `frontend/public/NepsisChat-Setup.exe` exists |
+| Downloaded file corrupt/unreadable | Link pointed to non-existent exe | Run `npm run package:full` (or `copy-exe`) before deploy so `frontend/public/NepsisChat-Setup.exe` exists. Also ensure `.dockerignore` allows the exe (see deployment.md) |
+| Download link 404 / can't download exe | Exe excluded from Docker image or deploy without package:full | Deploy with `npm run release` (not just `npm run deploy`). The `.dockerignore` must allow `!frontend/public/NepsisChat-Setup.exe` |
 
 ---
 
@@ -56,6 +57,9 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 |-------|-------|----------|
 | getUserMedia fails | Not HTTPS/localhost | Use localhost or HTTPS |
 | No audio between peers | Firewall/NAT | Add TURN server for strict NAT |
+| Users can't see/hear each other in voice (each sees only themselves) | **Two bugs**: (1) `handlePeerJoined` used `shouldInitiate` (socket ID comparison) — in socket mode, only existing peers get `peer-joined`, so if the existing peer's ID is larger, nobody initiates. (2) `handleOffer` never added local audio tracks to the peer connection — the answerer's audio was never included in the answer SDP, making them silent. | **Three fixes**: (1) In socket mode, `handlePeerJoined` ALWAYS initiates (no ID comparison needed — only existing peers receive the event). BroadcastChannel mode keeps the comparison to avoid glare. (2) `handleOffer` now adds `currentLocalStream` tracks before creating the answer. (3) Backend sends `room-peers` event to new joiners listing existing peers in the room. Files: `webrtc.ts`, `socketSignaling.ts`, `voice.js`. |
+| Remote user shows as socket ID (e.g. `RYmOZK82...`) instead of username | Backend `voice.js` only forwarded `fromUserId` in offer/answer/ice-candidate events, NOT `fromUsername`. The `socketSignaling.ts` also didn't map `fromUsername` to the `username` field. The webrtc client fell back to peerId (the socket ID) when username was undefined. | Backend now sends `fromUsername: socket.username` in all signaling events. `socketSignaling.ts` maps it to `username`. `webrtc.ts` uses `updatePeerMeta` to update username on every message. Files: `voice.js`, `socketSignaling.ts`, `webrtc.ts`. |
+| Camera/screen share not visible to remote users | Video/screen share streams were captured locally but never added to WebRTC peer connections. No renegotiation happened. | Added `addTrackToAllPeers` and `removeTrackFromAllPeers` to `webrtc.ts` which add/remove tracks and trigger SDP renegotiation. `VoiceContext.tsx` calls these when toggling camera/screen share. `handleOffer` now handles renegotiation offers for existing connections. |
 
 ---
 
@@ -71,6 +75,32 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | Only find 0.0.1 when 0.0.3 exists | publish-update/copy-exe used first .exe found | Scripts now use latest.yml to pick the correct installer; run `npm run package:full` |
 | Packaged app blank / routes broken / stuck on download page | `BrowserRouter` doesn't work with `file://` protocol. When Electron loads `index.html` via `loadFile`, the pathname is the full file path (not `/`), so no React Router route matches properly. | Switched from `BrowserRouter` to `HashRouter` in `main.tsx`. Hash routing (`/#/path`) works with any protocol including `file://`. Rebuild: `cd electron && npm run package:full`. |
 | Images (logo, favicon) not loading in packaged app | Hardcoded absolute paths like `/logo.png` resolve to filesystem root under `file://` protocol. | Changed asset paths from `/logo.png` to `./logo.png` in components (LoginPage, DownloadPage). Relative paths resolve correctly from `index.html` location. Vite's `base: './'` handles built JS/CSS assets automatically. |
+
+---
+
+## Fly.io Deployment
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| **This machine has exhausted its maximum restart attempts (10)** | App process exits immediately on startup; Fly.io retries until limit. | **Most likely: missing Supabase secrets.** Set secrets: `fly secrets set SUPABASE_URL=https://YOUR_PROJECT.supabase.co SUPABASE_SERVICE_ROLE_KEY=your_service_role_key` (replace with your values). Then `fly deploy`. Check logs: `fly logs --app nepsis-chat`. |
+| Machine restart loop | Backend `process.exit(1)` when `SUPABASE_URL` or `SUPABASE_SERVICE_ROLE_KEY` are missing | Set both secrets via `fly secrets set`. Get keys from Supabase Dashboard → Settings → API. |
+| Volume mount error | `nepsis_data` volume missing or wrong region | Create volume: `fly volumes create nepsis_data --region ord --size 1` |
+
+---
+
+## Friends & DM
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| "Friends feature not yet configured" when adding friend | `friend_requests` table missing | Run Supabase migration: `supabase/migrations/20250211000002_friend_requests.sql` in Supabase SQL Editor, or `supabase db push` |
+
+---
+
+## Presence & Voice Status
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| User shows "In voice" on Server A when they're in voice on Server B | Presence is global (one status per user). Members list showed raw presence without checking if the voice channel belongs to the current server. | **Fix**: Only show "In voice" when the member's `voiceChannelId` is in the current server's voice channels. MembersSidebar and MemberProfilePanel compute `displayStatus` using `voiceChannels.some(ch => ch.id === member.voiceChannelId)`. Voice connection bar in ChannelList only shows when `channels.some(c => c.id === voiceConnection.channelId)`. Files: `MembersSidebar.tsx`, `MemberProfilePanel.tsx`, `ChannelList.tsx`. |
 
 ---
 

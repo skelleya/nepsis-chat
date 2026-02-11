@@ -64,9 +64,23 @@ frontend/src/
 | Service | Purpose |
 |---------|---------|
 | api.ts | REST (login, servers, channels, messages) |
+| layoutCache.ts | localStorage cache for channels + categories per server; instant preview on switch |
 | signaling.ts | BroadcastChannel (2-tab test) |
 | socketSignaling.ts | Socket.io (with backend) |
 | webrtc.ts | WebRTC peer connections |
+
+---
+
+## Layout Cache
+
+Channels and categories are cached in `localStorage` (`nepsis_layout_cache`) so:
+
+1. **Instant preview** — When switching servers, cached layout shows immediately.
+2. **Background refresh** — When the tab becomes visible, all servers' layouts refresh in background.
+3. **Preload** — Other servers' layouts are fetched in background when viewing one server.
+4. **Mutations** — Create/reorder/delete channel or category updates cache.
+
+Cache is cleared on logout. See `frontend/src/services/layoutCache.ts`.
 
 ---
 

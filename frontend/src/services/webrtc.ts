@@ -1,7 +1,7 @@
 /**
- * WebRTC client - mesh topology for voice.
- * Uses getUserMedia for audio (Opus is default WebRTC codec).
- * Supports both BroadcastChannel and Socket.io signaling via adapter pattern.
+ * WebRTC client - mesh topology for voice/video.
+ * Uses getUserMedia for audio (Opus codec) and video.
+ * Supports both BroadcastChannel and Socket.io signaling.
  */
 
 export interface WebRTCHandlers {
@@ -31,6 +31,7 @@ export function createWebRTCClient(
 ) {
   const peers = new Map<string, { pc: RTCPeerConnection; userId?: string; username?: string }>()
   let currentLocalStream: MediaStream | null = null
+  const isSocketMode = !!signaling.getSocketId
 
   const createPeerConnection = (remotePeerId: string, userId?: string, username?: string): RTCPeerConnection => {
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
@@ -38,7 +39,12 @@ export function createWebRTCClient(
     pc.ontrack = (e) => {
       if (e.streams[0]) {
         const meta = peers.get(remotePeerId)
-        handlers.onRemoteStream(remotePeerId, meta?.userId ?? remotePeerId, meta?.username ?? remotePeerId, e.streams[0])
+        handlers.onRemoteStream(
+          remotePeerId,
+          meta?.userId ?? remotePeerId,
+          meta?.username ?? remotePeerId,
+          e.streams[0]
+        )
       }
     }
 
@@ -48,13 +54,23 @@ export function createWebRTCClient(
 
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+        const entry = peers.get(remotePeerId)
         peers.delete(remotePeerId)
-        handlers.onPeerLeft(remotePeerId)
+        handlers.onPeerLeft(entry?.userId ?? remotePeerId)
       }
     }
 
     peers.set(remotePeerId, { pc, userId, username })
     return pc
+  }
+
+  // Update stored metadata when we learn the real username from signaling
+  const updatePeerMeta = (peerId: string, userId?: string, username?: string) => {
+    const entry = peers.get(peerId)
+    if (entry) {
+      if (userId) entry.userId = userId
+      if (username) entry.username = username
+    }
   }
 
   const addLocalStream = (stream: MediaStream) => {
@@ -71,16 +87,33 @@ export function createWebRTCClient(
     if (!entry) {
       const pc = createPeerConnection(from, fromUserId, fromUsername)
       entry = { pc, userId: fromUserId, username: fromUsername }
+    } else {
+      // Update metadata if we now have a username
+      updatePeerMeta(from, fromUserId, fromUsername)
     }
+
+    // Add ALL local tracks (audio + any video) so bidirectional media works
+    if (currentLocalStream) {
+      const existingSenders = entry.pc.getSenders().filter((s) => s.track !== null)
+      if (existingSenders.length === 0) {
+        currentLocalStream.getTracks().forEach((track) => {
+          entry!.pc.addTrack(track, currentLocalStream!)
+        })
+      }
+    }
+
     await entry.pc.setRemoteDescription(new RTCSessionDescription(sdp))
     const answer = await entry.pc.createAnswer()
     await entry.pc.setLocalDescription(answer)
     if (entry.pc.localDescription) signaling.sendAnswer(from, entry.pc.localDescription)
   }
 
-  const handleAnswer = async (from: string, sdp: RTCSessionDescriptionInit) => {
+  const handleAnswer = async (from: string, sdp: RTCSessionDescriptionInit, fromUserId?: string, fromUsername?: string) => {
     const entry = peers.get(from)
-    if (entry) await entry.pc.setRemoteDescription(new RTCSessionDescription(sdp))
+    if (entry) {
+      updatePeerMeta(from, fromUserId, fromUsername)
+      await entry.pc.setRemoteDescription(new RTCSessionDescription(sdp))
+    }
   }
 
   const handleIceCandidate = async (from: string, candidate: RTCIceCandidateInit) => {
@@ -91,12 +124,18 @@ export function createWebRTCClient(
   const handlePeerJoined = (remotePeerId: string, userId?: string, username?: string) => {
     if (remotePeerId === localId) return
     if (peers.has(remotePeerId)) return
-    const useSocketId = !!signaling.getSocketId
-    const shouldInitiate = useSocketId
-      ? (signaling.getSocketId?.() ?? '') < remotePeerId
-      : localId < remotePeerId
-    if (currentLocalStream && shouldInitiate) {
-      connectToPeer(remotePeerId, currentLocalStream, userId, username)
+
+    if (isSocketMode) {
+      // Socket mode: Only existing peers receive 'peer-joined', so no glare risk.
+      if (currentLocalStream) {
+        connectToPeer(remotePeerId, currentLocalStream, userId, username)
+      }
+    } else {
+      // BroadcastChannel mode: Both tabs see the join, use ID comparison.
+      const shouldInitiate = localId < remotePeerId
+      if (currentLocalStream && shouldInitiate) {
+        connectToPeer(remotePeerId, currentLocalStream, userId, username)
+      }
     }
   }
 
@@ -112,6 +151,56 @@ export function createWebRTCClient(
     await pc.setLocalDescription(offer)
     if (pc.localDescription) signaling.sendOffer(remotePeerId, pc.localDescription)
   }
+
+  // ─── Video/Screen share: add/remove tracks + renegotiate ───────────
+
+  const addTrackToAllPeers = async (track: MediaStreamTrack, stream: MediaStream) => {
+    for (const [peerId, { pc }] of peers) {
+      try {
+        pc.addTrack(track, stream)
+        const offer = await pc.createOffer()
+        await pc.setLocalDescription(offer)
+        if (pc.localDescription) signaling.sendOffer(peerId, pc.localDescription)
+      } catch (err) {
+        console.error('Renegotiation (add track) failed for', peerId, err)
+      }
+    }
+  }
+
+  const removeTrackFromAllPeers = async (track: MediaStreamTrack) => {
+    for (const [peerId, { pc }] of peers) {
+      const sender = pc.getSenders().find((s) => s.track === track)
+      if (sender) {
+        try {
+          pc.removeTrack(sender)
+          const offer = await pc.createOffer()
+          await pc.setLocalDescription(offer)
+          if (pc.localDescription) signaling.sendOffer(peerId, pc.localDescription)
+        } catch (err) {
+          console.error('Renegotiation (remove track) failed for', peerId, err)
+        }
+      }
+    }
+  }
+
+  // ─── Ping measurement via RTCPeerConnection stats ─────────────────
+
+  const getPing = async (): Promise<number | null> => {
+    for (const [, { pc }] of peers) {
+      try {
+        const stats = await pc.getStats()
+        for (const report of stats.values()) {
+          if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+            const rtt = (report as { currentRoundTripTime?: number }).currentRoundTripTime
+            if (rtt != null) return Math.round(rtt * 1000)
+          }
+        }
+      } catch { /* ignore */ }
+    }
+    return null
+  }
+
+  // ─── Signaling message handler ────────────────────────────────────
 
   const leave = () => {
     peers.forEach(({ pc }) => pc.close())
@@ -130,7 +219,14 @@ export function createWebRTCClient(
       username?: string
       sdp?: RTCSessionDescriptionInit
       candidate?: RTCIceCandidateInit
+      peers?: { socketId: string; userId: string; username: string }[]
     }
+
+    if (m.type === 'room-peers') {
+      // Informational — existing peers will initiate via peer-joined
+      return
+    }
+
     if (m.type === 'peer-joined' || (m.type === 'join' && m.userId)) {
       const peerId = m.socketId ?? m.userId!
       handlePeerJoined(peerId, m.userId, m.username)
@@ -153,7 +249,7 @@ export function createWebRTCClient(
         if (e.userId === targetUserId || id === targetUserId) {
           e.pc.close()
           peers.delete(id)
-          handlers.onPeerLeft(id)
+          handlers.onPeerLeft(e.userId ?? id)
           removed = true
           break
         }
@@ -163,14 +259,14 @@ export function createWebRTCClient(
         if (entry) {
           entry.pc.close()
           peers.delete(targetUserId)
-          handlers.onPeerLeft(targetUserId)
+          handlers.onPeerLeft(entry.userId ?? targetUserId)
         }
       }
       return
     }
     const from = m.from!
     if (m.type === 'offer') handleOffer(from, m.sdp!, m.fromUserId, m.username)
-    if (m.type === 'answer') handleAnswer(from, m.sdp!)
+    if (m.type === 'answer') handleAnswer(from, m.sdp!, m.fromUserId, m.username)
     if (m.type === 'ice-candidate') handleIceCandidate(from, m.candidate!)
   })
 
@@ -178,6 +274,9 @@ export function createWebRTCClient(
     connectToPeer,
     addLocalStream,
     setLocalStream: (stream: MediaStream) => { currentLocalStream = stream },
+    addTrackToAllPeers,
+    removeTrackFromAllPeers,
+    getPing,
     leave: () => {
       leave()
       unsubscribe()

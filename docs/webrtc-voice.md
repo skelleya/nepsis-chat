@@ -54,3 +54,16 @@ Voice channels with WebRTC and Opus codec.
 
 - `stun:stun.l.google.com:19302`
 - TURN can be added later for NAT traversal
+
+---
+
+## Troubleshooting
+
+### Cannot see/hear other users in voice
+
+- **Different machines/browsers:** BroadcastChannel only works for same-origin tabs on the same machine. For 2+ users on different devices, you must:
+  1. Run the backend (`npm run dev:backend`)
+  2. Set `VITE_API_URL` (e.g. `http://localhost:3000/api` in `.env.development`)
+  3. Both users connect to the same backend URL
+- **Same machine, 2 tabs:** BroadcastChannel works; ensure both tabs join the same voice channel
+- **Microphone permissions:** Both users must allow microphone access

@@ -35,18 +35,29 @@ e:\Nepsis Chat\
 
 ### Components
 
-- **ServerBar** — Server list (left)
-- **ChannelList** — Text/voice channels
+- **ServerBar** — Server list (left sidebar), server icon tooltips, + button for creating servers, discover button
+- **ChannelList** — Text/voice channels organized by categories, collapsible sections, create channel button per category, server dropdown menu (create channel, create category, server settings), voice connection bar (when in voice shows channel name, disconnect, camera, screen share)
 - **ChatView** — Text channel + messages
-- **VoiceView** — Voice channel + participants
+- **VoiceView** — Voice channel + participants, camera/screen share video grid, mute/deafen/camera/screenshare/disconnect controls
 - **MembersSidebar** — Online members
+- **UserPanel** — Bottom-left user panel: avatar, username, status, mute button, deafen button, settings gear (opens UserSettingsModal)
+- **CreateServerModal** — Modal for creating a new server (name input, icon placeholder)
+- **CreateChannelModal** — Modal for creating a new channel (type selection: text/voice, name input)
+- **ServerSettingsModal** — Full-screen server settings: rename, delete server, navigation sidebar
+- **UserSettingsModal** — Full-screen user settings: account info, avatar, logout, navigation sidebar
 - **RemoteAudio** — Plays remote WebRTC audio
 - **UpdateButton** — Green update button (Electron only)
 - **LoginPage** — Username login
 
+### Contexts
+
+- **AppContext** — Global app state: user, servers, channels, categories, messages, CRUD operations for servers/channels/categories
+- **VoiceContext** — Global voice state: current voice channel, mute/deafen, camera/screen share, participants, join/leave/toggle controls
+
 ### Services
 
-- **api.ts** — REST API client
+- **api.ts** — REST API client (auth, servers, channels, categories, messages — full CRUD)
+- **layoutCache.ts** — Client-side cache for server layout (channels + categories), localStorage, instant preview on server switch
 - **signaling.ts** — BroadcastChannel signaling (2-tab test)
 - **socketSignaling.ts** — Socket.io signaling (with backend)
 - **webrtc.ts** — WebRTC client

@@ -134,3 +134,17 @@ fly launch            # fly.toml already configured
 fly volumes create nepsis_data --region ord --size 1
 fly deploy
 ```
+
+---
+
+## Supabase CLI
+
+| Command | Description |
+|---------|--------------|
+| `supabase init` | Initialize Supabase in project (creates `supabase/` folder) |
+| `supabase link` | Link to remote Supabase project |
+| `supabase db push` | Apply migrations from `supabase/migrations/` |
+| `supabase db pull` | Pull remote schema to a new migration file |
+
+Migrations live in `supabase/migrations/` as `YYYYMMDDHHMMSS_name.sql`.  
+You can also run `backend/supabase-migration.sql` directly in Supabase Dashboard → SQL Editor.

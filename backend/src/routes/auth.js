@@ -69,6 +69,52 @@ authRouter.post('/auth/callback', async (req, res) => {
   }
 })
 
+// Guest logout — leaves all servers, deletes guest account
+authRouter.delete('/guest/:userId', async (req, res) => {
+  const { userId } = req.params
+  if (!userId) {
+    return res.status(400).json({ error: 'userId required' })
+  }
+  try {
+    // Verify user exists and is a guest
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .eq('is_guest', true)
+      .single()
+
+    if (userError || !user) {
+      return res.status(404).json({ error: 'Guest user not found' })
+    }
+
+    // Remove guest from all server_members (leave all servers)
+    const { error: leaveError } = await supabase
+      .from('server_members')
+      .delete()
+      .eq('user_id', userId)
+
+    if (leaveError) {
+      console.error('Failed to remove guest from servers:', leaveError)
+      // Continue anyway — still delete the account
+    }
+
+    // Delete the guest user account
+    const { error: deleteError } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', userId)
+      .eq('is_guest', true)
+
+    if (deleteError) throw deleteError
+
+    res.json({ success: true, message: 'Guest account deleted' })
+  } catch (err) {
+    console.error('Guest logout error:', err)
+    res.status(500).json({ error: 'Failed to delete guest account' })
+  }
+})
+
 authRouter.get('/users', async (req, res) => {
   try {
     const { data, error } = await supabase

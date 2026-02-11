@@ -11,6 +11,14 @@ export interface Channel {
   type: 'text' | 'voice'
   serverId: string
   order: number
+  categoryId?: string | null
+}
+
+export interface Category {
+  id: string
+  name: string
+  serverId: string
+  order: number
 }
 
 export interface Server {
@@ -26,4 +34,18 @@ export interface Message {
   userId: string
   content: string
   createdAt: string
+  editedAt?: string
+  username?: string
+  replyToId?: string
+  replyTo?: { username?: string; content?: string }
+  attachments?: { url: string; type: string; filename?: string }[]
+  reactions?: { userId: string; emoji: string }[]
+}
+
+export interface VoiceParticipant {
+  userId: string
+  username: string
+  channelId: string
+  stream?: MediaStream | null
+  isMuted?: boolean
 }
