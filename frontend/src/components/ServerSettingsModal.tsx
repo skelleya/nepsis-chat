@@ -7,17 +7,57 @@ interface ServerEmoji {
   image_url: string
 }
 
+interface ServerMember {
+  userId: string
+  username: string
+  role: string
+  avatarUrl?: string
+  status?: string
+}
+
+interface ServerInvite {
+  code: string
+  created_by: string
+  expires_at?: string
+  max_uses?: number
+  use_count: number
+  created_at: string
+}
+
+interface AuditEntry {
+  id: string
+  userId: string
+  username: string
+  action: string
+  details: Record<string, unknown>
+  createdAt: string
+}
+
 interface ServerSettingsModalProps {
   serverName: string
   serverId: string
   userId?: string
   canManageEmojis?: boolean
+  canManageMembers?: boolean
   onClose: () => void
   onUpdateServer: (data: { name?: string }) => Promise<void>
   onDeleteServer: () => Promise<void>
+  onKickMember?: (targetUserId: string) => Promise<void>
+  onMembersChange?: () => void
 }
 
-export function ServerSettingsModal({ serverName, serverId, userId, canManageEmojis, onClose, onUpdateServer, onDeleteServer }: ServerSettingsModalProps) {
+export function ServerSettingsModal({
+  serverName,
+  serverId,
+  userId,
+  canManageEmojis,
+  canManageMembers,
+  onClose,
+  onUpdateServer,
+  onDeleteServer,
+  onKickMember,
+  onMembersChange,
+}: ServerSettingsModalProps) {
   const [name, setName] = useState(serverName)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [emojis, setEmojis] = useState<ServerEmoji[]>([])
@@ -25,11 +65,34 @@ export function ServerSettingsModal({ serverName, serverId, userId, canManageEmo
   const [emojiFile, setEmojiFile] = useState<File | null>(null)
   const [emojiError, setEmojiError] = useState('')
   const [emojiLoading, setEmojiLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'overview' | 'emojis'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'emojis' | 'members' | 'invites' | 'audit'>('overview')
+  const [members, setMembers] = useState<ServerMember[]>([])
+  const [invites, setInvites] = useState<ServerInvite[]>([])
+  const [auditLog, setAuditLog] = useState<AuditEntry[]>([])
+  const [inviteCreating, setInviteCreating] = useState(false)
+  const [copiedCode, setCopiedCode] = useState<string | null>(null)
 
   useEffect(() => {
     api.getServerEmojis(serverId).then(setEmojis).catch(() => setEmojis([]))
   }, [serverId])
+
+  useEffect(() => {
+    if (activeTab === 'members') {
+      api.getServerMembers(serverId).then(setMembers).catch(() => setMembers([]))
+    }
+  }, [serverId, activeTab])
+
+  useEffect(() => {
+    if (activeTab === 'invites') {
+      api.getServerInvites(serverId).then(setInvites).catch(() => setInvites([]))
+    }
+  }, [serverId, activeTab])
+
+  useEffect(() => {
+    if (activeTab === 'audit') {
+      api.getServerAuditLog(serverId).then(setAuditLog).catch(() => setAuditLog([]))
+    }
+  }, [serverId, activeTab])
 
   const handleUploadEmoji = async () => {
     if (!userId || !emojiName.trim() || !emojiFile) {
@@ -61,6 +124,54 @@ export function ServerSettingsModal({ serverName, serverId, userId, canManageEmo
     onClose()
   }
 
+  const handleCreateInvite = async () => {
+    if (!userId) return
+    setInviteCreating(true)
+    try {
+      const inv = await api.createInvite(serverId, userId)
+      const newInv = {
+        code: inv.code,
+        created_by: userId,
+        use_count: (inv as { use_count?: number }).use_count ?? 0,
+        created_at: (inv as { created_at?: string }).created_at ?? new Date().toISOString(),
+      }
+      setInvites((prev) => [newInv, ...prev])
+    } finally {
+      setInviteCreating(false)
+    }
+  }
+
+  const copyInviteLink = (code: string) => {
+    const base = `${window.location.origin}${window.location.pathname || '/'}#/invite/${code}`
+    navigator.clipboard.writeText(base)
+    setCopiedCode(code)
+    setTimeout(() => setCopiedCode(null), 2000)
+  }
+
+  const handleRevokeInvite = async (code: string) => {
+    if (!userId) return
+    try {
+      await api.revokeInvite(serverId, code, userId)
+      setInvites((prev) => prev.filter((i) => i.code !== code))
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const handleKick = async (targetUserId: string) => {
+    await onKickMember?.(targetUserId)
+    setMembers((prev) => prev.filter((m) => m.userId !== targetUserId))
+    onMembersChange?.()
+  }
+
+  const tabLabels: Record<string, string> = {
+    overview: 'Server Overview',
+    emojis: 'Custom Emojis',
+    members: 'Members',
+    invites: 'Invites',
+    audit: 'Audit Log',
+  }
+
   return (
     <div className="fixed inset-0 bg-[#313338] z-50 flex">
       {/* Left sidebar */}
@@ -81,11 +192,23 @@ export function ServerSettingsModal({ serverName, serverId, userId, canManageEmo
           >
             Custom Emojis
           </button>
-          <button className="w-full px-2.5 py-1.5 rounded text-sm text-app-muted hover:text-app-text hover:bg-app-hover/40 text-left mb-0.5">
+          <button
+            onClick={() => setActiveTab('members')}
+            className={`w-full px-2.5 py-1.5 rounded text-sm text-left mb-0.5 ${activeTab === 'members' ? 'text-white bg-app-hover/60' : 'text-app-muted hover:text-app-text hover:bg-app-hover/40'}`}
+          >
             Members
           </button>
-          <button className="w-full px-2.5 py-1.5 rounded text-sm text-app-muted hover:text-app-text hover:bg-app-hover/40 text-left mb-0.5">
+          <button
+            onClick={() => setActiveTab('invites')}
+            className={`w-full px-2.5 py-1.5 rounded text-sm text-left mb-0.5 ${activeTab === 'invites' ? 'text-white bg-app-hover/60' : 'text-app-muted hover:text-app-text hover:bg-app-hover/40'}`}
+          >
             Invites
+          </button>
+          <button
+            onClick={() => setActiveTab('audit')}
+            className={`w-full px-2.5 py-1.5 rounded text-sm text-left mb-0.5 ${activeTab === 'audit' ? 'text-white bg-app-hover/60' : 'text-app-muted hover:text-app-text hover:bg-app-hover/40'}`}
+          >
+            Audit Log
           </button>
           <div className="h-px bg-app-hover/50 my-2" />
           <button
@@ -99,60 +222,193 @@ export function ServerSettingsModal({ serverName, serverId, userId, canManageEmo
 
       {/* Main content */}
       <div className="flex-1 flex flex-col max-w-[740px] pt-[60px] px-10">
-        <h2 className="text-xl font-bold text-white mb-5">
-          {activeTab === 'overview' ? 'Server Overview' : 'Custom Emojis'}
-        </h2>
+        <h2 className="text-xl font-bold text-white mb-5">{tabLabels[activeTab]}</h2>
 
         {activeTab === 'emojis' && (
           <div className="space-y-6">
             <p className="text-sm text-app-muted">
-              Upload custom emojis for this server. Only server owners and admins can add emojis. Requires an email account.
+              Upload custom emojis for this server. Use <code className="px-1 py-0.5 rounded bg-[#1e1f22] text-xs">:emoji_name:</code> in chat. Owners and admins can add emojis.
             </p>
             {canManageEmojis && userId && (
-              <div className="p-4 rounded-lg bg-[#2b2d31] space-y-3">
-                <div>
-                  <label className="block text-xs font-bold text-app-muted uppercase mb-1">Emoji name</label>
-                  <input
-                    type="text"
-                    value={emojiName}
-                    onChange={(e) => setEmojiName(e.target.value)}
-                    placeholder="my_emoji"
-                    className="w-full px-3 py-2 bg-[#1e1f22] rounded text-app-text"
-                  />
+              <div
+                className="rounded-xl border-2 border-dashed border-app-hover/50 bg-[#2b2d31]/50 p-6 hover:border-app-accent/50 hover:bg-[#2b2d31]/80 transition-colors"
+                onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-app-accent/70') }}
+                onDragLeave={(e) => { e.currentTarget.classList.remove('border-app-accent/70') }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  e.currentTarget.classList.remove('border-app-accent/70')
+                  const f = e.dataTransfer.files?.[0]
+                  if (f && /^image\/(png|gif|jpeg|webp)$/.test(f.type)) setEmojiFile(f)
+                }}
+              >
+                <div className="flex flex-wrap gap-4 items-end">
+                  <div className="flex-1 min-w-[160px]">
+                    <label className="block text-xs font-bold text-app-muted uppercase mb-1.5">Emoji name</label>
+                    <input
+                      type="text"
+                      value={emojiName}
+                      onChange={(e) => setEmojiName(e.target.value)}
+                      placeholder="my_emoji"
+                      className="w-full px-3 py-2.5 bg-[#1e1f22] rounded-lg text-app-text border border-transparent focus:border-app-accent/50 focus:ring-1 focus:ring-app-accent/30 outline-none transition-all"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-[160px]">
+                    <label className="block text-xs font-bold text-app-muted uppercase mb-1.5">Image (PNG, GIF, JPEG, WebP)</label>
+                    <input
+                      type="file"
+                      accept="image/png,image/gif,image/jpeg,image/webp"
+                      onChange={(e) => setEmojiFile(e.target.files?.[0] || null)}
+                      className="block w-full text-sm text-app-muted file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-app-accent file:text-white file:cursor-pointer hover:file:bg-app-accent-hover"
+                    />
+                  </div>
+                  <button
+                    onClick={handleUploadEmoji}
+                    disabled={emojiLoading || !emojiName.trim() || !emojiFile}
+                    className="px-5 py-2.5 bg-app-accent hover:bg-app-accent-hover disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    {emojiLoading ? 'Uploading...' : 'Upload Emoji'}
+                  </button>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-app-muted uppercase mb-1">Image (PNG, GIF, max 256KB)</label>
-                  <input
-                    type="file"
-                    accept="image/png,image/gif,image/jpeg,image/webp"
-                    onChange={(e) => setEmojiFile(e.target.files?.[0] || null)}
-                    className="w-full text-sm text-app-muted"
-                  />
-                </div>
-                {emojiError && <p className="text-sm text-red-400">{emojiError}</p>}
-                <button
-                  onClick={handleUploadEmoji}
-                  disabled={emojiLoading || !emojiName.trim() || !emojiFile}
-                  className="px-4 py-2 bg-app-accent hover:bg-app-accent-hover text-white rounded text-sm disabled:opacity-50"
-                >
-                  {emojiLoading ? 'Uploading...' : 'Upload Emoji'}
-                </button>
+                {emojiError && <p className="mt-2 text-sm text-red-400">{emojiError}</p>}
+                <p className="mt-2 text-xs text-app-muted">Drag and drop an image here, or click to browse.</p>
               </div>
             )}
             <div>
-              <h3 className="text-sm font-semibold text-app-text mb-2">Server emojis</h3>
-              <div className="flex flex-wrap gap-3">
-                {emojis.length === 0 ? (
+              <h3 className="text-sm font-semibold text-app-text mb-3">Server emojis</h3>
+              {emojis.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-app-hover/40 bg-[#2b2d31]/30 p-12 text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-app-hover/30 flex items-center justify-center mx-auto mb-3">
+                    <span className="text-3xl opacity-50">😀</span>
+                  </div>
                   <p className="text-sm text-app-muted">No custom emojis yet.</p>
-                ) : (
-                  emojis.map((e) => (
-                    <div key={e.id} className="flex items-center gap-2 p-2 rounded bg-[#2b2d31]">
-                      <img src={e.image_url} alt={e.name} className="w-8 h-8 object-contain" />
-                      <span className="text-sm text-app-text">:{e.name}:</span>
+                  <p className="text-xs text-app-muted mt-1">Add one above to get started.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
+                  {emojis.map((e) => (
+                    <div
+                      key={e.id}
+                      className="group flex items-center gap-3 p-3 rounded-xl bg-[#2b2d31] hover:bg-[#36373d] transition-colors"
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-[#1e1f22] flex items-center justify-center flex-shrink-0 overflow-hidden">
+                        <img src={e.image_url} alt={e.name} className="w-8 h-8 object-contain" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className="text-sm font-medium text-app-text block truncate">:{e.name}:</span>
+                        <span className="text-xs text-app-muted truncate block">{e.name}</span>
+                      </div>
                     </div>
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'members' && (
+          <div className="space-y-4">
+            <p className="text-sm text-app-muted">Manage server members. Owners and admins can kick members.</p>
+            <div className="space-y-1">
+              {members.map((m) => (
+                <div
+                  key={m.userId}
+                  className="flex items-center justify-between px-3 py-2 rounded-lg bg-[#2b2d31] hover:bg-[#36373d]"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-app-accent/80 flex items-center justify-center text-white text-sm font-bold">
+                      {m.avatarUrl ? (
+                        <img src={m.avatarUrl} alt="" className="w-full h-full rounded-full object-cover" />
+                      ) : (
+                        m.username.charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-app-text">{m.username}</span>
+                      <span className="ml-2 text-xs text-app-muted uppercase">{m.role}</span>
+                    </div>
+                  </div>
+                  {canManageMembers && m.role !== 'owner' && m.userId !== userId && (
+                    <button
+                      onClick={() => handleKick(m.userId)}
+                      className="px-2 py-1 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded"
+                    >
+                      Kick
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'invites' && (
+          <div className="space-y-4">
+            <p className="text-sm text-app-muted">Create invite links to share with others. Anyone with the link can join your server.</p>
+            <button
+              onClick={handleCreateInvite}
+              disabled={inviteCreating || !userId}
+              className="px-4 py-2 bg-app-accent hover:bg-app-accent-hover text-white rounded text-sm disabled:opacity-50"
+            >
+              {inviteCreating ? 'Creating...' : 'Create Invite'}
+            </button>
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-app-text">Active invites</h3>
+              {invites.length === 0 ? (
+                <p className="text-sm text-app-muted">No invites yet. Create one above.</p>
+              ) : (
+                invites.map((inv) => (
+                  <div
+                    key={inv.code}
+                    className="flex items-center justify-between px-3 py-2 rounded-lg bg-[#2b2d31]"
+                  >
+                    <code className="text-sm text-app-muted font-mono">/{inv.code}</code>
+                    <span className="text-xs text-app-muted">Used {inv.use_count} times</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => copyInviteLink(inv.code)}
+                        className="px-2 py-1 text-xs text-app-accent hover:bg-app-accent/20 rounded"
+                      >
+                        {copiedCode === inv.code ? 'Copied!' : 'Copy'}
+                      </button>
+                      {canManageMembers && (
+                        <button
+                          onClick={() => handleRevokeInvite(inv.code)}
+                          className="px-2 py-1 text-xs text-red-400 hover:bg-red-500/20 rounded"
+                        >
+                          Revoke
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'audit' && (
+          <div className="space-y-4">
+            <p className="text-sm text-app-muted">Recent server actions. Only visible to server members.</p>
+            <div className="space-y-1 max-h-[400px] overflow-y-auto">
+              {auditLog.length === 0 ? (
+                <p className="text-sm text-app-muted">No audit entries yet.</p>
+              ) : (
+                auditLog.map((e) => (
+                  <div key={e.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-[#2b2d31] text-sm">
+                    <span className="text-app-muted shrink-0">
+                      {new Date(e.createdAt).toLocaleString()}
+                    </span>
+                    <span className="text-app-text font-medium">{e.username}</span>
+                    <span className="text-app-muted">
+                      {e.action === 'invite_created' && `created invite ${(e.details as { code?: string }).code || ''}`}
+                      {e.action === 'invite_revoked' && `revoked invite ${(e.details as { code?: string }).code || ''}`}
+                      {e.action === 'member_kicked' && 'kicked a member'}
+                      {e.action === 'member_joined' && 'joined via invite'}
+                      {!['invite_created', 'invite_revoked', 'member_kicked', 'member_joined'].includes(e.action) && e.action}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}

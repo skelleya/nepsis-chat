@@ -311,6 +311,81 @@ export async function kickMember(serverId: string, targetUserId: string, kickerU
   return res.json()
 }
 
+// ─── Invites ───────────────────────────────────────────
+
+export async function getInviteByCode(code: string): Promise<{
+  code: string
+  server: { id: string; name: string; iconUrl?: string }
+  inviter: string
+  expiresAt?: string
+  maxUses?: number
+  useCount?: number
+}> {
+  const res = await fetch(`${API_BASE}/invites/${code}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Invite not found or expired')
+  }
+  return res.json()
+}
+
+export async function joinViaInvite(code: string, userId: string): Promise<{ success: boolean; serverId: string }> {
+  const res = await fetch(`${API_BASE}/invites/${code}/join`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to join server')
+  }
+  return res.json()
+}
+
+export async function createInvite(serverId: string, createdBy: string): Promise<{ code: string }> {
+  const res = await fetch(`${API_BASE}/servers/${serverId}/invites`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ createdBy }),
+  })
+  if (!res.ok) throw new Error('Failed to create invite')
+  return res.json()
+}
+
+export async function getServerInvites(serverId: string): Promise<{
+  code: string
+  created_by: string
+  expires_at?: string
+  max_uses?: number
+  use_count: number
+  created_at: string
+}[]> {
+  const res = await fetch(`${API_BASE}/servers/${serverId}/invites`)
+  if (!res.ok) throw new Error('Failed to fetch invites')
+  return res.json()
+}
+
+export async function revokeInvite(serverId: string, code: string, revokedBy: string): Promise<void> {
+  const res = await fetch(
+    `${API_BASE}/servers/${serverId}/invites/${code}?revokedBy=${encodeURIComponent(revokedBy)}`,
+    { method: 'DELETE' }
+  )
+  if (!res.ok) throw new Error('Failed to revoke invite')
+}
+
+export async function getServerAuditLog(serverId: string): Promise<{
+  id: string
+  userId: string
+  username: string
+  action: string
+  details: Record<string, unknown>
+  createdAt: string
+}[]> {
+  const res = await fetch(`${API_BASE}/servers/${serverId}/audit-log`)
+  if (!res.ok) throw new Error('Failed to fetch audit log')
+  return res.json()
+}
+
 // ─── DM ───────────────────────────────────────────────
 
 export async function createOrGetDMConversation(userId: string, targetUserId: string): Promise<{ id: string }> {

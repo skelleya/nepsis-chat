@@ -7,6 +7,7 @@ interface VoiceViewProps {
   channel: Channel
   currentUserId: string
   currentUsername: string
+  onInvitePeople?: () => Promise<void>
 }
 
 function VideoElement({ stream, muted = false, label }: { stream: MediaStream; muted?: boolean; label: string }) {
@@ -131,7 +132,7 @@ function ParticipantCard({
   )
 }
 
-export function VoiceView({ channel, currentUserId, currentUsername }: VoiceViewProps) {
+export function VoiceView({ channel, currentUserId, currentUsername, onInvitePeople }: VoiceViewProps) {
   const voice = useVoice()
   const {
     participants,
@@ -169,15 +170,32 @@ export function VoiceView({ channel, currentUserId, currentUsername }: VoiceView
   return (
     <div className="flex-1 flex flex-col bg-app-darker">
       {/* Header */}
-      <div className="h-12 px-4 flex items-center border-b border-app-dark shadow-sm">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-app-muted">
-          <path d="M11.383 3.07904C11.009 2.92504 10.579 3.01004 10.293 3.29604L6.586 7.00304H4C3.45 7.00304 3 7.45304 3 8.00304V16.003C3 16.553 3.45 17.003 4 17.003H6.586L10.293 20.71C10.579 20.996 11.009 21.082 11.383 20.927C11.757 20.772 12 20.407 12 20.003V4.00304C12 3.59904 11.757 3.23404 11.383 3.07904Z"/>
-          <path d="M14 9.00304C14 9.00304 16 10.003 16 12.003C16 14.003 14 15.003 14 15.003" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/>
-          <path d="M17 7.00304C17 7.00304 20 9.00304 20 12.003C20 15.003 17 17.003 17 17.003" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/>
-        </svg>
-        <span className="ml-2 font-semibold text-app-text">{channel.name}</span>
-        {isInThisChannel && (
-          <span className="ml-2 text-xs text-app-muted">/ {allParticipants.length} connected</span>
+      <div className="h-12 px-4 flex items-center justify-between border-b border-app-dark shadow-sm">
+        <div className="flex items-center">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-app-muted">
+            <path d="M11.383 3.07904C11.009 2.92504 10.579 3.01004 10.293 3.29604L6.586 7.00304H4C3.45 7.00304 3 7.45304 3 8.00304V16.003C3 16.553 3.45 17.003 4 17.003H6.586L10.293 20.71C10.579 20.996 11.009 21.082 11.383 20.927C11.757 20.772 12 20.407 12 20.003V4.00304C12 3.59904 11.757 3.23404 11.383 3.07904Z"/>
+            <path d="M14 9.00304C14 9.00304 16 10.003 16 12.003C16 14.003 14 15.003 14 15.003" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/>
+            <path d="M17 7.00304C17 7.00304 20 9.00304 20 12.003C20 15.003 17 17.003 17 17.003" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/>
+          </svg>
+          <span className="ml-2 font-semibold text-app-text">{channel.name}</span>
+          {isInThisChannel && (
+            <span className="ml-2 text-xs text-app-muted">/ {allParticipants.length} connected</span>
+          )}
+        </div>
+        {onInvitePeople && (
+          <button
+            onClick={onInvitePeople}
+            className="px-2 py-1 rounded text-sm text-app-muted hover:text-app-text hover:bg-app-hover/50 flex items-center gap-1.5"
+            title="Invite People"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="8.5" cy="7" r="4"/>
+              <line x1="20" y1="8" x2="20" y2="14"/>
+              <line x1="23" y1="11" x2="17" y2="11"/>
+            </svg>
+            Invite
+          </button>
         )}
       </div>
 

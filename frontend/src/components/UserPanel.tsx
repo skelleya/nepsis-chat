@@ -85,12 +85,12 @@ export function UserPanel({
               <div className="text-sm font-semibold text-white truncate leading-tight flex items-center gap-1.5">
                 <span className="truncate">{user.username}</span>
                 {isMuted && (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="text-red-400 flex-shrink-0" title="Muted">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="text-red-400 flex-shrink-0" aria-label="Muted">
                     <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73 4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
                   </svg>
                 )}
                 {isDeafened && (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-400 flex-shrink-0" title="Deafened">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-400 flex-shrink-0" aria-label="Deafened">
                     <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
                     <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
                     <line x1="2" y1="2" x2="22" y2="22"/>

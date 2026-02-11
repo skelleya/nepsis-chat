@@ -15,6 +15,7 @@ import { ServerSettingsModal } from './components/ServerSettingsModal'
 import { mockChannels } from './data/mockData'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { DownloadPage } from './pages/DownloadPage'
+import { InvitePage } from './pages/InvitePage'
 
 function AppContent() {
   const {
@@ -149,7 +150,6 @@ function MainLayout({
   }, [currentServerId, user?.id])
 
   // Update presence (online / in-voice / away / dnd) — in-voice overrides when in voice
-  const { userStatus } = useApp()
   useEffect(() => {
     if (!user) return
     const status = voice.voiceChannelId ? 'in-voice' : userStatus
@@ -164,6 +164,18 @@ function MainLayout({
     },
     [currentServerId, user.id]
   )
+
+  const handleInvitePeople = useCallback(async () => {
+    if (!currentServerId || !user) return
+    try {
+      const inv = await api.createInvite(currentServerId, user.id)
+      const link = `${window.location.origin}${window.location.pathname || '/'}#/invite/${inv.code}`
+      await navigator.clipboard.writeText(link)
+      showNotification('Invite link copied to clipboard!')
+    } catch {
+      showNotification('Failed to create invite', 'error')
+    }
+  }, [currentServerId, user?.id])
 
   const displayChannels = channels.length > 0 ? channels : mockChannels.filter((c) => c.serverId === currentServerId).map((c) => ({
     id: c.id,
@@ -267,6 +279,7 @@ function MainLayout({
           voiceConnection={voiceConnection}
           voiceUsers={voiceUsers}
           onOpenServerSettings={() => setShowServerSettings(true)}
+          onInvitePeople={handleInvitePeople}
           serverId={currentServerId ?? undefined}
           isOwner={currentServer?.owner_id === user.id}
         />
@@ -313,6 +326,7 @@ function MainLayout({
           channel={{ id: currentChannel.id, name: currentChannel.name, type: currentChannel.type, serverId: currentChannel.server_id, order: currentChannel.order }}
           currentUserId={user.id}
           currentUsername={user.username}
+          onInvitePeople={handleInvitePeople}
         />
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center text-app-muted">
@@ -385,9 +399,17 @@ function MainLayout({
           serverId={currentServer.id}
           userId={user.id}
           canManageEmojis={currentUserRole === 'owner' || currentUserRole === 'admin'}
+          canManageMembers={currentUserRole === 'owner' || currentUserRole === 'admin'}
           onClose={() => setShowServerSettings(false)}
           onUpdateServer={(data) => updateServer(currentServer.id, data)}
           onDeleteServer={() => deleteServer(currentServer.id)}
+          onKickMember={handleKick}
+          onMembersChange={async () => {
+            if (currentServerId) {
+              const updated = await api.getServerMembers(currentServerId)
+              setServerMembers(updated)
+            }
+          }}
         />
       )}
     </div>
@@ -401,6 +423,7 @@ export default function App() {
       <UpdateButton />
       <Routes>
         <Route path="/" element={<AppContent />} />
+        <Route path="/invite/:code" element={<InvitePage />} />
         <Route path="/download" element={<DownloadPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

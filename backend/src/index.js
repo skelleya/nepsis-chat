@@ -15,6 +15,7 @@ import { emojisRouter } from './routes/emojis.js'
 import { usersRouter } from './routes/users.js'
 import { dmRouter } from './routes/dm.js'
 import { friendsRouter } from './routes/friends.js'
+import { invitesRouter } from './routes/invites.js'
 import { versionRouter } from './routes/version.js'
 import { registerChatHandlers } from './socket/chat.js'
 import { registerVoiceHandlers } from './socket/voice.js'
@@ -59,6 +60,7 @@ app.use('/api/emojis', emojisRouter)
 app.use('/api/users', usersRouter)
 app.use('/api/dm', dmRouter)
 app.use('/api/friends', friendsRouter)
+app.use('/api/invites', invitesRouter)
 app.use('/api/version', versionRouter)
 
 // Redirect /updates/download to latest installer (for download page when frontend is on Vercel)

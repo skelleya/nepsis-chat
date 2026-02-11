@@ -64,6 +64,8 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Emoji picker — Click-outside-to-close; improved styling (rounded-xl, shadow-2xl, better spacing, active scale feedback) |
 | + | Chat input — Send button uses up-arrow icon; @mention autocomplete (@everyone, @username); :emoji: shortcode autocomplete (e.g. :smile:) |
 | + | User settings — Full settings modal with tabs (My Account, Profiles, Privacy & Safety, Appearance, Voice & Video, Notifications); avatar + banner upload; username change; Personal/Work profile switch (non-guest); status dropdown (Online, Away, DND, Offline) in UserPanel |
+| + | Server invites — Discord-style invite links; create invite from server dropdown or voice channel; public `/invite/:code` page with Join Server; audit log for server actions (invite created/revoked, member joined/kicked) |
+| + | Server settings — Members tab (list, kick); Invites tab (create, copy link, revoke); Audit Log tab; modernized Custom Emojis tab (drag-drop upload, grid layout) |
 
 ---
 

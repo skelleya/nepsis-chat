@@ -34,9 +34,6 @@ export function ChatInput({
   disabled = false,
   members,
   serverEmojis = [],
-  onOpenEmojiPicker,
-  onFileClick,
-  uploading = false,
   leftButtons,
 }: ChatInputProps) {
   const inputRef = useRef<HTMLInputElement>(null)

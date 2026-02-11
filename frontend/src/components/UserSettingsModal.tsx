@@ -18,7 +18,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [activeProfile, setActiveProfile] = useState<'personal' | 'work'>('personal')
-  const [profiles, setProfiles] = useState<{ id: string; profile_type: string; display_name: string; avatar_url?: string; banner_url?: string }[]>([])
+  const [, setProfiles] = useState<{ id: string; profile_type: string; display_name: string; avatar_url?: string; banner_url?: string }[]>([])
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const bannerInputRef = useRef<HTMLInputElement>(null)
 

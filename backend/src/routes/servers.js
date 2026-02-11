@@ -4,6 +4,24 @@ import crypto from 'crypto'
 
 export const serversRouter = Router()
 
+function generateInviteCode() {
+  return crypto.randomBytes(4).toString('base64url').slice(0, 8)
+}
+
+async function logAudit(serverId, userId, action, details = {}) {
+  try {
+    await supabase.from('server_audit_log').insert({
+      id: 'al-' + crypto.randomUUID(),
+      server_id: serverId,
+      user_id: userId,
+      action,
+      details,
+    })
+  } catch (err) {
+    console.error('Audit log error:', err)
+  }
+}
+
 // Get all servers
 serversRouter.get('/', async (req, res) => {
   try {
@@ -446,9 +464,121 @@ serversRouter.delete('/:id/members/:userId', async (req, res) => {
       .eq('user_id', targetUserId)
 
     if (error) throw error
+    await logAudit(serverId, kickerUserId, 'member_kicked', { targetUserId })
     res.json({ success: true })
   } catch (err) {
     console.error('Kick user error:', err)
     res.status(500).json({ error: 'Failed to kick user' })
+  }
+})
+
+// ─── Invites ───────────────────────────────────────────
+
+serversRouter.post('/:id/invites', async (req, res) => {
+  try {
+    const { createdBy } = req.body
+    if (!createdBy) return res.status(400).json({ error: 'createdBy required' })
+
+    const { data: member } = await supabase
+      .from('server_members')
+      .select('role')
+      .eq('server_id', req.params.id)
+      .eq('user_id', createdBy)
+      .single()
+
+    if (!member || !['owner', 'admin', 'member'].includes(member.role)) {
+      return res.status(403).json({ error: 'Must be a server member to create invites' })
+    }
+
+    let code = generateInviteCode()
+    for (let i = 0; i < 5; i++) {
+      const { data: existing } = await supabase.from('server_invites').select('code').eq('code', code).single()
+      if (!existing) break
+      code = generateInviteCode()
+    }
+
+    const { data, error } = await supabase
+      .from('server_invites')
+      .insert({ code, server_id: req.params.id, created_by: createdBy })
+      .select()
+      .single()
+
+    if (error) throw error
+    await logAudit(req.params.id, createdBy, 'invite_created', { code })
+    res.status(201).json(data)
+  } catch (err) {
+    console.error('Create invite error:', err)
+    res.status(500).json({ error: 'Failed to create invite' })
+  }
+})
+
+serversRouter.get('/:id/invites', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('server_invites')
+      .select('code, created_by, expires_at, max_uses, use_count, created_at')
+      .eq('server_id', req.params.id)
+      .order('created_at', { ascending: false })
+      .limit(50)
+
+    if (error) throw error
+    res.json(data || [])
+  } catch (err) {
+    console.error('List invites error:', err)
+    res.status(500).json({ error: 'Failed to fetch invites' })
+  }
+})
+
+serversRouter.delete('/:id/invites/:code', async (req, res) => {
+  try {
+    const revokedBy = req.query.revokedBy
+    const { data, error } = await supabase
+      .from('server_invites')
+      .delete()
+      .eq('server_id', req.params.id)
+      .eq('code', req.params.code)
+      .select()
+      .single()
+
+    if (error) throw error
+    if (!data) return res.status(404).json({ error: 'Invite not found' })
+    if (revokedBy) await logAudit(req.params.id, revokedBy, 'invite_revoked', { code: req.params.code })
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Delete invite error:', err)
+    res.status(500).json({ error: 'Failed to delete invite' })
+  }
+})
+
+// ─── Audit log ──────────────────────────────────────────
+
+serversRouter.get('/:id/audit-log', async (req, res) => {
+  try {
+    const { data: rows, error } = await supabase
+      .from('server_audit_log')
+      .select('id, user_id, action, details, created_at')
+      .eq('server_id', req.params.id)
+      .order('created_at', { ascending: false })
+      .limit(100)
+
+    if (error) throw error
+    const userIds = [...new Set((rows || []).map((r) => r.user_id))]
+    const usernames = {}
+    if (userIds.length > 0) {
+      const { data: users } = await supabase.from('users').select('id, username').in('id', userIds)
+      ;(users || []).forEach((u) => { usernames[u.id] = u.username })
+    }
+    const result = (rows || []).map((r) => ({
+      id: r.id,
+      userId: r.user_id,
+      username: usernames[r.user_id] || 'Unknown',
+      action: r.action,
+      details: r.details || {},
+      createdAt: r.created_at,
+    }))
+    res.json(result)
+  } catch (err) {
+    console.error('Audit log error:', err)
+    res.status(500).json({ error: 'Failed to fetch audit log' })
   }
 })

@@ -157,7 +157,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const s = await api.getServers()
       setServers(s)
-      if (s.length > 0) setCurrentServerId((prev) => prev || s[0].id)
+      const joinId = sessionStorage.getItem('joinServerId')
+      sessionStorage.removeItem('joinServerId')
+      if (s.length > 0) {
+        const targetId = joinId && s.some((sv: Server) => sv.id === joinId) ? joinId : s[0].id
+        setCurrentServerId((prev) => prev || targetId)
+      }
     } catch {
       setServers([{ id: '1', name: 'Nepsis Chat', owner_id: 'u1' }])
       setCurrentServerId('1')

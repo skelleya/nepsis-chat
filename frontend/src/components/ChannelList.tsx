@@ -55,6 +55,7 @@ interface ChannelListProps {
   voiceUsers: Record<string, VoiceUserInfo[]> // channelId -> users in voice
   // Server settings
   onOpenServerSettings: () => void
+  onInvitePeople?: () => Promise<void>
   serverId?: string
   isOwner?: boolean
   // Admin: drop user onto voice channel to move them
@@ -141,12 +142,12 @@ function SortableChannelItem({
                   <span className="text-xs truncate flex-1 min-w-0">{vu.username}</span>
                   <div className="flex items-center gap-0.5 ml-auto flex-shrink-0">
                     {vu.isMuted && (
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="text-red-400" title="Muted">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="text-red-400" aria-label="Muted">
                         <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
                       </svg>
                     )}
                     {vu.isDeafened && (
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-400" title="Deafened">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-400" aria-label="Deafened">
                         <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
                         <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
                         <line x1="2" y1="2" x2="22" y2="22"/>
@@ -273,6 +274,8 @@ export function ChannelList({
   voiceConnection,
   voiceUsers,
   onOpenServerSettings,
+  onInvitePeople,
+  serverId,
   isOwner,
 }: ChannelListProps) {
   const [showCreateChannel, setShowCreateChannel] = useState(false)
@@ -343,6 +346,23 @@ export function ChannelList({
                   Create Category
                 </button>
                 <div className="h-px bg-app-hover/50 my-1" />
+                {onInvitePeople && serverId && (
+                  <button
+                    onClick={async () => {
+                      await onInvitePeople()
+                      setShowServerMenu(false)
+                    }}
+                    className="w-full px-2 py-1.5 rounded text-sm text-app-text hover:bg-app-accent hover:text-white text-left flex items-center gap-2 transition-colors"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                      <circle cx="8.5" cy="7" r="4"/>
+                      <line x1="20" y1="8" x2="20" y2="14"/>
+                      <line x1="23" y1="11" x2="17" y2="11"/>
+                    </svg>
+                    Invite People
+                  </button>
+                )}
                 {isOwner && (
                   <button
                     onClick={() => {

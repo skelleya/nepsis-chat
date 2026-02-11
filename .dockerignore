@@ -3,8 +3,15 @@ node_modules/
 **/node_modules/
 
 # ── Electron — NOT needed for server (~11 GB of installers + win-unpacked) ──
+# Exclude explicitly (multiple patterns for compatibility)
 electron
 electron/
+**/electron/**
+electron/**
+
+# ── Frontend — NOT needed for backend (on Vercel). Saves ~2 GB ──
+frontend
+frontend/
 
 # ── Build artifacts ──
 frontend/dist/
@@ -13,8 +20,6 @@ backend/data.sqlite
 # ── Large binaries ──
 **/*.exe
 **/*.blockmap
-# Allow installer for download page (run "npm run package" + "copy-exe" before deploy)
-!frontend/public/NepsisChat-Setup.exe
 # Allow installer in backend/updates for /updates/download (run "npm run release")
 !backend/updates/*.exe
 

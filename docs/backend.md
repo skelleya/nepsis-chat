@@ -30,6 +30,12 @@ Node.js + Express + Socket.io + SQLite.
 | PUT | `/api/users/:id/profiles` | Upsert profile (`profile_type`, `display_name`, `avatar_url`, `banner_url`) |
 | POST | `/api/dm/conversations` | Create or get DM between two users (`userId`, `targetUserId`) |
 | POST | `/api/friends/request` | Send friend request (`userId`, `targetUserId`) — requires `friend_requests` migration |
+| GET | `/api/invites/:code` | Public invite details (server name, icon, inviter) — for join page |
+| POST | `/api/invites/:code/join` | Join server via invite (`userId`) |
+| POST | `/api/servers/:id/invites` | Create invite (`createdBy`) — any member |
+| GET | `/api/servers/:id/invites` | List server invites |
+| DELETE | `/api/servers/:id/invites/:code` | Revoke invite (`?revokedBy=`) |
+| GET | `/api/servers/:id/audit-log` | List audit log entries (invite_created, invite_revoked, member_kicked, member_joined) |
 | GET | `/api/version` | App version |
 
 ### Static
@@ -52,8 +58,10 @@ Node.js + Express + Socket.io + SQLite.
 | dm_participants | conversation_id, user_id |
 | dm_messages | id, conversation_id, user_id, content, created_at |
 | friend_requests | requester_id, addressee_id, status (pending/accepted/rejected), created_at — see migration `20250211000002_friend_requests.sql` |
+| server_invites | code, server_id, created_by, expires_at, max_uses, use_count, created_at — see migration `20250211000004_server_invites_audit.sql` |
+| server_audit_log | id, server_id, user_id, action, details (JSONB), created_at — see migration `20250211000004_server_invites_audit.sql` |
 
-**File:** `backend/data.sqlite`
+**File:** `backend/data.sqlite` (legacy) — Supabase Postgres used in production
 
 ---
 
