@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-app-darker text-app-text font-sans antialiased;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}

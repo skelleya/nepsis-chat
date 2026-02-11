@@ -1,0 +1,57 @@
+{
+  "name": "nepsis-chat",
+  "version": "0.0.5",
+  "description": "Nepsis Chat - WebRTC voice chat",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:frontend": "cd ../frontend && npm run build",
+    "bump": "node scripts/bump-version.js",
+    "package": "npm run build:frontend && electron-builder --win",
+    "package:full": "npm run package && npm run publish-update && npm run copy-exe && npm run bump",
+    "copy-exe": "node scripts/copy-exe.js",
+    "publish-update": "node scripts/publish-update.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "electron-updater": "^6.7.3"
+  },
+  "build": {
+    "appId": "com.nepsis.chat",
+    "productName": "Nepsis Chat",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "icon.png"
+    ],
+    "publish": {
+      "provider": "generic",
+      "url": "https://nepsis-chat.fly.dev/updates"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "signAndEditExecutable": false,
+      "icon": "icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "extraResources": [
+      {
+        "from": "../frontend/dist",
+        "to": "app"
+      }
+    ]
+  }
+}
