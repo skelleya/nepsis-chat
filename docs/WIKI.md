@@ -39,10 +39,31 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 |-------|------|
 | 1 | Frontend foundation — React, Vite, Tailwind, chat UI |
 | 2 | WebRTC voice — getUserMedia, mesh P2P, BroadcastChannel signaling |
-| 3 | Backend — Node.js, Express, Socket.io, SQLite |
+| 3 | Backend — Node.js, Express, Socket.io, SQLite → Supabase Postgres |
 | 4 | Integration — API, Socket.io signaling |
 | 5 | Desktop app — Electron, NSIS installer, download page |
 | + | Versioning 0.0.1, auto-updates, green update button |
-| + | Branding — Nepsis logo (favicon, app icon, installer, all UI) |
+| + | Branding — Nepsis logo, bright orange (#FF6600), all locations consistent |
 | + | System tray — Close window hides to tray; right-click tray to Show/Quit |
 | + | Deployment — Fly.io, GitHub, Docker, env-based config |
+| + | Supabase migration — Postgres DB + email auth (guest + email login) |
+
+---
+
+## Logo / Branding
+
+The Nepsis logo is **bright orange** (#FF6600) on a white background, in a square format with stylized "NEPSIS" text.
+
+| File | Size | Purpose |
+|------|------|---------|
+| `electron/icon.png` | 1024x1024 | **Master logo** — Electron app icon (window, tray, installer, taskbar) |
+| `frontend/public/logo.png` | 1024x1024 | UI logo (LoginPage, ServerBar, ChannelList, DownloadPage) |
+| `frontend/public/favicon.png` | 32x32 | Browser tab favicon |
+
+**To update the logo:**
+1. Replace `electron/icon.png` with the new logo (keep >=256x256 for Windows)
+2. Copy the same file to `frontend/public/logo.png`
+3. Resize to 32x32 and save as `frontend/public/favicon.png`
+4. Rebuild: `npm run package:full`
+
+All three files must stay in sync and use the same bright orange color.

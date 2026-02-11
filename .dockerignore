@@ -1,25 +1,29 @@
-# Exclude ALL node_modules (Docker build runs npm ci fresh)
-**/node_modules
+# ── Node modules (Docker runs npm ci fresh) ──
+node_modules/
+**/node_modules/
 
-# Electron — not needed for server deployment
+# ── Electron — not needed for server deployment ──
 electron/
 
-# Build artifacts
-frontend/dist
+# ── Build artifacts ──
+frontend/dist/
 backend/data.sqlite
 
-# Binaries
-*.exe
+# ── Large binaries ──
+**/*.exe
+**/*.blockmap
+backend/updates/
 
-# Git
-.git
+# ── Git ──
+.git/
 
-# Env overrides
+# ── Env overrides ──
 .env
 .env.local
 
-# Docs (not needed in image)
+# ── Docs (not needed in image) ──
 docs/
 
-# Misc
+# ── Misc ──
 *.md
+scripts/

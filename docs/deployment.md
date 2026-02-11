@@ -1,20 +1,54 @@
 # Deployment
 
-Fly.io deployment, Docker, and environment config.
+Fly.io deployment, Supabase, Docker, and environment config.
 
 ---
 
 ## Architecture
 
-In production the **backend serves everything** — API, Socket.io, and the frontend static files.
-
 ```
 User/Electron → https://nepsis-chat.fly.dev
-                   ├─ /api/*       → Express API
+                   ├─ /api/*       → Express API (data from Supabase Postgres)
                    ├─ /updates/*   → Electron update files
                    ├─ /socket.io   → Socket.io (chat + voice signaling)
                    └─ /*           → Frontend static files (React SPA)
+
+Supabase (external)
+   ├─ Postgres      → All app data (users, servers, channels, messages)
+   └─ Auth          → Email sign up / sign in
 ```
+
+---
+
+## Supabase
+
+| Item | Value |
+|------|-------|
+| Project URL | `https://opkatioqcmamnwmvqdtq.supabase.co` |
+| Dashboard | `https://supabase.com/dashboard/project/opkatioqcmamnwmvqdtq` |
+| Database | Postgres (tables: users, servers, channels, messages, dm_*) |
+| Auth | Email/password sign up + sign in |
+
+### Tables
+
+| Table | Purpose |
+|-------|---------|
+| `users` | All users — guests (`is_guest=true`) and email accounts (`auth_id` links to Supabase Auth) |
+| `servers` | Chat servers |
+| `channels` | Text and voice channels per server |
+| `messages` | Chat messages |
+| `dm_conversations` | DM threads |
+| `dm_participants` | DM participants |
+| `dm_messages` | DM messages |
+
+### Auth flow
+
+- **Guest**: Username only → creates a row in `users` with `is_guest=true`, no Supabase Auth
+- **Email**: Supabase Auth handles sign up/sign in → backend links `auth.users.id` to `users.auth_id`
+
+### Migration
+
+Schema is in `backend/supabase-migration.sql`. Run it in the Supabase SQL Editor to create/reset tables.
 
 ---
 
@@ -26,31 +60,27 @@ User/Electron → https://nepsis-chat.fly.dev
 | URL | `https://nepsis-chat.fly.dev` |
 | Region | `ord` (Chicago) |
 | Internal port | 8080 |
-| Volume | `nepsis_data` mounted at `/data` (SQLite persistence) |
 
-### First-time setup
-
-```bash
-# Install Fly CLI: https://fly.io/docs/flyctl/install/
-fly auth login
-fly launch          # Say no to modifications — fly.toml already exists
-fly volumes create nepsis_data --region ord --size 1
-fly deploy
-```
-
-### Subsequent deploys
+### Deploy
 
 ```bash
-fly deploy
+flyctl deploy --app nepsis-chat --local-only
 ```
 
 ### Logs and status
 
 ```bash
-fly logs
-fly status
-fly ssh console     # SSH into the running machine
+flyctl logs --app nepsis-chat --no-tail
+flyctl status --app nepsis-chat
 ```
+
+### Secrets (set via `flyctl secrets set`)
+
+| Secret | Purpose |
+|--------|---------|
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_ANON_KEY` | Supabase anon/public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (private) |
 
 ---
 
@@ -61,35 +91,32 @@ The `Dockerfile` is a multi-stage build:
 1. **Stage 1** (`frontend-build`): Installs frontend deps, runs `npm run build`
 2. **Stage 2** (`production`): Installs backend deps, copies backend source + built frontend into `backend/public/`
 
-### Build and run locally
+After deploying, free disk space with:
 
 ```bash
-docker build -t nepsis-chat .
-docker run -p 8080:8080 -v nepsis_data:/data nepsis-chat
+docker system prune -a -f
 ```
-
-Then open `http://localhost:8080`.
 
 ---
 
 ## Environment Variables
 
-### Backend (production)
+### Backend (runtime — set via Fly.io secrets or `backend/.env`)
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `PORT` | `8080` | Server port |
-| `DATA_DIR` | `../` (relative to src) | Directory for `data.sqlite` — set to `/data` on Fly.io |
-| `CORS_ORIGINS` | `*` | Comma-separated allowed origins |
-| `NODE_ENV` | — | `production` on Fly.io |
+| Variable | Purpose |
+|----------|---------|
+| `PORT` | Server port (default 8080) |
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
+| `CORS_ORIGINS` | Allowed origins (default `*`) |
 
 ### Frontend (build-time)
 
-| Variable | Default (dev) | Production |
-|----------|---------------|------------|
+| Variable | Dev | Production |
+|----------|-----|------------|
 | `VITE_API_URL` | `http://localhost:3000/api` | `https://nepsis-chat.fly.dev/api` |
-
-Configured in `frontend/.env.development` and `frontend/.env.production`.
+| `VITE_SUPABASE_URL` | (from `.env.local`) | `https://opkatioqcmamnwmvqdtq.supabase.co` |
+| `VITE_SUPABASE_ANON_KEY` | (from `.env.local`) | (in `.env.production`) |
 
 ### Electron
 
@@ -100,23 +127,12 @@ Configured in `frontend/.env.development` and `frontend/.env.production`.
 
 ---
 
-## GitHub
+## Secret files (NEVER commit)
 
-Repository: push to GitHub, then Fly.io deploys from the Dockerfile.
+| File | Contains |
+|------|----------|
+| `backend/.env` | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` |
+| `frontend/.env.local` | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` |
+| `Nepsis Chat DB.txt` | DB password, service role key |
 
-```bash
-git init
-git add .
-git commit -m "Initial commit"
-gh repo create nepsis-chat --public --source=. --push
-```
-
----
-
-## SQLite on Fly.io
-
-Fly.io machines have ephemeral filesystems. The `fly.toml` mounts a **persistent volume** at `/data`. The backend reads `DATA_DIR` and stores `data.sqlite` there.
-
-- Volume survives deploys and machine restarts
-- Volume is tied to a single machine (no multi-machine scaling with SQLite)
-- To backup: `fly ssh sftp get /data/data.sqlite`
+All are in `.gitignore`.

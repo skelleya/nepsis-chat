@@ -1,6 +1,6 @@
 {
   "name": "nepsis-chat",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "Nepsis Chat - WebRTC voice chat",
   "main": "main.js",
   "scripts": {
