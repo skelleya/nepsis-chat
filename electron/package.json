@@ -8,7 +8,8 @@
     "build:frontend": "cd ../frontend && npm run build",
     "bump": "node scripts/bump-version.js",
     "package": "npm run build:frontend && electron-builder --win",
-    "package:full": "npm run package && npm run publish-update && npm run copy-exe && npm run bump",
+    "package:full": "npm run package && npm run copy-exe && npm run bump",
+    "publish:github": "npm run package && electron-builder --win -p always",
     "copy-exe": "node scripts/copy-exe.js",
     "publish-update": "node scripts/publish-update.js"
   },
@@ -33,8 +34,9 @@
       "icon.png"
     ],
     "publish": {
-      "provider": "generic",
-      "url": "https://nepsis-chat.fly.dev/updates"
+      "provider": "github",
+      "owner": "skelleya",
+      "repo": "nepsis-chat"
     },
     "win": {
       "target": [

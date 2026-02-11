@@ -1,0 +1,9 @@
+# Node modules (Docker runs npm ci fresh)
+node_modules/
+
+# SQLite (not used in production)
+data.sqlite
+
+# Env (use Fly secrets)
+.env
+.env.*

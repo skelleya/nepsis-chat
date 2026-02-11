@@ -16,6 +16,7 @@ import { mockChannels } from './data/mockData'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { DownloadPage } from './pages/DownloadPage'
 import { InvitePage } from './pages/InvitePage'
+import { CommunityPage } from './pages/CommunityPage'
 
 function AppContent() {
   const {
@@ -106,9 +107,14 @@ function MainLayout({
 }: MainLayoutProps) {
   const voice = useVoice()
   const [showServerSettings, setShowServerSettings] = useState(false)
+  const [showCommunity, setShowCommunity] = useState(servers.length === 0)
   const [serverMembers, setServerMembers] = useState<ServerMember[]>([])
   const [serverEmojis, setServerEmojis] = useState<{ id: string; name: string; image_url: string }[]>([])
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+
+  useEffect(() => {
+    if (servers.length === 0) setShowCommunity(true)
+  }, [servers.length])
 
   const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
     setNotification({ message, type })
@@ -133,18 +139,15 @@ function MainLayout({
         const members = await api.getServerMembers(currentServerId)
         const isMember = members.some((m: ServerMember) => m.userId === user.id)
         if (!isMember) {
-          await api.joinServer(currentServerId, user.id)
-          const updated = await api.getServerMembers(currentServerId)
-          setServerMembers(updated)
-        } else {
-          setServerMembers(members)
+          setServerMembers([])
+          return
         }
+        setServerMembers(members)
       } catch {
         setServerMembers([])
       }
     }
     load()
-    // Poll members every 8s to keep voice channel presence (who's in which channel) up to date
     const interval = setInterval(load, 8000)
     return () => clearInterval(interval)
   }, [currentServerId, user?.id])
@@ -260,9 +263,10 @@ function MainLayout({
       <ServerBar
         servers={servers.map((s) => ({ id: s.id, name: s.name, iconUrl: s.icon_url, ownerId: s.owner_id }))}
         currentServerId={currentServerId}
-        onSelectServer={setCurrentServer}
+        onSelectServer={(id) => { setShowCommunity(false); setCurrentServer(id) }}
         onCreateServer={async (name) => { await createServer(name) }}
         canCreateServer={!user?.is_guest}
+        onOpenCommunity={() => setShowCommunity(true)}
       />
 
       {/* Channel list + User panel wrapper */}
@@ -280,8 +284,10 @@ function MainLayout({
           voiceUsers={voiceUsers}
           onOpenServerSettings={() => setShowServerSettings(true)}
           onInvitePeople={handleInvitePeople}
+          onOpenCommunity={() => setShowCommunity(true)}
           serverId={currentServerId ?? undefined}
           isOwner={currentServer?.owner_id === user.id}
+          hasNoServers={servers.length === 0}
         />
         <UserPanel
           user={user}
@@ -298,7 +304,12 @@ function MainLayout({
       </div>
 
       {/* Main content */}
-      {currentChannel && currentChannel.type === 'text' ? (
+      {showCommunity ? (
+        <CommunityPage
+          onJoinServer={() => setShowCommunity(false)}
+          onClose={servers.length > 0 ? () => setShowCommunity(false) : undefined}
+        />
+      ) : currentChannel && currentChannel.type === 'text' ? (
         <ChatView
           channel={{ id: currentChannel.id, name: currentChannel.name, type: currentChannel.type, serverId: currentChannel.server_id, order: currentChannel.order }}
           members={serverMembers.map((m) => ({ id: m.userId, username: m.username }))}
@@ -338,6 +349,7 @@ function MainLayout({
         </div>
       )}
 
+      {!showCommunity && (
       <MembersSidebar
         members={serverMembers}
         currentUserId={user.id}
@@ -380,6 +392,7 @@ function MainLayout({
           }
         }}
       />
+      )}
 
       {/* Notification toast */}
       {notification && (

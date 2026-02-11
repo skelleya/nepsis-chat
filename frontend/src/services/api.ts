@@ -33,9 +33,15 @@ export async function deleteGuestAccount(userId: string) {
 
 // ─── Servers ───────────────────────────────────────────
 
-export async function getServers() {
-  const res = await fetch(`${API_BASE}/servers`)
+export async function getServers(userId: string) {
+  const res = await fetch(`${API_BASE}/servers?userId=${encodeURIComponent(userId)}`)
   if (!res.ok) throw new Error('Failed to fetch servers')
+  return res.json()
+}
+
+export async function getCommunityServers() {
+  const res = await fetch(`${API_BASE}/servers/community`)
+  if (!res.ok) throw new Error('Failed to fetch community servers')
   return res.json()
 }
 

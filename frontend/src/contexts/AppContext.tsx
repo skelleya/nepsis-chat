@@ -92,7 +92,7 @@ interface AppContextValue {
   deleteChannel: (channelId: string) => Promise<void>
   createCategory: (name: string) => Promise<Category | null>
   deleteCategory: (catId: string) => Promise<void>
-  loadServers: () => Promise<void>
+  loadServers: (userIdOverride?: string) => Promise<void>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -152,22 +152,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const messagesRef = useRef(messages)
   messagesRef.current = messages
 
-  // Load servers after user is set
-  const loadServers = useCallback(async () => {
+  // Load servers the user is a member of. Pass userId when user was just set (React may not have updated yet).
+  const loadServers = useCallback(async (userIdOverride?: string) => {
+    const uid = userIdOverride ?? user?.id
+    if (!uid) {
+      setServers([])
+      setCurrentServerId(null)
+      return
+    }
     try {
-      const s = await api.getServers()
+      const s = await api.getServers(uid)
       setServers(s)
       const joinId = sessionStorage.getItem('joinServerId')
       sessionStorage.removeItem('joinServerId')
       if (s.length > 0) {
         const targetId = joinId && s.some((sv: Server) => sv.id === joinId) ? joinId : s[0].id
         setCurrentServerId((prev) => prev || targetId)
+      } else {
+        setCurrentServerId(null)
       }
     } catch {
-      setServers([{ id: '1', name: 'Nepsis Chat', owner_id: 'u1' }])
-      setCurrentServerId('1')
+      setServers([])
+      setCurrentServerId(null)
     }
-  }, [])
+  }, [user?.id])
 
   // Restore session on mount
   useEffect(() => {
@@ -179,7 +187,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             const u = await api.authCallback(session.user.id, session.user.email || '')
             setUser(u)
             localStorage.setItem('nepsis_user', JSON.stringify(u))
-            await loadServers()
+            await loadServers(u.id)
             return
           } catch {
             // Fall through
@@ -191,7 +199,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         const savedUser: User = JSON.parse(saved)
         setUser(savedUser)
-        await loadServers()
+        await loadServers(savedUser.id)
       } catch {
         localStorage.removeItem('nepsis_user')
       }
@@ -209,7 +217,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             const u = await api.authCallback(session.user.id, session.user.email || '')
             setUser(u)
             localStorage.setItem('nepsis_user', JSON.stringify(u))
-            await loadServers()
+            await loadServers(u.id)
           } catch (err) {
             console.error('Auth state change error:', err)
           }
@@ -236,13 +244,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const u = await api.login(username)
       setUser(u)
       localStorage.setItem('nepsis_user', JSON.stringify(u))
-      await loadServers()
+      await loadServers(u.id)
     } catch {
       const fallbackUser: User = { id: 'u1', username, is_guest: true }
       setUser(fallbackUser)
       localStorage.setItem('nepsis_user', JSON.stringify(fallbackUser))
-      setServers([{ id: '1', name: 'Nepsis Chat', owner_id: 'u1' }])
-      setCurrentServerId('1')
+      setServers([])
+      setCurrentServerId(null)
     }
   }, [loadServers])
 

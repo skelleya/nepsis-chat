@@ -22,14 +22,63 @@ async function logAudit(serverId, userId, action, details = {}) {
   }
 }
 
-// Get all servers
+// Get servers the user is a member of. Auto-joins community servers.
 serversRouter.get('/', async (req, res) => {
   try {
-    const { data, error } = await supabase.from('servers').select('*')
+    const userId = req.query.userId
+    if (!userId) return res.json([])
+
+    const { data: memberships } = await supabase
+      .from('server_members')
+      .select('server_id')
+      .eq('user_id', userId)
+
+    const memberServerIds = (memberships || []).map((m) => m.server_id)
+    if (memberServerIds.length === 0) {
+      // Auto-join community servers for new users
+      const { data: communityServers } = await supabase
+        .from('servers')
+        .select('id')
+        .eq('is_community', true)
+
+      if (communityServers && communityServers.length > 0) {
+        for (const s of communityServers) {
+          await supabase
+            .from('server_members')
+            .upsert({ server_id: s.id, user_id: userId, role: 'member' }, { onConflict: 'server_id,user_id' })
+        }
+        const joined = communityServers.map((s) => s.id)
+        const { data: servers } = await supabase.from('servers').select('*').in('id', joined).order('name')
+        return res.json(servers || [])
+      }
+      return res.json([])
+    }
+
+    const { data: servers, error } = await supabase
+      .from('servers')
+      .select('*')
+      .in('id', memberServerIds)
+      .order('name')
     if (error) throw error
-    res.json(data)
+    res.json(servers || [])
   } catch (err) {
+    console.error('Get servers error:', err)
     res.status(500).json({ error: 'Failed to fetch servers' })
+  }
+})
+
+// Get community servers (discoverable)
+serversRouter.get('/community', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('servers')
+      .select('*')
+      .eq('is_community', true)
+      .order('name')
+    if (error) throw error
+    res.json(data || [])
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch community servers' })
   }
 })
 

@@ -4,8 +4,7 @@ const { autoUpdater } = require('electron-updater')
 
 const isDev = process.env.NODE_ENV === 'development'
 const APP_URL = process.env.APP_URL || 'http://localhost:5173'
-const PROD_URL = process.env.PROD_URL || 'https://nepsis-chat.fly.dev'
-const UPDATE_URL = process.env.UPDATE_URL || `${PROD_URL}/updates`
+const PROD_URL = process.env.PROD_URL || 'https://nepsis-chat.vercel.app'
 
 // Set AppUserModelId early — required for Windows to show the custom icon
 // in the taskbar instead of the default Electron icon.
@@ -16,9 +15,10 @@ if (process.platform === 'win32') {
 let mainWindow = null
 let tray = null
 
+// Updates from GitHub Releases — no Fly upload needed
 if (!isDev && app.isPackaged) {
-  autoUpdater.setFeedURL({ provider: 'generic', url: UPDATE_URL })
-  autoUpdater.autoDownload = true
+  autoUpdater.setFeedURL({ provider: 'github', owner: 'skelleya', repo: 'nepsis-chat' })
+  autoUpdater.autoDownload = false  // User clicks download icon to start
   autoUpdater.autoInstallOnAppQuit = true
 }
 
@@ -122,10 +122,20 @@ ipcMain.handle('check-for-updates', async () => {
   }
 })
 
+ipcMain.handle('download-update', async () => {
+  if (!app.isPackaged) return { error: 'Not packaged' }
+  try {
+    await autoUpdater.downloadUpdate()
+    return { ok: true }
+  } catch (err) {
+    return { error: err?.message || 'Download failed' }
+  }
+})
+
 autoUpdater.on('update-available', (info) => {
   const win = BrowserWindow.getAllWindows()[0]
   if (win?.webContents) win.webContents.send('update-available', info)
-  autoUpdater.downloadUpdate()
+  // Don't auto-download — user clicks the download icon to start
 })
 
 let updateReady = false

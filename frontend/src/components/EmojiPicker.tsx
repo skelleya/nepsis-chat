@@ -72,8 +72,8 @@ export function EmojiPicker({ onSelect, onClose, className = '', serverEmojis = 
         ))}
       </div>
 
-      {/* Emoji grid */}
-      <div className="flex-1 overflow-y-auto p-2 grid grid-cols-8 gap-0.5 min-h-[140px]">
+      {/* Emoji grid - scrollbar-gutter + pr-4 so scrollbar never overlaps rightmost emojis */}
+      <div className="flex-1 overflow-y-auto py-2 pl-2 pr-4 grid grid-cols-8 gap-0.5 min-h-[140px] [scrollbar-gutter:stable]">
         {category === 'Server'
           ? serverEmojis.map((e) => (
               <button

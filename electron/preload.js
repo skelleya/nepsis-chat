@@ -11,4 +11,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('update-downloaded', () => callback())
   },
   quitAndInstall: () => ipcRenderer.invoke('quit-and-install'),
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
 })

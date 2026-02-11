@@ -113,18 +113,22 @@ Push to GitHub — Vercel auto-deploys. ~1 min.
 | Region | `ord` (Chicago) |
 | Internal port | 8080 |
 
-### Deploy
+### Deploy (~100MB, not 9GB)
 
-**Backend only** (no frontend in image — Dockerfile is backend-only):
+Build context is **backend only** (`fly.toml` uses `context = "backend"`). Fly no longer pushes electron (~11GB) or frontend (~2GB).
+
+**Before deploy:** `npm run deploy` runs `clean-updates` first to remove old installers from `backend/updates/` — otherwise Fly would push 8+ GB of old .exe files. If clean-updates fails (EBUSY), close any apps that may have the installer open, then run `npm run clean-updates` manually.
+
+**Backend only** (no frontend in image):
 
 ```bash
-npm run deploy   # flyctl deploy
+npm run deploy   # clean-updates + flyctl deploy
 ```
 
 **For desktop release** (installer in /updates):
 
 ```bash
-npm run release   # package:full + clean-updates + deploy
+npm run release   # package:full + publish-update + clean-updates + deploy
 ```
 
 The download page (on Vercel) links to `https://nepsis-chat.fly.dev/updates/download` which redirects to the latest installer.
@@ -148,7 +152,7 @@ flyctl status --app nepsis-chat
 
 ## Docker (backend only)
 
-The `Dockerfile` is backend-only — no frontend. Frontend is on Vercel.
+The `backend/Dockerfile` is used with `context = "backend"` — Fly only uploads the backend folder (~50MB + latest installer if present). Electron and frontend are never sent.
 
 After deploying, free disk space with:
 

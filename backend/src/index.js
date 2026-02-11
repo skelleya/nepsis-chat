@@ -81,17 +81,7 @@ app.get('/updates/download', (req, res) => {
 
 app.use('/updates', express.static(path.join(__dirname, '../updates')))
 
-// Serve frontend static files (only when bundled with backend — e.g. single Fly deploy)
-const frontendPath = path.join(__dirname, '../public')
-if (fs.existsSync(path.join(frontendPath, 'index.html'))) {
-  app.use(express.static(frontendPath))
-  app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api/') || req.path.startsWith('/updates') || req.path.startsWith('/socket.io')) {
-      return next()
-    }
-    res.sendFile(path.join(frontendPath, 'index.html'))
-  })
-}
+// Frontend is on Vercel — Fly only serves API, Socket.io, and /updates
 
 const chatNamespace = io.of('/chat')
 const voiceNamespace = io.of('/voice')

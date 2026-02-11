@@ -189,7 +189,7 @@ export function ChatInput({
           onSelect={(e) => { cursorPosRef.current = (e.target as HTMLInputElement).selectionStart ?? 0 }}
           placeholder={placeholder}
           disabled={disabled}
-          className="w-full bg-app-dark rounded-lg px-4 py-3 text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent"
+          className="w-full min-h-[48px] bg-app-dark rounded-lg px-4 py-4 text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent"
         />
         {autocomplete && matches.length > 0 && (
           <div className="absolute bottom-full left-0 mb-1 w-full max-w-xs bg-[#2b2d31] rounded-lg shadow-xl border border-app-hover/50 overflow-hidden z-50 max-h-48 overflow-y-auto">

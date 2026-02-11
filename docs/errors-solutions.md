@@ -35,9 +35,10 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 
 | Error | Cause | Solution |
 |-------|-------|----------|
+| **"The file or directory is corrupted and unreadable"** when downloading installer | (1) Incomplete download — network interrupted or timeout. (2) Antivirus/Windows Defender quarantining or corrupting the exe. (3) Temp folder (scoped_dir) issue — Windows file system error. | Retry the download. Disable antivirus temporarily or add exception for the download URL. Try a different browser. If using Electron auto-update, ensure backend serves a valid exe and `latest.yml` has correct `path`. Run `npm run clean-updates` and `npm run release` so only one valid installer is served. |
 | Downloaded file corrupt/unreadable | Link pointed to non-existent exe | Run `npm run package:full` (or `copy-exe`) before deploy so `frontend/public/NepsisChat-Setup.exe` exists. Also ensure `.dockerignore` allows the exe (see deployment.md) |
-| Download link 404 / can't download exe | Exe excluded from Docker image or deploy without package:full | Deploy with `npm run release` (not just `npm run deploy`). The `.dockerignore` must allow `!frontend/public/NepsisChat-Setup.exe` |
-| **White screen + "Cannot GET /updates/download"** | (1) Installer not in backend/updates; release script skipped publish-update; .exe excluded from Docker. (2) Vercel missing `VITE_API_URL` — download link points to wrong host. | Run **`npm run release`** (not just `npm run deploy`). Release runs: package:full → publish-update → clean-updates → deploy. `.dockerignore` must include `!backend/updates/*.exe`. On Vercel, set `VITE_API_URL=https://nepsis-chat.fly.dev/api` so the download link points to the backend. |
+| Download link 404 / can't download exe | Exe excluded from Docker image or deploy without package:full | Deploy with `npm run release` (not just `npm run deploy`). |
+| **White screen + "Cannot GET /updates/download"** | (1) Installer not in backend/updates; release script skipped publish-update. (2) Vercel missing `VITE_API_URL` — download link points to wrong host. | Run **`npm run release`** (not just `npm run deploy`). On Vercel, set `VITE_API_URL=https://nepsis-chat.fly.dev/api` so the download link points to the backend. |
 
 ---
 
@@ -83,6 +84,7 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 
 | Error | Cause | Solution |
 |-------|-------|----------|
+| **Fly pushing 9+ GB** (should be ~100MB) | (1) Build context included `electron/` (~11GB) or `frontend/` (~2GB). (2) `backend/updates/` had 8+ GB of old installers. | **Fixed:** `fly.toml` now uses `context = "backend"` — only backend folder is sent. Run `npm run clean-updates` before deploy to remove old installers. Deploy script runs it automatically. |
 | **This machine has exhausted its maximum restart attempts (10)** | App process exits immediately on startup; Fly.io retries until limit. | **Most likely: missing Supabase secrets.** Set secrets: `fly secrets set SUPABASE_URL=https://YOUR_PROJECT.supabase.co SUPABASE_SERVICE_ROLE_KEY=your_service_role_key` (replace with your values). Then `fly deploy`. Check logs: `fly logs --app nepsis-chat`. |
 | Machine restart loop | Backend `process.exit(1)` when `SUPABASE_URL` or `SUPABASE_SERVICE_ROLE_KEY` are missing | Set both secrets via `fly secrets set`. Get keys from Supabase Dashboard → Settings → API. |
 | Volume mount error | `nepsis_data` volume missing or wrong region | Create volume: `fly volumes create nepsis_data --region ord --size 1` |
@@ -94,6 +96,30 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | Error | Cause | Solution |
 |-------|-------|----------|
 | "Friends feature not yet configured" when adding friend | `friend_requests` table missing | Run Supabase migration: `supabase/migrations/20250211000002_friend_requests.sql` in Supabase SQL Editor, or `supabase db push` |
+
+---
+
+## Voice UI Icons
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Mic icon looks snipped/cut off | Tight viewBox or inline SVGs clipping at edges | Shared `VoiceIcons.tsx` with `MicOffIcon` using `viewBox="-1 -1 26 26"` for padding. All voice icons use explicit viewBox. |
+| Wrong icon when muted (speaker/bell instead of mic) | Inconsistent or wrong SVG paths | `MicOffIcon` uses mic outline + diagonal slash (not speaker). Used in UserPanel, ChannelList, VoiceView. |
+| Headphones slashed when not deafened | Logic or icon mix-up | Show `HeadphonesIcon` when undeafened, `HeadphonesOffIcon` only when deafened. Same for `MicIcon`/`MicOffIcon` with muted. |
+| Dead code block in ChannelList | Leftover `{false && <svg>}` from refactor | Removed dead block. |
+
+**Files:** `frontend/src/components/icons/VoiceIcons.tsx`, `UserPanel.tsx`, `ChannelList.tsx`, `VoiceView.tsx`
+
+---
+
+## Chat UI
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Emoji picker scrollbar overlapping rightmost emojis | Scrollbar rendered on top of content | Added `[scrollbar-gutter:stable]` + `pr-4` so scrollbar never overlaps emojis. |
+| Chat input box too short/shrunken | Single-line input with minimal padding | Increased to `min-h-[48px]` and `py-4` for taller input. |
+
+**Files:** `frontend/src/components/EmojiPicker.tsx`, `frontend/src/components/ChatInput.tsx`
 
 ---
 

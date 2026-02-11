@@ -8,6 +8,7 @@ interface ServerBarProps {
   onSelectServer: (serverId: string) => void
   onCreateServer: (name: string) => Promise<void>
   canCreateServer?: boolean
+  onOpenCommunity?: () => void
 }
 
 function ServerIcon({ server, isActive, onClick }: { server: Server; isActive: boolean; onClick: () => void }) {
@@ -64,7 +65,7 @@ function ServerIcon({ server, isActive, onClick }: { server: Server; isActive: b
   )
 }
 
-export function ServerBar({ servers, currentServerId, onSelectServer, onCreateServer, canCreateServer = true }: ServerBarProps) {
+export function ServerBar({ servers, currentServerId, onSelectServer, onCreateServer, canCreateServer = true, onOpenCommunity }: ServerBarProps) {
   const [showCreateModal, setShowCreateModal] = useState(false)
 
   return (
@@ -110,9 +111,13 @@ export function ServerBar({ servers, currentServerId, onSelectServer, onCreateSe
         </div>
         )}
 
-        {/* Discover / Browse servers */}
+        {/* Discover / Community servers */}
         <div className="relative group">
-          <button className="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-app-channel hover:bg-[#23a559] flex items-center justify-center cursor-pointer transition-all duration-200 group">
+          <button
+            onClick={onOpenCommunity}
+            className="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-app-channel hover:bg-[#23a559] flex items-center justify-center cursor-pointer transition-all duration-200 group"
+            title="Community servers"
+          >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-[#23a559] group-hover:text-white transition-colors">
               <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" strokeWidth="2"/>
               <path d="M16.24 7.76L14.12 14.12L7.76 16.24L9.88 9.88L16.24 7.76Z" stroke="currentColor" strokeWidth="2"/>

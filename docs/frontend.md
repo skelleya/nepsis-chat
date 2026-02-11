@@ -39,6 +39,7 @@ frontend/src/
 
 | Component | Purpose |
 |-----------|---------|
+| VoiceIcons | Shared mic/mic-off/headphones/headphones-off SVGs (prevents clipping/snipping) |
 | ServerBar | Server list (left sidebar) |
 | ChannelList | Text + voice channels |
 | ChatView | Messages, input |
