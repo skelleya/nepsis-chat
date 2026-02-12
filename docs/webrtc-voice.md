@@ -57,6 +57,33 @@ Voice channels with WebRTC and Opus codec.
 
 ---
 
+## Camera & Screen Share
+
+Camera and screen share use WebRTC renegotiation to add/remove video tracks mid-call.
+
+### Flow (camera example)
+
+1. User A toggles camera → `getUserMedia({ video: true })`
+2. `addTrackToAllPeers(track, stream)` adds the video track to every peer connection
+3. Renegotiation: new SDP offer sent to all peers
+4. User B receives the offer → `handleOffer` sets remote description → `ontrack` fires
+5. Video track is added to the combined `remoteStream` for that peer
+6. `ParticipantCard` detects video tracks and renders a `<video>` element
+
+### Combined Remote Stream
+
+Each peer maintains **one combined `MediaStream`** per remote peer. All incoming tracks (audio, camera video, screen video) are added to it. This prevents the bug where a new video stream overwrites the audio stream.
+
+### Track Removal
+
+When a user stops camera/screen share:
+1. `removeTrackFromAllPeers(track)` removes the sender and sends a renegotiation offer
+2. Remote side processes the new SDP; `track.onended` or `track.onmute` fires
+3. Track is removed from the combined stream; `useVideoTrackCount` hook updates the UI
+4. `ParticipantCard` switches back to avatar mode
+
+---
+
 ## Troubleshooting
 
 ### Cannot see/hear other users in voice
@@ -67,3 +94,10 @@ Voice channels with WebRTC and Opus codec.
   3. Both users connect to the same backend URL
 - **Same machine, 2 tabs:** BroadcastChannel works; ensure both tabs join the same voice channel
 - **Microphone permissions:** Both users must allow microphone access
+
+### Cannot see friend's camera/screen share
+
+- Ensure both users are on the same backend (Socket.io signaling)
+- Check browser console for renegotiation errors
+- STUN server must be reachable (stun.l.google.com:19302)
+- If behind strict NAT/firewall, you may need a TURN server
