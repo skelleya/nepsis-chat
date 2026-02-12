@@ -58,7 +58,7 @@ export async function createServer(name: string, ownerId: string) {
   return res.json()
 }
 
-export async function updateServer(serverId: string, data: { name?: string; icon_url?: string }) {
+export async function updateServer(serverId: string, data: { name?: string; icon_url?: string; banner_url?: string }) {
   const res = await fetch(`${API_BASE}/servers/${serverId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -321,7 +321,7 @@ export async function kickMember(serverId: string, targetUserId: string, kickerU
 
 export async function getInviteByCode(code: string): Promise<{
   code: string
-  server: { id: string; name: string; iconUrl?: string }
+  server: { id: string; name: string; iconUrl?: string; bannerUrl?: string }
   inviter: string
   expiresAt?: string
   maxUses?: number

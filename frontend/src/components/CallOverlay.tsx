@@ -37,8 +37,12 @@ export function CallOverlay() {
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
         <div className="bg-[#1e1f22] rounded-2xl p-8 w-80 flex flex-col items-center gap-6 shadow-2xl border border-white/5">
           {/* Avatar */}
-          <div className="w-24 h-24 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-3xl animate-pulse shadow-lg shadow-app-accent/30">
-            {call.remoteUsername?.charAt(0).toUpperCase()}
+          <div className={`w-24 h-24 rounded-full flex items-center justify-center text-white font-bold text-3xl animate-pulse shadow-lg overflow-hidden ${call.remoteAvatarUrl ? 'bg-transparent' : 'bg-app-accent shadow-app-accent/30'}`}>
+            {call.remoteAvatarUrl ? (
+              <img src={call.remoteAvatarUrl} alt={call.remoteUsername ?? ''} className="w-full h-full object-cover" />
+            ) : (
+              call.remoteUsername?.charAt(0).toUpperCase()
+            )}
           </div>
           <div className="text-center">
             <h2 className="text-xl font-semibold text-white">
@@ -83,8 +87,12 @@ export function CallOverlay() {
           <div className="relative flex items-center justify-center">
             <div className="absolute w-24 h-24 rounded-full bg-app-accent/20 animate-ping" />
             <div className="absolute w-28 h-28 rounded-full border-2 border-app-accent/30 animate-pulse" />
-            <div className="w-24 h-24 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-3xl relative shadow-lg shadow-app-accent/30">
-              {call.remoteUsername?.charAt(0).toUpperCase()}
+            <div className={`w-24 h-24 rounded-full flex items-center justify-center text-white font-bold text-3xl relative shadow-lg overflow-hidden ${call.remoteAvatarUrl ? 'bg-transparent' : 'bg-app-accent shadow-app-accent/30'}`}>
+              {call.remoteAvatarUrl ? (
+                <img src={call.remoteAvatarUrl} alt={call.remoteUsername ?? ''} className="w-full h-full object-cover" />
+              ) : (
+                call.remoteUsername?.charAt(0).toUpperCase()
+              )}
             </div>
           </div>
           <div className="text-center">
@@ -121,8 +129,12 @@ export function CallOverlay() {
       <div className="fixed top-0 left-0 right-0 z-[100] flex justify-center pointer-events-none">
         <div className="bg-green-600 rounded-b-xl px-6 py-2.5 flex items-center gap-4 shadow-lg pointer-events-auto">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold">
-              {call.remoteUsername?.charAt(0).toUpperCase()}
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold overflow-hidden ${call.remoteAvatarUrl ? 'bg-transparent' : 'bg-white/20'}`}>
+              {call.remoteAvatarUrl ? (
+                <img src={call.remoteAvatarUrl} alt={call.remoteUsername ?? ''} className="w-full h-full object-cover" />
+              ) : (
+                call.remoteUsername?.charAt(0).toUpperCase()
+              )}
             </div>
             <span className="text-white text-sm font-medium">
               {call.remoteUsername}

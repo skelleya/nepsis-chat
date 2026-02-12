@@ -41,12 +41,13 @@ frontend/src/
 |-----------|---------|
 | VoiceIcons | Shared mic/mic-off/headphones/headphones-off SVGs (prevents clipping/snipping) |
 | ServerBar | Server list (left sidebar) |
-| ChannelList | Text + voice channels |
-| ChatView | Messages, input |
+| ChannelList | Text + voice channels; highlights text channels with new messages (white) when user isn't viewing them |
+| ChatView | Messages, input; scrolls to bottom on load; shows "New messages" indicator when scrolled up and new messages arrive; click to jump to new messages |
 | VoiceView | Voice participants, join/leave |
 | MembersSidebar | Online members |
 | RemoteAudio | Plays remote WebRTC stream |
 | CallOverlay | DM call UI: outgoing/incoming/in-call states |
+| DMView | Direct message chat; modern UI with gradient header, rounded bubbles, relative timestamps |
 | FriendsPage | Friends list and friend requests; opened by clicking Nepsis logo |
 | UpdateButton | Green update (Electron only) |
 | LoginPage | Username login |
@@ -68,10 +69,54 @@ frontend/src/
 |---------|---------|
 | api.ts | REST (login, servers, channels, messages) |
 | layoutCache.ts | localStorage cache for channels + categories per server; instant preview on switch |
+| realtime.ts | Supabase Realtime: subscribeToChannelMessages, subscribeToDMMessages, subscribeToAllDMMessages, subscribeToAllChannelMessages (for text channel unread indicators) |
 | signaling.ts | BroadcastChannel (2-tab test) |
 | socketSignaling.ts | Socket.io (with backend) |
 | webrtc.ts | WebRTC peer connections |
 | sounds.ts | Web Audio API notification/call sounds (no external files) |
+
+---
+
+## Direct Messages (DM)
+
+| Feature | Implementation |
+|---------|----------------|
+| **DM list** | ChannelList shows Direct Messages section with conversations |
+| **Unread indicators** | `dmUnreadCounts` (conversationId → count) in AppContext |
+| **New message detection** | `subscribeToAllDMMessages` in realtime.ts listens to all dm_messages |
+| **Notification** | `sounds.messageNotification()` when message arrives in non-current DM |
+| **Clear unread** | `setCurrentDM(id)` clears unread when user opens a DM |
+| **DMView** | Modern header (gradient avatar), rounded bubbles, relative timestamps (Today, Yesterday) |
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `AppContext.tsx` | dmUnreadCounts, setCurrentDM, subscribeToAllDMMessages |
+| `ChannelList.tsx` | DM items with unread badge, glow animation, header count |
+| `DMView.tsx` | Chat UI for 1-on-1 conversations |
+| `realtime.ts` | subscribeToDMMessages (current), subscribeToAllDMMessages (all) |
+
+---
+
+## Text Channel Unread
+
+| Feature | Implementation |
+|---------|----------------|
+| **Channel highlight** | Text channels with new messages (when user isn't viewing) show white highlight in sidebar |
+| **Unread tracking** | `channelUnreadCounts` (channelId → count) in AppContext |
+| **New message detection** | `subscribeToAllChannelMessages` in realtime.ts listens to all messages table INSERTs |
+| **Clear unread** | `setCurrentChannel(id)` clears unread when user selects a channel |
+| **ChatView scroll** | On load: scrolls to bottom. When scrolled up and new messages arrive: shows "New messages" button; click jumps to first new message |
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `AppContext.tsx` | channelUnreadCounts, subscribeToAllChannelMessages (filtered by server text channels) |
+| `ChannelList.tsx` | Text channel items with hasUnread styling (white highlight) |
+| `ChatView.tsx` | Scroll container, scroll-to-bottom, new message indicator, jumpToNewMessages |
+| `realtime.ts` | subscribeToAllChannelMessages (no filter, INSERT only) |
 
 ---
 
@@ -90,7 +135,7 @@ Cache is cleared on logout. See `frontend/src/services/layoutCache.ts`.
 
 ## State
 
-- **AppContext** — user, servers, channels, messages
+- **AppContext** — user, servers, channels, messages, DM conversations, DM unread counts, channel unread counts
 - **VoiceContext** — voice channel state, WebRTC, participants, speaking detection
 - **CallContext** — private DM calls, WebRTC 1-on-1, call state machine
 - No Redux/Zustand; useState in components

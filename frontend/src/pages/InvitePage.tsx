@@ -9,7 +9,7 @@ export function InvitePage() {
   const { user } = useApp()
   const [invite, setInvite] = useState<{
     code: string
-    server: { id: string; name: string; iconUrl?: string }
+    server: { id: string; name: string; iconUrl?: string; bannerUrl?: string }
     inviter: string
   } | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -77,8 +77,14 @@ export function InvitePage() {
 
   return (
     <div className="min-h-screen bg-[#313338] flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-md rounded-2xl bg-[#2b2d31] p-8 shadow-xl text-center">
-        <div className="w-20 h-20 rounded-2xl bg-app-channel flex items-center justify-center text-3xl font-bold text-white mb-4 mx-auto">
+      <div className="w-full max-w-md rounded-2xl bg-[#2b2d31] shadow-xl overflow-hidden">
+        {invite.server.bannerUrl && (
+          <div className="h-24 bg-app-channel overflow-hidden">
+            <img src={invite.server.bannerUrl} alt="" className="w-full h-full object-cover" />
+          </div>
+        )}
+        <div className="p-8 text-center">
+        <div className={`w-20 h-20 rounded-2xl flex items-center justify-center text-3xl font-bold text-white mb-4 mx-auto overflow-hidden ${invite.server.iconUrl ? 'bg-transparent' : 'bg-app-channel'} ${invite.server.bannerUrl ? '-mt-10 ring-4 ring-[#2b2d31]' : ''}`}>
           {invite.server.iconUrl ? (
             <img src={invite.server.iconUrl} alt="" className="w-full h-full rounded-2xl object-cover" />
           ) : (
@@ -109,6 +115,7 @@ export function InvitePage() {
             </button>
           </div>
         )}
+        </div>
       </div>
     </div>
   )

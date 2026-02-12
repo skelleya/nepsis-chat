@@ -11,6 +11,8 @@ import {
   subscribeToChannelMessages,
   subscribeToReactions,
   subscribeToDMMessages,
+  subscribeToAllDMMessages,
+  subscribeToAllChannelMessages,
   unsubscribe,
 } from '../services/realtime'
 import { sounds } from '../services/sounds'
@@ -29,6 +31,7 @@ interface Server {
   id: string
   name: string
   icon_url?: string
+  banner_url?: string
   owner_id: string
 }
 
@@ -87,7 +90,7 @@ interface AppContextValue {
   deleteMessage: (messageId: string) => Promise<void>
   toggleReaction: (messageId: string, emoji: string) => Promise<void>
   createServer: (name: string) => Promise<Server | null>
-  updateServer: (serverId: string, data: { name?: string }) => Promise<void>
+  updateServer: (serverId: string, data: { name?: string; icon_url?: string; banner_url?: string }) => Promise<void>
   deleteServer: (serverId: string) => Promise<void>
   createChannel: (name: string, type: 'text' | 'voice', categoryId?: string) => Promise<Channel | null>
   reorderChannels: (updates: { id: string; order: number }[]) => Promise<void>
@@ -100,6 +103,8 @@ interface AppContextValue {
   dmMessages: Record<string, api.DMMessage[]>
   currentDMId: string | null
   setCurrentDM: (id: string | null) => void
+  dmUnreadCounts: Record<string, number>
+  channelUnreadCounts: Record<string, number>
   loadDMConversations: () => Promise<void>
   openDM: (targetUserId: string, targetUsername: string) => Promise<void>
   sendDMMessage: (conversationId: string, content: string) => Promise<void>
@@ -160,7 +165,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [dmConversations, setDMConversations] = useState<api.DMConversation[]>([])
   const [dmMessages, setDMMessages] = useState<Record<string, api.DMMessage[]>>({})
   const [currentDMId, setCurrentDMId] = useState<string | null>(null)
+  const [dmUnreadCounts, setDMUnreadCounts] = useState<Record<string, number>>({})
+  const [channelUnreadCounts, setChannelUnreadCounts] = useState<Record<string, number>>({})
   const realtimeChannelRef = useRef<RealtimeChannel | null>(null)
+  const realtimeAllChannelRef = useRef<RealtimeChannel | null>(null)
+  const realtimeAllDMRef = useRef<RealtimeChannel | null>(null)
+  const currentDMIdRef = useRef<string | null>(null)
+  const currentChannelIdRef = useRef<string | null>(null)
+  currentChannelIdRef.current = currentChannelId
+  currentDMIdRef.current = currentDMId
   const realtimeReactionsRef = useRef<RealtimeChannel | null>(null)
   const realtimeDMRef = useRef<RealtimeChannel | null>(null)
   const messagesRef = useRef(messages)
@@ -248,6 +261,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setDMConversations([])
           setDMMessages({})
           setCurrentDMId(null)
+          setDMUnreadCounts({})
           setCurrentChannelId(null)
         }
       }
@@ -296,6 +310,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setMessages({})
     setCurrentServerId(null)
     setCurrentChannelId(null)
+    setDMConversations([])
+    setDMMessages({})
+    setCurrentDMId(null)
+    setDMUnreadCounts({})
+    setChannelUnreadCounts({})
 
     // Now safely delete on the backend (no frontend polling can race)
     if (wasGuest && guestId) {
@@ -366,7 +385,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (exists) return prev
         return [conv, ...prev]
       })
-      setCurrentDMId(conv.id)
+      setCurrentDM(conv.id)
       await loadDMMessages(conv.id)
     },
     [user?.id, loadDMMessages]
@@ -507,7 +526,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return server
   }, [user, loadServers])
 
-  const updateServerFn = useCallback(async (serverId: string, data: { name?: string }) => {
+  const updateServerFn = useCallback(async (serverId: string, data: { name?: string; icon_url?: string; banner_url?: string }) => {
     try {
       await api.updateServer(serverId, data)
       await loadServers()
@@ -622,6 +641,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setCategories([])
     }
     setCurrentServerId(id)
+    setChannelUnreadCounts({})
 
     const lastId = getLastChannelStorage()[id] || null
     const channelsForNewServer = cached?.channels || []
@@ -632,7 +652,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setCurrentChannel = useCallback((id: string) => {
     setCurrentChannelId(id)
     if (currentServerId) saveLastChannel(currentServerId, id)
+    setChannelUnreadCounts((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
   }, [currentServerId])
+
+  const setCurrentDM = useCallback((id: string | null) => {
+    setCurrentDMId(id)
+    if (id) {
+      setDMUnreadCounts((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+    }
+  }, [])
 
   useEffect(() => {
     if (currentServerId) loadChannels(currentServerId)
@@ -752,6 +788,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentChannelId])
 
+  // Supabase Realtime: subscribe to ALL channel messages for unread indicators in sidebar
+  // When a message arrives in a channel the user isn't viewing, increment that channel's unread count
+  useEffect(() => {
+    if (!currentServerId || !user?.id || !supabase) return
+
+    const textChannelIds = new Set(
+      channels.filter((c) => c.server_id === currentServerId && c.type === 'text').map((c) => c.id)
+    )
+    if (textChannelIds.size === 0) return
+
+    const ch = subscribeToAllChannelMessages((payload) => {
+      const { channel_id, user_id } = payload.new
+      if (user_id === user.id) return
+      if (currentChannelIdRef.current === channel_id) return
+      if (!textChannelIds.has(channel_id)) return
+
+      setChannelUnreadCounts((prev) => ({
+        ...prev,
+        [channel_id]: (prev[channel_id] ?? 0) + 1,
+      }))
+    })
+
+    realtimeAllChannelRef.current = ch
+    return () => {
+      if (realtimeAllChannelRef.current) {
+        unsubscribe(realtimeAllChannelRef.current)
+        realtimeAllChannelRef.current = null
+      }
+    }
+  }, [currentServerId, channels, user?.id])
+
   // Realtime reactions (subscribe to all, filter by message_id in current channel)
   useEffect(() => {
     if (!currentChannelId || !supabase) return
@@ -812,6 +879,51 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (user?.id) loadDMConversations()
   }, [user?.id, loadDMConversations])
+
+  // Supabase Realtime: subscribe to ALL DM messages for unread indicators
+  useEffect(() => {
+    if (!user?.id || !supabase) return
+
+    const ch = subscribeToAllDMMessages(async (payload) => {
+      if (payload.eventType !== 'INSERT') return
+      const { conversation_id, user_id } = payload.new
+      if (user_id === user.id) return
+
+      if (currentDMIdRef.current === conversation_id) return
+
+      setDMConversations((prev) => {
+        const hasConv = prev.some((c) => c.id === conversation_id)
+        if (!hasConv) {
+          loadDMConversations()
+        }
+        return prev
+      })
+
+      sounds.messageNotification()
+      setDMUnreadCounts((prev) => ({
+        ...prev,
+        [conversation_id]: (prev[conversation_id] ?? 0) + 1,
+      }))
+      try {
+        const msg = await api.getDMMessage(payload.new.id)
+        setDMMessages((prev) => {
+          const list = prev[conversation_id] || []
+          if (list.some((m) => m.id === msg.id)) return prev
+          return { ...prev, [conversation_id]: [...list, msg] }
+        })
+      } catch {
+        /* ignore */
+      }
+    })
+
+    realtimeAllDMRef.current = ch
+    return () => {
+      if (realtimeAllDMRef.current) {
+        unsubscribe(realtimeAllDMRef.current)
+        realtimeAllDMRef.current = null
+      }
+    }
+  }, [user?.id])
 
   // Supabase Realtime: subscribe to DM messages for current conversation
   useEffect(() => {
@@ -883,7 +995,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         dmConversations,
         dmMessages,
         currentDMId,
-        setCurrentDM: setCurrentDMId,
+        setCurrentDM,
+        dmUnreadCounts,
+        channelUnreadCounts,
         loadDMConversations,
         openDM,
         sendDMMessage,

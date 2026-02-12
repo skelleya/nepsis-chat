@@ -36,6 +36,8 @@ function AppContent() {
     dmMessages,
     currentDMId,
     setCurrentDM,
+    dmUnreadCounts,
+    channelUnreadCounts,
     openDM,
     sendDMMessage,
     setCurrentServer,
@@ -67,6 +69,8 @@ function AppContent() {
         dmMessages={dmMessages}
         currentDMId={currentDMId}
         setCurrentDM={setCurrentDM}
+        dmUnreadCounts={dmUnreadCounts}
+        channelUnreadCounts={channelUnreadCounts}
         openDM={openDM}
         sendDMMessage={sendDMMessage}
         setCurrentServer={setCurrentServer}
@@ -87,7 +91,7 @@ function AppContent() {
 
 interface MainLayoutProps {
   user: { id: string; username: string; avatar_url?: string; banner_url?: string; is_guest?: boolean }
-  servers: { id: string; name: string; icon_url?: string; owner_id: string }[]
+  servers: { id: string; name: string; icon_url?: string; banner_url?: string; owner_id: string }[]
   channels: { id: string; server_id: string; name: string; type: 'text' | 'voice'; order: number; category_id?: string | null }[]
   categories: { id: string; server_id: string; name: string; order: number }[]
   messages: Record<string, { id: string; channel_id: string; user_id: string; content: string; created_at: string; edited_at?: string; username?: string; reply_to_id?: string; reply_to?: { username?: string; content?: string }; attachments?: { url: string; type: string; filename?: string }[]; reactions?: { user_id: string; emoji: string }[] }[]>
@@ -97,13 +101,15 @@ interface MainLayoutProps {
   dmMessages: Record<string, { id: string; conversation_id: string; user_id: string; content: string; created_at: string; username: string }[]>
   currentDMId: string | null
   setCurrentDM: (id: string | null) => void
+  dmUnreadCounts: Record<string, number>
+  channelUnreadCounts: Record<string, number>
   openDM: (targetUserId: string, targetUsername: string) => Promise<void>
   sendDMMessage: (conversationId: string, content: string) => Promise<void>
   setCurrentServer: (id: string) => void
   setCurrentChannel: (id: string) => void
   sendMessage: (channelId: string, content: string, options?: { replyToId?: string; attachments?: { url: string; type: string; filename?: string }[] }) => Promise<void>
   createServer: (name: string) => Promise<unknown>
-  updateServer: (serverId: string, data: { name?: string }) => Promise<void>
+  updateServer: (serverId: string, data: { name?: string; icon_url?: string; banner_url?: string }) => Promise<void>
   deleteServer: (serverId: string) => Promise<void>
   createChannel: (name: string, type: 'text' | 'voice', categoryId?: string) => Promise<unknown>
   createCategory: (name: string) => Promise<unknown>
@@ -123,6 +129,8 @@ function MainLayout({
   dmMessages,
   currentDMId,
   setCurrentDM,
+  dmUnreadCounts,
+  channelUnreadCounts,
   openDM,
   sendDMMessage,
   setCurrentServer,
@@ -262,7 +270,7 @@ function MainLayout({
 
   // Build voice users map from ALL server members' presence — so users see who's in
   // each voice channel BEFORE entering (not just when they're already in one).
-  const voiceUsers: Record<string, { userId: string; username: string; isMuted?: boolean; isDeafened?: boolean; isSpeaking?: boolean }[]> = {}
+  const voiceUsers: Record<string, { userId: string; username: string; avatar_url?: string; isMuted?: boolean; isDeafened?: boolean; isSpeaking?: boolean }[]> = {}
   if (currentServerId && displayChannels.length > 0) {
     for (const member of serverMembers) {
       // Skip the current user from serverMembers — we'll add them from live voice state below
@@ -275,6 +283,7 @@ function MainLayout({
       voiceUsers[chId].push({
         userId: member.userId,
         username: member.username,
+        avatar_url: member.avatarUrl,
       })
     }
     // Add current user from LIVE voice state (instant, no API round-trip)
@@ -286,17 +295,21 @@ function MainLayout({
         voiceUsers[voice.voiceChannelId].unshift({
           userId: user.id,
           username: user.username,
+          avatar_url: user.avatar_url,
           isMuted: voice.isMuted,
           isDeafened: voice.isDeafened,
           isSpeaking: voice.isSpeaking,
         })
-        // Merge real-time participants (remote peers)
+        // Merge real-time participants (remote peers) — use avatar from serverMembers if available
+        const memberByUserId = new Map(serverMembers.map((m) => [m.userId, m]))
         const inList = new Set(voiceUsers[voice.voiceChannelId].map((u) => u.userId))
         for (const p of voice.participants) {
           if (!inList.has(p.userId)) {
+            const m = memberByUserId.get(p.userId)
             voiceUsers[voice.voiceChannelId].push({
               userId: p.userId,
               username: p.username,
+              avatar_url: m?.avatarUrl,
               isMuted: false,
               isSpeaking: p.isSpeaking,
             })
@@ -343,7 +356,7 @@ function MainLayout({
   return (
     <div className="h-screen flex bg-app-darker overflow-x-hidden">
       <ServerBar
-        servers={servers.map((s) => ({ id: s.id, name: s.name, iconUrl: s.icon_url, ownerId: s.owner_id }))}
+        servers={servers.map((s) => ({ id: s.id, name: s.name, iconUrl: s.icon_url, bannerUrl: s.banner_url, ownerId: s.owner_id }))}
         currentServerId={currentServerId}
         onSelectServer={(id) => { setShowCommunity(false); setShowFriends(false); setCurrentServer(id) }}
         onCreateServer={async (name) => { await createServer(name) }}
@@ -373,6 +386,8 @@ function MainLayout({
           hasNoServers={servers.length === 0}
           dmConversations={dmConversations}
           currentDMId={currentDMId}
+          dmUnreadCounts={dmUnreadCounts}
+          channelUnreadCounts={channelUnreadCounts}
           onSelectDM={(id) => {
             setCurrentDM(id)
             // Messages loaded by AppContext when currentDMId changes
@@ -411,6 +426,7 @@ function MainLayout({
               conversation={conv}
               messages={dmMsgs}
               currentUserId={user.id}
+              currentUserAvatarUrl={user.avatar_url}
               onSendMessage={(content) => sendDMMessage(currentDMId, content)}
               onClose={() => setCurrentDM(null)}
             />
@@ -424,7 +440,7 @@ function MainLayout({
       ) : currentChannel && currentChannel.type === 'text' ? (
         <ChatView
           channel={{ id: currentChannel.id, name: currentChannel.name, type: currentChannel.type, serverId: currentChannel.server_id, order: currentChannel.order }}
-          members={serverMembers.map((m) => ({ id: m.userId, username: m.username }))}
+          members={serverMembers.map((m) => ({ id: m.userId, username: m.username, avatarUrl: m.avatarUrl }))}
           serverEmojis={serverEmojis}
           messages={channelMessages.map((m) => ({
             id: m.id,
@@ -449,6 +465,7 @@ function MainLayout({
           channel={{ id: currentChannel.id, name: currentChannel.name, type: currentChannel.type, serverId: currentChannel.server_id, order: currentChannel.order }}
           currentUserId={user.id}
           currentUsername={user.username}
+          currentUserAvatarUrl={user.avatar_url}
           voiceUsersInChannel={voiceUsers[currentChannel.id] || []}
           onInvitePeople={handleInvitePeople}
         />
@@ -485,8 +502,8 @@ function MainLayout({
             showNotification((e as Error).message, 'error')
           }
         }}
-        onCall={(targetUserId, targetUsername) => {
-          call.initiateCall(targetUserId, targetUsername)
+        onCall={(targetUserId, targetUsername, targetAvatarUrl) => {
+          call.initiateCall(targetUserId, targetUsername, targetAvatarUrl)
         }}
         onAddFriend={async (userId, username) => {
           try {
@@ -534,6 +551,8 @@ function MainLayout({
           canManageMembers={currentUserRole === 'owner' || currentUserRole === 'admin'}
           onClose={() => setShowServerSettings(false)}
           onUpdateServer={(data) => updateServer(currentServer.id, data)}
+          serverIconUrl={currentServer.icon_url}
+          serverBannerUrl={currentServer.banner_url}
           onDeleteServer={() => deleteServer(currentServer.id)}
           onKickMember={handleKick}
           onMembersChange={async () => {

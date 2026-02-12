@@ -37,13 +37,14 @@ interface CallContextValue {
   callId: string | null
   remoteUserId: string | null
   remoteUsername: string | null
+  remoteAvatarUrl: string | null
   isMuted: boolean
   isDeafened: boolean
   callDuration: number
   unavailableReason: string | null
   toggleMute: () => void
   toggleDeafen: () => void
-  initiateCall: (targetUserId: string, targetUsername: string) => void
+  initiateCall: (targetUserId: string, targetUsername: string, targetAvatarUrl?: string) => void
   acceptCall: () => void
   declineCall: () => void
   endCall: () => void
@@ -65,6 +66,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
   const [callId, _setCallId] = useState<string | null>(null)
   const [remoteUserId, setRemoteUserId] = useState<string | null>(null)
   const [remoteUsername, setRemoteUsername] = useState<string | null>(null)
+  const [remoteAvatarUrl, setRemoteAvatarUrl] = useState<string | null>(null)
   const [isMuted, setIsMuted] = useState(false)
   const [isDeafened, setIsDeafened] = useState(false)
   const [callDuration, setCallDuration] = useState(0)
@@ -119,6 +121,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
     setCallId(null)
     setRemoteUserId(null)
     setRemoteUsername(null)
+    setRemoteAvatarUrl(null)
     setIsMuted(false)
     setIsDeafened(false)
     setCallDuration(0)
@@ -215,10 +218,12 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
         callId: id,
         callerId,
         callerUsername,
+        callerAvatarUrl,
       }: {
         callId: string
         callerId: string
         callerUsername: string
+        callerAvatarUrl?: string
       }) => {
         if (callStateRef.current !== 'idle') {
           socket.emit('call:decline', { callId: id })
@@ -227,6 +232,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
         setCallId(id)
         setRemoteUserId(callerId)
         setRemoteUsername(callerUsername)
+        setRemoteAvatarUrl(callerAvatarUrl ?? null)
         setCallState('ringing')
         stopRingRef.current = sounds.callRinging()
 
@@ -373,7 +379,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
   // ─── Actions ────────────────────────────────────────────────────
 
   const initiateCall = useCallback(
-    (targetUserId: string, targetUsername: string) => {
+    (targetUserId: string, targetUsername: string, targetAvatarUrl?: string) => {
       if (callStateRef.current !== 'idle') return
       // Leave any active server voice channel before starting a DM call
       voice.leaveVoice()
@@ -381,6 +387,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
       setCallId(id)
       setRemoteUserId(targetUserId)
       setRemoteUsername(targetUsername)
+      setRemoteAvatarUrl(targetAvatarUrl ?? null)
       setCallState('calling')
       socketRef.current?.emit('call:initiate', { targetUserId, callId: id })
       stopRingRef.current = sounds.callOutgoing()
@@ -436,6 +443,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
         callId,
         remoteUserId,
         remoteUsername,
+        remoteAvatarUrl,
         isMuted,
         isDeafened,
         callDuration,

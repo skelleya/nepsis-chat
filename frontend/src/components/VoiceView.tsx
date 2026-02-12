@@ -8,8 +8,9 @@ interface VoiceViewProps {
   channel: Channel
   currentUserId: string
   currentUsername: string
+  currentUserAvatarUrl?: string
   /** Users in this channel from presence (sidebar) — ensures we show them even before WebRTC connects */
-  voiceUsersInChannel?: { userId: string; username: string }[]
+  voiceUsersInChannel?: { userId: string; username: string; avatar_url?: string }[]
   onInvitePeople?: () => Promise<void>
 }
 
@@ -125,6 +126,7 @@ function RemoteVideo({ stream, muted = false }: { stream: MediaStream; muted?: b
 // Discord-style big square participant tile
 function ParticipantCard({
   participant,
+  avatarUrl,
   isLocal,
   localStream,
   localVideoStream,
@@ -134,6 +136,7 @@ function ParticipantCard({
   currentUserId,
 }: {
   participant: { userId: string; username: string; stream: MediaStream | null; isSpeaking: boolean }
+  avatarUrl?: string
   isLocal: boolean
   localStream: MediaStream | null
   localVideoStream: MediaStream | null
@@ -195,13 +198,17 @@ function ParticipantCard({
         <>
           <div className="flex-1 w-full flex items-center justify-center p-6">
             <div
-              className={`relative w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 rounded-full flex items-center justify-center text-white font-bold text-4xl sm:text-5xl transition-all duration-150 bg-app-accent ${
+              className={`relative w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 rounded-full flex items-center justify-center text-white font-bold text-4xl sm:text-5xl transition-all duration-150 overflow-hidden ${
                 speaking
                   ? 'ring-4 ring-[#23a559] shadow-[0_0_16px_rgba(35,165,89,0.6)] scale-105'
                   : 'ring-2 ring-transparent'
-              }`}
+              } ${avatarUrl ? 'bg-transparent' : 'bg-app-accent'}`}
             >
-              {participant.username.charAt(0).toUpperCase()}
+              {avatarUrl ? (
+                <img src={avatarUrl} alt={participant.username} className="w-full h-full object-cover" />
+              ) : (
+                participant.username.charAt(0).toUpperCase()
+              )}
               {isLocal && isMuted && (
                 <div className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-red-600 flex items-center justify-center">
                   <MicOffIcon size={14} className="text-white" />
@@ -229,7 +236,7 @@ function ParticipantCard({
   )
 }
 
-export function VoiceView({ channel, currentUserId, currentUsername, voiceUsersInChannel = [], onInvitePeople }: VoiceViewProps) {
+export function VoiceView({ channel, currentUserId, currentUsername, currentUserAvatarUrl, voiceUsersInChannel = [], onInvitePeople }: VoiceViewProps) {
   const voice = useVoice()
   const {
     participants,
@@ -261,8 +268,10 @@ export function VoiceView({ channel, currentUserId, currentUsername, voiceUsersI
   // Merge presence (voiceUsersInChannel) with WebRTC participants so we show everyone in the channel
   // even before their stream connects — fixes "can't see other user in main chat"
   const participantByUserId = new Map<string, VoiceParticipant | typeof localParticipant>()
+  const avatarByUserId = new Map<string, string>()
   if (isInThisChannel) {
     participantByUserId.set(currentUserId, localParticipant)
+    if (currentUserAvatarUrl) avatarByUserId.set(currentUserId, currentUserAvatarUrl)
   }
   for (const p of participants) {
     participantByUserId.set(p.userId, p)
@@ -271,6 +280,7 @@ export function VoiceView({ channel, currentUserId, currentUsername, voiceUsersI
     if (!participantByUserId.has(vu.userId)) {
       participantByUserId.set(vu.userId, { userId: vu.userId, username: vu.username, stream: null, isSpeaking: false })
     }
+    if (vu.avatar_url) avatarByUserId.set(vu.userId, vu.avatar_url)
   }
   // Local user first when in channel
   const allParticipants = isInThisChannel
@@ -343,6 +353,7 @@ export function VoiceView({ channel, currentUserId, currentUsername, voiceUsersI
             <ParticipantCard
               key={p.userId}
               participant={p}
+              avatarUrl={avatarByUserId.get(p.userId)}
               isLocal={p.userId === currentUserId}
               localStream={localStream}
               localVideoStream={videoStream}

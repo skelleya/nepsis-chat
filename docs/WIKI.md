@@ -76,6 +76,11 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Private DM calling — 1-on-1 voice calls via WebRTC; new `/calls` socket namespace; incoming/outgoing call overlays with ringing; in-call bar with mute/deafen/end; auto-decline after 30s timeout; busy/offline detection; Call button in member profile and right-click context menu |
 | + | Call notifications — Browser Notification when incoming call received while app is in another tab; permission requested on socket connect |
 | + | Friends page — Click Nepsis logo to open Friends page; list friends and pending friend requests; accept/decline requests; Message and Call buttons for friends |
+| + | DM notifications — New DM messages light up the conversation in the sidebar; unread count badge; notification sound; Direct Messages header shows total unread |
+| + | DM UI modernized — Gradient header, rounded message bubbles, relative timestamps, improved empty state |
+| + | Text channel unread indicators — New messages highlight channel in white in sidebar; ChatView scrolls to bottom on load; "New messages" indicator when scrolled up; click to jump to start of new messages |
+| + | Profile pictures everywhere — User avatars display in voice channels (grid + sidebar list), ChatView messages, DM list/header/messages, MembersSidebar, MemberProfilePanel, CallOverlay (outgoing/incoming/in-call). Pass avatar_url through voiceUsers, members, and CallContext. |
+| + | Server icon and banner — Server Settings > Overview: upload server profile picture (icon) and banner. Backend PATCH supports icon_url and banner_url; migration adds banner_url to servers table. |
 
 ---
 
@@ -178,7 +183,7 @@ Shows all server members with: avatar, username, role badge, status indicator, k
 - **Minimizable** — Click the arrow in the header to collapse to a narrow bar; click again to expand
 - **Member profile** — Click a member to open a profile panel on the side with:
   - Avatar, username, role, status
-  - **Message** — Opens DM (creates conversation; full DM UI coming soon)
+  - **Message** — Opens DM (creates conversation; full DM UI)
   - **Add Friend** — Sends friend request (requires `friend_requests` migration)
 
 ### Auto-join

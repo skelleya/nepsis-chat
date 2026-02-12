@@ -51,7 +51,7 @@ All npm scripts and CLI commands for Nepsis Chat.
 |---------|-------------|
 | `npm start` | Run Electron (loads `APP_URL`) |
 | `npm run build:frontend` | Build frontend before packaging |
-| `npm run bump` | Bump patch version (0.0.1 → 0.0.2) |
+| `npm run bump` | Bump patch version (0.1.9 → 0.2.0 when patch hits 10) |
 | `npm run package` | Bump + build frontend + build installer |
 | `npm run package:full` | package + publish-update + copy-exe + bump |
 | `npm run publish-update` | Copy installer + latest.yml to `backend/updates/` |
@@ -107,7 +107,7 @@ From project root:
 & ".\electron\dist\win-unpacked\Nepsis Chat.exe"
 
 # Or run the installer (check electron/dist/ for the version)
-& ".\electron\dist\Nepsis Chat Setup 0.0.3.exe"
+& ".\electron\dist\Nepsis Chat Setup 0.1.0.exe"
 ```
 
 From `electron` folder:

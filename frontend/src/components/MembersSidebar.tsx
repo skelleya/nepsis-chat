@@ -21,7 +21,7 @@ interface MembersSidebarProps {
   onKick?: (userId: string) => Promise<void>
   onMessage?: (userId: string, username: string) => void
   onAddFriend?: (userId: string, username: string) => void
-  onCall?: (userId: string, username: string) => void
+  onCall?: (userId: string, username: string, avatarUrl?: string) => void
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
   title?: string
 }
@@ -236,7 +236,7 @@ export function MembersSidebar({
           {contextMenu.member.userId !== currentUserId && onCall && (
             <button
               onClick={() => {
-                onCall(contextMenu.member.userId, contextMenu.member.username)
+                onCall(contextMenu.member.userId, contextMenu.member.username, contextMenu.member.avatarUrl)
                 setContextMenu(null)
               }}
               className="w-full px-3 py-2 text-left text-sm text-app-text hover:bg-app-accent hover:text-white flex items-center gap-2"
@@ -321,8 +321,8 @@ export function MembersSidebar({
             onAddFriend?.(userId, username)
             setSelectedMember(null)
           }}
-          onCall={onCall ? (userId, username) => {
-            onCall(userId, username)
+          onCall={onCall ? (userId, username, avatarUrl) => {
+            onCall(userId, username, avatarUrl)
             setSelectedMember(null)
           } : undefined}
         />

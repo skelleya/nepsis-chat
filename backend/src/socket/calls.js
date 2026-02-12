@@ -12,12 +12,14 @@
  *   call:ice-candidate → { callId, candidate }    — WebRTC ICE
  *
  * Server → client events:
- *   call:incoming      → { callId, callerId, callerUsername }
+ *   call:incoming      → { callId, callerId, callerUsername, callerAvatarUrl? }
  *   call:accepted      → { callId }
  *   call:declined      → { callId }
  *   call:ended         → { callId }
  *   call:unavailable   → { callId, reason }
  */
+
+import supabase from '../db/supabase.js'
 
 // userId → Set<socketId>
 const userSockets = new Map()
@@ -36,7 +38,7 @@ export function registerCallHandlers(io) {
     })
 
     // ─── Initiate a call ──────────────────────────────────────────
-    socket.on('call:initiate', ({ targetUserId, callId }) => {
+    socket.on('call:initiate', async ({ targetUserId, callId }) => {
       const targetSids = userSockets.get(targetUserId)
       if (!targetSids || targetSids.size === 0) {
         socket.emit('call:unavailable', { callId, reason: 'User is offline' })
@@ -62,12 +64,20 @@ export function registerCallHandlers(io) {
         status: 'ringing',
       })
 
+      // Fetch caller avatar for incoming call display
+      let callerAvatarUrl = null
+      try {
+        const { data } = await supabase.from('users').select('avatar_url').eq('id', socket.userId).single()
+        if (data?.avatar_url) callerAvatarUrl = data.avatar_url
+      } catch { /* ignore */ }
+
       // Ring all of callee's connected sockets
       for (const sid of targetSids) {
         io.to(sid).emit('call:incoming', {
           callId,
           callerId: socket.userId,
           callerUsername: socket.username,
+          callerAvatarUrl,
         })
       }
     })

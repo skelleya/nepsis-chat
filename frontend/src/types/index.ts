@@ -25,6 +25,7 @@ export interface Server {
   id: string
   name: string
   iconUrl?: string
+  bannerUrl?: string
   ownerId: string
 }
 

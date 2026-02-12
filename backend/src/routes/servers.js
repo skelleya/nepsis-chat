@@ -169,10 +169,11 @@ serversRouter.post('/', async (req, res) => {
 // Update a server
 serversRouter.patch('/:id', async (req, res) => {
   try {
-    const { name, icon_url } = req.body
+    const { name, icon_url, banner_url } = req.body
     const updates = {}
     if (name !== undefined) updates.name = name
     if (icon_url !== undefined) updates.icon_url = icon_url
+    if (banner_url !== undefined) updates.banner_url = banner_url
 
     const { data, error } = await supabase
       .from('servers')

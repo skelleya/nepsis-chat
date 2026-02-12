@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import * as api from '../services/api'
 
 interface ServerEmoji {
@@ -36,11 +36,13 @@ interface AuditEntry {
 interface ServerSettingsModalProps {
   serverName: string
   serverId: string
+  serverIconUrl?: string
+  serverBannerUrl?: string
   userId?: string
   canManageEmojis?: boolean
   canManageMembers?: boolean
   onClose: () => void
-  onUpdateServer: (data: { name?: string }) => Promise<void>
+  onUpdateServer: (data: { name?: string; icon_url?: string; banner_url?: string }) => Promise<void>
   onDeleteServer: () => Promise<void>
   onKickMember?: (targetUserId: string) => Promise<void>
   onMembersChange?: () => void
@@ -49,6 +51,8 @@ interface ServerSettingsModalProps {
 export function ServerSettingsModal({
   serverName,
   serverId,
+  serverIconUrl,
+  serverBannerUrl,
   userId,
   canManageEmojis,
   canManageMembers,
@@ -59,7 +63,11 @@ export function ServerSettingsModal({
   onMembersChange,
 }: ServerSettingsModalProps) {
   const [name, setName] = useState(serverName)
+  const [iconUrl, setIconUrl] = useState(serverIconUrl || '')
+  const [bannerUrl, setBannerUrl] = useState(serverBannerUrl || '')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const iconInputRef = useRef<HTMLInputElement>(null)
+  const bannerInputRef = useRef<HTMLInputElement>(null)
   const [emojis, setEmojis] = useState<ServerEmoji[]>([])
   const [emojiName, setEmojiName] = useState('')
   const [emojiFile, setEmojiFile] = useState<File | null>(null)
@@ -75,6 +83,37 @@ export function ServerSettingsModal({
   useEffect(() => {
     api.getServerEmojis(serverId).then(setEmojis).catch(() => setEmojis([]))
   }, [serverId])
+
+  useEffect(() => {
+    setIconUrl(serverIconUrl || '')
+    setBannerUrl(serverBannerUrl || '')
+  }, [serverIconUrl, serverBannerUrl])
+
+  const handleIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !/^image\/(png|gif|jpeg|webp)$/.test(file.type)) return
+    try {
+      const { url } = await api.uploadFile(file)
+      await onUpdateServer({ icon_url: url })
+      setIconUrl(url)
+    } catch (err) {
+      console.error('Icon upload failed:', err)
+    }
+    e.target.value = ''
+  }
+
+  const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !/^image\/(png|gif|jpeg|webp)$/.test(file.type)) return
+    try {
+      const { url } = await api.uploadFile(file)
+      await onUpdateServer({ banner_url: url })
+      setBannerUrl(url)
+    } catch (err) {
+      console.error('Banner upload failed:', err)
+    }
+    e.target.value = ''
+  }
 
   useEffect(() => {
     if (activeTab === 'members') {
@@ -414,14 +453,53 @@ export function ServerSettingsModal({
         )}
 
         {activeTab === 'overview' && (
-        <div className="flex gap-6">
+        <div className="space-y-6">
+          {/* Server banner */}
+          <div>
+            <label className="block text-xs font-bold text-app-muted uppercase tracking-wider mb-2">
+              Server Banner
+            </label>
+            <div
+              className="h-24 rounded-xl bg-app-channel flex items-center justify-center overflow-hidden cursor-pointer hover:opacity-90 transition-opacity border-2 border-dashed border-app-hover/50"
+              onClick={() => bannerInputRef.current?.click()}
+            >
+              {bannerUrl ? (
+                <img src={bannerUrl} alt="Banner" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-app-muted text-sm">Click to upload banner</span>
+              )}
+            </div>
+            <input
+              ref={bannerInputRef}
+              type="file"
+              accept="image/png,image/gif,image/jpeg,image/webp"
+              className="hidden"
+              onChange={handleBannerUpload}
+            />
+          </div>
+
+          <div className="flex gap-6">
           {/* Server icon */}
           <div className="flex-shrink-0">
-            <div className="w-24 h-24 rounded-full bg-app-channel flex items-center justify-center text-white text-3xl font-bold cursor-pointer hover:opacity-80 transition-opacity">
-              {name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
+            <div
+              className={`w-24 h-24 rounded-full flex items-center justify-center text-white text-3xl font-bold cursor-pointer hover:opacity-80 transition-opacity overflow-hidden ${iconUrl ? 'bg-transparent' : 'bg-app-channel'}`}
+              onClick={() => iconInputRef.current?.click()}
+            >
+              {iconUrl ? (
+                <img src={iconUrl} alt="Server" className="w-full h-full object-cover" />
+              ) : (
+                name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+              )}
             </div>
+            <input
+              ref={iconInputRef}
+              type="file"
+              accept="image/png,image/gif,image/jpeg,image/webp"
+              className="hidden"
+              onChange={handleIconUpload}
+            />
             <p className="text-xs text-app-muted text-center mt-2">
-              Min 128x128
+              Click to upload icon (min 128x128)
             </p>
           </div>
 
@@ -446,6 +524,7 @@ export function ServerSettingsModal({
               <div className="text-sm text-app-muted font-mono">{serverId}</div>
             </div>
           </div>
+        </div>
         </div>
         )}
 

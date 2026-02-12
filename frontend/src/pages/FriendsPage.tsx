@@ -89,7 +89,7 @@ export function FriendsPage({ onClose, onOpenDM }: FriendsPageProps) {
   }
 
   const handleCall = (friend: Friend) => {
-    call.initiateCall(friend.id, friend.username)
+    call.initiateCall(friend.id, friend.username, friend.avatar_url)
     onClose()
   }
 

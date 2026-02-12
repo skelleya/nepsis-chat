@@ -23,6 +23,7 @@ import { MicOffIcon, HeadphonesOffIcon } from './icons/VoiceIcons'
 interface VoiceUserInfo {
   userId: string
   username: string
+  avatar_url?: string
   isMuted?: boolean
   isDeafened?: boolean
   isSpeaking?: boolean
@@ -65,6 +66,8 @@ interface ChannelListProps {
   // DM
   dmConversations?: { id: string; created_at: string; other_user: { id: string; username: string; avatar_url?: string } }[]
   currentDMId?: string | null
+  dmUnreadCounts?: Record<string, number>
+  channelUnreadCounts?: Record<string, number>
   onSelectDM?: (conversationId: string) => void
   // Admin: drop user onto voice channel to move them
 }
@@ -92,6 +95,7 @@ function SortableChannelItem({
   currentChannelId,
   onSelectChannel,
   voiceUsers,
+  hasUnread,
   HashIcon,
   VoiceIcon,
 }: {
@@ -99,6 +103,7 @@ function SortableChannelItem({
   currentChannelId: string | null
   onSelectChannel: (ch: Channel) => void
   voiceUsers: Record<string, VoiceUserInfo[]>
+  hasUnread?: boolean
   HashIcon: React.ComponentType<{ className?: string }>
   VoiceIcon: React.ComponentType<{ className?: string }>
 }) {
@@ -127,7 +132,9 @@ function SortableChannelItem({
             className={`w-full px-2 py-1.5 rounded flex items-center gap-1.5 text-left ${
               currentChannelId === channel.id
                 ? 'bg-app-hover/60 text-white'
-                : 'text-app-muted hover:bg-app-hover/40 hover:text-app-text'
+                : channel.type === 'text' && hasUnread
+                  ? 'bg-white/10 text-white hover:bg-white/15'
+                  : 'text-app-muted hover:bg-app-hover/40 hover:text-app-text'
             }`}
           >
             {channel.type === 'text' ? (
@@ -144,10 +151,14 @@ function SortableChannelItem({
                   key={vu.userId}
                   className="flex items-center gap-2 px-1.5 py-1 rounded text-app-muted hover:bg-app-hover/30"
                 >
-                  <div className={`w-5 h-5 rounded-full bg-app-accent/80 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 ring-1.5 transition-all ${
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 ring-1.5 transition-all overflow-hidden ${
                     vu.isSpeaking ? 'ring-2 ring-[#23a559] shadow-[0_0_8px_rgba(35,165,89,0.7)]' : 'ring-transparent'
-                  }`}>
-                    {vu.username.charAt(0).toUpperCase()}
+                  } ${vu.avatar_url ? 'bg-transparent' : 'bg-app-accent/80'}`}>
+                    {vu.avatar_url ? (
+                      <img src={vu.avatar_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      vu.username.charAt(0).toUpperCase()
+                    )}
                   </div>
                   <span className="text-xs truncate flex-1 min-w-0">{vu.username}</span>
                   <div className="flex items-center gap-0.5 ml-auto flex-shrink-0">
@@ -172,6 +183,7 @@ function CategorySection({
   onAddChannel,
   onReorderChannels,
   voiceUsers,
+  channelUnreadCounts,
 }: {
   category: Category | null
   channels: Channel[]
@@ -180,6 +192,7 @@ function CategorySection({
   onAddChannel: (catId?: string) => void
   onReorderChannels?: (updates: { id: string; order: number }[]) => Promise<void>
   voiceUsers: Record<string, VoiceUserInfo[]>
+  channelUnreadCounts?: Record<string, number>
 }) {
   const [collapsed, setCollapsed] = useState(false)
 
@@ -250,6 +263,7 @@ function CategorySection({
                   currentChannelId={currentChannelId}
                   onSelectChannel={onSelectChannel}
                   voiceUsers={voiceUsers}
+                  hasUnread={channel.type === 'text' && (channelUnreadCounts?.[channel.id] ?? 0) > 0}
                   HashIcon={HashIcon}
                   VoiceIcon={VoiceIcon}
                 />
@@ -281,6 +295,8 @@ export function ChannelList({
   hasNoServers,
   dmConversations = [],
   currentDMId,
+  dmUnreadCounts = {},
+  channelUnreadCounts = {},
   onSelectDM,
 }: ChannelListProps) {
   const [showCreateChannel, setShowCreateChannel] = useState(false)
@@ -395,24 +411,57 @@ export function ChannelList({
                 <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
               </svg>
               Direct Messages
+              {Object.values(dmUnreadCounts).reduce((a, b) => a + b, 0) > 0 && (
+                <span className="ml-1 min-w-[18px] h-[18px] px-1.5 rounded-full bg-app-online text-[10px] font-bold text-white flex items-center justify-center">
+                  {Object.values(dmUnreadCounts).reduce((a, b) => a + b, 0)}
+                </span>
+              )}
             </div>
             <div className="space-y-0.5">
-              {dmConversations.filter((c) => c?.other_user).map((conv) => (
-                <button
-                  key={conv.id}
-                  onClick={() => onSelectDM(conv.id)}
-                  className={`w-full px-2 py-1.5 rounded flex items-center gap-2 text-left ${
-                    currentDMId === conv.id
-                      ? 'bg-app-hover/60 text-white'
-                      : 'text-app-muted hover:bg-app-hover/40 hover:text-app-text'
-                  }`}
-                >
-                  <div className="w-6 h-6 rounded-full bg-app-accent flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                    {(conv.other_user?.username ?? '?').charAt(0).toUpperCase()}
-                  </div>
-                  <span className="text-sm truncate flex-1">{conv.other_user?.username ?? 'Unknown'}</span>
-                </button>
-              ))}
+              {dmConversations.filter((c) => c?.other_user).map((conv) => {
+                const unreadCount = dmUnreadCounts[conv.id] ?? 0
+                const hasUnread = unreadCount > 0
+                return (
+                  <button
+                    key={conv.id}
+                    onClick={() => onSelectDM(conv.id)}
+                    className={`w-full px-2 py-1.5 rounded flex items-center gap-2 text-left transition-all ${
+                      currentDMId === conv.id
+                        ? 'bg-app-hover/60 text-white'
+                        : hasUnread
+                          ? 'bg-app-accent/15 text-app-text hover:bg-app-accent/25 animate-dm-glow'
+                          : 'text-app-muted hover:bg-app-hover/40 hover:text-app-text'
+                    }`}
+                  >
+                    <div className="relative flex-shrink-0">
+                      <div
+                        className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold overflow-hidden ${
+                          hasUnread ? 'ring-2 ring-app-online ring-offset-2 ring-offset-app-channel' : ''
+                        } ${conv.other_user?.avatar_url ? 'bg-transparent' : 'bg-app-accent'}`}
+                      >
+                        {conv.other_user?.avatar_url ? (
+                          <img src={conv.other_user.avatar_url} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          (conv.other_user?.username ?? '?').charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      {hasUnread && (
+                        <span
+                          className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-1 rounded-full bg-app-online text-[10px] font-bold text-white flex items-center justify-center animate-pulse"
+                          title="New message"
+                        >
+                          {unreadCount > 99 ? '99+' : unreadCount}
+                        </span>
+                      )}
+                    </div>
+                    <span
+                      className={`text-sm truncate flex-1 ${hasUnread ? 'font-semibold' : ''}`}
+                    >
+                      {conv.other_user?.username ?? 'Unknown'}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           </div>
         )}
@@ -445,6 +494,7 @@ export function ChannelList({
               }}
               onReorderChannels={onReorderChannels}
               voiceUsers={voiceUsers}
+              channelUnreadCounts={channelUnreadCounts}
             />
           ))}
 
@@ -461,6 +511,7 @@ export function ChannelList({
               }}
               onReorderChannels={onReorderChannels}
               voiceUsers={voiceUsers}
+              channelUnreadCounts={channelUnreadCounts}
             />
           )}
           </>

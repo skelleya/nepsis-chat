@@ -6,7 +6,7 @@ Desktop app wrapper and packaging.
 
 ## Overview
 
-- **Installed app**: Loads from the production URL (`https://nepsis-chat.fly.dev`) so API calls are same-origin (no CORS issues). Falls back to bundled frontend from `resources/app/` via `file://` if server is unreachable.
+- **Installed app**: Loads from bundled frontend (`resources/webapp/`) — no Vercel dependency. API calls go to Fly.io (`VITE_API_URL` baked in at build). Falls back to PROD_URL only if bundled files are missing.
 - **Dev mode**: Loads from URL (default: `http://localhost:5173`)
 - NSIS installer installs to Program Files
 - electron-updater for auto-updates
@@ -25,7 +25,7 @@ Desktop app wrapper and packaging.
 | main.js | Main process, BrowserWindow, autoUpdater |
 | icon.png | **Nepsis logo** — app icon (window title bar, tray, installer, desktop shortcut, NSIS wizard). To update: copy your logo to `electron/icon.png`, `frontend/public/logo.png`, and `frontend/public/favicon.png`, then run `npm run package:full` |
 | preload.js | Exposes electronAPI to renderer |
-| scripts/bump-version.js | Bump patch version |
+| scripts/bump-version.js | Bump patch version (0.1.9 → 0.2.0 when patch hits 10) |
 | scripts/publish-update.js | Copy build to backend/updates |
 
 ---

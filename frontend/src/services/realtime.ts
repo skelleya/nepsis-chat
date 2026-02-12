@@ -52,6 +52,37 @@ export function subscribeToChannelMessages(
   return channel
 }
 
+/**
+ * Subscribe to ALL channel messages (INSERT only).
+ * Used to show unread indicators when messages arrive in channels the user isn't viewing.
+ * Caller should filter by channel_id in their server's text channels.
+ */
+export function subscribeToAllChannelMessages(
+  onMessage: (payload: { eventType: 'INSERT'; new: MessagePayload }) => void
+): RealtimeChannel | null {
+  if (!supabase) return null
+
+  const channel = supabase
+    .channel('messages:all')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+      },
+      (payload) => {
+        onMessage({
+          eventType: 'INSERT',
+          new: payload.new as MessagePayload,
+        })
+      }
+    )
+    .subscribe()
+
+  return channel
+}
+
 export function subscribeToReactions(
   channelId: string,
   onReaction: (payload: { eventType: 'INSERT' | 'DELETE'; new: ReactionPayload; old?: ReactionPayload }) => void
@@ -77,6 +108,45 @@ export function subscribeToReactions(
             old: payload.old as ReactionPayload,
           })
         }
+      }
+    )
+    .subscribe()
+
+  return channel
+}
+
+export type DMMessagePayload = {
+  id: string
+  conversation_id: string
+  user_id: string
+  content: string
+  created_at: string
+}
+
+/**
+ * Subscribe to ALL dm_messages (for detecting new DMs in any conversation).
+ * Used to show unread indicators when messages arrive in DMs the user isn't viewing.
+ */
+export function subscribeToAllDMMessages(
+  onMessage: (payload: { eventType: 'INSERT' | 'UPDATE' | 'DELETE'; new: DMMessagePayload; old?: { id: string } }) => void
+): RealtimeChannel | null {
+  if (!supabase) return null
+
+  const channel = supabase
+    .channel('dm:all')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'dm_messages',
+      },
+      (payload) => {
+        onMessage({
+          eventType: payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE',
+          new: payload.new as DMMessagePayload,
+          old: payload.old as { id: string },
+        })
       }
     )
     .subscribe()

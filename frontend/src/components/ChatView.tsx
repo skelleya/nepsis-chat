@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import type { Channel, Message, User } from '../types'
 import { useApp } from '../contexts/AppContext'
 import * as api from '../services/api'
@@ -15,7 +15,7 @@ interface ChatViewProps {
   channel: Channel
   messages: Message[]
   users: User[]
-  members?: { id: string; username: string }[]
+  members?: { id: string; username: string; avatarUrl?: string }[]
   serverEmojis?: ServerEmoji[]
   onSendMessage?: (content: string, options?: { replyToId?: string; attachments?: { url: string; type: string; filename?: string }[] }) => void
   currentUserId: string
@@ -41,9 +41,73 @@ export function ChatView({
   const [uploading, setUploading] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState<string | null>(null)
   const [showInputEmojiPicker, setShowInputEmojiPicker] = useState(false)
+  const [hasNewMessages, setHasNewMessages] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const lastMessageCountRef = useRef(0)
+  const firstNewMessageIdRef = useRef<string | null>(null)
+
+  const isAtBottom = () => {
+    const el = scrollRef.current
+    if (!el) return true
+    const threshold = 100
+    return el.scrollHeight - el.scrollTop - el.clientHeight < threshold
+  }
+
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior })
+  }
+
+  // When channel changes, reset state; scroll happens when messages load
+  useEffect(() => {
+    lastMessageCountRef.current = 0
+    firstNewMessageIdRef.current = null
+    setHasNewMessages(false)
+  }, [channel.id])
+
+  // Initial load or when no prev messages: scroll to bottom
+  useEffect(() => {
+    if (messages.length === 0) return
+    if (lastMessageCountRef.current === 0) {
+      lastMessageCountRef.current = messages.length
+      scrollToBottom('auto')
+      return
+    }
+    const prevCount = lastMessageCountRef.current
+    if (messages.length > prevCount) {
+      if (isAtBottom()) {
+        lastMessageCountRef.current = messages.length
+        scrollToBottom('smooth')
+      } else {
+        setHasNewMessages(true)
+        firstNewMessageIdRef.current = messages[prevCount]?.id ?? null
+      }
+    }
+  }, [messages])
+
+  const handleScroll = () => {
+    if (isAtBottom() && hasNewMessages) {
+      setHasNewMessages(false)
+      firstNewMessageIdRef.current = null
+      lastMessageCountRef.current = messages.length
+    }
+  }
+
+  const jumpToNewMessages = () => {
+    const id = firstNewMessageIdRef.current
+    if (id) {
+      document.getElementById(`msg-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    } else {
+      scrollToBottom('smooth')
+    }
+    setHasNewMessages(false)
+    firstNewMessageIdRef.current = null
+    lastMessageCountRef.current = messages.length
+  }
 
   const getUser = (userId: string) => users.find((u) => u.id === userId) ?? { username: 'Unknown', id: userId }
+  const getMemberAvatar = (userId: string) => members.find((m) => m.id === userId)?.avatarUrl
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -117,7 +181,11 @@ export function ChatView({
         <span className="ml-2 font-semibold text-app-text">{channel.name}</span>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto p-4 relative"
+        onScroll={handleScroll}
+      >
         {messages.map((message) => {
           const user = getUser(message.userId)
           const username = message.username ?? user.username
@@ -129,8 +197,12 @@ export function ChatView({
               key={message.id}
               className="group flex gap-3 py-1.5 hover:bg-app-dark/50 rounded px-2 -mx-2 transition-all"
             >
-              <div className="w-10 h-10 rounded-full bg-app-accent flex items-center justify-center text-white font-bold flex-shrink-0">
-                {username.charAt(0)}
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 overflow-hidden ${getMemberAvatar(message.userId) ? 'bg-transparent' : 'bg-app-accent'}`}>
+                {getMemberAvatar(message.userId) ? (
+                  <img src={getMemberAvatar(message.userId)} alt={username} className="w-full h-full object-cover" />
+                ) : (
+                  username.charAt(0)
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-baseline gap-2 flex-wrap">
@@ -288,6 +360,18 @@ export function ChatView({
             </div>
           )
         })}
+        <div ref={messagesEndRef} />
+        {hasNewMessages && (
+          <button
+            onClick={jumpToNewMessages}
+            className="sticky bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-app-accent text-white text-sm font-medium shadow-lg hover:bg-app-accent-hover transition-colors flex items-center gap-2"
+          >
+            <span>New messages</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/>
+            </svg>
+          </button>
+        )}
       </div>
 
       <form className="p-4 border-t border-app-dark" onSubmit={handleSubmit}>

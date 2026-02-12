@@ -8,7 +8,7 @@ interface MemberProfilePanelProps {
   onClose: () => void
   onMessage: (userId: string, username: string) => void
   onAddFriend: (userId: string, username: string) => void
-  onCall?: (userId: string, username: string) => void
+  onCall?: (userId: string, username: string, avatarUrl?: string) => void
 }
 
 export function MemberProfilePanel({
@@ -87,7 +87,7 @@ export function MemberProfilePanel({
               </button>
               {onCall && (
                 <button
-                  onClick={() => onCall(member.userId, member.username)}
+                  onClick={() => onCall(member.userId, member.username, member.avatarUrl)}
                   className="w-full px-4 py-2 rounded bg-green-600 hover:bg-green-700 text-white text-sm font-medium flex items-center justify-center gap-2 transition-colors"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">

@@ -5,6 +5,7 @@ const { autoUpdater } = require('electron-updater')
 const isDev = process.env.NODE_ENV === 'development'
 const APP_URL = process.env.APP_URL || 'http://localhost:5173'
 const PROD_URL = process.env.PROD_URL || 'https://nepsis-chat.vercel.app'
+const BUNDLED_INDEX = path.join(process.resourcesPath, 'webapp', 'index.html')
 
 // Set AppUserModelId early — required for Windows to show the custom icon
 // in the taskbar instead of the default Electron icon.
@@ -69,12 +70,10 @@ function createWindow() {
   if (icon) mainWindow.setIcon(icon)
 
   if (app.isPackaged) {
-    // Load from the production server (same-origin avoids CORS issues with
-    // file:// protocol).  Fall back to local files if the server is unreachable.
-    mainWindow.loadURL(PROD_URL)
-    mainWindow.webContents.once('did-fail-load', () => {
-      const indexPath = path.join(process.resourcesPath, 'webapp', 'index.html')
-      mainWindow.loadFile(indexPath)
+    // Load from bundled frontend (built with VITE_API_URL -> Fly.io). No Vercel dependency.
+    // Fall back to PROD_URL only if bundled files are missing (e.g. dev package).
+    mainWindow.loadFile(BUNDLED_INDEX).catch(() => {
+      mainWindow.loadURL(PROD_URL)
     })
   } else {
     mainWindow.loadURL(APP_URL)

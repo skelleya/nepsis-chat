@@ -40,6 +40,7 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | Download link 404 / can't download exe | Exe excluded from Docker image or deploy without package:full | Deploy with `npm run release` (not just `npm run deploy`). |
 | **Download 404 — GitHub releases page shows "There aren't any releases here"** | No GitHub release has been published yet. The download page links to `releases/latest/download/NepsisChat-Setup.exe` but the repo has zero releases. | Set `GH_TOKEN` (GitHub PAT with `repo` scope) then run `npm run release`. This builds the Electron app and uploads the exe to GitHub Releases via electron-builder. PowerShell: `$env:GH_TOKEN="ghp_xxx"; npm run release`. |
 | **White screen + "Cannot GET /updates/download"** | (1) Installer not in backend/updates; release script skipped publish-update. (2) Vercel missing `VITE_API_URL` — download link points to wrong host. | Run **`npm run release`** (not just `npm run deploy`). On Vercel, set `VITE_API_URL=https://nepsis-chat.fly.dev/api` so the download link points to the backend. |
+| **404: NOT_FOUND / DEPLOYMENT_NOT_FOUND** (after install) | Packaged app was loading from Vercel; that deployment/project may not exist. | Now fixed: the app loads from bundled frontend by default. Rebuild with `npm run package` or `npm run release` and reinstall. Ensure `npm run build:frontend` runs before packaging so `webapp/` is populated. |
 
 ---
 

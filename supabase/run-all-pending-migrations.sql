@@ -175,3 +175,8 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE server_members;
   END IF;
 END $$;
+
+-- ============================================================
+-- Migration 8: Server icon and banner
+-- ============================================================
+ALTER TABLE servers ADD COLUMN IF NOT EXISTS banner_url TEXT;

@@ -6,9 +6,9 @@ Versioning and auto-updates.
 
 ## Version
 
-- **Format:** 0.0.1 (semver)
-- **Start:** 0.0.1
-- **Auto bump:** Patch only (0.0.1 → 0.0.2)
+- **Format:** 0.1.0 (semver)
+- **Start:** 0.1.0
+- **Auto bump:** Patch 0–9; when patch would hit 10, bump minor and reset patch: 0.1.9 → 0.2.0
 
 ---
 
@@ -18,6 +18,7 @@ Versioning and auto-updates.
 
 - Reads version from `electron/package.json`
 - Increments patch (3rd number)
+- When patch reaches 10: patch = 0, minor += 1 (e.g. 0.1.9 → 0.2.0)
 - Writes back
 
 ---
