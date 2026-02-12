@@ -68,7 +68,9 @@ export function UserPanel({
             onClick={() => setShowStatusMenu(!showStatusMenu)}
             className="flex items-center gap-2 px-1 py-1 rounded hover:bg-app-hover/40 cursor-pointer transition-colors"
           >
-            <div className="relative flex-shrink-0">
+            <div className={`relative flex-shrink-0 rounded-full transition-all duration-150 ${
+              isSpeaking ? 'ring-2 ring-[#23a559] shadow-[0_0_12px_rgba(35,165,89,0.8)]' : ''
+            }`}>
               {user.avatar_url ? (
                 <img key={user.avatar_url} src={user.avatar_url} alt={user.username} className="w-8 h-8 rounded-full object-cover" />
               ) : (
@@ -78,7 +80,7 @@ export function UserPanel({
               )}
               <div
                 className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-[#232428] transition-all duration-150 ${statusColor} ${
-                  isSpeaking ? 'shadow-[0_0_8px_#23a559] ring-2 ring-[#23a559]/60 animate-pulse' : ''
+                  isSpeaking ? 'shadow-[0_0_6px_#23a559] ring-1 ring-[#23a559] animate-pulse' : ''
                 }`}
               />
             </div>
