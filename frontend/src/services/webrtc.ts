@@ -135,23 +135,51 @@ export function createWebRTCClient(
       }
     }
 
-    await entry.pc.setRemoteDescription(new RTCSessionDescription(sdp))
-    const answer = await entry.pc.createAnswer()
-    await entry.pc.setLocalDescription(answer)
-    if (entry.pc.localDescription) signaling.sendAnswer(from, entry.pc.localDescription)
+    try {
+      // If we also sent an offer (glare), roll back our local offer first.
+      // The "polite peer" pattern: the peer with the lower ID yields.
+      if (entry.pc.signalingState === 'have-local-offer') {
+        const mySocketId = signaling.getSocketId?.() ?? localId
+        const isPolite = mySocketId > from // lower ID is polite → yields to remote offer
+        if (isPolite) {
+          await entry.pc.setLocalDescription({ type: 'rollback' })
+        } else {
+          // We're impolite — ignore their offer, keep ours
+          return
+        }
+      }
+
+      await entry.pc.setRemoteDescription(new RTCSessionDescription(sdp))
+      const answer = await entry.pc.createAnswer()
+      await entry.pc.setLocalDescription(answer)
+      if (entry.pc.localDescription) signaling.sendAnswer(from, entry.pc.localDescription)
+    } catch (err) {
+      console.warn('handleOffer failed for', from, err)
+    }
   }
 
   const handleAnswer = async (from: string, sdp: RTCSessionDescriptionInit, fromUserId?: string, fromUsername?: string) => {
     const entry = peers.get(from)
-    if (entry) {
-      updatePeerMeta(from, fromUserId, fromUsername)
+    if (!entry) return
+    updatePeerMeta(from, fromUserId, fromUsername)
+    // Only apply the answer if we're actually waiting for one (have-local-offer).
+    // Answers arriving in "stable" state are stale/duplicate — ignore them.
+    if (entry.pc.signalingState !== 'have-local-offer') return
+    try {
       await entry.pc.setRemoteDescription(new RTCSessionDescription(sdp))
+    } catch (err) {
+      console.warn('setRemoteDescription (answer) failed for', from, err)
     }
   }
 
   const handleIceCandidate = async (from: string, candidate: RTCIceCandidateInit) => {
     const entry = peers.get(from)
-    if (entry) await entry.pc.addIceCandidate(new RTCIceCandidate(candidate))
+    if (!entry) return
+    try {
+      await entry.pc.addIceCandidate(new RTCIceCandidate(candidate))
+    } catch (err) {
+      console.warn('addIceCandidate failed for', from, err)
+    }
   }
 
   const handlePeerJoined = (remotePeerId: string, userId?: string, username?: string) => {
