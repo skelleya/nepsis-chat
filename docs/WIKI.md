@@ -70,6 +70,8 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Invite-only join — No auto-join on login; new/guest accounts start with no servers; join via invite link or code; Community page (compass icon) for discoverable servers; community servers (is_community=true) auto-joined for new users |
 | + | Voice icon fixes — Mic/headphones icons no longer snipped; MicOffIcon (mic+slash) instead of speaker/bell when muted; correct icons in UserPanel, ChannelList, VoiceView |
 | + | Voice & invite fixes — Main screen shows all participants (room-peers + peer-joined add before stream); sidebar polls every 2s when in voice; invite creation shows actual error (e.g. missing server_invites table) |
+| + | Sound effects — Web Audio API notification sounds: message ding, voice join/leave chimes, voice connected/disconnected tones; no external audio files needed |
+| + | Private DM calling — 1-on-1 voice calls via WebRTC; new `/calls` socket namespace; incoming/outgoing call overlays with ringing; in-call bar with mute/deafen/end; auto-decline after 30s timeout; busy/offline detection; Call button in member profile and right-click context menu |
 
 ---
 

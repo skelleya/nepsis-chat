@@ -63,7 +63,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
       const { url } = await api.uploadFile(file)
       await api.updateUserProfile(user.id, { banner_url: url })
       setBannerUrl(url)
-      window.dispatchEvent(new CustomEvent('nepsis-user-updated', { detail: { ...user, banner_url: url } }))
+      onUserUpdate?.({ banner_url: url })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed')
     } finally {
@@ -145,7 +145,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
               <div className="bg-[#111214] rounded-lg overflow-hidden">
                 <div className="relative h-24">
                   {bannerUrl ? (
-                    <img src={bannerUrl} alt="Banner" className="w-full h-full object-cover" />
+                    <img key={bannerUrl} src={bannerUrl} alt="Banner" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full bg-app-accent" />
                   )}
@@ -168,7 +168,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
                   <div className="flex items-end gap-4 -mt-10">
                     <div className="relative">
                       {avatarUrl ? (
-                        <img src={avatarUrl} alt={user.username} className="w-20 h-20 rounded-full object-cover border-4 border-[#111214]" />
+                        <img key={avatarUrl} src={avatarUrl} alt={user.username} className="w-20 h-20 rounded-full object-cover border-4 border-[#111214]" />
                       ) : (
                         <div className="w-20 h-20 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-2xl border-4 border-[#111214]">
                           {user.username.charAt(0).toUpperCase()}

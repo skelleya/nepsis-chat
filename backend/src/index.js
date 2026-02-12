@@ -18,6 +18,7 @@ import { invitesRouter } from './routes/invites.js'
 import { versionRouter } from './routes/version.js'
 import { registerChatHandlers } from './socket/chat.js'
 import { registerVoiceHandlers } from './socket/voice.js'
+import { registerCallHandlers } from './socket/calls.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
@@ -66,11 +67,13 @@ app.use('/api/version', versionRouter)
 
 const chatNamespace = io.of('/chat')
 const voiceNamespace = io.of('/voice')
+const callsNamespace = io.of('/calls')
 
 app.set('voiceNamespace', voiceNamespace)
 
 registerChatHandlers(chatNamespace)
 registerVoiceHandlers(voiceNamespace)
+registerCallHandlers(callsNamespace)
 
 const PORT = process.env.PORT || 3000
 httpServer.listen(PORT, () => {

@@ -94,6 +94,26 @@ Node.js + Express + Socket.io + SQLite.
 | ice-candidate | Server → Client | from, fromUserId, candidate |
 | admin-move-to-channel | Server → Client | channelId, channelName — emitted to target user when admin moves them to another voice channel |
 
+### `/calls` (DM private calls)
+
+| Event | Direction | Payload |
+|-------|-----------|---------|
+| register | Client → Server | userId, username — maps socket to user |
+| call:initiate | Client → Server | targetUserId, callId |
+| call:accept | Client → Server | callId |
+| call:decline | Client → Server | callId |
+| call:end | Client → Server | callId |
+| call:offer | Both | callId, sdp — WebRTC SDP exchange |
+| call:answer | Both | callId, sdp |
+| call:ice-candidate | Both | callId, candidate |
+| call:incoming | Server → Client | callId, callerId, callerUsername |
+| call:accepted | Server → Client | callId |
+| call:declined | Server → Client | callId |
+| call:ended | Server → Client | callId |
+| call:unavailable | Server → Client | callId, reason (offline/busy) |
+
+**File:** `backend/src/socket/calls.js`
+
 ---
 
 ## CORS

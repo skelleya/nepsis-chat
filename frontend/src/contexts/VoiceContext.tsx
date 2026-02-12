@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useCallback, useRef, useEffect } f
 import { createBroadcastSignaling } from '../services/signaling'
 import { createSocketSignaling } from '../services/socketSignaling'
 import { createWebRTCClient } from '../services/webrtc'
+import { sounds } from '../services/sounds'
 
 export interface VoiceParticipant {
   userId: string
@@ -76,6 +77,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   }, [])
 
   const leaveVoice = useCallback(() => {
+    if (voiceChannelId) sounds.voiceDisconnected()
     webrtcRef.current?.leave()
     webrtcRef.current = null
     signalingRef.current = null
@@ -122,15 +124,19 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
       const localId = USE_SOCKET
         ? (signaling as { getSocketId?: () => string }).getSocketId?.() ?? userId
         : userId
+      sounds.voiceConnected()
+
       const webrtc = createWebRTCClient(localId, signaling as Parameters<typeof createWebRTCClient>[1], {
         onRemoteStream: (_, pUserId, pUsername, remoteStream) => {
           addOrUpdateParticipant(pUserId, pUsername, remoteStream)
         },
         onPeerLeft: (peerId) => {
           removeParticipant(peerId)
+          sounds.userLeave()
         },
         onPeerJoined: (pUserId, pUsername) => {
           addOrUpdateParticipant(pUserId, pUsername, null)
+          sounds.userJoin()
         },
       })
       webrtcRef.current = webrtc

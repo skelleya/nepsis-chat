@@ -12,6 +12,7 @@ import {
   subscribeToReactions,
   unsubscribe,
 } from '../services/realtime'
+import { sounds } from '../services/sounds'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 interface User {
@@ -629,6 +630,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (payload.eventType === 'INSERT') {
         try {
           const msg = await api.getMessage(payload.new.id)
+          // Play notification sound for messages from other users
+          if (msg.user_id !== user?.id) {
+            sounds.messageNotification()
+          }
           setMessages((prev) => {
             const list = prev[currentChannelId] || []
             if (list.some((m) => m.id === msg.id)) return prev

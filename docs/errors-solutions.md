@@ -146,6 +146,41 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 
 ---
 
+## Profile (Avatar & Banner)
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Banner not updating on profile | `handleBannerUpload` in UserSettingsModal dispatched `nepsis-user-updated` event but never called `onUserUpdate`. Context/user state was never updated with new banner_url. | Call `onUserUpdate?.({ banner_url: url })` after banner upload so context stays in sync. Files: `UserSettingsModal.tsx`. |
+| Profile icon not changing in members list when changing avatar | (1) MembersSidebar always showed username initial, never `member.avatarUrl`. (2) Context user avatar updated but serverMembers wasn't refetched; no `currentUserAvatarUrl` override for immediate display. | (1) Render avatar image when `member.avatarUrl` exists. (2) Pass `currentUserAvatarUrl={user.avatar_url}` to MembersSidebar so current user's avatar updates immediately. (3) Add `user?.avatar_url` to serverMembers useEffect deps to refetch when current user changes avatar. Files: `MembersSidebar.tsx`, `App.tsx`. |
+
+**Files:** `UserSettingsModal.tsx`, `MembersSidebar.tsx`, `App.tsx`, `UserPanel.tsx`
+
+---
+
+## DM Calls
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Call button does nothing / no ring | `/calls` namespace not registered on backend | Ensure `registerCallHandlers(callsNamespace)` is in `backend/src/index.js` and backend is restarted |
+| "User is offline" immediately after clicking Call | Target user's browser hasn't connected to the `/calls` namespace yet | The CallProvider must be mounted (user must be logged in). Check that `CallProvider` wraps `MainLayout` in `App.tsx` |
+| No audio after accepting call | WebRTC ICE candidate exchange failed (firewall/NAT) | Add TURN server to ICE_CONFIG in `CallContext.tsx` for strict NAT environments |
+| Call rings forever / doesn't auto-decline | Timeout not firing | Both caller and callee have 30s timeouts. Check browser console for errors in CallContext |
+
+**Files:** `backend/src/socket/calls.js`, `frontend/src/contexts/CallContext.tsx`, `frontend/src/components/CallOverlay.tsx`
+
+---
+
+## Sounds
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| No sounds playing | Browser requires user interaction before AudioContext can play | AudioContext is created on first sound call; user must have interacted with the page (click/keypress) first. This is normal browser behavior. |
+| Sounds too loud/quiet | Volume constants in `sounds.ts` | Adjust `volume` parameter in each sound method (0.0–1.0). Current defaults: 0.06–0.14 |
+
+**Files:** `frontend/src/services/sounds.ts`
+
+---
+
 ## Adding New Issues
 
 When a new error occurs:

@@ -2,11 +2,13 @@ import { useState, useEffect, useCallback } from 'react'
 import * as api from './services/api'
 import { AppProvider, useApp } from './contexts/AppContext'
 import { VoiceProvider, useVoice } from './contexts/VoiceContext'
+import { CallProvider, useCall } from './contexts/CallContext'
 import { ServerBar } from './components/ServerBar'
 import { ChannelList } from './components/ChannelList'
 import { ChatView } from './components/ChatView'
 import { VoiceView } from './components/VoiceView'
 import { MembersSidebar, type ServerMember } from './components/MembersSidebar'
+import { CallOverlay } from './components/CallOverlay'
 import { LoginPage } from './components/LoginPage'
 import { UpdateButton } from './components/UpdateButton'
 import { DownloadBanner } from './components/DownloadBanner'
@@ -43,6 +45,7 @@ function AppContent() {
 
   return (
     <VoiceProvider userId={user.id} username={user.username}>
+      <CallProvider userId={user.id} username={user.username}>
       <MainLayout
         user={user}
         servers={servers}
@@ -62,6 +65,7 @@ function AppContent() {
         reorderChannels={reorderChannels}
         logout={logout}
       />
+      </CallProvider>
     </VoiceProvider>
   )
 }
@@ -106,6 +110,7 @@ function MainLayout({
   logout,
 }: MainLayoutProps) {
   const voice = useVoice()
+  const call = useCall()
   const [showServerSettings, setShowServerSettings] = useState(false)
   const [showCommunity, setShowCommunity] = useState(servers.length === 0)
   const [serverMembers, setServerMembers] = useState<ServerMember[]>([])
@@ -152,7 +157,7 @@ function MainLayout({
     const ms = voice.voiceChannelId ? 2000 : 8000
     const interval = setInterval(load, ms)
     return () => clearInterval(interval)
-  }, [currentServerId, user?.id, voice.voiceChannelId])
+  }, [currentServerId, user?.id, user?.avatar_url, voice.voiceChannelId])
 
   // Update presence (online / in-voice / away / dnd) — in-voice overrides when in voice
   useEffect(() => {
@@ -372,6 +377,7 @@ function MainLayout({
       <MembersSidebar
         members={serverMembers}
         currentUserId={user.id}
+        currentUserAvatarUrl={user.avatar_url}
         currentUserRole={currentUserRole}
         serverId={currentServerId}
         voiceChannels={displayChannels.filter((c) => c.type === 'voice').map((c) => ({
@@ -390,6 +396,9 @@ function MainLayout({
           } catch (e) {
             showNotification((e as Error).message, 'error')
           }
+        }}
+        onCall={(targetUserId, targetUsername) => {
+          call.initiateCall(targetUserId, targetUsername)
         }}
         onAddFriend={async (userId, username) => {
           try {
@@ -412,6 +421,9 @@ function MainLayout({
         }}
       />
       )}
+
+      {/* DM Call overlay */}
+      <CallOverlay />
 
       {/* Notification toast */}
       {notification && (

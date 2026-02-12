@@ -46,6 +46,7 @@ frontend/src/
 | VoiceView | Voice participants, join/leave |
 | MembersSidebar | Online members |
 | RemoteAudio | Plays remote WebRTC stream |
+| CallOverlay | DM call UI: outgoing/incoming/in-call states |
 | UpdateButton | Green update (Electron only) |
 | LoginPage | Username login |
 
@@ -69,6 +70,7 @@ frontend/src/
 | signaling.ts | BroadcastChannel (2-tab test) |
 | socketSignaling.ts | Socket.io (with backend) |
 | webrtc.ts | WebRTC peer connections |
+| sounds.ts | Web Audio API notification/call sounds (no external files) |
 
 ---
 
@@ -88,6 +90,8 @@ Cache is cleared on logout. See `frontend/src/services/layoutCache.ts`.
 ## State
 
 - **AppContext** — user, servers, channels, messages
+- **VoiceContext** — voice channel state, WebRTC, participants, speaking detection
+- **CallContext** — private DM calls, WebRTC 1-on-1, call state machine
 - No Redux/Zustand; useState in components
 
 ---

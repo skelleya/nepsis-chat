@@ -14,12 +14,14 @@ export interface ServerMember {
 interface MembersSidebarProps {
   members: ServerMember[]
   currentUserId: string
+  currentUserAvatarUrl?: string
   currentUserRole?: 'owner' | 'admin' | 'member'
   serverId: string | null
   voiceChannels?: Channel[]
   onKick?: (userId: string) => Promise<void>
   onMessage?: (userId: string, username: string) => void
   onAddFriend?: (userId: string, username: string) => void
+  onCall?: (userId: string, username: string) => void
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
   title?: string
 }
@@ -27,12 +29,14 @@ interface MembersSidebarProps {
 export function MembersSidebar({
   members,
   currentUserId,
+  currentUserAvatarUrl,
   currentUserRole = 'member',
   serverId,
   voiceChannels = [],
   onKick,
   onMessage,
   onAddFriend,
+  onCall,
   onMoveToChannel,
   title = 'Members',
 }: MembersSidebarProps) {
@@ -156,8 +160,17 @@ export function MembersSidebar({
               className="px-4 py-2 flex items-center gap-3 hover:bg-app-hover group cursor-pointer"
             >
               <div className="relative flex-shrink-0">
-                <div className="w-8 h-8 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-sm">
-                  {member.username.charAt(0)}
+                <div className="w-8 h-8 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-sm overflow-hidden">
+                  {(member.userId === currentUserId && currentUserAvatarUrl) || member.avatarUrl ? (
+                    <img
+                      key={(member.userId === currentUserId && currentUserAvatarUrl) ? currentUserAvatarUrl : member.avatarUrl!}
+                      src={(member.userId === currentUserId && currentUserAvatarUrl) ? currentUserAvatarUrl : member.avatarUrl!}
+                      alt={member.username}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    member.username.charAt(0)
+                  )}
                 </div>
                 <div
                   className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-app-channel ${
@@ -220,6 +233,20 @@ export function MembersSidebar({
             </svg>
             Add Friend
           </button>
+          {contextMenu.member.userId !== currentUserId && onCall && (
+            <button
+              onClick={() => {
+                onCall(contextMenu.member.userId, contextMenu.member.username)
+                setContextMenu(null)
+              }}
+              className="w-full px-3 py-2 text-left text-sm text-app-text hover:bg-app-accent hover:text-white flex items-center gap-2"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
+              </svg>
+              Call
+            </button>
+          )}
           {canKick(contextMenu.member) && (
             <button
               onClick={async () => {
@@ -294,6 +321,10 @@ export function MembersSidebar({
             onAddFriend?.(userId, username)
             setSelectedMember(null)
           }}
+          onCall={onCall ? (userId, username) => {
+            onCall(userId, username)
+            setSelectedMember(null)
+          } : undefined}
         />
       )}
     </div>

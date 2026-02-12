@@ -70,7 +70,7 @@ export function UserPanel({
           >
             <div className="relative flex-shrink-0">
               {user.avatar_url ? (
-                <img src={user.avatar_url} alt={user.username} className="w-8 h-8 rounded-full object-cover" />
+                <img key={user.avatar_url} src={user.avatar_url} alt={user.username} className="w-8 h-8 rounded-full object-cover" />
               ) : (
                 <div className="w-8 h-8 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-sm">
                   {user.username.charAt(0).toUpperCase()}
