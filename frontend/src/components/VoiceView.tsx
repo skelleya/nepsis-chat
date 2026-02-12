@@ -26,7 +26,11 @@ function isScreenShareTrack(track: MediaStreamTrack): boolean {
   try {
     const settings = track.getSettings?.()
     const surface = (settings as { displaySurface?: string })?.displaySurface
-    return surface === 'monitor' || surface === 'window' || surface === 'browser'
+    if (surface === 'monitor' || surface === 'window' || surface === 'browser') return true
+    // Fallback: remote tracks often lack displaySurface; use label (Chrome/Firefox set "screen" etc.)
+    const label = (track.label || '').toLowerCase()
+    if (/screen|display|window|monitor|capture/.test(label)) return true
+    return false
   } catch {
     return false
   }
@@ -35,7 +39,15 @@ function isScreenShareTrack(track: MediaStreamTrack): boolean {
 /** Extract screen-share-only stream from a stream (for remote participants who share screen) */
 function getScreenShareStream(stream: MediaStream | null): MediaStream | null {
   if (!stream) return null
-  const screenTracks = stream.getVideoTracks().filter(isScreenShareTrack)
+  const videoTracks = stream.getVideoTracks()
+  let screenTracks = videoTracks.filter(isScreenShareTrack)
+  // Fallback: when 2+ video tracks and none match (remote displaySurface/label often missing),
+  // treat the larger-dimension track as screen share (screens are usually 1920x1080+)
+  if (screenTracks.length === 0 && videoTracks.length >= 2) {
+    const withWidth = videoTracks.map((t) => ({ t, w: (t.getSettings?.() as { width?: number })?.width ?? 0 }))
+    const byWidth = [...withWidth].sort((a, b) => b.w - a.w)
+    if (byWidth[0].w > 1280) screenTracks = [byWidth[0].t]
+  }
   if (screenTracks.length === 0) return null
   const out = new MediaStream()
   screenTracks.forEach((t) => out.addTrack(t))
@@ -331,7 +343,7 @@ function ParticipantCard({
   )
 }
 
-export function VoiceView({ channel, currentUserId, currentUsername, currentUserAvatarUrl, voiceUsersInChannel = [], onInvitePeople, isAdminOrOwner, serverId, onMuteMember, onDisconnectMember }: VoiceViewProps) {
+export function VoiceView({ channel, currentUserId, currentUsername, currentUserAvatarUrl, voiceUsersInChannel = [], onInvitePeople, isAdminOrOwner, serverId: _serverId, onMuteMember, onDisconnectMember }: VoiceViewProps) {
   const voice = useVoice()
   const {
     participants,
@@ -546,15 +558,15 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
         {isInThisChannel && (
           hasScreenShare ? (
             <Group orientation="vertical" autoSave="voice-view-screen-participants" className="flex-1 min-h-0">
-              <Panel defaultSize={60} minSize={20} maxSize={90} className="min-h-0">
+              <Panel defaultSize={60} minSize={5} maxSize={95} className="min-h-0">
                 <div className="h-full p-4 flex flex-col min-h-0">
                   <VideoElement stream={primaryScreenShare.stream} muted label={`${primaryScreenShare.username} — Screen Share`} />
                 </div>
               </Panel>
-              <Separator className="h-2 bg-app-dark hover:bg-app-hover/50 transition-colors data-[resize-handle-active]:bg-app-accent/50 flex items-center justify-center">
-                <div className="w-12 h-1 rounded-full bg-app-muted/50" />
+              <Separator className="h-3 bg-app-dark hover:bg-app-hover transition-colors data-[resize-handle-active]:bg-app-accent/50 flex items-center justify-center cursor-ns-resize" title="Drag to resize screen share vs participants">
+                <div className="w-16 h-1.5 rounded-full bg-app-muted/50" />
               </Separator>
-              <Panel defaultSize={40} minSize={10} maxSize={80} className="min-h-0">
+              <Panel defaultSize={40} minSize={5} maxSize={95} className="min-h-0">
                 {renderParticipantsArea()}
               </Panel>
             </Group>
