@@ -355,18 +355,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const openDM = useCallback(
     async (targetUserId: string, _targetUsername: string) => {
       if (!user) return
-      try {
-        const conv = await api.createOrGetDMConversation(user.id, targetUserId)
-        setDMConversations((prev) => {
-          const exists = prev.some((c) => c.id === conv.id)
-          if (exists) return prev
-          return [conv, ...prev]
-        })
-        setCurrentDMId(conv.id)
-        await loadDMMessages(conv.id)
-      } catch (err) {
-        console.error('Open DM error:', err)
-      }
+      const conv = await api.createOrGetDMConversation(user.id, targetUserId)
+      setDMConversations((prev) => {
+        const exists = prev.some((c) => c.id === conv.id)
+        if (exists) return prev
+        return [conv, ...prev]
+      })
+      setCurrentDMId(conv.id)
+      await loadDMMessages(conv.id)
     },
     [user?.id, loadDMMessages]
   )

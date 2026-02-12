@@ -2,7 +2,6 @@ import 'dotenv/config'
 import express from 'express'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
-import cors from 'cors'
 import path from 'path'
 import { fileURLToPath } from 'url'
 // Supabase client is imported by each route — no SQLite init needed
@@ -24,31 +23,35 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
 const httpServer = createServer(app)
 
-// CORS: allow env-configured origins, plus localhost for dev.
-// CORS_ORIGINS=* means allow all; otherwise comma-separated list of origins.
-// Also allow null origin which is sent by Electron's file:// protocol.
-const rawOrigins = process.env.CORS_ORIGINS || ''
-const allowAll = rawOrigins.trim() === '*'
+// CORS: allow env-configured origins. CORS_ORIGINS=* or empty = allow all.
+// Use explicit middleware so headers are always set (avoids cors package quirks on Fly).
+const rawOrigins = (process.env.CORS_ORIGINS || '').trim()
+const allowAll = rawOrigins === '*' || rawOrigins === ''
 const allowedOrigins = allowAll
-  ? true // cors package: true = reflect request origin (allow all)
+  ? null // null = allow any origin
   : ['http://localhost:5173', 'http://127.0.0.1:5173',
+     'https://nepsischat.vercel.app', 'https://nepsis-chat.vercel.app',
      ...rawOrigins.split(',').map((o) => o.trim()).filter(Boolean)]
 
-// Custom origin handler to also accept null origin (Electron file://)
-const corsOrigin = allowAll
-  ? true
-  : function (origin, callback) {
-      // Allow requests with no origin (Electron file://, server-to-server, curl)
-      if (!origin) return callback(null, true)
-      if (allowedOrigins.includes(origin)) return callback(null, true)
-      callback(new Error('Not allowed by CORS'))
-    }
-
-const io = new Server(httpServer, {
-  cors: { origin: corsOrigin },
+app.use((req, res, next) => {
+  const origin = req.headers.origin
+  const allowed = allowAll
+    ? (origin || '*')
+    : (origin && allowedOrigins.includes(origin) ? origin : allowedOrigins[0])
+  res.setHeader('Access-Control-Allow-Origin', allowed)
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  if (allowed !== '*') res.setHeader('Access-Control-Allow-Credentials', 'true')
+  if (req.method === 'OPTIONS') return res.sendStatus(204)
+  next()
 })
 
-app.use(cors({ origin: corsOrigin }))
+const io = new Server(httpServer, {
+  cors: {
+    origin: allowAll ? true : allowedOrigins,
+    methods: ['GET', 'POST'],
+  },
+})
 app.use(express.json())
 
 // API routes

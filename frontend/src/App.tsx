@@ -180,8 +180,8 @@ function MainLayout({
       }
     }
     load()
-    // Poll faster when in voice so sidebar updates quickly when someone leaves
-    const ms = voice.voiceChannelId ? 2000 : 8000
+    // Poll faster when in voice so sidebar updates quickly when someone joins/leaves
+    const ms = voice.voiceChannelId ? 800 : 5000
     const interval = setInterval(load, ms)
     return () => clearInterval(interval)
   }, [currentServerId, user?.id, user?.avatar_url, voice.voiceChannelId])
