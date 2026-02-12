@@ -32,6 +32,8 @@ export function createWebRTCClient(
   handlers: WebRTCHandlers
 ) {
   const peers = new Map<string, { pc: RTCPeerConnection; userId?: string; username?: string; remoteStream: MediaStream }>()
+  // Reverse map: userId → socketId, so we can look up peers by either key
+  const userIdToSocketId = new Map<string, string>()
   let currentLocalStream: MediaStream | null = null
   const isSocketMode = !!signaling.getSocketId
 
@@ -50,16 +52,19 @@ export function createWebRTCClient(
       }
 
       // Clean up when track ends (e.g. remote stops camera/screen share)
+      const getDisplayMeta = () => {
+        const meta = peers.get(remotePeerId)
+        return {
+          userId: meta?.userId || remotePeerId,
+          username: meta?.username || 'Connecting...',
+        }
+      }
+
       const handleTrackGone = () => {
         if (remoteStream.getTrackById(e.track.id)) {
           remoteStream.removeTrack(e.track)
-          const meta = peers.get(remotePeerId)
-          handlers.onRemoteStream(
-            remotePeerId,
-            meta?.userId ?? remotePeerId,
-            meta?.username ?? remotePeerId,
-            remoteStream
-          )
+          const { userId: dUserId, username: dUsername } = getDisplayMeta()
+          handlers.onRemoteStream(remotePeerId, dUserId, dUsername, remoteStream)
         }
       }
       e.track.onended = handleTrackGone
@@ -71,13 +76,8 @@ export function createWebRTCClient(
         }
       }
 
-      const meta = peers.get(remotePeerId)
-      handlers.onRemoteStream(
-        remotePeerId,
-        meta?.userId ?? remotePeerId,
-        meta?.username ?? remotePeerId,
-        remoteStream
-      )
+      const { userId: dUserId, username: dUsername } = getDisplayMeta()
+      handlers.onRemoteStream(remotePeerId, dUserId, dUsername, remoteStream)
     }
 
     pc.onicecandidate = (e) => {
@@ -87,12 +87,14 @@ export function createWebRTCClient(
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
         const entry = peers.get(remotePeerId)
+        if (entry?.userId) userIdToSocketId.delete(entry.userId)
         peers.delete(remotePeerId)
         handlers.onPeerLeft(entry?.userId ?? remotePeerId)
       }
     }
 
     peers.set(remotePeerId, { pc, userId, username, remoteStream })
+    if (userId) userIdToSocketId.set(userId, remotePeerId)
     return pc
   }
 
@@ -100,7 +102,10 @@ export function createWebRTCClient(
   const updatePeerMeta = (peerId: string, userId?: string, username?: string) => {
     const entry = peers.get(peerId)
     if (entry) {
-      if (userId) entry.userId = userId
+      if (userId) {
+        entry.userId = userId
+        userIdToSocketId.set(userId, peerId)
+      }
       if (username) entry.username = username
     }
   }
@@ -268,6 +273,7 @@ export function createWebRTCClient(
   const leave = () => {
     peers.forEach(({ pc }) => pc.close())
     peers.clear()
+    userIdToSocketId.clear()
     signaling.leave()
     signaling.close()
   }
@@ -296,7 +302,7 @@ export function createWebRTCClient(
 
     if (m.type === 'peer-joined' || (m.type === 'join' && m.userId)) {
       const peerId = m.socketId ?? m.userId!
-      handlers.onPeerJoined?.(m.userId ?? peerId, m.username ?? peerId, true)
+      handlers.onPeerJoined?.(m.userId ?? peerId, m.username || 'Unknown', true)
       handlePeerJoined(peerId, m.userId, m.username)
       return
     }
@@ -313,21 +319,28 @@ export function createWebRTCClient(
     if (m.type === 'peer-left') {
       const targetUserId = m.userId!
       let removed = false
-      for (const [id, e] of peers) {
-        if (e.userId === targetUserId || id === targetUserId) {
-          e.pc.close()
-          peers.delete(id)
-          handlers.onPeerLeft(e.userId ?? id)
+      // Try reverse map first (userId → socketId)
+      const socketId = userIdToSocketId.get(targetUserId)
+      if (socketId) {
+        const entry = peers.get(socketId)
+        if (entry) {
+          entry.pc.close()
+          peers.delete(socketId)
+          userIdToSocketId.delete(targetUserId)
+          handlers.onPeerLeft(entry.userId ?? targetUserId)
           removed = true
-          break
         }
       }
       if (!removed) {
-        const entry = peers.get(targetUserId)
-        if (entry) {
-          entry.pc.close()
-          peers.delete(targetUserId)
-          handlers.onPeerLeft(entry.userId ?? targetUserId)
+        for (const [id, e] of peers) {
+          if (e.userId === targetUserId || id === targetUserId) {
+            e.pc.close()
+            peers.delete(id)
+            if (e.userId) userIdToSocketId.delete(e.userId)
+            handlers.onPeerLeft(e.userId ?? id)
+            removed = true
+            break
+          }
         }
       }
       return
