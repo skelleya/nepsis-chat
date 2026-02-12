@@ -280,18 +280,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const logout = useCallback(async () => {
-    // If guest, delete account on server (leaves all servers + removes user)
-    if (user?.is_guest && user.id) {
-      try {
-        await api.deleteGuestAccount(user.id)
-      } catch (err) {
-        console.error('Failed to delete guest account:', err)
-        // Continue with local cleanup even if server call fails
-      }
-    } else {
-      // Email user — just sign out of Supabase Auth
-      supabase?.auth.signOut()
-    }
+    const wasGuest = user?.is_guest
+    const guestId = user?.id
+
+    // Clear state FIRST so polling/realtime stops before the backend delete runs.
+    // This prevents race conditions where loadServers auto-re-joins community servers
+    // between server_members deletion and users deletion.
     setUser(null)
     localStorage.removeItem('nepsis_user')
     localStorage.removeItem(LAST_CHANNEL_KEY)
@@ -302,6 +296,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setMessages({})
     setCurrentServerId(null)
     setCurrentChannelId(null)
+
+    // Now safely delete on the backend (no frontend polling can race)
+    if (wasGuest && guestId) {
+      try {
+        await api.deleteGuestAccount(guestId)
+      } catch (err) {
+        console.error('Failed to delete guest account:', err)
+      }
+    } else {
+      supabase?.auth.signOut()
+    }
   }, [user])
 
   const loadChannels = useCallback(async (serverId: string) => {

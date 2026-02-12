@@ -4,11 +4,12 @@ export function registerVoiceHandlers(io) {
       const room = `voice:${channelId}`
 
       // Collect existing peers in the room BEFORE this socket joins
+      // NOTE: `io` is already the /voice namespace (passed from index.js)
       const existingPeers = []
-      const roomSockets = io.of('/voice').adapter.rooms.get(room)
+      const roomSockets = io.adapter.rooms.get(room)
       if (roomSockets) {
         for (const sid of roomSockets) {
-          const s = io.of('/voice').sockets.get(sid)
+          const s = io.sockets.get(sid)
           if (s && s.userId) {
             existingPeers.push({ socketId: sid, userId: s.userId, username: s.username })
           }

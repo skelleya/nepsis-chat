@@ -35,6 +35,15 @@ serversRouter.get('/', async (req, res) => {
 
     const memberServerIds = (memberships || []).map((m) => m.server_id)
     if (memberServerIds.length === 0) {
+      // Verify user actually exists before auto-joining (prevents ghost entries
+      // when deleteGuestAccount removes server_members but hasn't deleted user yet)
+      const { data: userExists } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', userId)
+        .single()
+      if (!userExists) return res.json([])
+
       // Auto-join community servers for new users
       const { data: communityServers } = await supabase
         .from('servers')
