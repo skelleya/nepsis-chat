@@ -21,6 +21,7 @@ import {
 } from 'react'
 import { io, type Socket } from 'socket.io-client'
 import { sounds } from '../services/sounds'
+import { useVoice } from './VoiceContext'
 
 const SOCKET_URL =
   import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000'
@@ -57,6 +58,8 @@ interface CallProviderProps {
 }
 
 export function CallProvider({ children, userId, username }: CallProviderProps) {
+  const voice = useVoice()
+
   // ─── State (drives UI) ──────────────────────────────────────────
   const [callState, _setCallState] = useState<CallState>('idle')
   const [callId, _setCallId] = useState<string | null>(null)
@@ -372,6 +375,8 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
   const initiateCall = useCallback(
     (targetUserId: string, targetUsername: string) => {
       if (callStateRef.current !== 'idle') return
+      // Leave any active server voice channel before starting a DM call
+      voice.leaveVoice()
       const id = `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
       setCallId(id)
       setRemoteUserId(targetUserId)
@@ -389,11 +394,13 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
         }
       }, 30_000)
     },
-    [cleanup, setCallId, setCallState]
+    [cleanup, setCallId, setCallState, voice.leaveVoice]
   )
 
   const acceptCall = useCallback(() => {
     if (callStateRef.current !== 'ringing') return
+    // Leave any active server voice channel before accepting a DM call
+    voice.leaveVoice()
     stopRingRef.current?.()
     stopRingRef.current = null
     if (callTimeoutRef.current) {
@@ -404,7 +411,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
     sounds.callConnected()
     setCallState('in-call')
     // WebRTC will be set up when the caller's offer arrives
-  }, [setCallState])
+  }, [setCallState, voice.leaveVoice])
 
   const declineCall = useCallback(() => {
     if (callStateRef.current !== 'ringing') return
