@@ -7,6 +7,8 @@
 export interface WebRTCHandlers {
   onRemoteStream: (peerId: string, userId: string, username: string, stream: MediaStream) => void
   onPeerLeft: (peerId: string) => void
+  /** Called when we learn about a peer (e.g. from room-peers) before we have their stream */
+  onPeerJoined?: (userId: string, username: string) => void
 }
 
 export interface SignalingBridge {
@@ -29,23 +31,53 @@ export function createWebRTCClient(
   signaling: SignalingBridge,
   handlers: WebRTCHandlers
 ) {
-  const peers = new Map<string, { pc: RTCPeerConnection; userId?: string; username?: string }>()
+  const peers = new Map<string, { pc: RTCPeerConnection; userId?: string; username?: string; remoteStream: MediaStream }>()
   let currentLocalStream: MediaStream | null = null
   const isSocketMode = !!signaling.getSocketId
 
   const createPeerConnection = (remotePeerId: string, userId?: string, username?: string): RTCPeerConnection => {
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
 
+    // Create a single combined remote stream per peer so audio + video tracks coexist
+    const remoteStream = new MediaStream()
+
     pc.ontrack = (e) => {
-      if (e.streams[0]) {
-        const meta = peers.get(remotePeerId)
-        handlers.onRemoteStream(
-          remotePeerId,
-          meta?.userId ?? remotePeerId,
-          meta?.username ?? remotePeerId,
-          e.streams[0]
-        )
+      // Add the incoming track to our combined stream
+      // Remove duplicate tracks first
+      const existingTrack = remoteStream.getTrackById(e.track.id)
+      if (!existingTrack) {
+        remoteStream.addTrack(e.track)
       }
+
+      // Clean up when track ends (e.g. remote stops camera/screen share)
+      const handleTrackGone = () => {
+        if (remoteStream.getTrackById(e.track.id)) {
+          remoteStream.removeTrack(e.track)
+          const meta = peers.get(remotePeerId)
+          handlers.onRemoteStream(
+            remotePeerId,
+            meta?.userId ?? remotePeerId,
+            meta?.username ?? remotePeerId,
+            remoteStream
+          )
+        }
+      }
+      e.track.onended = handleTrackGone
+      // Some browsers fire 'mute' instead of 'ended' for remote track removal
+      e.track.onmute = () => {
+        // Only remove video tracks on mute (audio tracks get muted normally)
+        if (e.track.kind === 'video') {
+          handleTrackGone()
+        }
+      }
+
+      const meta = peers.get(remotePeerId)
+      handlers.onRemoteStream(
+        remotePeerId,
+        meta?.userId ?? remotePeerId,
+        meta?.username ?? remotePeerId,
+        remoteStream
+      )
     }
 
     pc.onicecandidate = (e) => {
@@ -60,7 +92,7 @@ export function createWebRTCClient(
       }
     }
 
-    peers.set(remotePeerId, { pc, userId, username })
+    peers.set(remotePeerId, { pc, userId, username, remoteStream })
     return pc
   }
 
@@ -75,9 +107,9 @@ export function createWebRTCClient(
 
   const addLocalStream = (stream: MediaStream) => {
     currentLocalStream = stream
-    peers.forEach(({ pc }) => {
-      pc.getSenders().forEach((s) => pc.removeTrack(s))
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream))
+    peers.forEach((entry) => {
+      entry.pc.getSenders().forEach((s) => entry.pc.removeTrack(s))
+      stream.getTracks().forEach((track) => entry.pc.addTrack(track, stream))
     })
   }
 
@@ -86,13 +118,14 @@ export function createWebRTCClient(
     let entry = peers.get(from)
     if (!entry) {
       const pc = createPeerConnection(from, fromUserId, fromUsername)
-      entry = { pc, userId: fromUserId, username: fromUsername }
+      entry = peers.get(from)!
     } else {
       // Update metadata if we now have a username
       updatePeerMeta(from, fromUserId, fromUsername)
     }
 
     // Add ALL local tracks (audio + any video) so bidirectional media works
+    // Only add if not already sending (first connection)
     if (currentLocalStream) {
       const existingSenders = entry.pc.getSenders().filter((s) => s.track !== null)
       if (existingSenders.length === 0) {
@@ -145,7 +178,9 @@ export function createWebRTCClient(
 
     currentLocalStream = localStream
     const pc = createPeerConnection(remotePeerId, userId, username)
-    localStream.getTracks().forEach((track) => pc.addTrack(track, localStream))
+    localStream.getTracks().forEach((track) => {
+      pc.addTrack(track, localStream)
+    })
 
     const offer = await pc.createOffer()
     await pc.setLocalDescription(offer)
@@ -223,12 +258,16 @@ export function createWebRTCClient(
     }
 
     if (m.type === 'room-peers') {
-      // Informational — existing peers will initiate via peer-joined
+      // New joiner: add participants so main screen shows correct count before streams arrive
+      for (const p of m.peers || []) {
+        handlers.onPeerJoined?.(p.userId, p.username)
+      }
       return
     }
 
     if (m.type === 'peer-joined' || (m.type === 'join' && m.userId)) {
       const peerId = m.socketId ?? m.userId!
+      handlers.onPeerJoined?.(m.userId ?? peerId, m.username ?? peerId)
       handlePeerJoined(peerId, m.userId, m.username)
       return
     }

@@ -53,6 +53,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Roles & members — server members list with roles (owner/admin/member), activity status, kick (owner/admin only) |
 | + | Messaging v4 — Supabase Realtime for instant reactions & messages; video upload; reply shows full parent; extended emoji picker (basic + OpenMoji-style); server creation restricted to email users; custom server emojis (owner/admin upload) |
 | + | Voice UI v2 — Discord-style square grid for participants filling center; members sidebar minimizable; member profile panel with Message and Add Friend |
+| + | Voice fix v3 — Fixed remote video/screen share display; combined remote MediaStream per peer prevents audio loss when video tracks arrive; ParticipantCard shows video when camera/screen active; track.onmute fallback for cross-browser compat |
 | + | Voice UI v3 — End-call icon for disconnect; mic/headphone icons for mute/deafen; show users in voice channels before joining; drag channels to reorder; right-click user context menu (Message, Add Friend, Kick, Move to Channel); admin can move users between voice channels via right-click |
 | + | Split deployment — Frontend on Vercel (git push, ~1 min), backend on Fly.io (API + Socket.io). Download page links to /updates/download redirect |
 | + | Voice status server-scoped — "In voice" and voice connection bar only show for the server where the user is actually in voice; no cross-server confusion |
@@ -68,6 +69,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Server settings — Members tab (list, kick); Invites tab (create, copy link, revoke); Audit Log tab; modernized Custom Emojis tab (drag-drop upload, grid layout) |
 | + | Invite-only join — No auto-join on login; new/guest accounts start with no servers; join via invite link or code; Community page (compass icon) for discoverable servers; community servers (is_community=true) auto-joined for new users |
 | + | Voice icon fixes — Mic/headphones icons no longer snipped; MicOffIcon (mic+slash) instead of speaker/bell when muted; correct icons in UserPanel, ChannelList, VoiceView |
+| + | Voice & invite fixes — Main screen shows all participants (room-peers + peer-joined add before stream); sidebar polls every 2s when in voice; invite creation shows actual error (e.g. missing server_invites table) |
 
 ---
 

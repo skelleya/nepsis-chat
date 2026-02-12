@@ -34,6 +34,24 @@ function VideoElement({ stream, muted = false, label }: { stream: MediaStream; m
   )
 }
 
+// Hook to track video track count on a MediaStream (re-renders when tracks change)
+function useVideoTrackCount(stream: MediaStream | null): number {
+  const [count, setCount] = useState(0)
+  useEffect(() => {
+    if (!stream) { setCount(0); return }
+    const update = () => setCount(stream.getVideoTracks().length)
+    update()
+    // Listen for track add/remove
+    stream.addEventListener('addtrack', update)
+    stream.addEventListener('removetrack', update)
+    return () => {
+      stream.removeEventListener('addtrack', update)
+      stream.removeEventListener('removetrack', update)
+    }
+  }, [stream])
+  return count
+}
+
 // Hook for voice activity detection on any MediaStream
 function useSpeakingDetector(stream: MediaStream | null, enabled = true): boolean {
   const [speaking, setSpeaking] = useState(false)
@@ -74,56 +92,125 @@ function useSpeakingDetector(stream: MediaStream | null, enabled = true): boolea
   return speaking
 }
 
+// Renders a remote video from a participant stream
+function RemoteVideo({ stream, muted = false }: { stream: MediaStream; muted?: boolean }) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream
+    }
+  }, [stream])
+  return (
+    <video
+      ref={videoRef}
+      autoPlay
+      playsInline
+      muted={muted}
+      className="w-full h-full object-cover"
+    />
+  )
+}
+
 // Discord-style big square participant tile
 function ParticipantCard({
   participant,
   isLocal,
   localStream,
+  localVideoStream,
   isMuted,
   isDeafened,
+  isCameraOn,
   currentUserId,
 }: {
   participant: { userId: string; username: string; stream: MediaStream | null; isSpeaking: boolean }
   isLocal: boolean
   localStream: MediaStream | null
+  localVideoStream: MediaStream | null
   isMuted: boolean
   isDeafened: boolean
+  isCameraOn: boolean
   currentUserId: string
 }) {
   const detectStream = isLocal ? localStream : participant.stream
   const speaking = useSpeakingDetector(detectStream, isLocal ? !isMuted : true)
 
+  // Check if remote stream has video tracks (camera/screen from remote peer)
+  const remoteVideoCount = useVideoTrackCount(isLocal ? null : participant.stream)
+  const hasRemoteVideo = !isLocal && remoteVideoCount > 0
+
+  // Local camera video ref
+  const localVideoRef = useRef<HTMLVideoElement>(null)
+  useEffect(() => {
+    if (isLocal && localVideoStream && localVideoRef.current) {
+      localVideoRef.current.srcObject = localVideoStream
+    }
+  }, [isLocal, localVideoStream])
+
+  const showVideo = isLocal ? isCameraOn && !!localVideoStream : hasRemoteVideo
+
   return (
-    <div className="flex flex-col items-center justify-center rounded-xl bg-app-dark/60 overflow-hidden border border-app-hover/50 min-h-[240px]">
-      {/* Big circular avatar - Discord-style prominent display */}
-      <div className="flex-1 w-full flex items-center justify-center p-6">
-        <div
-          className={`relative w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 rounded-full flex items-center justify-center text-white font-bold text-4xl sm:text-5xl transition-all duration-150 bg-app-accent ${
-            speaking
-              ? 'ring-4 ring-[#23a559] shadow-[0_0_16px_rgba(35,165,89,0.6)] scale-105'
-              : 'ring-2 ring-transparent'
-          }`}
-        >
-          {participant.username.charAt(0).toUpperCase()}
-          {isLocal && isMuted && (
-            <div className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-red-600 flex items-center justify-center">
-              <MicOffIcon size={14} className="text-white" />
+    <div className={`relative flex flex-col items-center justify-center rounded-xl bg-app-dark/60 overflow-hidden border transition-all duration-150 min-h-[240px] ${
+      speaking ? 'border-[#23a559] shadow-[0_0_12px_rgba(35,165,89,0.3)]' : 'border-app-hover/50'
+    }`}>
+      {showVideo ? (
+        /* Video mode: fill the card with video */
+        <div className="flex-1 w-full relative bg-black">
+          {isLocal && localVideoStream ? (
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-cover"
+            />
+          ) : participant.stream ? (
+            <RemoteVideo stream={participant.stream} muted={isDeafened} />
+          ) : null}
+          {/* Username overlay at bottom */}
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-3 py-2">
+            <div className="font-semibold text-white text-sm truncate flex items-center gap-1.5">
+              {participant.username}
+              {participant.userId === currentUserId && <span className="text-white/60 font-normal">(you)</span>}
+              {isLocal && isMuted && (
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-600/80">
+                  <MicOffIcon size={10} className="text-white" />
+                </span>
+              )}
             </div>
-          )}
+          </div>
         </div>
-      </div>
-      {/* Username & status */}
-      <div className="w-full px-3 pb-3 text-center">
-        <div className="font-semibold text-app-text text-sm truncate">
-          {participant.username}
-          {participant.userId === currentUserId && <span className="text-app-muted font-normal"> (you)</span>}
-        </div>
-        <div className="text-app-muted text-xs">
-          {isLocal
-            ? (isMuted ? 'Muted' : speaking ? 'Speaking' : 'Connected')
-            : (participant.stream ? 'Connected' : 'Connecting...')}
-        </div>
-      </div>
+      ) : (
+        /* Avatar mode: big circular avatar */
+        <>
+          <div className="flex-1 w-full flex items-center justify-center p-6">
+            <div
+              className={`relative w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 rounded-full flex items-center justify-center text-white font-bold text-4xl sm:text-5xl transition-all duration-150 bg-app-accent ${
+                speaking
+                  ? 'ring-4 ring-[#23a559] shadow-[0_0_16px_rgba(35,165,89,0.6)] scale-105'
+                  : 'ring-2 ring-transparent'
+              }`}
+            >
+              {participant.username.charAt(0).toUpperCase()}
+              {isLocal && isMuted && (
+                <div className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-red-600 flex items-center justify-center">
+                  <MicOffIcon size={14} className="text-white" />
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="w-full px-3 pb-3 text-center">
+            <div className="font-semibold text-app-text text-sm truncate">
+              {participant.username}
+              {participant.userId === currentUserId && <span className="text-app-muted font-normal"> (you)</span>}
+            </div>
+            <div className="text-app-muted text-xs">
+              {isLocal
+                ? (isMuted ? 'Muted' : speaking ? 'Speaking' : 'Connected')
+                : (participant.stream ? 'Connected' : 'Connecting...')}
+            </div>
+          </div>
+        </>
+      )}
       {!isLocal && participant.stream && (
         <RemoteAudio stream={participant.stream} muted={isDeafened} />
       )}
@@ -203,15 +290,10 @@ export function VoiceView({ channel, currentUserId, currentUsername, onInvitePeo
       )}
 
       <div className="flex-1 overflow-y-auto p-4">
-        {/* Video / Screen share grid */}
-        {hasVideo && (
-          <div className="mb-4 grid gap-2" style={{ gridTemplateColumns: isCameraOn && isScreenSharing ? '1fr 1fr' : '1fr' }}>
-            {isScreenSharing && screenStream && (
-              <VideoElement stream={screenStream} muted label="Screen Share" />
-            )}
-            {isCameraOn && videoStream && (
-              <VideoElement stream={videoStream} muted label={`${currentUsername} (Camera)`} />
-            )}
+        {/* Featured screen share — local OR remote */}
+        {isInThisChannel && isScreenSharing && screenStream && (
+          <div className="mb-4">
+            <VideoElement stream={screenStream} muted label={`${currentUsername} — Screen Share`} />
           </div>
         )}
 
@@ -226,7 +308,7 @@ export function VoiceView({ channel, currentUserId, currentUsername, onInvitePeo
           </div>
         )}
 
-        {/* Participant grid - Discord-style big squares */}
+        {/* Participant grid - Discord-style big squares (shows video in card when camera/screen active) */}
         <div
           className={`grid gap-4 ${allParticipants.length === 1 ? 'max-w-md mx-auto' : ''}`}
           style={{
@@ -239,8 +321,10 @@ export function VoiceView({ channel, currentUserId, currentUsername, onInvitePeo
               participant={p}
               isLocal={p.userId === currentUserId}
               localStream={localStream}
+              localVideoStream={videoStream}
               isMuted={isMuted}
               isDeafened={isDeafened}
+              isCameraOn={isCameraOn}
               currentUserId={currentUserId}
             />
           ))}

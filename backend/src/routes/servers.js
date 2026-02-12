@@ -557,7 +557,10 @@ serversRouter.post('/:id/invites', async (req, res) => {
     res.status(201).json(data)
   } catch (err) {
     console.error('Create invite error:', err)
-    res.status(500).json({ error: 'Failed to create invite' })
+    const msg = (err?.code === '42P01' || /relation.*does not exist/i.test(err?.message || ''))
+      ? 'server_invites table missing — run migration 20250211000004_server_invites_audit.sql'
+      : (err?.message || 'Failed to create invite')
+    res.status(500).json({ error: msg })
   }
 })
 

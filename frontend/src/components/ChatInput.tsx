@@ -174,7 +174,7 @@ export function ChatInput({
   const selectedIndex = autocomplete?.selectedIndex ?? 0
 
   return (
-    <div className="flex gap-2 relative">
+    <div className="flex-1 flex gap-2 relative min-w-0">
       {leftButtons}
       <div className="flex-1 relative">
         <input

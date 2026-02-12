@@ -354,8 +354,12 @@ export async function createInvite(serverId: string, createdBy: string): Promise
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ createdBy }),
   })
-  if (!res.ok) throw new Error('Failed to create invite')
-  return res.json()
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string })?.error || `Failed to create invite (${res.status})`)
+  }
+  const data = await res.json()
+  return { code: data.code }
 }
 
 export async function getServerInvites(serverId: string): Promise<{

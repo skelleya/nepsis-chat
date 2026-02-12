@@ -148,9 +148,11 @@ function MainLayout({
       }
     }
     load()
-    const interval = setInterval(load, 8000)
+    // Poll faster when in voice so sidebar updates quickly when someone leaves
+    const ms = voice.voiceChannelId ? 2000 : 8000
+    const interval = setInterval(load, ms)
     return () => clearInterval(interval)
-  }, [currentServerId, user?.id])
+  }, [currentServerId, user?.id, voice.voiceChannelId])
 
   // Update presence (online / in-voice / away / dnd) — in-voice overrides when in voice
   useEffect(() => {
@@ -175,8 +177,8 @@ function MainLayout({
       const link = `${window.location.origin}${window.location.pathname || '/'}#/invite/${inv.code}`
       await navigator.clipboard.writeText(link)
       showNotification('Invite link copied to clipboard!')
-    } catch {
-      showNotification('Failed to create invite', 'error')
+    } catch (e) {
+      showNotification(e instanceof Error ? e.message : 'Failed to create invite', 'error')
     }
   }, [currentServerId, user?.id])
 

@@ -129,6 +129,9 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         onPeerLeft: (peerId) => {
           removeParticipant(peerId)
         },
+        onPeerJoined: (pUserId, pUsername) => {
+          addOrUpdateParticipant(pUserId, pUsername, null)
+        },
       })
       webrtcRef.current = webrtc
       webrtc.addLocalStream(stream)

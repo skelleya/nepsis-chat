@@ -123,6 +123,18 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 
 ---
 
+## Voice & Invites
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Failed to create invite | (1) server_invites table not created. (2) User not a server member. (3) API error. | Run migration `20250211000004_server_invites_audit.sql`. Frontend now shows the actual backend error. Backend returns a helpful message if the table is missing. |
+| Main screen shows only "you" when others are in voice | Participants only added when WebRTC stream arrives; room-peers and peer-joined were ignored. | Process `room-peers` and `peer-joined` to add participants with stream=null ("Connecting..."); update when stream arrives. |
+| Sidebar voice list doesn't update when someone leaves | serverMembers polled every 8s; slow to reflect presence changes. | Poll every 2s when user is in a voice channel (`voice.voiceChannelId`); 8s otherwise. |
+
+**Files:** `webrtc.ts`, `VoiceContext.tsx`, `App.tsx`, `api.ts`, `servers.js`
+
+---
+
 ## Presence & Voice Status
 
 | Issue | Cause | Solution |
