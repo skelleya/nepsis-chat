@@ -3,7 +3,6 @@ primary_region = 'ord'
 
 [build]
   dockerfile = "backend/Dockerfile"
-  context = "backend"
 
 [env]
   NODE_ENV = 'production'
