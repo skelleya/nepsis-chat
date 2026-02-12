@@ -113,3 +113,13 @@ CREATE POLICY "Anyone can insert server_audit_log" ON server_audit_log FOR INSER
 -- ============================================================
 ALTER TABLE servers ADD COLUMN IF NOT EXISTS is_community BOOLEAN DEFAULT false;
 CREATE INDEX IF NOT EXISTS idx_servers_community ON servers(is_community) WHERE is_community = true;
+
+-- ============================================================
+-- Migration 6: dm_messages Realtime
+-- ============================================================
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'dm_messages') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE dm_messages;
+  END IF;
+END $$;

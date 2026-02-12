@@ -84,6 +84,39 @@ export function subscribeToReactions(
   return channel
 }
 
+export function subscribeToDMMessages(
+  conversationId: string,
+  onMessage: (payload: {
+    eventType: 'INSERT' | 'UPDATE' | 'DELETE'
+    new: { id: string; conversation_id: string; user_id: string; content: string; created_at: string }
+    old?: { id: string }
+  }) => void
+): RealtimeChannel | null {
+  if (!supabase) return null
+
+  const channel = supabase
+    .channel(`dm:${conversationId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'dm_messages',
+        filter: `conversation_id=eq.${conversationId}`,
+      },
+      (payload) => {
+        onMessage({
+          eventType: payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE',
+          new: payload.new as { id: string; conversation_id: string; user_id: string; content: string; created_at: string },
+          old: payload.old as { id: string },
+        })
+      }
+    )
+    .subscribe()
+
+  return channel
+}
+
 export function unsubscribe(channel: RealtimeChannel | null) {
   if (channel && supabase) {
     supabase.removeChannel(channel)

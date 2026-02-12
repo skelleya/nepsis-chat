@@ -10,6 +10,7 @@ import {
 import {
   subscribeToChannelMessages,
   subscribeToReactions,
+  subscribeToDMMessages,
   unsubscribe,
 } from '../services/realtime'
 import { sounds } from '../services/sounds'
@@ -94,6 +95,14 @@ interface AppContextValue {
   createCategory: (name: string) => Promise<Category | null>
   deleteCategory: (catId: string) => Promise<void>
   loadServers: (userIdOverride?: string) => Promise<void>
+  // DM
+  dmConversations: api.DMConversation[]
+  dmMessages: Record<string, api.DMMessage[]>
+  currentDMId: string | null
+  setCurrentDM: (id: string | null) => void
+  loadDMConversations: () => Promise<void>
+  openDM: (targetUserId: string, targetUsername: string) => Promise<void>
+  sendDMMessage: (conversationId: string, content: string) => Promise<void>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -148,8 +157,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [messages, setMessages] = useState<Record<string, Message[]>>({})
   const [currentServerId, setCurrentServerId] = useState<string | null>(null)
   const [currentChannelId, setCurrentChannelId] = useState<string | null>(null)
+  const [dmConversations, setDMConversations] = useState<api.DMConversation[]>([])
+  const [dmMessages, setDMMessages] = useState<Record<string, api.DMMessage[]>>({})
+  const [currentDMId, setCurrentDMId] = useState<string | null>(null)
   const realtimeChannelRef = useRef<RealtimeChannel | null>(null)
   const realtimeReactionsRef = useRef<RealtimeChannel | null>(null)
+  const realtimeDMRef = useRef<RealtimeChannel | null>(null)
   const messagesRef = useRef(messages)
   messagesRef.current = messages
 
@@ -232,6 +245,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setCategories([])
           setMessages({})
           setCurrentServerId(null)
+          setDMConversations([])
+          setDMMessages({})
+          setCurrentDMId(null)
           setCurrentChannelId(null)
         }
       }
@@ -315,6 +331,62 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setMessages((prev) => ({ ...prev, [channelId]: [] }))
     }
   }, [])
+
+  const loadDMConversations = useCallback(async () => {
+    if (!user) return
+    try {
+      const convs = await api.listDMConversations(user.id)
+      setDMConversations(convs)
+    } catch {
+      setDMConversations([])
+    }
+  }, [user?.id])
+
+  const loadDMMessages = useCallback(async (conversationId: string) => {
+    if (!user) return
+    try {
+      const m = await api.getDMMessages(conversationId, user.id)
+      setDMMessages((prev) => ({ ...prev, [conversationId]: m }))
+    } catch {
+      setDMMessages((prev) => ({ ...prev, [conversationId]: [] }))
+    }
+  }, [user?.id])
+
+  const openDM = useCallback(
+    async (targetUserId: string, _targetUsername: string) => {
+      if (!user) return
+      try {
+        const conv = await api.createOrGetDMConversation(user.id, targetUserId)
+        setDMConversations((prev) => {
+          const exists = prev.some((c) => c.id === conv.id)
+          if (exists) return prev
+          return [conv, ...prev]
+        })
+        setCurrentDMId(conv.id)
+        await loadDMMessages(conv.id)
+      } catch (err) {
+        console.error('Open DM error:', err)
+      }
+    },
+    [user?.id, loadDMMessages]
+  )
+
+  const sendDMMessage = useCallback(
+    async (conversationId: string, content: string) => {
+      if (!user) return
+      try {
+        const msg = await api.sendDMMessage(conversationId, user.id, content)
+        setDMMessages((prev) => ({
+          ...prev,
+          [conversationId]: [...(prev[conversationId] || []), msg],
+        }))
+      } catch (err) {
+        console.error('Send DM error:', err)
+        throw err
+      }
+    },
+    [user?.id]
+  )
 
   const sendMessage = useCallback(
     async (
@@ -622,6 +694,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (currentChannelId) loadMessages(currentChannelId)
   }, [currentChannelId, loadMessages])
 
+  useEffect(() => {
+    if (currentDMId) loadDMMessages(currentDMId)
+  }, [currentDMId, loadDMMessages])
+
   // Supabase Realtime: subscribe to messages and reactions for current channel
   useEffect(() => {
     if (!currentChannelId || !supabase) return
@@ -731,6 +807,65 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentChannelId])
 
+  // Load DM conversations when user logs in
+  useEffect(() => {
+    if (user?.id) loadDMConversations()
+  }, [user?.id, loadDMConversations])
+
+  // Supabase Realtime: subscribe to DM messages for current conversation
+  useEffect(() => {
+    if (!currentDMId || !supabase) return
+
+    const ch = subscribeToDMMessages(currentDMId, async (payload) => {
+      if (payload.eventType === 'INSERT') {
+        if (payload.new.user_id !== user?.id) {
+          sounds.messageNotification()
+        }
+        try {
+          const msg = await api.getDMMessage(payload.new.id)
+          setDMMessages((prev) => {
+            const list = prev[currentDMId] || []
+            if (list.some((m) => m.id === msg.id)) return prev
+            return { ...prev, [currentDMId]: [...list, msg] }
+          })
+        } catch {
+          setDMMessages((prev) => {
+            const list = prev[currentDMId] || []
+            if (list.some((m) => m.id === payload.new.id)) return prev
+            return {
+              ...prev,
+              [currentDMId]: [
+                ...list,
+                {
+                  id: payload.new.id,
+                  conversation_id: payload.new.conversation_id,
+                  user_id: payload.new.user_id,
+                  content: payload.new.content,
+                  created_at: payload.new.created_at,
+                  username: 'Unknown',
+                },
+              ],
+            }
+          })
+        }
+      } else if (payload.eventType === 'DELETE' && payload.old?.id) {
+        setDMMessages((prev) => ({
+          ...prev,
+          [currentDMId]: (prev[currentDMId] || []).filter((m) => m.id !== payload.old!.id),
+        }))
+      }
+    })
+
+    realtimeDMRef.current = ch
+
+    return () => {
+      if (realtimeDMRef.current) {
+        unsubscribe(realtimeDMRef.current)
+        realtimeDMRef.current = null
+      }
+    }
+  }, [currentDMId, user?.id])
+
   return (
     <AppContext.Provider
       value={{
@@ -744,11 +879,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         messages,
         currentServerId,
         currentChannelId,
-        login,
-        loginWithEmail,
-        logout,
-        setCurrentServer,
-        setCurrentChannel,
+        dmConversations,
+        dmMessages,
+        currentDMId,
+        setCurrentDM: setCurrentDMId,
+        loadDMConversations,
+        openDM,
+        sendDMMessage,
         loadChannels,
         loadMessages,
         sendMessage,
@@ -764,6 +901,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         createCategory: createCategoryFn,
         deleteCategory: deleteCategoryFn,
         loadServers,
+        login,
+        loginWithEmail,
+        logout,
+        setCurrentServer,
+        setCurrentChannel,
       }}
     >
       {children}

@@ -398,7 +398,53 @@ export async function getServerAuditLog(serverId: string): Promise<{
 
 // ─── DM ───────────────────────────────────────────────
 
-export async function createOrGetDMConversation(userId: string, targetUserId: string): Promise<{ id: string }> {
+export interface DMConversation {
+  id: string
+  created_at: string
+  other_user: { id: string; username: string; avatar_url?: string }
+}
+
+export interface DMMessage {
+  id: string
+  conversation_id: string
+  user_id: string
+  content: string
+  created_at: string
+  username: string
+}
+
+export async function listDMConversations(userId: string): Promise<DMConversation[]> {
+  const res = await fetch(`${API_BASE}/dm/conversations?userId=${encodeURIComponent(userId)}`)
+  if (!res.ok) throw new Error('Failed to list DMs')
+  return res.json()
+}
+
+export async function getDMMessages(conversationId: string, userId: string): Promise<DMMessage[]> {
+  const res = await fetch(`${API_BASE}/dm/conversations/${conversationId}/messages?userId=${encodeURIComponent(userId)}`)
+  if (!res.ok) throw new Error('Failed to fetch DM messages')
+  return res.json()
+}
+
+export async function getDMMessage(messageId: string): Promise<DMMessage> {
+  const res = await fetch(`${API_BASE}/dm/messages/${messageId}`)
+  if (!res.ok) throw new Error('Failed to fetch DM message')
+  return res.json()
+}
+
+export async function sendDMMessage(conversationId: string, userId: string, content: string): Promise<DMMessage> {
+  const res = await fetch(`${API_BASE}/dm/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ conversationId, userId, content }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to send DM')
+  }
+  return res.json()
+}
+
+export async function createOrGetDMConversation(userId: string, targetUserId: string): Promise<DMConversation> {
   const res = await fetch(`${API_BASE}/dm/conversations`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -412,6 +458,50 @@ export async function createOrGetDMConversation(userId: string, targetUserId: st
 }
 
 // ─── Friends ───────────────────────────────────────────
+
+export async function getFriendsList(userId: string): Promise<{ id: string; username: string; avatar_url?: string }[]> {
+  const res = await fetch(`${API_BASE}/friends/list?userId=${encodeURIComponent(userId)}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to fetch friends')
+  }
+  return res.json()
+}
+
+export async function getFriendRequests(userId: string): Promise<{ requester_id: string; created_at: string; user: { id: string; username: string; avatar_url?: string } }[]> {
+  const res = await fetch(`${API_BASE}/friends/requests?userId=${encodeURIComponent(userId)}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to fetch friend requests')
+  }
+  return res.json()
+}
+
+export async function acceptFriendRequest(userId: string, requesterId: string): Promise<{ success: boolean }> {
+  const res = await fetch(`${API_BASE}/friends/accept`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, requesterId }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to accept friend request')
+  }
+  return res.json()
+}
+
+export async function declineFriendRequest(userId: string, requesterId: string): Promise<{ success: boolean }> {
+  const res = await fetch(`${API_BASE}/friends/decline`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, requesterId }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to decline friend request')
+  }
+  return res.json()
+}
 
 export async function sendFriendRequest(userId: string, targetUserId: string): Promise<{ success: boolean }> {
   const res = await fetch(`${API_BASE}/friends/request`, {

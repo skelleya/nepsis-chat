@@ -62,6 +62,10 @@ interface ChannelListProps {
   serverId?: string
   isOwner?: boolean
   hasNoServers?: boolean
+  // DM
+  dmConversations?: { id: string; created_at: string; other_user: { id: string; username: string; avatar_url?: string } }[]
+  currentDMId?: string | null
+  onSelectDM?: (conversationId: string) => void
   // Admin: drop user onto voice channel to move them
 }
 
@@ -275,6 +279,9 @@ export function ChannelList({
   serverId,
   isOwner,
   hasNoServers,
+  dmConversations = [],
+  currentDMId,
+  onSelectDM,
 }: ChannelListProps) {
   const [showCreateChannel, setShowCreateChannel] = useState(false)
   const [createChannelCategoryId, setCreateChannelCategoryId] = useState<string | undefined>()
@@ -379,6 +386,36 @@ export function ChannelList({
             </>
           )}
         </div>
+
+        {/* Direct Messages */}
+        {dmConversations.length > 0 && onSelectDM && (
+          <div className="border-b border-app-dark/80 px-2 py-1.5">
+            <div className="flex items-center gap-1.5 px-2 py-1 text-xs font-semibold text-app-muted uppercase tracking-wider">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="opacity-70">
+                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+              </svg>
+              Direct Messages
+            </div>
+            <div className="space-y-0.5">
+              {dmConversations.map((conv) => (
+                <button
+                  key={conv.id}
+                  onClick={() => onSelectDM(conv.id)}
+                  className={`w-full px-2 py-1.5 rounded flex items-center gap-2 text-left ${
+                    currentDMId === conv.id
+                      ? 'bg-app-hover/60 text-white'
+                      : 'text-app-muted hover:bg-app-hover/40 hover:text-app-text'
+                  }`}
+                >
+                  <div className="w-6 h-6 rounded-full bg-app-accent flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                    {conv.other_user.username?.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="text-sm truncate flex-1">{conv.other_user.username}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Channel List */}
         <div className="flex-1 overflow-y-auto py-1 px-0.5">

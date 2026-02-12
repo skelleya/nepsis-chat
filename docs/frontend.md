@@ -10,7 +10,7 @@ The Nepsis logo is used everywhere:
 
 | File | Used in |
 |------|---------|
-| public/logo.png | ServerBar, ChannelList, LoginPage, DownloadPage |
+| public/logo.png | ServerBar, ChannelList, LoginPage, DownloadPage; ServerBar logo opens Friends page |
 | public/favicon.png | Browser tab / Electron window favicon |
 
 Both are the same Nepsis logo asset. For dark themes, the logo (dark text on black) is visible; on light backgrounds it may be subtle.
@@ -28,7 +28,7 @@ frontend/src/
 ├── hooks/                React hooks
 ├── services/             API, signaling, WebRTC
 ├── contexts/             AppContext
-├── pages/                LoginPage, DownloadPage
+├── pages/                LoginPage, DownloadPage, FriendsPage, CommunityPage, InvitePage
 ├── data/                 mockData
 └── types/                TypeScript
 ```
@@ -47,6 +47,7 @@ frontend/src/
 | MembersSidebar | Online members |
 | RemoteAudio | Plays remote WebRTC stream |
 | CallOverlay | DM call UI: outgoing/incoming/in-call states |
+| FriendsPage | Friends list and friend requests; opened by clicking Nepsis logo |
 | UpdateButton | Green update (Electron only) |
 | LoginPage | Username login |
 

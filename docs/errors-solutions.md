@@ -102,6 +102,22 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 
 ---
 
+## Call Notifications
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| No notification when someone calls while app is in another tab | Browser Notification API not used; sound only plays in active tab | CallContext now shows browser Notification when `document.hidden` and incoming call received. Permission is requested on socket connect. If user previously denied, they must re-enable in browser settings. |
+
+---
+
+## Voice Speaking Indicator
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Green bubble / ring not showing around profile when talking | (1) Browsers start `AudioContext` in a suspended state—the analyser never processes audio until resumed. (2) Threshold `avg > 12` might be too high for quieter mics. | **Fix**: Call `audioCtx.resume()` when `audioCtx.state === 'suspended'` before starting the analysis loop. Lower threshold to 8. Add `analyser.smoothingTimeConstant = 0.5` for smoother transitions. Files: `VoiceView.tsx` (useSpeakingDetector), `VoiceContext.tsx` (local speaking detection). |
+
+---
+
 ## Voice UI Icons
 
 | Issue | Cause | Solution |

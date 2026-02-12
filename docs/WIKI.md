@@ -69,9 +69,12 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Server settings — Members tab (list, kick); Invites tab (create, copy link, revoke); Audit Log tab; modernized Custom Emojis tab (drag-drop upload, grid layout) |
 | + | Invite-only join — No auto-join on login; new/guest accounts start with no servers; join via invite link or code; Community page (compass icon) for discoverable servers; community servers (is_community=true) auto-joined for new users |
 | + | Voice icon fixes — Mic/headphones icons no longer snipped; MicOffIcon (mic+slash) instead of speaker/bell when muted; correct icons in UserPanel, ChannelList, VoiceView |
+| + | Speaking indicator fix — Green ring around avatar when talking was missing because AudioContext starts suspended in browsers; added `audioCtx.resume()` when suspended; lowered threshold to 8; smoothing for less flicker |
 | + | Voice & invite fixes — Main screen shows all participants (room-peers + peer-joined add before stream); sidebar polls every 2s when in voice; invite creation shows actual error (e.g. missing server_invites table) |
 | + | Sound effects — Web Audio API notification sounds: message ding, voice join/leave chimes, voice connected/disconnected tones; no external audio files needed |
 | + | Private DM calling — 1-on-1 voice calls via WebRTC; new `/calls` socket namespace; incoming/outgoing call overlays with ringing; in-call bar with mute/deafen/end; auto-decline after 30s timeout; busy/offline detection; Call button in member profile and right-click context menu |
+| + | Call notifications — Browser Notification when incoming call received while app is in another tab; permission requested on socket connect |
+| + | Friends page — Click Nepsis logo to open Friends page; list friends and pending friend requests; accept/decline requests; Message and Call buttons for friends |
 
 ---
 

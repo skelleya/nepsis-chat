@@ -29,6 +29,10 @@ Node.js + Express + Socket.io + SQLite.
 | GET | `/api/users/:id/profiles` | List user profiles (personal, work) |
 | PUT | `/api/users/:id/profiles` | Upsert profile (`profile_type`, `display_name`, `avatar_url`, `banner_url`) |
 | POST | `/api/dm/conversations` | Create or get DM between two users (`userId`, `targetUserId`) |
+| GET | `/api/friends/list` | List friends (`?userId=`) |
+| GET | `/api/friends/requests` | List pending friend requests (`?userId=`) |
+| POST | `/api/friends/accept` | Accept friend request (`userId`, `requesterId`) |
+| POST | `/api/friends/decline` | Decline friend request (`userId`, `requesterId`) |
 | POST | `/api/friends/request` | Send friend request (`userId`, `targetUserId`) — requires `friend_requests` migration |
 | GET | `/api/invites/:code` | Public invite details (server name, icon, inviter) — for join page |
 | POST | `/api/invites/:code/join` | Join server via invite (`userId`) |

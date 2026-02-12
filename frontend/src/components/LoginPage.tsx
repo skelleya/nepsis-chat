@@ -55,12 +55,12 @@ export function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-app-darker">
-      <div className="w-full max-w-md p-8 rounded-xl bg-app-dark">
+      <div className="w-full max-w-md p-10 rounded-xl bg-app-dark">
         <img src="./logo.png" alt="Nepsis" className="h-12 mx-auto mb-6 object-contain bg-white rounded-full p-1" />
-        <h1 className="text-2xl font-bold text-white text-center mb-6">Nepsis Chat</h1>
+        <h1 className="text-2xl font-bold text-white text-center mb-8">Nepsis Chat</h1>
 
         {!isElectron && (
-          <p className="text-center mb-4">
+          <p className="text-center mb-6">
             <Link to="/download" className="text-app-accent hover:underline text-sm">Download desktop app</Link>
           </p>
         )}
@@ -77,10 +77,10 @@ export function LoginPage() {
         )}
 
         {/* Mode tabs */}
-        <div className="flex mb-6 rounded-lg overflow-hidden bg-app-channel">
+        <div className="flex mb-8 rounded-lg overflow-hidden bg-app-channel">
           <button
             onClick={() => { setMode('guest'); setError(''); setMessage('') }}
-            className={`flex-1 py-2 text-sm font-medium transition-colors ${
+            className={`flex-1 py-3 text-sm font-medium transition-colors ${
               mode === 'guest' ? 'bg-app-accent text-white' : 'text-app-muted hover:text-white'
             }`}
           >
@@ -88,7 +88,7 @@ export function LoginPage() {
           </button>
           <button
             onClick={() => { setMode('login'); setError(''); setMessage('') }}
-            className={`flex-1 py-2 text-sm font-medium transition-colors ${
+            className={`flex-1 py-3 text-sm font-medium transition-colors ${
               mode === 'login' ? 'bg-app-accent text-white' : 'text-app-muted hover:text-white'
             }`}
           >
@@ -96,7 +96,7 @@ export function LoginPage() {
           </button>
           <button
             onClick={() => { setMode('signup'); setError(''); setMessage('') }}
-            className={`flex-1 py-2 text-sm font-medium transition-colors ${
+            className={`flex-1 py-3 text-sm font-medium transition-colors ${
               mode === 'signup' ? 'bg-app-accent text-white' : 'text-app-muted hover:text-white'
             }`}
           >
@@ -105,9 +105,9 @@ export function LoginPage() {
         </div>
 
         {mode === 'guest' ? (
-          <form onSubmit={handleGuestSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm text-app-muted mb-2">Username</label>
+          <form onSubmit={handleGuestSubmit} className="space-y-6">
+            <div className="space-y-3">
+              <label className="block text-sm text-app-muted">Username</label>
               <input
                 type="text"
                 value={username}
@@ -123,14 +123,14 @@ export function LoginPage() {
             >
               {loading ? 'Joining...' : 'Continue as Guest'}
             </button>
-            <p className="text-app-muted text-xs text-center">
+            <p className="text-app-muted text-xs text-center pt-1">
               Guest accounts are temporary — no email required
             </p>
           </form>
         ) : (
-          <form onSubmit={handleEmailSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm text-app-muted mb-2">Email</label>
+          <form onSubmit={handleEmailSubmit} className="space-y-6">
+            <div className="space-y-3">
+              <label className="block text-sm text-app-muted">Email</label>
               <input
                 type="email"
                 value={email}
@@ -139,8 +139,8 @@ export function LoginPage() {
                 className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent"
               />
             </div>
-            <div>
-              <label className="block text-sm text-app-muted mb-2">Password</label>
+            <div className="space-y-3">
+              <label className="block text-sm text-app-muted">Password</label>
               <input
                 type="password"
                 value={password}

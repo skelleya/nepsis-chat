@@ -9,6 +9,7 @@ interface ServerBarProps {
   onCreateServer: (name: string) => Promise<void>
   canCreateServer?: boolean
   onOpenCommunity?: () => void
+  onOpenFriends?: () => void
 }
 
 function ServerIcon({ server, isActive, onClick }: { server: Server; isActive: boolean; onClick: () => void }) {
@@ -65,18 +66,22 @@ function ServerIcon({ server, isActive, onClick }: { server: Server; isActive: b
   )
 }
 
-export function ServerBar({ servers, currentServerId, onSelectServer, onCreateServer, canCreateServer = true, onOpenCommunity }: ServerBarProps) {
+export function ServerBar({ servers, currentServerId, onSelectServer, onCreateServer, canCreateServer = true, onOpenCommunity, onOpenFriends }: ServerBarProps) {
   const [showCreateModal, setShowCreateModal] = useState(false)
 
   return (
     <>
       <div className="w-[72px] min-w-[72px] bg-app-dark flex flex-col items-center py-3 gap-2 flex-shrink-0 overflow-x-hidden">
-        {/* Home / DM button */}
+        {/* Home / Friends button */}
         <div className="relative group">
           <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-1 rounded-r-full bg-white transition-all h-0 group-hover:h-5" />
-          <div className="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-app-channel hover:bg-app-accent flex items-center justify-center cursor-pointer transition-all duration-200">
+          <button
+            onClick={() => onOpenFriends?.()}
+            className="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-app-channel hover:bg-app-accent flex items-center justify-center cursor-pointer transition-all duration-200"
+            title="Friends"
+          >
             <img src="./logo.png" alt="Nepsis" className="w-7 h-7 object-contain" />
-          </div>
+          </button>
         </div>
 
         {/* Separator */}

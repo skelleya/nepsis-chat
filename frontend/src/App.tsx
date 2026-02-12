@@ -7,6 +7,7 @@ import { ServerBar } from './components/ServerBar'
 import { ChannelList } from './components/ChannelList'
 import { ChatView } from './components/ChatView'
 import { VoiceView } from './components/VoiceView'
+import { DMView } from './components/DMView'
 import { MembersSidebar, type ServerMember } from './components/MembersSidebar'
 import { CallOverlay } from './components/CallOverlay'
 import { LoginPage } from './components/LoginPage'
@@ -19,6 +20,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { DownloadPage } from './pages/DownloadPage'
 import { InvitePage } from './pages/InvitePage'
 import { CommunityPage } from './pages/CommunityPage'
+import { FriendsPage } from './pages/FriendsPage'
 
 function AppContent() {
   const {
@@ -29,6 +31,12 @@ function AppContent() {
     messages,
     currentServerId,
     currentChannelId,
+    dmConversations,
+    dmMessages,
+    currentDMId,
+    setCurrentDM,
+    openDM,
+    sendDMMessage,
     setCurrentServer,
     setCurrentChannel,
     sendMessage,
@@ -54,6 +62,12 @@ function AppContent() {
         messages={messages}
         currentServerId={currentServerId}
         currentChannelId={currentChannelId}
+        dmConversations={dmConversations}
+        dmMessages={dmMessages}
+        currentDMId={currentDMId}
+        setCurrentDM={setCurrentDM}
+        openDM={openDM}
+        sendDMMessage={sendDMMessage}
         setCurrentServer={setCurrentServer}
         setCurrentChannel={setCurrentChannel}
         sendMessage={sendMessage}
@@ -78,6 +92,12 @@ interface MainLayoutProps {
   messages: Record<string, { id: string; channel_id: string; user_id: string; content: string; created_at: string; edited_at?: string; username?: string; reply_to_id?: string; reply_to?: { username?: string; content?: string }; attachments?: { url: string; type: string; filename?: string }[]; reactions?: { user_id: string; emoji: string }[] }[]>
   currentServerId: string | null
   currentChannelId: string | null
+  dmConversations: { id: string; created_at: string; other_user: { id: string; username: string; avatar_url?: string } }[]
+  dmMessages: Record<string, { id: string; conversation_id: string; user_id: string; content: string; created_at: string; username: string }[]>
+  currentDMId: string | null
+  setCurrentDM: (id: string | null) => void
+  openDM: (targetUserId: string, targetUsername: string) => Promise<void>
+  sendDMMessage: (conversationId: string, content: string) => Promise<void>
   setCurrentServer: (id: string) => void
   setCurrentChannel: (id: string) => void
   sendMessage: (channelId: string, content: string, options?: { replyToId?: string; attachments?: { url: string; type: string; filename?: string }[] }) => Promise<void>
@@ -98,6 +118,12 @@ function MainLayout({
   messages,
   currentServerId,
   currentChannelId,
+  dmConversations,
+  dmMessages,
+  currentDMId,
+  setCurrentDM,
+  openDM,
+  sendDMMessage,
   setCurrentServer,
   setCurrentChannel,
   sendMessage,
@@ -113,6 +139,7 @@ function MainLayout({
   const call = useCall()
   const [showServerSettings, setShowServerSettings] = useState(false)
   const [showCommunity, setShowCommunity] = useState(servers.length === 0)
+  const [showFriends, setShowFriends] = useState(false)
   const [serverMembers, setServerMembers] = useState<ServerMember[]>([])
   const [serverEmojis, setServerEmojis] = useState<{ id: string; name: string; image_url: string }[]>([])
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
@@ -287,10 +314,11 @@ function MainLayout({
       <ServerBar
         servers={servers.map((s) => ({ id: s.id, name: s.name, iconUrl: s.icon_url, ownerId: s.owner_id }))}
         currentServerId={currentServerId}
-        onSelectServer={(id) => { setShowCommunity(false); setCurrentServer(id) }}
+        onSelectServer={(id) => { setShowCommunity(false); setShowFriends(false); setCurrentServer(id) }}
         onCreateServer={async (name) => { await createServer(name) }}
         canCreateServer={!user?.is_guest}
         onOpenCommunity={() => setShowCommunity(true)}
+        onOpenFriends={() => { setShowCommunity(false); setShowFriends(true) }}
       />
 
       {/* Channel list + User panel wrapper */}
@@ -312,6 +340,12 @@ function MainLayout({
           serverId={currentServerId ?? undefined}
           isOwner={currentServer?.owner_id === user.id}
           hasNoServers={servers.length === 0}
+          dmConversations={dmConversations}
+          currentDMId={currentDMId}
+          onSelectDM={(id) => {
+            setCurrentDM(id)
+            // Messages loaded by AppContext when currentDMId changes
+          }}
         />
         <UserPanel
           user={user}
@@ -328,7 +362,30 @@ function MainLayout({
       </div>
 
       {/* Main content */}
-      {showCommunity ? (
+      {showFriends ? (
+        <FriendsPage
+          onClose={() => setShowFriends(false)}
+          onOpenDM={async (userId, username) => {
+            await openDM(userId, username)
+            setShowFriends(false)
+          }}
+        />
+      ) : currentDMId ? (
+        (() => {
+          const conv = dmConversations.find((c) => c.id === currentDMId)
+          const dmMsgs = dmMessages[currentDMId] || []
+          if (!conv) return null
+          return (
+            <DMView
+              conversation={conv}
+              messages={dmMsgs}
+              currentUserId={user.id}
+              onSendMessage={(content) => sendDMMessage(currentDMId, content)}
+              onClose={() => setCurrentDM(null)}
+            />
+          )
+        })()
+      ) : showCommunity ? (
         <CommunityPage
           onJoinServer={() => setShowCommunity(false)}
           onClose={servers.length > 0 ? () => setShowCommunity(false) : undefined}
@@ -373,7 +430,7 @@ function MainLayout({
         </div>
       )}
 
-      {!showCommunity && (
+      {!showCommunity && !showFriends && (
       <MembersSidebar
         members={serverMembers}
         currentUserId={user.id}
@@ -391,8 +448,7 @@ function MainLayout({
         onKick={handleKick}
         onMessage={async (userId, username) => {
           try {
-            await api.createOrGetDMConversation(user.id, userId)
-            showNotification(`DM with ${username} ready. Full DM UI coming soon.`)
+            await openDM(userId, username)
           } catch (e) {
             showNotification((e as Error).message, 'error')
           }

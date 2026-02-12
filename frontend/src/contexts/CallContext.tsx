@@ -78,6 +78,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
   const callTimeoutRef = useRef<number | null>(null)
   const durationIntervalRef = useRef<number | null>(null)
   const iceCandidateQueueRef = useRef<RTCIceCandidateInit[]>([])
+  const callNotificationRef = useRef<Notification | null>(null)
 
   // Sync wrappers — update both ref + state
   const setCallState = useCallback((s: CallState) => {
@@ -93,6 +94,8 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
   const cleanup = useCallback(() => {
     stopRingRef.current?.()
     stopRingRef.current = null
+    callNotificationRef.current?.close()
+    callNotificationRef.current = null
     if (callTimeoutRef.current) {
       clearTimeout(callTimeoutRef.current)
       callTimeoutRef.current = null
@@ -189,6 +192,10 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
 
     socket.on('connect', () => {
       socket.emit('register', { userId, username })
+      // Request notification permission so incoming calls notify when app is in background
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().catch(() => {})
+      }
     })
 
     // --- Incoming call (callee receives) ---
@@ -212,6 +219,27 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
         setRemoteUsername(callerUsername)
         setCallState('ringing')
         stopRingRef.current = sounds.callRinging()
+
+        // Browser notification when app is in background (another tab or minimized)
+        if (typeof document !== 'undefined' && document.hidden && 'Notification' in window) {
+          const showNotif = () => {
+            const n = new Notification('Incoming call', {
+              body: `${callerUsername} is calling you`,
+              icon: './logo.png',
+              tag: 'nepsis-call',
+              requireInteraction: true,
+            })
+            callNotificationRef.current = n
+            n.onclick = () => window.focus()
+          }
+          if (Notification.permission === 'granted') {
+            showNotif()
+          } else if (Notification.permission !== 'denied') {
+            Notification.requestPermission().then((p) => {
+              if (p === 'granted') showNotif()
+            })
+          }
+        }
 
         // Auto-decline after 30 seconds if not answered
         callTimeoutRef.current = window.setTimeout(() => {

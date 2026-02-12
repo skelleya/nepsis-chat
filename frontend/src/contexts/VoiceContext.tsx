@@ -163,25 +163,34 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     }
     let running = true
     let audioCtx: AudioContext | null = null
-    try {
-      audioCtx = new AudioContext()
-      const analyser = audioCtx.createAnalyser()
-      analyser.fftSize = 256
-      const source = audioCtx.createMediaStreamSource(localStream)
-      source.connect(analyser)
-      const dataArray = new Uint8Array(analyser.frequencyBinCount)
-
-      const check = () => {
+    const start = async () => {
+      try {
+        audioCtx = new AudioContext()
+        // Browsers often start AudioContext suspended; must resume for analysis to work
+        if (audioCtx.state === 'suspended') {
+          await audioCtx.resume()
+        }
         if (!running) return
-        analyser.getByteFrequencyData(dataArray)
-        const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length
-        setIsSpeaking(avg > 12)
-        setTimeout(check, 100)
+        const analyser = audioCtx.createAnalyser()
+        analyser.fftSize = 256
+        analyser.smoothingTimeConstant = 0.5
+        const source = audioCtx.createMediaStreamSource(localStream)
+        source.connect(analyser)
+        const dataArray = new Uint8Array(analyser.frequencyBinCount)
+
+        const check = () => {
+          if (!running) return
+          analyser.getByteFrequencyData(dataArray)
+          const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length
+          setIsSpeaking(avg > 8)
+          setTimeout(check, 100)
+        }
+        check()
+      } catch {
+        // AudioContext not available
       }
-      check()
-    } catch {
-      // AudioContext not available
     }
+    start()
     return () => {
       running = false
       audioCtx?.close()
