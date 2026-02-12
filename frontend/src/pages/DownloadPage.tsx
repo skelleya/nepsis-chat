@@ -1,9 +1,28 @@
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 
 // Installer is on GitHub Releases — fixed artifact name for stable URL
 const GITHUB_DOWNLOAD_URL = 'https://github.com/skelleya/nepsis-chat/releases/latest/download/NepsisChat-Setup.exe'
+const GITHUB_RELEASES_API = 'https://api.github.com/repos/skelleya/nepsis-chat/releases/latest'
 
 export function DownloadPage() {
+  const [available, setAvailable] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    fetch(GITHUB_RELEASES_API)
+      .then((res) => {
+        if (!res.ok) return false
+        return res.json()
+      })
+      .then((data) => {
+        if (!data?.assets) return false
+        const hasExe = data.assets.some((a: { name: string }) =>
+          a.name === 'NepsisChat-Setup.exe'
+        )
+        setAvailable(hasExe)
+      })
+      .catch(() => setAvailable(false))
+  }, [])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-app-darker">
@@ -13,14 +32,42 @@ export function DownloadPage() {
         <p className="text-app-muted mb-6">
           Get the desktop app for Windows. Voice chat with WebRTC and Opus audio.
         </p>
-        <a
-          href={GITHUB_DOWNLOAD_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-block px-8 py-4 rounded-lg bg-app-accent hover:bg-app-accent-hover text-white font-semibold transition-colors"
-        >
-          Download for Windows (.exe)
-        </a>
+        {available === null ? (
+          <div className="inline-block px-8 py-4 rounded-lg bg-app-channel text-app-muted">
+            Checking availability...
+          </div>
+        ) : available ? (
+          <>
+            <span className="inline-block px-3 py-1 rounded-full bg-green-500/20 text-green-300 text-sm font-medium mb-3">
+              Available
+            </span>
+            <a
+              href={GITHUB_DOWNLOAD_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block px-8 py-4 rounded-lg bg-app-accent hover:bg-app-accent-hover text-white font-semibold transition-colors"
+            >
+              Download for Windows (.exe)
+            </a>
+          </>
+        ) : (
+          <>
+            <span className="inline-block px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 text-sm font-medium mb-3">
+              Coming soon
+            </span>
+            <p className="text-app-muted text-sm mb-2">
+              The desktop app is not yet published. Run <code className="bg-app-channel px-1 rounded">npm run release</code> to build and publish.
+            </p>
+            <a
+              href="https://github.com/skelleya/nepsis-chat/releases"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block px-6 py-3 rounded-lg bg-app-channel text-app-muted hover:text-app-text text-sm"
+            >
+              View releases
+            </a>
+          </>
+        )}
         <p className="text-app-muted text-sm mt-4">
           Or use the web app in your browser.
         </p>
