@@ -90,9 +90,9 @@ interface AppContextValue {
   deleteMessage: (messageId: string) => Promise<void>
   toggleReaction: (messageId: string, emoji: string) => Promise<void>
   createServer: (name: string) => Promise<Server | null>
-  updateServer: (serverId: string, data: { name?: string; icon_url?: string; banner_url?: string }) => Promise<void>
+  updateServer: (serverId: string, data: { name?: string; icon_url?: string; banner_url?: string; rules_channel_id?: string | null; lock_channels_until_rules_accepted?: boolean; rules_accept_emoji?: string; updatedBy?: string }) => Promise<void>
   deleteServer: (serverId: string) => Promise<void>
-  createChannel: (name: string, type: 'text' | 'voice', categoryId?: string) => Promise<Channel | null>
+  createChannel: (name: string, type: 'text' | 'voice' | 'rules', categoryId?: string) => Promise<Channel | null>
   reorderChannels: (updates: { id: string; order: number }[]) => Promise<void>
   updateChannel: (channelId: string, data: { name?: string; order?: number; categoryId?: string | null }) => Promise<void>
   deleteChannel: (channelId: string) => Promise<void>
@@ -101,6 +101,7 @@ interface AppContextValue {
   reorderCategories: (updates: { id: string; order: number }[]) => Promise<void>
   deleteCategory: (catId: string) => Promise<void>
   loadServers: (userIdOverride?: string) => Promise<void>
+  reorderServers: (updates: { serverId: string; order: number }[]) => Promise<void>
   // DM
   dmConversations: api.DMConversation[]
   dmMessages: Record<string, api.DMMessage[]>
@@ -109,7 +110,7 @@ interface AppContextValue {
   dmUnreadCounts: Record<string, number>
   channelUnreadCounts: Record<string, number>
   loadDMConversations: () => Promise<void>
-  openDM: (targetUserId: string, targetUsername: string) => Promise<void>
+  openDM: (targetUserId: string, targetUsername: string) => Promise<string | undefined>
   sendDMMessage: (conversationId: string, content: string) => Promise<void>
 }
 
@@ -306,6 +307,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
     localStorage.removeItem('nepsis_user')
     localStorage.removeItem(LAST_CHANNEL_KEY)
+    localStorage.removeItem('nepsis_last_view')
     clearLayoutCache()
     setServers([])
     setChannels([])
@@ -380,7 +382,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id])
 
   const openDM = useCallback(
-    async (targetUserId: string, _targetUsername: string) => {
+    async (targetUserId: string, _targetUsername: string): Promise<string | undefined> => {
       if (!user) return
       const conv = await api.createOrGetDMConversation(user.id, targetUserId)
       setDMConversations((prev) => {
@@ -390,6 +392,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       })
       setCurrentDM(conv.id)
       await loadDMMessages(conv.id)
+      return conv.id
     },
     [user?.id, loadDMMessages]
   )
@@ -529,7 +532,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return server
   }, [user, loadServers])
 
-  const updateServerFn = useCallback(async (serverId: string, data: { name?: string; icon_url?: string; banner_url?: string }) => {
+  const updateServerFn = useCallback(async (serverId: string, data: { name?: string; icon_url?: string; banner_url?: string; rules_channel_id?: string | null; lock_channels_until_rules_accepted?: boolean; rules_accept_emoji?: string; updatedBy?: string }) => {
     try {
       await api.updateServer(serverId, data)
       await loadServers()
@@ -554,19 +557,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentServerId, loadServers])
 
+  const reorderServersFn = useCallback(
+    async (updates: { serverId: string; order: number }[]) => {
+      if (!user?.id) return
+      try {
+        await api.reorderServers(user.id, updates)
+        await loadServers()
+      } catch (err) {
+        console.error('Failed to reorder servers:', err)
+      }
+    },
+    [user?.id, loadServers]
+  )
+
   // ─── Channel CRUD ─────────────────────────────────────
 
-  const createChannelFn = useCallback(async (name: string, type: 'text' | 'voice', categoryId?: string): Promise<Channel | null> => {
-    if (!currentServerId) return null
+  const createChannelFn = useCallback(async (name: string, type: 'text' | 'voice' | 'rules', categoryId?: string): Promise<Channel | null> => {
+    if (!currentServerId || !user) return null
     try {
-      const ch = await api.createChannel(currentServerId, name, type, categoryId)
+      const createdBy = type === 'rules' ? user.id : undefined
+      const ch = await api.createChannel(currentServerId, name, type, categoryId, createdBy)
       await loadChannels(currentServerId)
       return ch
     } catch (err) {
       console.error('Failed to create channel:', err)
-      return null
+      throw err
     }
-  }, [currentServerId, loadChannels])
+  }, [currentServerId, loadChannels, user])
 
   const deleteChannelFn = useCallback(async (channelId: string) => {
     if (!currentServerId) return
@@ -1068,6 +1085,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         reorderCategories: reorderCategoriesFn,
         deleteCategory: deleteCategoryFn,
         loadServers,
+        reorderServers: reorderServersFn,
         login,
         loginWithEmail,
         logout,

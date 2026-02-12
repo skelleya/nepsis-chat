@@ -68,7 +68,8 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | User settings — Full settings modal with tabs (My Account, Profiles, Privacy & Safety, Appearance, Voice & Video, Notifications); avatar + banner upload; username change; Personal/Work profile switch (non-guest); status dropdown (Online, Away, DND, Offline) in UserPanel |
 | + | Server invites — Discord-style invite links; create invite from server dropdown or voice channel; public `/invite/:code` page with Join Server; audit log for server actions (invite created/revoked, member joined/kicked) |
 | + | Server settings — Members tab (list, kick); Invites tab (create, copy link, revoke); Audit Log tab; modernized Custom Emojis tab (drag-drop upload, grid layout) |
-| + | Invite-only join — No auto-join on login; new/guest accounts start with no servers; join via invite link or code; Community page (compass icon) for discoverable servers; community servers (is_community=true) auto-joined for new users |
+| + | Invite-only join — No auto-join on login; new and temp accounts start with no servers; join via invite link or code; Community page (compass icon) for discoverable servers |
+| + | Onboarding & explore — New (non-guest) users with no servers see onboarding screen (create server, explore community); temp/guest users go straight to Explore page; localStorage `nepsis_onboarding_completed` marks onboarding done |
 | + | Voice icon fixes — Mic/headphones icons no longer snipped; MicOffIcon (mic+slash) instead of speaker/bell when muted; correct icons in UserPanel, ChannelList, VoiceView |
 | + | End-call icon — Removed diagonal slash from end-call button in VoiceView and ChannelList; uses plain phone-down (hang up) icon |
 | + | Speaking indicator fix — Green ring around avatar when talking was missing because AudioContext starts suspended in browsers; added `audioCtx.resume()` when suspended; lowered threshold to 8; smoothing for less flicker |
@@ -79,10 +80,15 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Friends page — Click Nepsis logo to open Friends page; list friends and pending friend requests; accept/decline requests; Message and Call buttons for friends |
 | + | DM notifications — New DM messages light up the conversation in the sidebar; unread count badge; notification sound; Direct Messages header shows total unread |
 | + | DM UI modernized — Gradient header, rounded message bubbles, relative timestamps, improved empty state |
+| + | DM chat spacing — Group consecutive messages from same sender; hide avatar/username/timestamp for subsequent messages in group; mb-1.5 between same-sender messages, mb-5 between different senders |
 | + | Text channel unread indicators — New messages highlight channel in white in sidebar; ChatView scrolls to bottom on load; "New messages" indicator when scrolled up; click to jump to start of new messages |
 | + | Profile pictures everywhere — User avatars display in voice channels (grid + sidebar list), ChatView messages, DM list/header/messages, MembersSidebar, MemberProfilePanel, CallOverlay (outgoing/incoming/in-call). Pass avatar_url through voiceUsers, members, and CallContext. |
 | + | Server icon and banner — Server Settings > Overview: upload server profile picture (icon) and banner. Backend PATCH supports icon_url and banner_url; migration adds banner_url to servers table. |
 | + | Bug reports — User Settings > Help & Support: Report a Bug form. Submits to `bug_reports` table (Supabase); sends title, description, user info, URL, user-agent to devs. Migration `20250211000008_bug_reports.sql`. |
+| + | Soundboard — Voice channel soundboard: play custom audio clips to all peers. Users can upload sounds (max 10 seconds). UI in VoiceView bottom bar. Backend: `soundboard_sounds` table, API routes, Socket.io `soundboard-play` event. Migration `20250211000009_soundboard_sounds.sql`. |
+| + | Voice UI v6 — Resizable panels: screen share vs participant cameras (drag divider to resize); single participant centered in middle; remote screen shares shown in main area; participant cards (2–4) resizable horizontally; `react-resizable-panels` with `autoSaveId` for layout persistence. |
+| + | Rules channel — Owner/admin can create a Rules channel (read-only; members react only). Server Settings > Rules Channel: set rules channel, lock all channels until members accept, choose accept emoji (any emoji). Migration `20250211000010_rules_channel.sql`. |
+| + | Server list reorder — Click-hold-and-drag server icons in the left sidebar to reorder; order persisted in `server_members.display_order`. Migration `20250211000011_server_members_display_order.sql`. |
 
 ---
 

@@ -66,6 +66,18 @@ export function registerVoiceHandlers(io) {
       })
     })
 
+    // Soundboard: broadcast play to all peers in room (including sender)
+    socket.on('soundboard-play', ({ soundUrl, userId: fromUserId, username: fromUsername }) => {
+      const room = `voice:${socket.voiceChannel}`
+      if (socket.voiceChannel) {
+        io.to(room).emit('soundboard-play', {
+          soundUrl,
+          userId: fromUserId ?? socket.userId,
+          username: fromUsername ?? socket.username,
+        })
+      }
+    })
+
     socket.on('disconnect', () => {
       if (socket.voiceChannel && socket.userId) {
         io.to(`voice:${socket.voiceChannel}`).emit('peer-left', { userId: socket.userId })

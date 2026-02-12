@@ -74,6 +74,24 @@ Camera and screen share use WebRTC renegotiation to add/remove video tracks mid-
 
 Each peer maintains **one combined `MediaStream`** per remote peer. All incoming tracks (audio, camera video, screen video) are added to it. This prevents the bug where a new video stream overwrites the audio stream.
 
+### Soundboard
+
+Users can play custom audio clips (max 10 seconds) to all peers in a voice channel. Flow:
+
+1. User uploads sounds via Soundboard UI (attachments bucket, `soundboard/{userId}/`)
+2. In voice, user clicks a sound → `emitSoundboardPlay(soundUrl)` via Socket.io
+3. Backend broadcasts `soundboard-play` to room (including sender)
+4. All peers receive event → play audio locally (unless deafened)
+5. Works only with Socket.io signaling (BroadcastChannel has no soundboard)
+
+### Resizable Voice Layout (Voice UI v6)
+
+- **Single participant:** Centered in the middle of the view (vertically and horizontally).
+- **Screen share:** When anyone shares a screen (local or remote), the layout becomes a vertical split: screen share on top, participant cameras below. Drag the divider to resize — make the screen bigger and cameras smaller or vice versa.
+- **2–4 participants:** Participant cards are in a horizontal resizable panel group. Drag dividers between cards to resize.
+- **5+ participants:** Grid layout (no per-card resizing).
+- Layout is persisted via `autoSaveId` (localStorage).
+
 ### Track Removal
 
 When a user stops camera/screen share:

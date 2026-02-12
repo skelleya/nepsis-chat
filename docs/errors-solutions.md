@@ -181,6 +181,17 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 
 ---
 
+## Server Banner
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Server banner not visible | Banner was only shown in Server Settings modal, never in the main UI. | Add `serverBannerUrl` prop to ChannelList and render banner above the server header. Files: `ChannelList.tsx`, `App.tsx`. |
+| Unable to publish server banner | (1) No error feedback when upload failed. (2) Server Settings only visible to owners, not admins. | (1) Add `bannerError` and `bannerLoading` state in ServerSettingsModal; show error message below banner upload area. (2) Show Server Settings to admins (`isAdminOrOwner`). Common upload errors: Storage not configured (create "attachments" bucket in Supabase), Network/CORS issues. Files: `ServerSettingsModal.tsx`, `ChannelList.tsx`. |
+
+**Files:** `ChannelList.tsx`, `App.tsx`, `ServerSettingsModal.tsx`
+
+---
+
 ## DM Calls
 
 | Issue | Cause | Solution |
@@ -211,7 +222,7 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 |-------|-------|----------|
 | **Slow to see someone join/leave a server** — member list takes 5+ seconds to update | Frontend polled `server_members` every 5 seconds (no Supabase Realtime subscription). Unlike `messages` and `dm_messages`, `server_members` was never added to the `supabase_realtime` publication. | **Three fixes**: (1) Added `server_members` to `supabase_realtime` publication — run migration `20250211000006_server_members_realtime.sql` (or Migration 7 in `run-all-pending-migrations.sql`). (2) Added `subscribeToServerMembers()` in `realtime.ts` for instant join/leave updates via Supabase Realtime. (3) App.tsx now uses realtime subscription + light fallback poll (15s normal, 2s in voice) instead of aggressive 5s polling. |
 | **Guest logout 500** — "Failed to delete guest account" (repeated retries) | `message_reactions` table not cleaned up before deleting guest user. If guest reacted to messages, FK constraint `message_reactions.user_id → users.id` blocks deletion. | Added `message_reactions` to the cleanup table list in `auth.js` (before `messages`). Redeploy backend. |
-| **Ghost "random number account" joins when user logs out** | Race condition: `deleteGuestAccount` deletes `server_members` first, then `users`. During the gap, a pending `GET /api/servers?userId=xxx` call sees 0 memberships → auto-joins community servers → creates NEW `server_members` rows. Other users see this as a phantom JOIN via realtime. The new rows become orphans after `users` is deleted. | **Two fixes**: (1) Frontend: `logout()` now clears user state and stops polling BEFORE calling `deleteGuestAccount`, preventing any concurrent API calls. (2) Backend: `GET /api/servers` auto-join now verifies the user exists in `users` table before auto-joining community servers. Files: `AppContext.tsx`, `servers.js`. |
+| **Ghost "random number account" joins when user logs out** | Race condition: `deleteGuestAccount` deletes `server_members` first, then `users`. During the gap, a pending `GET /api/servers?userId=xxx` could previously auto-join community servers and create phantom entries. | **Fixes**: (1) Frontend: `logout()` clears user state and stops polling BEFORE calling `deleteGuestAccount`. (2) Backend: `GET /api/servers` no longer auto-joins community servers—new/temp accounts start with no servers; users join via invite or Explore page. File: `backend/src/routes/servers.js`. |
 
 **Files:** `frontend/src/services/realtime.ts`, `frontend/src/App.tsx`, `backend/src/routes/auth.js`, `supabase/migrations/20250211000006_server_members_realtime.sql`
 

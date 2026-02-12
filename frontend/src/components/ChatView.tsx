@@ -20,6 +20,10 @@ interface ChatViewProps {
   onSendMessage?: (content: string, options?: { replyToId?: string; attachments?: { url: string; type: string; filename?: string }[] }) => void
   currentUserId: string
   isAdminOrOwner?: boolean
+  /** For rules channel: only owner/admin can send. When false, hides chat input. */
+  canSendMessages?: boolean
+  /** When in rules channel, called after reaction toggle (to refresh rules acceptance state) */
+  onAfterReaction?: () => void
 }
 
 export function ChatView({
@@ -31,6 +35,8 @@ export function ChatView({
   onSendMessage,
   currentUserId,
   isAdminOrOwner = false,
+  canSendMessages = true,
+  onAfterReaction,
 }: ChatViewProps) {
   const { editMessage, deleteMessage, toggleReaction } = useApp()
   const [input, setInput] = useState('')
@@ -177,8 +183,18 @@ export function ChatView({
   return (
     <div className="flex-1 flex flex-col bg-app-darker">
       <div className="h-12 px-4 flex items-center border-b border-app-dark shadow-sm">
-        <span className="text-xl text-app-muted">#</span>
+        {channel.type === 'rules' ? (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-app-muted">
+            <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/>
+            <path d="M9 15h6v2H9zm0-4h6v2H9zm0-4h3v2H9z"/>
+          </svg>
+        ) : (
+          <span className="text-xl text-app-muted">#</span>
+        )}
         <span className="ml-2 font-semibold text-app-text">{channel.name}</span>
+        {channel.type === 'rules' && (
+          <span className="ml-2 text-xs text-app-muted">(read-only — react to accept)</span>
+        )}
       </div>
 
       <div
@@ -324,7 +340,10 @@ export function ChatView({
                     return (
                       <button
                         key={emoji}
-                        onClick={() => toggleReaction(message.id, emoji)}
+                        onClick={async () => {
+                          await toggleReaction(message.id, emoji)
+                          onAfterReaction?.()
+                        }}
                         className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-sm ${
                           userIds.includes(currentUserId) ? 'bg-app-accent/30 text-app-accent' : 'bg-app-dark text-app-muted hover:bg-app-hover'
                         }`}
@@ -349,7 +368,11 @@ export function ChatView({
                       <div className="absolute left-0 bottom-full mb-1 z-50">
                         <EmojiPicker
                           serverEmojis={serverEmojis}
-                          onSelect={(emoji) => { toggleReaction(message.id, emoji); setShowEmojiPicker(null) }}
+                          onSelect={async (emoji) => {
+                            await toggleReaction(message.id, emoji)
+                            onAfterReaction?.()
+                            setShowEmojiPicker(null)
+                          }}
                           onClose={() => setShowEmojiPicker(null)}
                         />
                       </div>
@@ -374,6 +397,7 @@ export function ChatView({
         )}
       </div>
 
+      {canSendMessages && (
       <form className="p-4 border-t border-app-dark" onSubmit={handleSubmit}>
         {replyTo && (
           <div className="mb-2 flex items-start gap-2 p-2 rounded bg-app-dark/50 border-l-2 border-app-accent text-sm">
@@ -426,7 +450,7 @@ export function ChatView({
                 setAttachments([])
               }
             }}
-            placeholder={`Message #${channel.name}`}
+            placeholder={channel.type === 'rules' ? 'Add server rules...' : `Message #${channel.name}`}
             disabled={!onSendMessage}
             members={members}
             serverEmojis={serverEmojis}
@@ -475,6 +499,12 @@ export function ChatView({
           </button>
         </div>
       </form>
+      )}
+      {!canSendMessages && channel.type === 'rules' && messages.length === 0 && (
+        <div className="p-4 border-t border-app-dark text-center text-app-muted text-sm">
+          No rules have been set up yet. Contact the server owner or admin to add rules.
+        </div>
+      )}
     </div>
   )
 }

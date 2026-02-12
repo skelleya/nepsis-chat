@@ -9,7 +9,8 @@ Node.js + Express + Socket.io + SQLite.
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/auth/login` | Login with username, returns user |
-| GET | `/api/servers` | List servers |
+| GET | `/api/servers` | List servers (ordered by user's `display_order` in `server_members`) |
+| PUT | `/api/servers/reorder` | Reorder user's server list (`userId`, `updates: [{ serverId, order }]`) |
 | GET | `/api/servers/:id/channels` | List channels for server |
 | GET | `/api/messages/channel/:channelId` | List messages (query: `limit`, `before`) |
 | POST | `/api/messages` | Send message (`channelId`, `userId`, `content`, `replyToId`, `attachments`) |
@@ -42,6 +43,10 @@ Node.js + Express + Socket.io + SQLite.
 | GET | `/api/servers/:id/audit-log` | List audit log entries (invite_created, invite_revoked, member_kicked, member_joined) |
 | GET | `/api/version` | App version |
 | POST | `/api/bug-reports` | Submit bug report (`userId`, `username`, `email`, `title`, `description`, `url`) — public |
+| GET | `/api/soundboard` | List user soundboard sounds (`?userId=`) |
+| POST | `/api/soundboard` | Upload soundboard sound (multipart: `file`, `userId`, `name`) — max 10s, MP3/WAV/OGG/WebM/M4A |
+| DELETE | `/api/soundboard/:id` | Delete soundboard sound (`?userId=`) |
+| GET | `/api/servers/:id/rules-acceptance` | Check if user accepted rules (`?userId=`) — for channel lock |
 
 ### Static
 
@@ -57,7 +62,10 @@ Node.js + Express + Socket.io + SQLite.
 |-------|---------|
 | users | id, username, avatar_url, banner_url, created_at |
 | servers | id, name, icon_url, owner_id |
-| channels | id, server_id, name, type (text/voice), order |
+| channels | id, server_id, name, type (text/voice/rules), order |
+| servers | + rules_channel_id, lock_channels_until_rules_accepted, rules_accept_emoji |
+| server_members | + display_order (INTEGER, nullable) — user's preferred server list order; migration `20250211000011_server_members_display_order.sql` |
+| rules_acceptances | server_id, user_id, accepted_at — when user reacted with accept emoji |
 | messages | id, channel_id, user_id, content, created_at |
 | dm_conversations | id, created_at |
 | dm_participants | conversation_id, user_id |
@@ -66,6 +74,7 @@ Node.js + Express + Socket.io + SQLite.
 | server_invites | code, server_id, created_by, expires_at, max_uses, use_count, created_at — see migration `20250211000004_server_invites_audit.sql` |
 | server_audit_log | id, server_id, user_id, action, details (JSONB), created_at — see migration `20250211000004_server_invites_audit.sql` |
 | bug_reports | id, user_id, username, email, title, description, url, user_agent, status (pending/reviewed/resolved/wontfix), created_at — see migration `20250211000008_bug_reports.sql` |
+| soundboard_sounds | id, user_id, name, url, duration_seconds, storage_path, created_at — max 10s audio; migration `20250211000009_soundboard_sounds.sql` |
 
 **File:** `backend/data.sqlite` (legacy) — Supabase Postgres used in production
 
@@ -98,6 +107,8 @@ Node.js + Express + Socket.io + SQLite.
 | offer | Server → Client | from, fromUserId, sdp |
 | answer | Server → Client | from, fromUserId, sdp |
 | ice-candidate | Server → Client | from, fromUserId, candidate |
+| soundboard-play | Client → Server | soundUrl, userId, username — play sound to all peers in room |
+| soundboard-play | Server → Client | soundUrl, userId, username — broadcast to room |
 | admin-move-to-channel | Server → Client | channelId, channelName — emitted to target user when admin moves them to another voice channel |
 
 ### `/calls` (DM private calls)

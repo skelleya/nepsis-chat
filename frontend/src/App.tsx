@@ -22,6 +22,7 @@ import { DownloadPage } from './pages/DownloadPage'
 import { InvitePage } from './pages/InvitePage'
 import { CommunityPage } from './pages/CommunityPage'
 import { FriendsPage } from './pages/FriendsPage'
+import { OnboardingPage, ONBOARDING_COMPLETED_KEY } from './pages/OnboardingPage'
 
 function AppContent() {
   const {
@@ -46,6 +47,7 @@ function AppContent() {
     createServer,
     updateServer,
     deleteServer,
+    reorderServers,
     createChannel,
     createCategory,
     reorderChannels,
@@ -84,6 +86,7 @@ function AppContent() {
         createServer={createServer}
         updateServer={updateServer}
         deleteServer={deleteServer}
+        reorderServers={reorderServers}
         createChannel={createChannel}
         createCategory={createCategory}
         reorderChannels={reorderChannels}
@@ -121,6 +124,7 @@ interface MainLayoutProps {
   createServer: (name: string) => Promise<unknown>
   updateServer: (serverId: string, data: { name?: string; icon_url?: string; banner_url?: string }) => Promise<void>
   deleteServer: (serverId: string) => Promise<void>
+  reorderServers: (updates: { serverId: string; order: number }[]) => Promise<void>
   createChannel: (name: string, type: 'text' | 'voice', categoryId?: string) => Promise<unknown>
   createCategory: (name: string) => Promise<unknown>
   reorderChannels: (updates: { id: string; order: number }[]) => Promise<void>
@@ -154,6 +158,7 @@ function MainLayout({
   createServer,
   updateServer,
   deleteServer,
+  reorderServers,
   createChannel,
   createCategory,
   reorderChannels,
@@ -167,20 +172,114 @@ function MainLayout({
   const voice = useVoice()
   const call = useCall()
   const [showServerSettings, setShowServerSettings] = useState(false)
-  const [showCommunity, setShowCommunity] = useState(servers.length === 0)
-  const [showFriends, setShowFriends] = useState(false)
+  const savedView = (() => {
+    try {
+      const raw = localStorage.getItem('nepsis_last_view')
+      if (!raw) return { view: 'community' as const }
+      const parsed = JSON.parse(raw)
+      return parsed?.view ? parsed : { view: 'community' as const }
+    } catch {
+      return { view: 'community' as const }
+    }
+  })()
+  const hasNoServers = servers.length === 0
+  const isGuest = user?.is_guest ?? false
+  const hasCompletedOnboarding = (() => {
+    try {
+      return localStorage.getItem(ONBOARDING_COMPLETED_KEY) === 'true'
+    } catch {
+      return false
+    }
+  })()
+  const shouldShowOnboarding = hasNoServers && !isGuest && !hasCompletedOnboarding
+  const [showCommunity, setShowCommunity] = useState(
+    savedView.view === 'community' || (savedView.view === 'server' && hasNoServers)
+  )
+  const [showOnboarding, setShowOnboarding] = useState(shouldShowOnboarding)
+  const [showFriends, setShowFriends] = useState(savedView.view === 'friends')
   const [serverMembers, setServerMembers] = useState<ServerMember[]>([])
   const [serverEmojis, setServerEmojis] = useState<{ id: string; name: string; image_url: string }[]>([])
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
+  // Restore last view on mount; re-run when servers finish loading (0 -> >0)
+  const prevServersLengthRef = useRef(servers.length)
   useEffect(() => {
-    if (servers.length === 0) setShowCommunity(true)
-  }, [servers.length])
+    const hadServers = prevServersLengthRef.current > 0
+    const hasServers = servers.length > 0
+    prevServersLengthRef.current = servers.length
+
+    try {
+      const raw = localStorage.getItem('nepsis_last_view')
+      const v = raw ? (JSON.parse(raw) as { view?: string; dmId?: string }) : { view: 'community' }
+      if (hasServers) {
+        if (v.view === 'community') {
+          setShowCommunity(true)
+          setShowFriends(false)
+        } else if (v.view === 'friends') {
+          setShowFriends(true)
+          setShowCommunity(false)
+        } else if (v.view === 'dm' && v.dmId) {
+          setShowCommunity(false)
+          setShowFriends(false)
+          setCurrentDM(v.dmId)
+        } else {
+          setShowCommunity(false)
+          setShowFriends(false)
+        }
+      } else if (!hadServers) {
+        setShowCommunity(v.view === 'friends' ? false : true)
+        setShowFriends(v.view === 'friends')
+      }
+    } catch { /* ignore */ }
+  }, [servers.length, setCurrentDM])
+
+  // When no servers: guest → explore; non-guest → onboarding (or explore if completed)
+  useEffect(() => {
+    if (!hasNoServers) {
+      setShowOnboarding(false)
+      return
+    }
+    const completed = localStorage.getItem(ONBOARDING_COMPLETED_KEY) === 'true'
+    if (isGuest) {
+      setShowOnboarding(false)
+      setShowCommunity(true)
+    } else if (!completed) {
+      setShowOnboarding(true)
+      setShowCommunity(false)
+    } else {
+      setShowOnboarding(false)
+      setShowCommunity(true)
+    }
+  }, [hasNoServers, isGuest])
+
+  useEffect(() => {
+    if (servers.length === 0 && !showCommunity && !showFriends && !showOnboarding) {
+      try {
+        const raw = localStorage.getItem('nepsis_last_view')
+        const v = raw ? (JSON.parse(raw) as { view?: string }) : {}
+        setShowFriends(v.view === 'friends')
+        setShowCommunity(v.view !== 'friends')
+      } catch {
+        setShowCommunity(true)
+        setShowFriends(false)
+      }
+    }
+  }, [servers.length, showCommunity, showFriends, showOnboarding])
 
   const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
     setNotification({ message, type })
     setTimeout(() => setNotification(null), 3000)
   }
+
+  const openCommunityView = useCallback(() => {
+    setShowOnboarding(false)
+    setShowCommunity(true)
+    setShowFriends(false)
+    try {
+      localStorage.setItem(ONBOARDING_COMPLETED_KEY, 'true')
+      localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'community' }))
+    } catch { /* ignore */ }
+  }, [])
 
   const { userStatus, setUserStatus, updateUser } = useApp()
   const currentUserRole = serverMembers.find((m) => m.userId === user.id)?.role ?? 'member'
@@ -279,14 +378,49 @@ function MainLayout({
   const channelMessages = currentChannelId ? (messages[currentChannelId] || []) : []
   const currentServer = servers.find((s) => s.id === currentServerId)
 
-  // Handle channel selection - one-click join for voice
+  // Rules acceptance: when server locks channels until rules accepted
+  const [rulesAccepted, setRulesAccepted] = useState<Record<string, boolean>>({})
+  const rulesChannelId = currentServer?.rules_channel_id
+  const lockUntilAccepted = !!currentServer?.lock_channels_until_rules_accepted
+  const mustAcceptRules = lockUntilAccepted && !!rulesChannelId
+  const rulesAcceptanceKnown = !rulesChannelId || (currentServerId !== undefined && currentServerId in rulesAccepted)
+  const hasAcceptedRules = rulesChannelId ? (rulesAccepted[currentServerId ?? ''] === true) : true
+
+  useEffect(() => {
+    if (!currentServerId || !user || !rulesChannelId) return
+    api.getRulesAcceptance(currentServerId, user.id).then((r) => {
+      setRulesAccepted((prev) => ({ ...prev, [currentServerId]: r.accepted }))
+    }).catch(() => {})
+  }, [currentServerId, user?.id, rulesChannelId])
+
+  // When server has lock and user hasn't accepted, auto-select rules channel
+  useEffect(() => {
+    if (!mustAcceptRules || hasAcceptedRules || !rulesChannelId || !rulesAcceptanceKnown) return
+    const rulesCh = displayChannels.find((c) => c.id === rulesChannelId)
+    if (rulesCh && currentChannelId !== rulesChannelId) {
+      setCurrentChannel(rulesChannelId)
+    }
+  }, [mustAcceptRules, hasAcceptedRules, rulesChannelId, rulesAcceptanceKnown, currentChannelId, displayChannels, setCurrentChannel])
+
+  const refreshRulesAccepted = useCallback(() => {
+    if (!currentServerId || !user || !rulesChannelId) return
+    api.getRulesAcceptance(currentServerId, user.id).then((r) => {
+      setRulesAccepted((prev) => ({ ...prev, [currentServerId]: r.accepted }))
+    }).catch(() => {})
+  }, [currentServerId, user?.id, rulesChannelId])
+
+  // Handle channel selection - one-click join for voice; respect rules lock
   const handleSelectChannel = useCallback((channel: { id: string; name: string; type: string }) => {
+    if (mustAcceptRules && rulesAcceptanceKnown && !hasAcceptedRules && channel.type !== 'rules' && channel.id !== rulesChannelId) {
+      setCurrentChannel(rulesChannelId)
+      showNotification('Accept the rules first to access other channels')
+      return
+    }
     setCurrentChannel(channel.id)
-    // Auto-join voice channels on click (one-click join like Discord)
     if (channel.type === 'voice') {
       voice.joinVoice(channel.id, channel.name)
     }
-  }, [setCurrentChannel, voice])
+  }, [setCurrentChannel, voice, mustAcceptRules, rulesAcceptanceKnown, hasAcceptedRules, rulesChannelId])
 
   // Build voice users map from ALL server members' presence — so users see who's in
   // each voice channel BEFORE entering (not just when they're already in one).
@@ -378,22 +512,43 @@ function MainLayout({
       <ServerBar
         servers={servers.map((s) => ({ id: s.id, name: s.name, iconUrl: s.icon_url, bannerUrl: s.banner_url, ownerId: s.owner_id }))}
         currentServerId={currentServerId}
-        onSelectServer={(id) => { setShowCommunity(false); setShowFriends(false); setCurrentServer(id) }}
+        onSelectServer={(id) => {
+          setShowCommunity(false)
+          setShowFriends(false)
+          setCurrentServer(id)
+          try {
+            localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'server' }))
+          } catch { /* ignore */ }
+        }}
         onCreateServer={async (name) => { await createServer(name) }}
+        onReorderServers={reorderServers}
         canCreateServer={!user?.is_guest}
-        onOpenCommunity={() => setShowCommunity(true)}
-        onOpenFriends={() => { setShowCommunity(false); setShowFriends(true) }}
+        onOpenCommunity={openCommunityView}
+        onOpenFriends={() => {
+          setShowCommunity(false)
+          setShowFriends(true)
+          try {
+            localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'friends' }))
+          } catch { /* ignore */ }
+        }}
       />
 
       {/* Channel list + User panel wrapper */}
       <div className="w-60 bg-app-channel flex flex-col flex-shrink-0">
         <ChannelList
-          channels={displayChannels.map((c) => ({ id: c.id, name: c.name, type: c.type as 'text' | 'voice', serverId: c.server_id, order: c.order, categoryId: c.category_id }))}
+          channels={displayChannels.map((c) => ({ id: c.id, name: c.name, type: c.type as 'text' | 'voice' | 'rules', serverId: c.server_id, order: c.order, categoryId: c.category_id }))}
           categories={categories.map((cat) => ({ id: cat.id, name: cat.name, serverId: cat.server_id, order: cat.order }))}
           currentChannelId={currentChannelId}
           onSelectChannel={(ch) => handleSelectChannel(ch)}
           serverName={currentServer?.name}
-          onCreateChannel={async (name, type, catId) => { await createChannel(name, type, catId) }}
+          serverBannerUrl={currentServer?.banner_url}
+          onCreateChannel={async (name, type, catId) => {
+            try {
+              await createChannel(name, type, catId)
+            } catch (e) {
+              showNotification(e instanceof Error ? e.message : 'Failed to create channel', 'error')
+            }
+          }}
           onCreateCategory={async (name) => { await createCategory(name) }}
           onReorderChannels={async (updates) => { await reorderChannels(updates) }}
           onUpdateChannel={updateChannel}
@@ -416,9 +571,10 @@ function MainLayout({
           voiceUsers={voiceUsers}
           onOpenServerSettings={() => setShowServerSettings(true)}
           onInvitePeople={handleInvitePeople}
-          onOpenCommunity={() => setShowCommunity(true)}
+          onOpenCommunity={openCommunityView}
           serverId={currentServerId ?? undefined}
           isOwner={currentServer?.owner_id === user.id}
+          isAdminOrOwner={currentUserRole === 'owner' || currentUserRole === 'admin'}
           hasNoServers={servers.length === 0}
           dmConversations={dmConversations}
           currentDMId={currentDMId}
@@ -426,7 +582,11 @@ function MainLayout({
           channelUnreadCounts={channelUnreadCounts}
           onSelectDM={(id) => {
             setCurrentDM(id)
-            // Messages loaded by AppContext when currentDMId changes
+            setShowCommunity(false)
+            setShowFriends(false)
+            try {
+              localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'dm', dmId: id }))
+            } catch { /* ignore */ }
           }}
         />
         <UserPanel
@@ -446,10 +606,22 @@ function MainLayout({
       {/* Main content */}
       {showFriends ? (
         <FriendsPage
-          onClose={() => setShowFriends(false)}
-          onOpenDM={async (userId, username) => {
-            await openDM(userId, username)
+          onClose={() => {
             setShowFriends(false)
+            if (currentServerId) {
+              try {
+                localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'server' }))
+              } catch { /* ignore */ }
+            }
+          }}
+          onOpenDM={async (userId, username) => {
+            const dmId = await openDM(userId, username)
+            setShowFriends(false)
+            if (dmId) {
+              try {
+                localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'dm', dmId }))
+              } catch { /* ignore */ }
+            }
           }}
         />
       ) : currentDMId ? (
@@ -464,18 +636,42 @@ function MainLayout({
               currentUserId={user.id}
               currentUserAvatarUrl={user.avatar_url}
               onSendMessage={(content) => sendDMMessage(currentDMId, content)}
-              onClose={() => setCurrentDM(null)}
+              onClose={() => {
+                setCurrentDM(null)
+                try {
+                  localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'friends' }))
+                } catch { /* ignore */ }
+              }}
               onBlockUser={() => showNotification('Block feature coming soon')}
               onReportUser={() => showNotification('Report feature coming soon')}
             />
           )
         })()
+      ) : showOnboarding ? (
+        <OnboardingPage onExplore={openCommunityView} />
       ) : showCommunity ? (
         <CommunityPage
-          onJoinServer={() => setShowCommunity(false)}
-          onClose={servers.length > 0 ? () => setShowCommunity(false) : undefined}
+          onJoinServer={() => {
+            setShowCommunity(false)
+            setShowFriends(false)
+            if (currentServerId) {
+              try {
+                localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'server' }))
+              } catch { /* ignore */ }
+            }
+          }}
+          onClose={
+            servers.length > 0
+              ? () => {
+                  setShowCommunity(false)
+                  try {
+                    localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'server' }))
+                  } catch { /* ignore */ }
+                }
+              : undefined
+          }
         />
-      ) : currentChannel && currentChannel.type === 'text' ? (
+      ) : currentChannel && (currentChannel.type === 'text' || currentChannel.type === 'rules') ? (
         <ChatView
           channel={{ id: currentChannel.id, name: currentChannel.name, type: currentChannel.type, serverId: currentChannel.server_id, order: currentChannel.order }}
           members={serverMembers.map((m) => ({ id: m.userId, username: m.username, avatarUrl: m.avatarUrl }))}
@@ -497,6 +693,8 @@ function MainLayout({
           onSendMessage={(content, options) => sendMessage(currentChannel.id, content, options)}
           currentUserId={user.id}
           isAdminOrOwner={currentUserRole === 'owner' || currentUserRole === 'admin'}
+          canSendMessages={currentChannel.type === 'text' || (currentChannel.type === 'rules' && (currentUserRole === 'owner' || currentUserRole === 'admin'))}
+          onAfterReaction={currentChannel.type === 'rules' ? refreshRulesAccepted : undefined}
         />
       ) : currentChannel && currentChannel.type === 'voice' ? (
         <VoiceView
@@ -517,7 +715,7 @@ function MainLayout({
         </div>
       )}
 
-      {!showCommunity && !showFriends && (
+      {!showCommunity && !showFriends && !showOnboarding && (
       <MembersSidebar
         members={serverMembers}
         currentUserId={user.id}
@@ -587,6 +785,10 @@ function MainLayout({
           userId={user.id}
           canManageEmojis={currentUserRole === 'owner' || currentUserRole === 'admin'}
           canManageMembers={currentUserRole === 'owner' || currentUserRole === 'admin'}
+          canManageRules={currentUserRole === 'owner' || currentUserRole === 'admin'}
+          rulesChannelId={currentServer?.rules_channel_id}
+          lockChannelsUntilRulesAccepted={!!currentServer?.lock_channels_until_rules_accepted}
+          rulesAcceptEmoji={currentServer?.rules_accept_emoji ?? '👍'}
           onClose={() => setShowServerSettings(false)}
           onUpdateServer={(data) => updateServer(currentServer.id, data)}
           serverIconUrl={currentServer.icon_url}

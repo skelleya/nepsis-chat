@@ -41,8 +41,12 @@ interface ServerSettingsModalProps {
   userId?: string
   canManageEmojis?: boolean
   canManageMembers?: boolean
+  canManageRules?: boolean
+  rulesChannelId?: string | null
+  lockChannelsUntilRulesAccepted?: boolean
+  rulesAcceptEmoji?: string
   onClose: () => void
-  onUpdateServer: (data: { name?: string; icon_url?: string; banner_url?: string }) => Promise<void>
+  onUpdateServer: (data: { name?: string; icon_url?: string; banner_url?: string; rules_channel_id?: string | null; lock_channels_until_rules_accepted?: boolean; rules_accept_emoji?: string; updatedBy?: string }) => Promise<void>
   onDeleteServer: () => Promise<void>
   onKickMember?: (targetUserId: string) => Promise<void>
   onMembersChange?: () => void
@@ -56,6 +60,10 @@ export function ServerSettingsModal({
   userId,
   canManageEmojis,
   canManageMembers,
+  canManageRules = false,
+  rulesChannelId,
+  lockChannelsUntilRulesAccepted = false,
+  rulesAcceptEmoji = '👍',
   onClose,
   onUpdateServer,
   onDeleteServer,
@@ -73,12 +81,18 @@ export function ServerSettingsModal({
   const [emojiFile, setEmojiFile] = useState<File | null>(null)
   const [emojiError, setEmojiError] = useState('')
   const [emojiLoading, setEmojiLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'overview' | 'emojis' | 'members' | 'invites' | 'audit'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'emojis' | 'members' | 'invites' | 'rules' | 'audit'>('overview')
+  const [rulesChannelIdState, setRulesChannelIdState] = useState(rulesChannelId || '')
+  const [lockUntilAccepted, setLockUntilAccepted] = useState(lockChannelsUntilRulesAccepted)
+  const [acceptEmoji, setAcceptEmoji] = useState(rulesAcceptEmoji)
+  const [rulesChannels, setRulesChannels] = useState<{ id: string; name: string; type: string }[]>([])
   const [members, setMembers] = useState<ServerMember[]>([])
   const [invites, setInvites] = useState<ServerInvite[]>([])
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([])
   const [inviteCreating, setInviteCreating] = useState(false)
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
+  const [bannerError, setBannerError] = useState('')
+  const [bannerLoading, setBannerLoading] = useState(false)
 
   useEffect(() => {
     api.getServerEmojis(serverId).then(setEmojis).catch(() => setEmojis([]))
@@ -88,6 +102,20 @@ export function ServerSettingsModal({
     setIconUrl(serverIconUrl || '')
     setBannerUrl(serverBannerUrl || '')
   }, [serverIconUrl, serverBannerUrl])
+
+  useEffect(() => {
+    setRulesChannelIdState(rulesChannelId || '')
+    setLockUntilAccepted(lockChannelsUntilRulesAccepted)
+    setAcceptEmoji(rulesAcceptEmoji)
+  }, [rulesChannelId, lockChannelsUntilRulesAccepted, rulesAcceptEmoji])
+
+  useEffect(() => {
+    if (activeTab === 'rules') {
+      api.getChannels(serverId).then((ch) => {
+        setRulesChannels((ch || []).filter((c: { type: string }) => c.type === 'rules'))
+      }).catch(() => setRulesChannels([]))
+    }
+  }, [serverId, activeTab])
 
   const handleIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -104,13 +132,24 @@ export function ServerSettingsModal({
 
   const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !/^image\/(png|gif|jpeg|webp)$/.test(file.type)) return
+    if (!file) return
+    const allowed = /^image\/(png|gif|jpeg|webp)$/.test(file.type)
+    if (!allowed) {
+      setBannerError('Use PNG, GIF, JPEG, or WebP images only')
+      return
+    }
+    setBannerError('')
+    setBannerLoading(true)
     try {
       const { url } = await api.uploadFile(file)
       await onUpdateServer({ banner_url: url })
       setBannerUrl(url)
     } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Banner upload failed'
+      setBannerError(msg)
       console.error('Banner upload failed:', err)
+    } finally {
+      setBannerLoading(false)
     }
     e.target.value = ''
   }
@@ -208,6 +247,7 @@ export function ServerSettingsModal({
     emojis: 'Custom Emojis',
     members: 'Members',
     invites: 'Invites',
+    rules: 'Rules Channel',
     audit: 'Audit Log',
   }
 
@@ -243,6 +283,14 @@ export function ServerSettingsModal({
           >
             Invites
           </button>
+          {canManageRules && (
+            <button
+              onClick={() => setActiveTab('rules')}
+              className={`w-full px-2.5 py-1.5 rounded text-sm text-left mb-0.5 ${activeTab === 'rules' ? 'text-white bg-app-hover/60' : 'text-app-muted hover:text-app-text hover:bg-app-hover/40'}`}
+            >
+              Rules Channel
+            </button>
+          )}
           <button
             onClick={() => setActiveTab('audit')}
             className={`w-full px-2.5 py-1.5 rounded text-sm text-left mb-0.5 ${activeTab === 'audit' ? 'text-white bg-app-hover/60' : 'text-app-muted hover:text-app-text hover:bg-app-hover/40'}`}
@@ -380,6 +428,67 @@ export function ServerSettingsModal({
           </div>
         )}
 
+        {activeTab === 'rules' && canManageRules && (
+          <div className="space-y-6">
+            <p className="text-sm text-app-muted">
+              Create a rules channel (channel type: Rules) and configure it here. Members can only react with emoji — no chat. Optionally lock all channels until members accept rules by reacting with the designated emoji.
+            </p>
+            <div className="space-y-4 max-w-md">
+              <div>
+                <label className="block text-xs font-bold text-app-muted uppercase mb-1.5">Rules Channel</label>
+                <select
+                  value={rulesChannelIdState}
+                  onChange={(e) => setRulesChannelIdState(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-[#1e1f22] rounded-lg text-app-text border border-transparent focus:border-app-accent/50 outline-none"
+                >
+                  <option value="">None</option>
+                  {rulesChannels.map((ch) => (
+                    <option key={ch.id} value={ch.id}>#{ch.name}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-app-muted mt-1">Create a Rules channel first if none exist.</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="lock-until-accepted"
+                  checked={lockUntilAccepted}
+                  onChange={(e) => setLockUntilAccepted(e.target.checked)}
+                  className="rounded border-app-hover bg-[#1e1f22]"
+                />
+                <label htmlFor="lock-until-accepted" className="text-sm text-app-text">
+                  Lock all channels until members accept rules (react with emoji below)
+                </label>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-app-muted uppercase mb-1.5">Accept emoji</label>
+                <input
+                  type="text"
+                  value={acceptEmoji}
+                  onChange={(e) => setAcceptEmoji(e.target.value)}
+                  placeholder="👍"
+                  className="w-full px-3 py-2.5 bg-[#1e1f22] rounded-lg text-app-text border border-transparent focus:border-app-accent/50 outline-none"
+                />
+                <p className="text-xs text-app-muted mt-1">Emoji members must react with to accept rules (e.g. 👍 ✅)</p>
+              </div>
+              <button
+                onClick={async () => {
+                  if (!userId) return
+                  await onUpdateServer({
+                    rules_channel_id: rulesChannelIdState || null,
+                    lock_channels_until_rules_accepted: lockUntilAccepted,
+                    rules_accept_emoji: acceptEmoji.trim() || '👍',
+                    updatedBy: userId,
+                  })
+                }}
+                className="px-4 py-2 bg-app-accent hover:bg-app-accent-hover text-white rounded text-sm font-medium"
+              >
+                Save Rules Settings
+              </button>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'invites' && (
           <div className="space-y-4">
             <p className="text-sm text-app-muted">Create invite links to share with others. Anyone with the link can join your server.</p>
@@ -460,15 +569,16 @@ export function ServerSettingsModal({
               Server Banner
             </label>
             <div
-              className="h-24 rounded-xl bg-app-channel flex items-center justify-center overflow-hidden cursor-pointer hover:opacity-90 transition-opacity border-2 border-dashed border-app-hover/50"
-              onClick={() => bannerInputRef.current?.click()}
+              className={`h-24 rounded-xl bg-app-channel flex items-center justify-center overflow-hidden transition-opacity border-2 border-dashed border-app-hover/50 ${bannerLoading ? 'opacity-60 pointer-events-none' : 'cursor-pointer hover:opacity-90'}`}
+              onClick={() => !bannerLoading && bannerInputRef.current?.click()}
             >
               {bannerUrl ? (
                 <img src={bannerUrl} alt="Banner" className="w-full h-full object-cover" />
               ) : (
-                <span className="text-app-muted text-sm">Click to upload banner</span>
+                <span className="text-app-muted text-sm">{bannerLoading ? 'Uploading...' : 'Click to upload banner'}</span>
               )}
             </div>
+            {bannerError && <p className="mt-1.5 text-sm text-red-400">{bannerError}</p>}
             <input
               ref={bannerInputRef}
               type="file"

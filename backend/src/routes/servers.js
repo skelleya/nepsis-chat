@@ -30,36 +30,13 @@ serversRouter.get('/', async (req, res) => {
 
     const { data: memberships } = await supabase
       .from('server_members')
-      .select('server_id')
+      .select('server_id, display_order')
       .eq('user_id', userId)
 
     const memberServerIds = (memberships || []).map((m) => m.server_id)
+    const orderByServerId = new Map((memberships || []).map((m) => [m.server_id, m.display_order]))
     if (memberServerIds.length === 0) {
-      // Verify user actually exists before auto-joining (prevents ghost entries
-      // when deleteGuestAccount removes server_members but hasn't deleted user yet)
-      const { data: userExists } = await supabase
-        .from('users')
-        .select('id')
-        .eq('id', userId)
-        .single()
-      if (!userExists) return res.json([])
-
-      // Auto-join community servers for new users
-      const { data: communityServers } = await supabase
-        .from('servers')
-        .select('id')
-        .eq('is_community', true)
-
-      if (communityServers && communityServers.length > 0) {
-        for (const s of communityServers) {
-          await supabase
-            .from('server_members')
-            .upsert({ server_id: s.id, user_id: userId, role: 'member' }, { onConflict: 'server_id,user_id' })
-        }
-        const joined = communityServers.map((s) => s.id)
-        const { data: servers } = await supabase.from('servers').select('*').in('id', joined).order('name')
-        return res.json(servers || [])
-      }
+      // New and temp accounts start with no servers — user joins via invite or explore page
       return res.json([])
     }
 
@@ -67,9 +44,19 @@ serversRouter.get('/', async (req, res) => {
       .from('servers')
       .select('*')
       .in('id', memberServerIds)
-      .order('name')
     if (error) throw error
-    res.json(servers || [])
+    const list = servers || []
+    list.sort((a, b) => {
+      const orderA = orderByServerId.get(a.id)
+      const orderB = orderByServerId.get(b.id)
+      const aNull = orderA == null
+      const bNull = orderB == null
+      if (aNull && bNull) return a.name.localeCompare(b.name)
+      if (aNull) return 1
+      if (bNull) return -1
+      return orderA - orderB
+    })
+    res.json(list)
   } catch (err) {
     console.error('Get servers error:', err)
     res.status(500).json({ error: 'Failed to fetch servers' })
@@ -88,6 +75,28 @@ serversRouter.get('/community', async (req, res) => {
     res.json(data || [])
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch community servers' })
+  }
+})
+
+// Reorder user's server list (updates display_order in server_members)
+serversRouter.put('/reorder', async (req, res) => {
+  try {
+    const { userId, updates } = req.body
+    if (!userId || !Array.isArray(updates)) {
+      return res.status(400).json({ error: 'userId and updates array are required' })
+    }
+    for (const u of updates) {
+      if (typeof u.serverId !== 'string' || typeof u.order !== 'number') continue
+      await supabase
+        .from('server_members')
+        .update({ display_order: u.order })
+        .eq('server_id', u.serverId)
+        .eq('user_id', userId)
+    }
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('Reorder servers error:', err)
+    res.status(500).json({ error: 'Failed to reorder servers' })
   }
 })
 
@@ -169,11 +178,30 @@ serversRouter.post('/', async (req, res) => {
 // Update a server
 serversRouter.patch('/:id', async (req, res) => {
   try {
-    const { name, icon_url, banner_url } = req.body
+    const { name, icon_url, banner_url, rules_channel_id, lock_channels_until_rules_accepted, rules_accept_emoji, updatedBy } = req.body
     const updates = {}
     if (name !== undefined) updates.name = name
     if (icon_url !== undefined) updates.icon_url = icon_url
     if (banner_url !== undefined) updates.banner_url = banner_url
+
+    // Rules settings: only owner/admin can update
+    const rulesFields = { rules_channel_id, lock_channels_until_rules_accepted, rules_accept_emoji }
+    const hasRulesUpdate = Object.values(rulesFields).some((v) => v !== undefined)
+    if (hasRulesUpdate) {
+      if (!updatedBy) return res.status(400).json({ error: 'updatedBy required for rules settings' })
+      const { data: member } = await supabase
+        .from('server_members')
+        .select('role')
+        .eq('server_id', req.params.id)
+        .eq('user_id', updatedBy)
+        .single()
+      if (!member || !['owner', 'admin'].includes(member.role)) {
+        return res.status(403).json({ error: 'Only owner or admin can configure rules channel' })
+      }
+      if (rules_channel_id !== undefined) updates.rules_channel_id = rules_channel_id || null
+      if (lock_channels_until_rules_accepted !== undefined) updates.lock_channels_until_rules_accepted = !!lock_channels_until_rules_accepted
+      if (rules_accept_emoji !== undefined) updates.rules_accept_emoji = String(rules_accept_emoji).slice(0, 32) || '👍'
+    }
 
     const { data, error } = await supabase
       .from('servers')
@@ -227,8 +255,24 @@ serversRouter.get('/:id/channels', async (req, res) => {
 // Create a channel
 serversRouter.post('/:id/channels', async (req, res) => {
   try {
-    const { name, type, categoryId } = req.body
+    const { name, type, categoryId, createdBy } = req.body
     if (!name || !type) return res.status(400).json({ error: 'name and type are required' })
+    const validTypes = ['text', 'voice', 'rules']
+    if (!validTypes.includes(type)) return res.status(400).json({ error: 'type must be text, voice, or rules' })
+
+    // Rules channel: only owner/admin can create
+    if (type === 'rules') {
+      if (!createdBy) return res.status(400).json({ error: 'createdBy required for rules channel' })
+      const { data: member } = await supabase
+        .from('server_members')
+        .select('role')
+        .eq('server_id', req.params.id)
+        .eq('user_id', createdBy)
+        .single()
+      if (!member || !['owner', 'admin'].includes(member.role)) {
+        return res.status(403).json({ error: 'Only owner or admin can create a rules channel' })
+      }
+    }
 
     const channelId = 'ch-' + crypto.randomUUID()
     const insert = {
@@ -434,6 +478,27 @@ serversRouter.post('/:id/join', async (req, res) => {
   } catch (err) {
     console.error('Join server error:', err)
     res.status(500).json({ error: 'Failed to join server' })
+  }
+})
+
+// Check if user has accepted server rules (for channel lock)
+serversRouter.get('/:id/rules-acceptance', async (req, res) => {
+  try {
+    const userId = req.query.userId
+    if (!userId) return res.status(400).json({ error: 'userId query required' })
+
+    const { data, error } = await supabase
+      .from('rules_acceptances')
+      .select('accepted_at')
+      .eq('server_id', req.params.id)
+      .eq('user_id', userId)
+      .single()
+
+    if (error && error.code !== 'PGRST116') throw error
+    res.json({ accepted: !!data })
+  } catch (err) {
+    console.error('Rules acceptance check error:', err)
+    res.status(500).json({ error: 'Failed to check rules acceptance' })
   }
 })
 

@@ -16,6 +16,7 @@ import { friendsRouter } from './routes/friends.js'
 import { invitesRouter } from './routes/invites.js'
 import { versionRouter } from './routes/version.js'
 import { bugReportsRouter } from './routes/bugReports.js'
+import { soundboardRouter } from './routes/soundboard.js'
 import { registerChatHandlers } from './socket/chat.js'
 import { registerVoiceHandlers } from './socket/voice.js'
 import { registerCallHandlers } from './socket/calls.js'
@@ -77,6 +78,7 @@ app.use('/api/friends', friendsRouter)
 app.use('/api/invites', invitesRouter)
 app.use('/api/version', versionRouter)
 app.use('/api/bug-reports', bugReportsRouter)
+app.use('/api/soundboard', soundboardRouter)
 
 // 404 — ensure CORS headers on unknown routes
 app.use((req, res) => {

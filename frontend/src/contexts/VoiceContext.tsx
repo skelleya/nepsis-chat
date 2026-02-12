@@ -31,6 +31,8 @@ interface VoiceContextValue {
   ping: number | null       // latency in ms
   joinVoice: (channelId: string, channelName: string) => Promise<void>
   leaveVoice: () => void
+  /** Play soundboard sound to all peers (Socket.io only; no-op when using BroadcastChannel) */
+  playSoundboardSound: (soundUrl: string) => void
   error: string | null
 }
 
@@ -61,6 +63,8 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
 
   const webrtcRef = useRef<ReturnType<typeof createWebRTCClient> | null>(null)
   const signalingRef = useRef<ReturnType<typeof createBroadcastSignaling> | ReturnType<typeof createSocketSignaling> | null>(null)
+  const isDeafenedRef = useRef(false)
+  isDeafenedRef.current = isDeafened
 
   const addOrUpdateParticipant = useCallback((pUserId: string, pUsername: string, stream: MediaStream | null, isSpeaking = false) => {
     setParticipants((prev) => {
@@ -210,6 +214,20 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     return () => unsub?.()
   }, [voiceChannelId, leaveVoice, joinVoice])
 
+  // ─── Soundboard play listener (receive and play sounds from peers) ─
+  useEffect(() => {
+    const signaling = signalingRef.current
+    const sig = signaling as { onSoundboardPlay?: (cb: (d: { soundUrl: string }) => void) => () => void }
+    if (!sig?.onSoundboardPlay) return
+    const unsub = sig.onSoundboardPlay(({ soundUrl }) => {
+      if (isDeafenedRef.current) return
+      const audio = new Audio(soundUrl)
+      audio.volume = 0.8
+      audio.play().catch(() => {})
+    })
+    return () => unsub?.()
+  }, [voiceChannelId])
+
   // ─── Ping measurement ─────────────────────────────────────────────
   useEffect(() => {
     const connected = !!localStream && !!voiceChannelId
@@ -287,6 +305,18 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
 
   const isConnected = !!localStream && !!voiceChannelId
 
+  const playSoundboardSound = useCallback((soundUrl: string) => {
+    const sig = signalingRef.current as { emitSoundboardPlay?: (url: string) => void } | null
+    if (sig?.emitSoundboardPlay) {
+      sig.emitSoundboardPlay(soundUrl)
+      if (!isDeafenedRef.current) {
+        const audio = new Audio(soundUrl)
+        audio.volume = 0.8
+        audio.play().catch(() => {})
+      }
+    }
+  }, [])
+
   return (
     <VoiceContext.Provider
       value={{
@@ -309,6 +339,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         ping,
         joinVoice,
         leaveVoice,
+        playSoundboardSound,
         error,
       }}
     >

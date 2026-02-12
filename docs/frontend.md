@@ -28,7 +28,7 @@ frontend/src/
 ├── hooks/                React hooks
 ├── services/             API, signaling, WebRTC
 ├── contexts/             AppContext
-├── pages/                LoginPage, DownloadPage, FriendsPage, CommunityPage, InvitePage
+├── pages/                LoginPage, DownloadPage, FriendsPage, CommunityPage, OnboardingPage, InvitePage
 ├── data/                 mockData
 └── types/                TypeScript
 ```
@@ -40,15 +40,18 @@ frontend/src/
 | Component | Purpose |
 |-----------|---------|
 | VoiceIcons | Shared mic/mic-off/headphones/headphones-off SVGs (prevents clipping/snipping) |
-| ServerBar | Server list (left sidebar) |
-| ChannelList | Text + voice channels; highlights text channels with new messages (white) when user isn't viewing them. **Owner:** drag categories to reorder; drag channels to reorder or move between categories; 3-dot menu on category/channel for Edit/Delete. **Admin:** drag voice users onto another voice channel to move them |
+| ServerBar | Server list (left sidebar); click-hold-and-drag to reorder servers |
+| ChannelList | Text + voice channels; server banner shown above header when `serverBannerUrl` set; highlights text channels with new messages (white) when user isn't viewing them. **Owner/Admin:** Server Settings (Overview: icon + banner upload); **Owner:** drag categories to reorder; drag channels to reorder or move between categories; 3-dot menu on category/channel for Edit/Delete. **Admin:** drag voice users onto another voice channel to move them |
 | ChatView | Messages, input; scrolls to bottom on load; shows "New messages" indicator when scrolled up and new messages arrive; click to jump to new messages |
-| VoiceView | Voice participants, join/leave |
+| VoiceView | Voice participants, join/leave; soundboard button (custom sounds, max 10s). **Resizable layout:** screen share vs participant cameras (drag divider); single participant centered; 2–4 participants in resizable horizontal panels; remote screen shares in main area. Uses `react-resizable-panels`. |
+| SoundboardDropdown | Soundboard UI: list sounds, add, delete; plays to all peers in voice channel |
 | MembersSidebar | Online members |
 | RemoteAudio | Plays remote WebRTC stream |
 | CallOverlay | DM call UI: outgoing/incoming/in-call states |
-| DMView | Direct message chat; modern UI with gradient header, rounded bubbles, relative timestamps |
+| DMView | Direct message chat; modern UI with gradient header, rounded bubbles, relative timestamps; groups consecutive messages from same sender (avatar/name shown only on first in group); spacing: 1.5 between same-sender, 5 between different senders |
 | FriendsPage | Friends list and friend requests; opened by clicking Nepsis logo |
+| OnboardingPage | Shown when new (non-guest) user has no servers; CTAs: Create first server, Explore community; persisted via `nepsis_onboarding_completed` |
+| CommunityPage | Explore page: invite code entry, community servers list; shown when guest has no servers or when user completes onboarding |
 | UpdateButton | Green update (Electron only) |
 | LoginPage | Username login |
 

@@ -53,7 +53,8 @@ interface ChannelListProps {
   currentChannelId: string | null
   onSelectChannel: (channel: Channel) => void
   serverName?: string
-  onCreateChannel: (name: string, type: 'text' | 'voice', categoryId?: string) => Promise<void>
+  serverBannerUrl?: string
+  onCreateChannel: (name: string, type: 'text' | 'voice' | 'rules', categoryId?: string) => Promise<void>
   onCreateCategory: (name: string) => Promise<void>
   onReorderChannels?: (updates: { id: string; order: number }[]) => Promise<void>
   onUpdateChannel?: (channelId: string, data: { name?: string; order?: number; categoryId?: string | null }) => Promise<void>
@@ -79,6 +80,8 @@ interface ChannelListProps {
   onSelectDM?: (conversationId: string) => void
   // Admin: drop user onto voice channel to move them
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
+  /** Owner/admin: can create rules channel and see rules option in modal */
+  isAdminOrOwner?: boolean
 }
 
 function HashIcon({ className }: { className?: string }) {
@@ -104,6 +107,19 @@ const CATEGORY_PREFIX = 'cat-'
 const USER_PREFIX = 'user-'
 const VOICE_DROP_PREFIX = 'voice-drop-'
 const UNCATEGORIZED_ID = '__uncategorized__'
+
+/** When dragging a category, only detect collisions with other category headers (not channels) */
+function categoryAwareCollisionDetection(args: Parameters<typeof closestCenter>[0]) {
+  const activeStr = String(args.active.id)
+  if (activeStr.startsWith(CATEGORY_PREFIX)) {
+    const filtered = [...args.droppableContainers].filter((c) => {
+      const idStr = String(c.id)
+      return idStr.startsWith(CATEGORY_PREFIX) && idStr !== activeStr
+    })
+    return closestCenter({ ...args, droppableContainers: filtered })
+  }
+  return closestCenter(args)
+}
 
 function DraggableVoiceUser({
   vu,
@@ -249,6 +265,11 @@ function SortableChannelItem({
               >
                 {channel.type === 'text' ? (
                   <HashIcon className="w-5 h-5 flex-shrink-0 opacity-60" />
+                ) : channel.type === 'rules' ? (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 flex-shrink-0 opacity-60">
+                    <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/>
+                    <path d="M9 15h6v2H9zm0-4h6v2H9zm0-4h3v2H9z"/>
+                  </svg>
                 ) : (
                   <VoiceIcon className="w-5 h-5 flex-shrink-0 opacity-60" />
                 )}
@@ -565,6 +586,7 @@ export function ChannelList({
   currentChannelId,
   onSelectChannel,
   serverName,
+  serverBannerUrl,
   onCreateChannel,
   onCreateCategory,
   onReorderChannels,
@@ -574,6 +596,7 @@ export function ChannelList({
   onDeleteChannel,
   onDeleteCategory,
   onMoveToChannel,
+  isAdminOrOwner = false,
   voiceConnection,
   voiceUsers,
   onOpenServerSettings,
@@ -624,10 +647,13 @@ export function ChannelList({
         return
       }
 
-      // Reorder categories
+      // Reorder categories (dropping on another category or uncategorized = move to end)
       if (activeStr.startsWith(CATEGORY_PREFIX) && overStr.startsWith(CATEGORY_PREFIX)) {
         const oldIndex = categories.findIndex((c) => `${CATEGORY_PREFIX}${c.id}` === activeStr)
-        const newIndex = categories.findIndex((c) => `${CATEGORY_PREFIX}${c.id}` === overStr)
+        const overCatId = overStr.slice(CATEGORY_PREFIX.length)
+        const newIndex = overCatId === UNCATEGORIZED_ID
+          ? categories.length - 1
+          : categories.findIndex((c) => c.id === overCatId)
         if (oldIndex !== -1 && newIndex !== -1 && onReorderCategories) {
           const reordered = arrayMove(categories, oldIndex, newIndex)
           onReorderCategories(reordered.map((c, i) => ({ id: c.id, order: i })))
@@ -666,6 +692,16 @@ export function ChannelList({
   return (
     <>
       <div className="flex-1 bg-app-channel flex flex-col min-h-0">
+        {/* Server Banner */}
+        {serverBannerUrl && !hasNoServers && (
+          <div className="w-full h-20 flex-shrink-0 overflow-hidden">
+            <img
+              src={serverBannerUrl}
+              alt=""
+              className="w-full h-full object-cover"
+            />
+          </div>
+        )}
         {/* Server Header */}
         <div className="relative">
           <button
@@ -733,7 +769,7 @@ export function ChannelList({
                     Invite People
                   </button>
                 )}
-                {isOwner && (
+                {isAdminOrOwner && (
                   <button
                     onClick={() => {
                       onOpenServerSettings()
@@ -828,7 +864,7 @@ export function ChannelList({
               </button>
             </div>
           ) : (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleGlobalDragEnd}>
+          <DndContext sensors={sensors} collisionDetection={categoryAwareCollisionDetection} onDragEnd={handleGlobalDragEnd}>
             <SortableContext
               items={categories.map((c) => `${CATEGORY_PREFIX}${c.id}`)}
               strategy={verticalListSortingStrategy}
@@ -967,6 +1003,7 @@ export function ChannelList({
               await onCreateChannel(name, type, createChannelCategoryId)
             }}
             categoryName={categories.find((c) => c.id === createChannelCategoryId)?.name}
+            canCreateRules={isAdminOrOwner}
           />
         )}
       </div>

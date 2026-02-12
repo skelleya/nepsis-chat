@@ -1,4 +1,21 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import type { Server } from '../types'
 import { CreateServerModal } from './CreateServerModal'
 
@@ -7,14 +24,22 @@ interface ServerBarProps {
   currentServerId: string | null
   onSelectServer: (serverId: string) => void
   onCreateServer: (name: string) => Promise<void>
+  onReorderServers?: (updates: { serverId: string; order: number }[]) => Promise<void>
   canCreateServer?: boolean
   onOpenCommunity?: () => void
   onOpenFriends?: () => void
 }
 
-function ServerIcon({ server, isActive, onClick }: { server: Server; isActive: boolean; onClick: () => void }) {
+const SERVER_PREFIX = 'server-'
+
+function SortableServerIcon({ server, isActive, onClick }: { server: Server; isActive: boolean; onClick: () => void }) {
   const [showTooltip, setShowTooltip] = useState(false)
   const timeoutRef = useRef<number | null>(null)
+
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: `${SERVER_PREFIX}${server.id}`,
+  })
+  const style = { transform: CSS.Transform.toString(transform), transition }
 
   const handleMouseEnter = () => {
     timeoutRef.current = window.setTimeout(() => setShowTooltip(true), 400)
@@ -32,15 +57,17 @@ function ServerIcon({ server, isActive, onClick }: { server: Server; isActive: b
   }, [])
 
   return (
-    <div className="relative group" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+    <div ref={setNodeRef} style={style} className={`relative group ${isDragging ? 'opacity-50' : ''}`} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
       {/* Active indicator pill */}
       <div className={`absolute -left-3 top-1/2 -translate-y-1/2 w-1 rounded-r-full bg-white transition-all ${
         isActive ? 'h-10' : 'h-0 group-hover:h-5'
       }`} />
 
       <button
+        {...attributes}
+        {...listeners}
         onClick={onClick}
-        className={`w-12 h-12 flex items-center justify-center text-white font-bold text-lg transition-all duration-200 ${
+        className={`w-12 h-12 flex items-center justify-center text-white font-bold text-lg transition-all duration-200 cursor-grab active:cursor-grabbing touch-none ${
           isActive
             ? 'bg-app-accent rounded-[16px]'
             : 'bg-app-channel rounded-[24px] hover:bg-app-accent hover:rounded-[16px]'
@@ -66,8 +93,58 @@ function ServerIcon({ server, isActive, onClick }: { server: Server; isActive: b
   )
 }
 
-export function ServerBar({ servers, currentServerId, onSelectServer, onCreateServer, canCreateServer = true, onOpenCommunity, onOpenFriends }: ServerBarProps) {
+export function ServerBar({ servers, currentServerId, onSelectServer, onCreateServer, onReorderServers, canCreateServer = true, onOpenCommunity, onOpenFriends }: ServerBarProps) {
   const [showCreateModal, setShowCreateModal] = useState(false)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event
+      if (!over || active.id === over.id || !onReorderServers) return
+      const activeStr = String(active.id)
+      const overStr = String(over.id)
+      if (!activeStr.startsWith(SERVER_PREFIX) || !overStr.startsWith(SERVER_PREFIX)) return
+      const oldIndex = servers.findIndex((s) => `${SERVER_PREFIX}${s.id}` === activeStr)
+      const newIndex = servers.findIndex((s) => `${SERVER_PREFIX}${s.id}` === overStr)
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const reordered = arrayMove(servers, oldIndex, newIndex)
+        onReorderServers(reordered.map((s, i) => ({ serverId: s.id, order: i })))
+      }
+    },
+    [servers, onReorderServers]
+  )
+
+  const serverList = (
+    <div className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col items-center gap-2 w-full px-3 min-w-0">
+      {onReorderServers ? (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={servers.map((s) => `${SERVER_PREFIX}${s.id}`)} strategy={verticalListSortingStrategy}>
+            {servers.map((server) => (
+              <SortableServerIcon
+                key={server.id}
+                server={server}
+                isActive={currentServerId === server.id}
+                onClick={() => onSelectServer(server.id)}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
+      ) : (
+        servers.map((server) => (
+          <SortableServerIcon
+            key={server.id}
+            server={server}
+            isActive={currentServerId === server.id}
+            onClick={() => onSelectServer(server.id)}
+          />
+        ))
+      )}
+    </div>
+  )
 
   return (
     <>
@@ -88,16 +165,7 @@ export function ServerBar({ servers, currentServerId, onSelectServer, onCreateSe
         <div className="w-8 h-0.5 bg-app-channel rounded-full mx-auto" />
 
         {/* Server list */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col items-center gap-2 w-full px-3 min-w-0">
-          {servers.map((server) => (
-            <ServerIcon
-              key={server.id}
-              server={server}
-              isActive={currentServerId === server.id}
-              onClick={() => onSelectServer(server.id)}
-            />
-          ))}
-        </div>
+        {serverList}
 
         {/* Separator */}
         <div className="w-8 h-0.5 bg-app-channel rounded-full mx-auto" />

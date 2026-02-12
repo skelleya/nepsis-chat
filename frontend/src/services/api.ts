@@ -58,7 +58,18 @@ export async function createServer(name: string, ownerId: string) {
   return res.json()
 }
 
-export async function updateServer(serverId: string, data: { name?: string; icon_url?: string; banner_url?: string }) {
+export async function updateServer(
+  serverId: string,
+  data: {
+    name?: string
+    icon_url?: string
+    banner_url?: string
+    rules_channel_id?: string | null
+    lock_channels_until_rules_accepted?: boolean
+    rules_accept_emoji?: string
+    updatedBy?: string
+  }
+) {
   const res = await fetch(`${API_BASE}/servers/${serverId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -76,6 +87,16 @@ export async function deleteServer(serverId: string) {
   return res.json()
 }
 
+export async function reorderServers(userId: string, updates: { serverId: string; order: number }[]) {
+  const res = await fetch(`${API_BASE}/servers/reorder`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, updates }),
+  })
+  if (!res.ok) throw new Error('Failed to reorder servers')
+  return res.json()
+}
+
 // ─── Channels ──────────────────────────────────────────
 
 export async function getChannels(serverId: string) {
@@ -84,13 +105,24 @@ export async function getChannels(serverId: string) {
   return res.json()
 }
 
-export async function createChannel(serverId: string, name: string, type: 'text' | 'voice', categoryId?: string) {
+export async function createChannel(
+  serverId: string,
+  name: string,
+  type: 'text' | 'voice' | 'rules',
+  categoryId?: string,
+  createdBy?: string
+) {
+  const body: Record<string, unknown> = { name, type, categoryId }
+  if (type === 'rules' && createdBy) body.createdBy = createdBy
   const res = await fetch(`${API_BASE}/servers/${serverId}/channels`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, type, categoryId }),
+    body: JSON.stringify(body),
   })
-  if (!res.ok) throw new Error('Failed to create channel')
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to create channel')
+  }
   return res.json()
 }
 
@@ -130,6 +162,12 @@ export async function deleteChannel(serverId: string, channelId: string) {
     method: 'DELETE',
   })
   if (!res.ok) throw new Error('Failed to delete channel')
+  return res.json()
+}
+
+export async function getRulesAcceptance(serverId: string, userId: string): Promise<{ accepted: boolean }> {
+  const res = await fetch(`${API_BASE}/servers/${serverId}/rules-acceptance?userId=${encodeURIComponent(userId)}`)
+  if (!res.ok) throw new Error('Failed to check rules acceptance')
   return res.json()
 }
 
@@ -591,6 +629,49 @@ export async function saveUserProfile(
   })
   if (!res.ok) throw new Error('Failed to save profile')
   return res.json()
+}
+
+// ─── Soundboard ──────────────────────────────────────────
+
+export interface SoundboardSound {
+  id: string
+  name: string
+  url: string
+  duration_seconds: number
+}
+
+export async function getSoundboardSounds(userId: string): Promise<SoundboardSound[]> {
+  const res = await fetch(`${API_BASE}/soundboard?userId=${encodeURIComponent(userId)}`)
+  if (!res.ok) throw new Error('Failed to fetch soundboard')
+  return res.json()
+}
+
+export async function uploadSoundboardSound(
+  userId: string,
+  name: string,
+  file: File
+): Promise<SoundboardSound> {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('userId', userId)
+  form.append('name', name)
+
+  const res = await fetch(`${API_BASE}/soundboard`, {
+    method: 'POST',
+    body: form,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to upload sound')
+  }
+  return res.json()
+}
+
+export async function deleteSoundboardSound(userId: string, soundId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/soundboard/${soundId}?userId=${encodeURIComponent(userId)}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) throw new Error('Failed to delete sound')
 }
 
 // ─── Bug Reports ────────────────────────────────────────

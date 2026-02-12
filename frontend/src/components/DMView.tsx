@@ -224,9 +224,13 @@ export function DMView({
             <p className="text-sm text-app-muted mt-1">Send a message to start the conversation</p>
           </div>
         ) : (
-          <div className="w-full max-w-3xl mx-auto space-y-5">
-            {messages.map((msg) => {
+          <div className="w-full max-w-3xl mx-auto flex flex-col">
+            {messages.map((msg, idx) => {
               const isMe = msg.user_id === currentUserId
+              const prevMsg = messages[idx - 1]
+              const nextMsg = messages[idx + 1]
+              const isFromSameSender = prevMsg?.user_id === msg.user_id
+              const isNextFromSameSender = nextMsg?.user_id === msg.user_id
               const avatarUrl = isMe ? currentUserAvatarUrl : otherAvatarUrl
               const reactions = dmReactions[msg.id] || []
               const groupedReactions = reactions.reduce((acc, r) => {
@@ -240,8 +244,11 @@ export function DMView({
               }, {} as Record<string, { count: number; userIds: string[] }>)
 
               return (
-                <div key={msg.id} className={`group flex gap-3 w-full ${isMe ? 'flex-row-reverse justify-end' : 'justify-start'}`}>
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-bold flex-shrink-0 overflow-hidden ${avatarUrl ? 'bg-transparent' : 'bg-app-channel'}`}>
+                <div
+                  key={msg.id}
+                  className={`group flex gap-3 w-full ${isMe ? 'flex-row-reverse justify-end' : 'justify-start'} ${isNextFromSameSender ? 'mb-1.5' : 'mb-5'}`}
+                >
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-bold flex-shrink-0 overflow-hidden ${avatarUrl ? 'bg-transparent' : 'bg-app-channel'} ${isFromSameSender ? 'opacity-0 invisible' : ''}`}>
                     {avatarUrl ? (
                       <img src={avatarUrl} alt={msg.username ?? ''} className="w-full h-full object-cover" />
                     ) : (
@@ -249,17 +256,19 @@ export function DMView({
                     )}
                   </div>
                   <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[75%] min-w-0`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-app-text text-sm">{msg.username ?? 'Unknown'}</span>
-                      <span className="text-[11px] text-app-muted">{formatMessageTime(msg.created_at)}</span>
-                      {isMe && lastMessageFromMe?.id === msg.id && (
-                        <span className="text-app-muted" title="Sent">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                          </svg>
-                        </span>
-                      )}
-                    </div>
+                    {!isFromSameSender && (
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="font-medium text-app-text text-sm">{msg.username ?? 'Unknown'}</span>
+                        <span className="text-[11px] text-app-muted">{formatMessageTime(msg.created_at)}</span>
+                        {isMe && lastMessageFromMe?.id === msg.id && (
+                          <span className="text-app-muted" title="Sent">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                            </svg>
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <div
                       className={`text-sm break-words px-4 py-2.5 ${
                         isMe

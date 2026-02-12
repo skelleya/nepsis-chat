@@ -1,8 +1,10 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, type ReactNode } from 'react'
 import type { Channel } from '../types'
 import { useVoice, type VoiceParticipant } from '../contexts/VoiceContext'
 import { RemoteAudio } from './RemoteAudio'
 import { MicOffIcon, HeadphonesIcon, HeadphonesOffIcon } from './icons/VoiceIcons'
+import { SoundboardDropdown } from './SoundboardDropdown'
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 
 interface VoiceViewProps {
   channel: Channel
@@ -14,6 +16,49 @@ interface VoiceViewProps {
   onInvitePeople?: () => Promise<void>
 }
 
+/** Detect if a video track is from screen share (getDisplayMedia) vs camera (getUserMedia) */
+function isScreenShareTrack(track: MediaStreamTrack): boolean {
+  try {
+    const settings = track.getSettings?.()
+    const surface = (settings as { displaySurface?: string })?.displaySurface
+    return surface === 'monitor' || surface === 'window' || surface === 'browser'
+  } catch {
+    return false
+  }
+}
+
+/** Extract screen-share-only stream from a stream (for remote participants who share screen) */
+function getScreenShareStream(stream: MediaStream | null): MediaStream | null {
+  if (!stream) return null
+  const screenTracks = stream.getVideoTracks().filter(isScreenShareTrack)
+  if (screenTracks.length === 0) return null
+  const out = new MediaStream()
+  screenTracks.forEach((t) => out.addTrack(t))
+  return out
+}
+
+/** Extract camera-only stream from a stream (for participant card when they also share screen) */
+function getCameraStream(stream: MediaStream | null): MediaStream | null {
+  if (!stream) return null
+  const cameraTracks = stream.getVideoTracks().filter((t) => !isScreenShareTrack(t))
+  if (cameraTracks.length === 0) return null
+  const out = new MediaStream()
+  cameraTracks.forEach((t) => out.addTrack(t))
+  return out
+}
+
+/** Get stream to show in participant card: prefer camera when both exist, else full video stream */
+function getParticipantVideoStream(stream: MediaStream | null): MediaStream | null {
+  if (!stream) return null
+  const cam = getCameraStream(stream)
+  if (cam && cam.getVideoTracks().length > 0) return cam
+  const videoTracks = stream.getVideoTracks()
+  if (videoTracks.length === 0) return null
+  const out = new MediaStream()
+  videoTracks.forEach((t) => out.addTrack(t))
+  return out
+}
+
 function VideoElement({ stream, muted = false, label }: { stream: MediaStream; muted?: boolean; label: string }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   useEffect(() => {
@@ -22,13 +67,13 @@ function VideoElement({ stream, muted = false, label }: { stream: MediaStream; m
     }
   }, [stream])
   return (
-    <div className="relative aspect-video bg-black rounded-lg overflow-hidden border border-app-hover">
+    <div className="relative w-full h-full min-h-0 bg-black rounded-lg overflow-hidden border border-app-hover flex flex-col">
       <video
         ref={videoRef}
         autoPlay
         playsInline
         muted={muted}
-        className="w-full h-full object-cover"
+        className="flex-1 w-full h-full min-h-0 object-contain"
       />
       <div className="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded text-xs text-white">
         {label}
@@ -44,7 +89,6 @@ function useVideoTrackCount(stream: MediaStream | null): number {
     if (!stream) { setCount(0); return }
     const update = () => setCount(stream.getVideoTracks().length)
     update()
-    // Listen for track add/remove
     stream.addEventListener('addtrack', update)
     stream.addEventListener('removetrack', update)
     return () => {
@@ -55,7 +99,6 @@ function useVideoTrackCount(stream: MediaStream | null): number {
   return count
 }
 
-// Hook for voice activity detection on any MediaStream
 function useSpeakingDetector(stream: MediaStream | null, enabled = true): boolean {
   const [speaking, setSpeaking] = useState(false)
   useEffect(() => {
@@ -73,10 +116,7 @@ function useSpeakingDetector(stream: MediaStream | null, enabled = true): boolea
     const start = async () => {
       try {
         audioCtx = new AudioContext()
-        // Browsers often start AudioContext suspended; must resume for analysis to work
-        if (audioCtx.state === 'suspended') {
-          await audioCtx.resume()
-        }
+        if (audioCtx.state === 'suspended') await audioCtx.resume()
         if (!running) return
         const analyser = audioCtx.createAnalyser()
         analyser.fftSize = 256
@@ -84,7 +124,6 @@ function useSpeakingDetector(stream: MediaStream | null, enabled = true): boolea
         const source = audioCtx.createMediaStreamSource(stream)
         source.connect(analyser)
         const dataArray = new Uint8Array(analyser.frequencyBinCount)
-
         const check = () => {
           if (!running) return
           analyser.getByteFrequencyData(dataArray)
@@ -104,7 +143,6 @@ function useSpeakingDetector(stream: MediaStream | null, enabled = true): boolea
   return speaking
 }
 
-// Renders a remote video from a participant stream
 function RemoteVideo({ stream, muted = false }: { stream: MediaStream; muted?: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   useEffect(() => {
@@ -123,13 +161,13 @@ function RemoteVideo({ stream, muted = false }: { stream: MediaStream; muted?: b
   )
 }
 
-// Discord-style big square participant tile
 function ParticipantCard({
   participant,
   avatarUrl,
   isLocal,
   localStream,
   localVideoStream,
+  participantVideoStream,
   isMuted,
   isDeafened,
   isCameraOn,
@@ -140,6 +178,7 @@ function ParticipantCard({
   isLocal: boolean
   localStream: MediaStream | null
   localVideoStream: MediaStream | null
+  participantVideoStream: MediaStream | null
   isMuted: boolean
   isDeafened: boolean
   isCameraOn: boolean
@@ -148,11 +187,9 @@ function ParticipantCard({
   const detectStream = isLocal ? localStream : participant.stream
   const speaking = useSpeakingDetector(detectStream, isLocal ? !isMuted : true)
 
-  // Check if remote stream has video tracks (camera/screen from remote peer)
   const remoteVideoCount = useVideoTrackCount(isLocal ? null : participant.stream)
   const hasRemoteVideo = !isLocal && remoteVideoCount > 0
 
-  // Local camera video ref
   const localVideoRef = useRef<HTMLVideoElement>(null)
   useEffect(() => {
     if (isLocal && localVideoStream && localVideoRef.current) {
@@ -160,15 +197,14 @@ function ParticipantCard({
     }
   }, [isLocal, localVideoStream])
 
-  const showVideo = isLocal ? isCameraOn && !!localVideoStream : hasRemoteVideo
+  const showVideo = isLocal ? isCameraOn && !!localVideoStream : hasRemoteVideo && !!participantVideoStream
 
   return (
-    <div className={`relative flex flex-col items-center justify-center rounded-xl bg-app-dark/60 overflow-hidden border transition-all duration-150 min-h-[240px] ${
+    <div className={`relative flex flex-col items-center justify-center rounded-xl bg-app-dark/60 overflow-hidden border transition-all duration-150 min-h-[160px] flex-1 ${
       speaking ? 'border-[#23a559] shadow-[0_0_12px_rgba(35,165,89,0.3)]' : 'border-app-hover/50'
     }`}>
       {showVideo ? (
-        /* Video mode: fill the card with video */
-        <div className="flex-1 w-full relative bg-black">
+        <div className="flex-1 w-full relative bg-black min-h-0">
           {isLocal && localVideoStream ? (
             <video
               ref={localVideoRef}
@@ -177,10 +213,9 @@ function ParticipantCard({
               muted
               className="w-full h-full object-cover"
             />
-          ) : participant.stream ? (
-            <RemoteVideo stream={participant.stream} muted={isDeafened} />
+          ) : participantVideoStream ? (
+            <RemoteVideo stream={participantVideoStream} muted={isDeafened} />
           ) : null}
-          {/* Username overlay at bottom */}
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-3 py-2">
             <div className="font-semibold text-white text-sm truncate flex items-center gap-1.5">
               {participant.username}
@@ -194,11 +229,10 @@ function ParticipantCard({
           </div>
         </div>
       ) : (
-        /* Avatar mode: big circular avatar */
         <>
-          <div className="flex-1 w-full flex items-center justify-center p-6">
+          <div className="flex-1 w-full flex items-center justify-center p-4">
             <div
-              className={`relative w-28 h-28 sm:w-36 sm:h-36 md:w-40 md:h-40 rounded-full flex items-center justify-center text-white font-bold text-4xl sm:text-5xl transition-all duration-150 overflow-hidden ${
+              className={`relative w-20 h-20 sm:w-28 sm:h-28 rounded-full flex items-center justify-center text-white font-bold text-2xl sm:text-4xl transition-all duration-150 overflow-hidden ${
                 speaking
                   ? 'ring-4 ring-[#23a559] shadow-[0_0_16px_rgba(35,165,89,0.6)] scale-105'
                   : 'ring-2 ring-transparent'
@@ -210,8 +244,8 @@ function ParticipantCard({
                 participant.username.charAt(0).toUpperCase()
               )}
               {isLocal && isMuted && (
-                <div className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-red-600 flex items-center justify-center">
-                  <MicOffIcon size={14} className="text-white" />
+                <div className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-red-600 flex items-center justify-center">
+                  <MicOffIcon size={12} className="text-white" />
                 </div>
               )}
             </div>
@@ -253,8 +287,12 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
     leaveVoice,
     voiceChannelId,
     localStream,
+    playSoundboardSound,
     error,
   } = voice
+
+  const [soundboardOpen, setSoundboardOpen] = useState(false)
+  const soundboardButtonRef = useRef<HTMLButtonElement>(null)
 
   const isInThisChannel = voiceChannelId === channel.id
 
@@ -265,8 +303,6 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
     isSpeaking: false,
   }
 
-  // Merge presence (voiceUsersInChannel) with WebRTC participants so we show everyone in the channel
-  // even before their stream connects — fixes "can't see other user in main chat"
   const participantByUserId = new Map<string, VoiceParticipant | typeof localParticipant>()
   const avatarByUserId = new Map<string, string>()
   if (isInThisChannel) {
@@ -282,15 +318,112 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
     }
     if (vu.avatar_url) avatarByUserId.set(vu.userId, vu.avatar_url)
   }
-  // Local user first when in channel
   const allParticipants = isInThisChannel
     ? [localParticipant, ...Array.from(participantByUserId.values()).filter((p) => p.userId !== currentUserId)]
     : Array.from(participantByUserId.values())
 
+  // Primary screen share: local first, then first remote
+  const localScreenShare = isScreenSharing && screenStream ? screenStream : null
+  const remoteScreenShares = allParticipants
+    .filter((p) => p.userId !== currentUserId && p.stream)
+    .map((p) => ({ userId: p.userId, username: p.username, stream: getScreenShareStream(p.stream!) }))
+    .filter((x) => x.stream && x.stream.getVideoTracks().length > 0)
+  const primaryScreenShare = localScreenShare
+    ? { stream: localScreenShare, username: currentUsername }
+    : remoteScreenShares[0]
+      ? { stream: remoteScreenShares[0].stream!, username: remoteScreenShares[0].username }
+      : null
+
+  const hasScreenShare = !!primaryScreenShare
+  const isAlone = allParticipants.length === 1
+
+  const renderParticipantsArea = () => {
+    if (allParticipants.length === 0) return null
+    if (isAlone) {
+      const p = allParticipants[0]
+      const participantVideoStream = p.userId === currentUserId ? null : getParticipantVideoStream(p.stream)
+      return (
+        <div className="flex-1 flex items-center justify-center p-4 min-h-0">
+          <div className="w-full max-w-md">
+            <ParticipantCard
+              participant={p}
+              avatarUrl={avatarByUserId.get(p.userId)}
+              isLocal={p.userId === currentUserId}
+              localStream={localStream}
+              localVideoStream={videoStream}
+              participantVideoStream={participantVideoStream}
+              isMuted={isMuted}
+              isDeafened={isDeafened}
+              isCameraOn={isCameraOn}
+              currentUserId={currentUserId}
+            />
+          </div>
+        </div>
+      )
+    }
+    if (allParticipants.length <= 4) {
+      const defaultSize = 100 / allParticipants.length
+      const panels: ReactNode[] = []
+      allParticipants.forEach((p, i) => {
+        if (i > 0) {
+          panels.push(
+            <PanelResizeHandle
+              key={`handle-${p.userId}`}
+              className="w-2 bg-app-dark hover:bg-app-hover/50 transition-colors data-[resize-handle-active]:bg-app-accent/50"
+            />
+          )
+        }
+        panels.push(
+          <Panel key={p.userId} minSize={15} defaultSize={defaultSize} className="min-w-0">
+            <div className="h-full p-2 flex min-h-0">
+              <ParticipantCard
+                participant={p}
+                avatarUrl={avatarByUserId.get(p.userId)}
+                isLocal={p.userId === currentUserId}
+                localStream={localStream}
+                localVideoStream={videoStream}
+                participantVideoStream={p.userId === currentUserId ? null : getParticipantVideoStream(p.stream)}
+                isMuted={isMuted}
+                isDeafened={isDeafened}
+                isCameraOn={isCameraOn}
+                currentUserId={currentUserId}
+              />
+            </div>
+          </Panel>
+        )
+      })
+      return (
+        <PanelGroup direction="horizontal" className="flex-1 min-h-0" autoSaveId="voice-view-participants">
+          {panels}
+        </PanelGroup>
+      )
+    }
+    return (
+      <div className="flex-1 overflow-auto p-4">
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+          {allParticipants.map((p) => (
+            <ParticipantCard
+              key={p.userId}
+              participant={p}
+              avatarUrl={avatarByUserId.get(p.userId)}
+              isLocal={p.userId === currentUserId}
+              localStream={localStream}
+              localVideoStream={videoStream}
+              participantVideoStream={p.userId === currentUserId ? null : getParticipantVideoStream(p.stream)}
+              isMuted={isMuted}
+              isDeafened={isDeafened}
+              isCameraOn={isCameraOn}
+              currentUserId={currentUserId}
+            />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="flex-1 flex flex-col bg-app-darker">
-      {/* Header */}
-      <div className="h-12 px-4 flex items-center justify-between border-b border-app-dark shadow-sm">
+    <div className="flex-1 flex flex-col bg-app-darker min-h-0">
+      <div className="h-12 px-4 flex items-center justify-between border-b border-app-dark shadow-sm shrink-0">
         <div className="flex items-center">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-app-muted">
             <path d="M11.383 3.07904C11.009 2.92504 10.579 3.01004 10.293 3.29604L6.586 7.00304H4C3.45 7.00304 3 7.45304 3 8.00304V16.003C3 16.553 3.45 17.003 4 17.003H6.586L10.293 20.71C10.579 20.996 11.009 21.082 11.383 20.927C11.757 20.772 12 20.407 12 20.003V4.00304C12 3.59904 11.757 3.23404 11.383 3.07904Z"/>
@@ -320,56 +453,67 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
       </div>
 
       {error && (
-        <div className="mx-4 mt-2 p-2 rounded bg-red-900/50 text-red-200 text-sm">{error}</div>
+        <div className="mx-4 mt-2 p-2 rounded bg-red-900/50 text-red-200 text-sm shrink-0">{error}</div>
       )}
 
-      <div className="flex-1 overflow-y-auto p-4">
-        {/* Featured screen share — local OR remote */}
-        {isInThisChannel && isScreenSharing && screenStream && (
-          <div className="mb-4">
-            <VideoElement stream={screenStream} muted label={`${currentUsername} — Screen Share`} />
-          </div>
-        )}
-
-        {/* Empty state */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {!isInThisChannel && allParticipants.length === 0 && (
-          <div className="text-center py-10">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor" className="text-app-muted/50 mx-auto mb-3">
-              <path d="M11.383 3.07904C11.009 2.92504 10.579 3.01004 10.293 3.29604L6.586 7.00304H4C3.45 7.00304 3 7.45304 3 8.00304V16.003C3 16.553 3.45 17.003 4 17.003H6.586L10.293 20.71C10.579 20.996 11.009 21.082 11.383 20.927C11.757 20.772 12 20.407 12 20.003V4.00304C12 3.59904 11.757 3.23404 11.383 3.07904Z"/>
-            </svg>
-            <h3 className="text-lg font-semibold text-app-text mb-1">{channel.name}</h3>
-            <p className="text-sm text-app-muted mb-4">No one is currently in this voice channel.</p>
+          <div className="flex-1 flex items-center justify-center text-center py-10">
+            <div>
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor" className="text-app-muted/50 mx-auto mb-3">
+                <path d="M11.383 3.07904C11.009 2.92504 10.579 3.01004 10.293 3.29604L6.586 7.00304H4C3.45 7.00304 3 7.45304 3 8.00304V16.003C3 16.553 3.45 17.003 4 17.003H6.586L10.293 20.71C10.579 20.996 11.009 21.082 11.383 20.927C11.757 20.772 12 20.407 12 20.003V4.00304C12 3.59904 11.757 3.23404 11.383 3.07904Z"/>
+              </svg>
+              <h3 className="text-lg font-semibold text-app-text mb-1">{channel.name}</h3>
+              <p className="text-sm text-app-muted mb-4">No one is currently in this voice channel.</p>
+            </div>
           </div>
         )}
 
-        {/* Participant grid - Discord-style big squares (shows video in card when camera/screen active) */}
-        <div
-          className={`grid gap-4 ${allParticipants.length === 1 ? 'max-w-md mx-auto' : ''}`}
-          style={{
-            gridTemplateColumns: allParticipants.length === 1 ? '1fr' : allParticipants.length <= 4 ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(220px, 1fr))',
-          }}
-        >
-          {allParticipants.map((p) => (
-            <ParticipantCard
-              key={p.userId}
-              participant={p}
-              avatarUrl={avatarByUserId.get(p.userId)}
-              isLocal={p.userId === currentUserId}
-              localStream={localStream}
-              localVideoStream={videoStream}
-              isMuted={isMuted}
-              isDeafened={isDeafened}
-              isCameraOn={isCameraOn}
-              currentUserId={currentUserId}
-            />
-          ))}
-        </div>
+        {isInThisChannel && (
+          hasScreenShare ? (
+            <PanelGroup direction="vertical" autoSaveId="voice-view-screen-participants" className="flex-1 min-h-0">
+              <Panel defaultSize={60} minSize={20} maxSize={90} className="min-h-0">
+                <div className="h-full p-4 flex flex-col min-h-0">
+                  <VideoElement stream={primaryScreenShare.stream} muted label={`${primaryScreenShare.username} — Screen Share`} />
+                </div>
+              </Panel>
+              <PanelResizeHandle className="h-2 bg-app-dark hover:bg-app-hover/50 transition-colors data-[resize-handle-active]:bg-app-accent/50 flex items-center justify-center">
+                <div className="w-12 h-1 rounded-full bg-app-muted/50" />
+              </PanelResizeHandle>
+              <Panel defaultSize={40} minSize={10} maxSize={80} className="min-h-0">
+                {renderParticipantsArea()}
+              </Panel>
+            </PanelGroup>
+          ) : (
+            renderParticipantsArea()
+          )
+        )}
       </div>
 
-      {/* Bottom controls */}
-      <div className="p-4 border-t border-app-dark">
+      <div className="p-4 border-t border-app-dark shrink-0">
         {isInThisChannel ? (
           <div className="flex items-center justify-center gap-2">
+            <div className="relative">
+              <SoundboardDropdown
+                userId={currentUserId}
+                onPlay={playSoundboardSound}
+                anchorRef={soundboardButtonRef}
+                isOpen={soundboardOpen}
+                onClose={() => setSoundboardOpen(false)}
+              />
+              <button
+                ref={soundboardButtonRef}
+                onClick={() => setSoundboardOpen(!soundboardOpen)}
+                className={`p-3 rounded-full transition-colors ${
+                  soundboardOpen ? 'bg-app-accent text-white' : 'bg-app-hover hover:bg-app-channel text-app-text'
+                }`}
+                title="Soundboard"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                </svg>
+              </button>
+            </div>
             <button
               onClick={() => setIsMuted(!isMuted)}
               className={`p-3 rounded-full transition-colors ${

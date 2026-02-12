@@ -202,3 +202,67 @@ CREATE INDEX IF NOT EXISTS idx_bug_reports_created ON bug_reports(created_at DES
 ALTER TABLE bug_reports ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow insert bug_reports" ON bug_reports;
 CREATE POLICY "Allow insert bug_reports" ON bug_reports FOR INSERT WITH CHECK (true);
+
+-- ============================================================
+-- Migration 10: Soundboard sounds (voice channel custom audio)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS soundboard_sounds (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  url TEXT NOT NULL,
+  duration_seconds NUMERIC(4,2) NOT NULL CHECK (duration_seconds > 0 AND duration_seconds <= 10),
+  storage_path TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_soundboard_sounds_user_id ON soundboard_sounds(user_id);
+ALTER TABLE soundboard_sounds ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can read own soundboard sounds" ON soundboard_sounds;
+CREATE POLICY "Users can read own soundboard sounds" ON soundboard_sounds FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Users can insert own soundboard sounds" ON soundboard_sounds;
+CREATE POLICY "Users can insert own soundboard sounds" ON soundboard_sounds FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Users can delete own soundboard sounds" ON soundboard_sounds;
+CREATE POLICY "Users can delete own soundboard sounds" ON soundboard_sounds FOR DELETE USING (true);
+
+-- ============================================================
+-- Migration 11: Rules channel (server rules, emoji accept, channel lock)
+-- ============================================================
+DO $$
+DECLARE
+  cname TEXT;
+BEGIN
+  SELECT conname INTO cname FROM pg_constraint
+  WHERE conrelid = 'channels'::regclass AND contype = 'c'
+  AND pg_get_constraintdef(oid) LIKE '%type%' LIMIT 1;
+  IF cname IS NOT NULL THEN
+    EXECUTE format('ALTER TABLE channels DROP CONSTRAINT %I', cname);
+  END IF;
+  ALTER TABLE channels ADD CONSTRAINT channels_type_check
+    CHECK (type IN ('text', 'voice', 'rules'));
+END $$;
+
+ALTER TABLE servers ADD COLUMN IF NOT EXISTS rules_channel_id TEXT REFERENCES channels(id) ON DELETE SET NULL;
+ALTER TABLE servers ADD COLUMN IF NOT EXISTS lock_channels_until_rules_accepted BOOLEAN DEFAULT false;
+ALTER TABLE servers ADD COLUMN IF NOT EXISTS rules_accept_emoji TEXT DEFAULT '👍';
+
+CREATE TABLE IF NOT EXISTS rules_acceptances (
+  server_id TEXT NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  accepted_at TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (server_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_rules_acceptances_server ON rules_acceptances(server_id);
+ALTER TABLE rules_acceptances ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Anyone can read rules_acceptances" ON rules_acceptances;
+CREATE POLICY "Anyone can read rules_acceptances" ON rules_acceptances FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Anyone can insert rules_acceptances" ON rules_acceptances;
+CREATE POLICY "Anyone can insert rules_acceptances" ON rules_acceptances FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Anyone can delete rules_acceptances" ON rules_acceptances;
+CREATE POLICY "Anyone can delete rules_acceptances" ON rules_acceptances FOR DELETE USING (true);
+
+-- ============================================================
+-- Migration 12: server_members display_order (user server list order)
+-- ============================================================
+ALTER TABLE server_members ADD COLUMN IF NOT EXISTS display_order INTEGER;
+DROP POLICY IF EXISTS "Anyone can update server_members" ON server_members;
+CREATE POLICY "Anyone can update server_members" ON server_members FOR UPDATE USING (true) WITH CHECK (true);

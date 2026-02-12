@@ -116,6 +116,19 @@ messagesRouter.post('/', async (req, res) => {
   }
 
   try {
+    // Rules channel: only owner/admin can create messages (no chat from regular members)
+    const { data: ch } = await supabase.from('channels').select('server_id, type').eq('id', channelId).single()
+    if (ch?.type === 'rules') {
+      const { data: member } = await supabase
+        .from('server_members')
+        .select('role')
+        .eq('server_id', ch.server_id)
+        .eq('user_id', userId)
+        .single()
+      if (!member || !['owner', 'admin'].includes(member.role)) {
+        return res.status(403).json({ error: 'Rules channel is read-only. Only owner or admin can set up rules.' })
+      }
+    }
     const id = 'm' + Date.now() + Math.random().toString(36).slice(2)
     const insert = {
       id,
@@ -242,6 +255,23 @@ messagesRouter.post('/:id/reactions', async (req, res) => {
       .upsert({ message_id: id, user_id: userId, emoji: String(emoji).slice(0, 32) }, { onConflict: 'message_id,user_id,emoji' })
 
     if (error) throw error
+
+    // If this is a rules channel and emoji matches server's accept emoji, record rules acceptance
+    const { data: msg } = await supabase.from('messages').select('channel_id').eq('id', id).single()
+    if (msg?.channel_id) {
+      const { data: ch } = await supabase.from('channels').select('server_id, type').eq('id', msg.channel_id).single()
+      if (ch?.type === 'rules') {
+        const { data: srv } = await supabase.from('servers').select('rules_channel_id, rules_accept_emoji').eq('id', ch.server_id).single()
+        const acceptEmoji = (srv?.rules_accept_emoji || '👍').trim()
+        if (srv?.rules_channel_id === msg.channel_id && String(emoji).trim() === acceptEmoji) {
+          await supabase.from('rules_acceptances').upsert(
+            { server_id: ch.server_id, user_id: userId, accepted_at: new Date().toISOString() },
+            { onConflict: 'server_id,user_id' }
+          )
+        }
+      }
+    }
+
     res.json({ success: true })
   } catch (err) {
     console.error('Add reaction error:', err)

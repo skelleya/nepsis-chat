@@ -100,5 +100,14 @@ export function createSocketSignaling(
     return () => socket.off('admin-move-to-channel', callback)
   }
 
-  return { sendOffer, sendAnswer, sendIceCandidate, onMessage, join, leave, close, getSocketId, onAdminMove }
+  const emitSoundboardPlay = (soundUrl: string) => {
+    socket.emit('soundboard-play', { soundUrl, userId, username })
+  }
+
+  const onSoundboardPlay = (callback: (data: { soundUrl: string; userId: string; username: string }) => void) => {
+    socket.on('soundboard-play', callback)
+    return () => socket.off('soundboard-play', callback)
+  }
+
+  return { sendOffer, sendAnswer, sendIceCandidate, onMessage, join, leave, close, getSocketId, onAdminMove, emitSoundboardPlay, onSoundboardPlay }
 }

@@ -8,7 +8,7 @@ export interface User {
 export interface Channel {
   id: string
   name: string
-  type: 'text' | 'voice'
+  type: 'text' | 'voice' | 'rules'
   serverId: string
   order: number
   categoryId?: string | null
@@ -27,6 +27,9 @@ export interface Server {
   iconUrl?: string
   bannerUrl?: string
   ownerId: string
+  rules_channel_id?: string | null
+  lock_channels_until_rules_accepted?: boolean
+  rules_accept_emoji?: string
 }
 
 export interface Message {
