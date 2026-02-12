@@ -25,6 +25,7 @@ interface VoiceUserInfo {
   username: string
   isMuted?: boolean
   isDeafened?: boolean
+  isSpeaking?: boolean
 }
 
 interface VoiceConnectionInfo {
@@ -139,7 +140,9 @@ function SortableChannelItem({
                   key={vu.userId}
                   className="flex items-center gap-2 px-1.5 py-1 rounded text-app-muted hover:bg-app-hover/30"
                 >
-                  <div className="w-5 h-5 rounded-full bg-app-accent/80 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+                  <div className={`w-5 h-5 rounded-full bg-app-accent/80 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 ring-1.5 transition-all ${
+                    vu.isSpeaking ? 'ring-[#23a559] shadow-[0_0_4px_rgba(35,165,89,0.5)]' : 'ring-transparent'
+                  }`}>
                     {vu.username.charAt(0).toUpperCase()}
                   </div>
                   <span className="text-xs truncate flex-1 min-w-0">{vu.username}</span>

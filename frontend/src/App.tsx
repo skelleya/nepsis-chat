@@ -206,28 +206,45 @@ function MainLayout({
 
   // Build voice users map from ALL server members' presence — so users see who's in
   // each voice channel BEFORE entering (not just when they're already in one).
-  const voiceUsers: Record<string, { userId: string; username: string; isMuted?: boolean; isDeafened?: boolean }[]> = {}
+  const voiceUsers: Record<string, { userId: string; username: string; isMuted?: boolean; isDeafened?: boolean; isSpeaking?: boolean }[]> = {}
   if (currentServerId && displayChannels.length > 0) {
     for (const member of serverMembers) {
+      // Skip the current user from serverMembers — we'll add them from live voice state below
+      if (member.userId === user.id) continue
       const chId = member.voiceChannelId
       if (!chId) continue
       const ch = displayChannels.find((c) => c.id === chId && c.server_id === currentServerId)
       if (!ch || ch.type !== 'voice') continue
       if (!voiceUsers[chId]) voiceUsers[chId] = []
-      const isCurrentUser = member.userId === user.id
       voiceUsers[chId].push({
         userId: member.userId,
         username: member.username,
-        isMuted: isCurrentUser ? voice.isMuted : undefined,
-        isDeafened: isCurrentUser ? voice.isDeafened : undefined,
       })
     }
-    // When current user is in voice, merge real-time participants (for accurate mute state)
-    if (voice.voiceChannelId && voiceUsers[voice.voiceChannelId]) {
-      const inList = new Set(voiceUsers[voice.voiceChannelId].map((u) => u.userId))
-      for (const p of voice.participants) {
-        if (!inList.has(p.userId)) {
-          voiceUsers[voice.voiceChannelId].push({ userId: p.userId, username: p.username, isMuted: false })
+    // Add current user from LIVE voice state (instant, no API round-trip)
+    if (voice.voiceChannelId) {
+      const chInServer = displayChannels.find((c) => c.id === voice.voiceChannelId && c.server_id === currentServerId)
+      if (chInServer) {
+        if (!voiceUsers[voice.voiceChannelId]) voiceUsers[voice.voiceChannelId] = []
+        // Add current user at the top
+        voiceUsers[voice.voiceChannelId].unshift({
+          userId: user.id,
+          username: user.username,
+          isMuted: voice.isMuted,
+          isDeafened: voice.isDeafened,
+          isSpeaking: voice.isSpeaking,
+        })
+        // Merge real-time participants (remote peers)
+        const inList = new Set(voiceUsers[voice.voiceChannelId].map((u) => u.userId))
+        for (const p of voice.participants) {
+          if (!inList.has(p.userId)) {
+            voiceUsers[voice.voiceChannelId].push({
+              userId: p.userId,
+              username: p.username,
+              isMuted: false,
+              isSpeaking: p.isSpeaking,
+            })
+          }
         }
       }
     }
