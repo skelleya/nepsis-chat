@@ -100,6 +100,7 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 |-------|-------|----------|
 | "Friends feature not yet configured" when adding friend | `friend_requests` table missing | Run Supabase migration: `supabase/migrations/20250211000002_friend_requests.sql` in Supabase SQL Editor, or `supabase db push` |
 | **"Failed to fetch friend requests"** | `friend_requests` table missing or migration not applied | Run Supabase migration: `supabase/migrations/20250211000002_friend_requests.sql` in Supabase Dashboard → SQL Editor. Copy contents of `supabase/run-all-pending-migrations.sql` (includes friend_requests) or run migration 2 explicitly. Backend now returns clearer "Friends feature not yet configured" when table is missing. |
+| **404 on `/api/dm/conversations`** / **"Cannot read properties of undefined (reading 'username')"** | (1) DM tables (`dm_conversations`, `dm_participants`, `dm_messages`) missing. (2) Backend deployment doesn't include DM routes. (3) Malformed API response. | Run `supabase/run-all-pending-migrations.sql` in Supabase SQL Editor — it now includes DM tables (Migration 5b). Redeploy backend to Fly so DM routes are served. Frontend now has defensive null checks for `other_user`/`username`. |
 
 ---
 
@@ -150,6 +151,7 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | Failed to create invite | (1) server_invites table not created. (2) User not a server member. (3) API error. | Run migration `20250211000004_server_invites_audit.sql`. Frontend now shows the actual backend error. Backend returns a helpful message if the table is missing. |
 | Main screen shows only "you" when others are in voice | Participants only added when WebRTC stream arrives; room-peers and peer-joined were ignored. | Process `room-peers` and `peer-joined` to add participants with stream=null ("Connecting..."); update when stream arrives. |
 | Sidebar voice list doesn't update when someone leaves | serverMembers polled every 8s; slow to reflect presence changes. | Poll every 2s when user is in a voice channel (`voice.voiceChannelId`); 8s otherwise. |
+| **Other user visible in sidebar but not in main voice grid** | Main grid only showed WebRTC participants; users from presence (sidebar) weren't merged. | Pass `voiceUsersInChannel` to VoiceView and merge with participants so everyone in the channel shows in the main grid (remote users show "Connecting..." until stream arrives). |
 
 **Files:** `webrtc.ts`, `VoiceContext.tsx`, `App.tsx`, `api.ts`, `servers.js`
 

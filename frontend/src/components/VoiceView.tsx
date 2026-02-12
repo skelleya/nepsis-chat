@@ -8,6 +8,8 @@ interface VoiceViewProps {
   channel: Channel
   currentUserId: string
   currentUsername: string
+  /** Users in this channel from presence (sidebar) — ensures we show them even before WebRTC connects */
+  voiceUsersInChannel?: { userId: string; username: string }[]
   onInvitePeople?: () => Promise<void>
 }
 
@@ -227,7 +229,7 @@ function ParticipantCard({
   )
 }
 
-export function VoiceView({ channel, currentUserId, currentUsername, onInvitePeople }: VoiceViewProps) {
+export function VoiceView({ channel, currentUserId, currentUsername, voiceUsersInChannel = [], onInvitePeople }: VoiceViewProps) {
   const voice = useVoice()
   const {
     participants,
@@ -256,9 +258,24 @@ export function VoiceView({ channel, currentUserId, currentUsername, onInvitePeo
     isSpeaking: false,
   }
 
-  const allParticipants: (VoiceParticipant | typeof localParticipant)[] = isInThisChannel
-    ? [localParticipant, ...participants]
-    : participants
+  // Merge presence (voiceUsersInChannel) with WebRTC participants so we show everyone in the channel
+  // even before their stream connects — fixes "can't see other user in main chat"
+  const participantByUserId = new Map<string, VoiceParticipant | typeof localParticipant>()
+  if (isInThisChannel) {
+    participantByUserId.set(currentUserId, localParticipant)
+  }
+  for (const p of participants) {
+    participantByUserId.set(p.userId, p)
+  }
+  for (const vu of voiceUsersInChannel) {
+    if (!participantByUserId.has(vu.userId)) {
+      participantByUserId.set(vu.userId, { userId: vu.userId, username: vu.username, stream: null, isSpeaking: false })
+    }
+  }
+  // Local user first when in channel
+  const allParticipants = isInThisChannel
+    ? [localParticipant, ...Array.from(participantByUserId.values()).filter((p) => p.userId !== currentUserId)]
+    : Array.from(participantByUserId.values())
 
   return (
     <div className="flex-1 flex flex-col bg-app-darker">

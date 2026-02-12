@@ -397,7 +397,7 @@ export function ChannelList({
               Direct Messages
             </div>
             <div className="space-y-0.5">
-              {dmConversations.map((conv) => (
+              {dmConversations.filter((c) => c?.other_user).map((conv) => (
                 <button
                   key={conv.id}
                   onClick={() => onSelectDM(conv.id)}
@@ -408,9 +408,9 @@ export function ChannelList({
                   }`}
                 >
                   <div className="w-6 h-6 rounded-full bg-app-accent flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                    {conv.other_user.username?.charAt(0).toUpperCase()}
+                    {(conv.other_user?.username ?? '?').charAt(0).toUpperCase()}
                   </div>
-                  <span className="text-sm truncate flex-1">{conv.other_user.username}</span>
+                  <span className="text-sm truncate flex-1">{conv.other_user?.username ?? 'Unknown'}</span>
                 </button>
               ))}
             </div>

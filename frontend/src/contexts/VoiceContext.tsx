@@ -134,9 +134,9 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
           removeParticipant(peerId)
           sounds.userLeave()
         },
-        onPeerJoined: (pUserId, pUsername) => {
+        onPeerJoined: (pUserId, pUsername, playSound = true) => {
           addOrUpdateParticipant(pUserId, pUsername, null)
-          sounds.userJoin()
+          if (playSound) sounds.userJoin()
         },
       })
       webrtcRef.current = webrtc

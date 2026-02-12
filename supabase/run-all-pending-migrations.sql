@@ -121,11 +121,47 @@ ALTER TABLE servers ADD COLUMN IF NOT EXISTS is_community BOOLEAN DEFAULT false;
 CREATE INDEX IF NOT EXISTS idx_servers_community ON servers(is_community) WHERE is_community = true;
 
 -- ============================================================
+-- Migration 5b: DM tables (if not created by main supabase-migration.sql)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS dm_conversations (
+  id TEXT PRIMARY KEY,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS dm_participants (
+  conversation_id TEXT NOT NULL REFERENCES dm_conversations(id),
+  user_id TEXT NOT NULL REFERENCES users(id),
+  PRIMARY KEY (conversation_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS dm_messages (
+  id TEXT PRIMARY KEY,
+  conversation_id TEXT NOT NULL REFERENCES dm_conversations(id),
+  user_id TEXT NOT NULL REFERENCES users(id),
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+ALTER TABLE dm_conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE dm_participants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE dm_messages ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Anyone can read dm_conversations" ON dm_conversations;
+CREATE POLICY "Anyone can read dm_conversations" ON dm_conversations FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Anyone can insert dm_conversations" ON dm_conversations;
+CREATE POLICY "Anyone can insert dm_conversations" ON dm_conversations FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Anyone can read dm_participants" ON dm_participants;
+CREATE POLICY "Anyone can read dm_participants" ON dm_participants FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Anyone can insert dm_participants" ON dm_participants;
+CREATE POLICY "Anyone can insert dm_participants" ON dm_participants FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Anyone can read dm_messages" ON dm_messages;
+CREATE POLICY "Anyone can read dm_messages" ON dm_messages FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Anyone can insert dm_messages" ON dm_messages;
+CREATE POLICY "Anyone can insert dm_messages" ON dm_messages FOR INSERT WITH CHECK (true);
+
+-- ============================================================
 -- Migration 6: dm_messages Realtime
 -- ============================================================
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'dm_messages') THEN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'dm_messages') AND
+     NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'dm_messages') THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE dm_messages;
   END IF;
 END $$;

@@ -4,6 +4,15 @@ import supabase from '../db/supabase.js'
 
 export const dmRouter = Router()
 
+const DM_NOT_CONFIGURED = 'DM feature not yet configured. Run the DM tables migration (see supabase/run-all-pending-migrations.sql).'
+
+function isTableMissingError(err) {
+  if (!err) return false
+  const code = err.code || err?.error?.code
+  const msg = (err.message || err?.error?.message || '').toLowerCase()
+  return code === '42P01' || /relation.*does not exist/.test(msg) || /dm_(conversations|participants|messages).*does not exist/.test(msg)
+}
+
 // List DM conversations for a user (with other participant info)
 dmRouter.get('/conversations', async (req, res) => {
   const { userId } = req.query
@@ -61,6 +70,9 @@ dmRouter.get('/conversations', async (req, res) => {
     res.json(result)
   } catch (err) {
     console.error('DM list error:', err)
+    if (isTableMissingError(err)) {
+      return res.status(501).json({ error: DM_NOT_CONFIGURED })
+    }
     res.status(500).json({ error: 'Failed to list DMs' })
   }
 })
@@ -107,6 +119,9 @@ dmRouter.get('/conversations/:id/messages', async (req, res) => {
     res.json(result)
   } catch (err) {
     console.error('DM messages error:', err)
+    if (isTableMissingError(err)) {
+      return res.status(501).json({ error: DM_NOT_CONFIGURED })
+    }
     res.status(500).json({ error: 'Failed to fetch DM messages' })
   }
 })
@@ -176,6 +191,9 @@ dmRouter.post('/messages', async (req, res) => {
     })
   } catch (err) {
     console.error('DM send error:', err)
+    if (isTableMissingError(err)) {
+      return res.status(501).json({ error: DM_NOT_CONFIGURED })
+    }
     res.status(500).json({ error: 'Failed to send DM' })
   }
 })
@@ -231,6 +249,9 @@ dmRouter.post('/conversations', async (req, res) => {
     })
   } catch (err) {
     console.error('DM create error:', err)
+    if (isTableMissingError(err)) {
+      return res.status(501).json({ error: DM_NOT_CONFIGURED })
+    }
     return res.status(500).json({ error: 'Failed to create DM' })
   }
 })

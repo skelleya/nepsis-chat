@@ -59,11 +59,11 @@ export function DMView({
           </button>
         )}
         <div className="w-8 h-8 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-          {conversation.other_user.username?.charAt(0).toUpperCase()}
+          {(conversation.other_user?.username ?? '?').charAt(0).toUpperCase()}
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="font-semibold text-app-text truncate">
-            {conversation.other_user.username}
+            {conversation.other_user?.username ?? 'Unknown'}
           </h2>
           <p className="text-xs text-app-muted">Direct Message</p>
         </div>
@@ -88,12 +88,12 @@ export function DMView({
                 className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''}`}
               >
                 <div className="w-8 h-8 rounded-full bg-app-accent flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                  {msg.username?.charAt(0).toUpperCase()}
+                  {(msg.username ?? '?').charAt(0).toUpperCase()}
                 </div>
                 <div className={`flex-1 min-w-0 max-w-[75%] ${isMe ? 'items-end' : ''}`}>
                   <div className="flex items-baseline gap-2 mb-0.5">
                     <span className="font-semibold text-app-text text-sm">
-                      {msg.username}
+                      {msg.username ?? 'Unknown'}
                     </span>
                     <span className="text-[10px] text-app-muted">
                       {new Date(msg.created_at).toLocaleTimeString([], {
@@ -126,9 +126,9 @@ export function DMView({
             value={input}
             onChange={setInput}
             onSubmit={doSend}
-            placeholder={`Message ${conversation.other_user.username}`}
+            placeholder={`Message ${conversation.other_user?.username ?? 'Unknown'}`}
             disabled={false}
-            members={[{ id: conversation.other_user.id, username: conversation.other_user.username }]}
+            members={conversation.other_user ? [{ id: conversation.other_user.id, username: conversation.other_user.username ?? 'Unknown' }] : []}
           />
         </form>
       </div>

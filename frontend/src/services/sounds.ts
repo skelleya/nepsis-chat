@@ -64,17 +64,35 @@ class SoundManager {
   /** Someone joined voice — rising two-note chime */
   userJoin() {
     const ctx = this.getCtx()
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(() => this._playUserJoin())
+    } else {
+      this._playUserJoin()
+    }
+  }
+
+  private _playUserJoin() {
+    const ctx = this.getCtx()
     const t = ctx.currentTime
-    this.tone(523.25, t, 0.12, { volume: 0.1, type: 'triangle' })
-    this.tone(659.25, t + 0.08, 0.15, { volume: 0.1, type: 'triangle' })
+    this.tone(523.25, t, 0.12, { volume: 0.18, type: 'triangle' })
+    this.tone(659.25, t + 0.08, 0.15, { volume: 0.18, type: 'triangle' })
   }
 
   /** Someone left voice — falling two-note chime */
   userLeave() {
     const ctx = this.getCtx()
+    if (ctx.state === 'suspended') {
+      ctx.resume().then(() => this._playUserLeave())
+    } else {
+      this._playUserLeave()
+    }
+  }
+
+  private _playUserLeave() {
+    const ctx = this.getCtx()
     const t = ctx.currentTime
-    this.tone(659.25, t, 0.12, { volume: 0.1, type: 'triangle' })
-    this.tone(523.25, t + 0.08, 0.15, { volume: 0.1, type: 'triangle' })
+    this.tone(659.25, t, 0.12, { volume: 0.18, type: 'triangle' })
+    this.tone(523.25, t + 0.08, 0.15, { volume: 0.18, type: 'triangle' })
   }
 
   /** Connected to voice channel — rising chord */

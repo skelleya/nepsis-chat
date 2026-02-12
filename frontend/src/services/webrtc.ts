@@ -7,8 +7,8 @@
 export interface WebRTCHandlers {
   onRemoteStream: (peerId: string, userId: string, username: string, stream: MediaStream) => void
   onPeerLeft: (peerId: string) => void
-  /** Called when we learn about a peer (e.g. from room-peers) before we have their stream */
-  onPeerJoined?: (userId: string, username: string) => void
+  /** Called when we learn about a peer. playSound: only true when someone joins while we're in (peer-joined), not for room-peers */
+  onPeerJoined?: (userId: string, username: string, playSound?: boolean) => void
 }
 
 export interface SignalingBridge {
@@ -258,16 +258,17 @@ export function createWebRTCClient(
     }
 
     if (m.type === 'room-peers') {
-      // New joiner: add participants so main screen shows correct count before streams arrive
+      // New joiner: add participants and connect to existing peers (no sound — we're the one who joined)
       for (const p of m.peers || []) {
-        handlers.onPeerJoined?.(p.userId, p.username)
+        handlers.onPeerJoined?.(p.userId, p.username, false)
+        handlePeerJoined(p.socketId, p.userId, p.username)
       }
       return
     }
 
     if (m.type === 'peer-joined' || (m.type === 'join' && m.userId)) {
       const peerId = m.socketId ?? m.userId!
-      handlers.onPeerJoined?.(m.userId ?? peerId, m.username ?? peerId)
+      handlers.onPeerJoined?.(m.userId ?? peerId, m.username ?? peerId, true)
       handlePeerJoined(peerId, m.userId, m.username)
       return
     }

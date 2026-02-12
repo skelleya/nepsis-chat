@@ -298,6 +298,13 @@ function MainLayout({
     onDisconnect: () => voice.leaveVoice(),
   } : null
 
+  // Clear stale DM selection when conversation not found (e.g. after API failure or tables missing)
+  useEffect(() => {
+    if (!currentDMId) return
+    const conv = dmConversations.find((c) => c.id === currentDMId)
+    if (!conv?.other_user) setCurrentDM(null)
+  }, [currentDMId, dmConversations, setCurrentDM])
+
   // ESC key to close server settings
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -374,7 +381,7 @@ function MainLayout({
         (() => {
           const conv = dmConversations.find((c) => c.id === currentDMId)
           const dmMsgs = dmMessages[currentDMId] || []
-          if (!conv) return null
+          if (!conv?.other_user) return null
           return (
             <DMView
               conversation={conv}
@@ -418,6 +425,7 @@ function MainLayout({
           channel={{ id: currentChannel.id, name: currentChannel.name, type: currentChannel.type, serverId: currentChannel.server_id, order: currentChannel.order }}
           currentUserId={user.id}
           currentUsername={user.username}
+          voiceUsersInChannel={voiceUsers[currentChannel.id] || []}
           onInvitePeople={handleInvitePeople}
         />
       ) : (
