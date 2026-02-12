@@ -38,12 +38,14 @@ export function SoundboardDropdown({ userId, onPlay, anchorRef, isOpen, onClose 
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target
       if (
         isOpen &&
         dropdownRef.current &&
-        !dropdownRef.current.contains(e.target) &&
         anchorRef.current &&
-        !anchorRef.current.contains(e.target as Node)
+        target instanceof Node &&
+        !dropdownRef.current.contains(target) &&
+        !anchorRef.current.contains(target)
       ) {
         onClose()
       }

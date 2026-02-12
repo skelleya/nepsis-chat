@@ -4,7 +4,7 @@ import { useVoice, type VoiceParticipant } from '../contexts/VoiceContext'
 import { RemoteAudio } from './RemoteAudio'
 import { MicOffIcon, HeadphonesIcon, HeadphonesOffIcon } from './icons/VoiceIcons'
 import { SoundboardDropdown } from './SoundboardDropdown'
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
+import { Panel, Group, Separator } from 'react-resizable-panels'
 
 interface VoiceViewProps {
   channel: Channel
@@ -367,7 +367,7 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
       allParticipants.forEach((p, i) => {
         if (i > 0) {
           panels.push(
-            <PanelResizeHandle
+            <Separator
               key={`handle-${p.userId}`}
               className="w-2 bg-app-dark hover:bg-app-hover/50 transition-colors data-[resize-handle-active]:bg-app-accent/50"
             />
@@ -393,9 +393,9 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
         )
       })
       return (
-        <PanelGroup direction="horizontal" className="flex-1 min-h-0" autoSaveId="voice-view-participants">
+        <Group orientation="horizontal" className="flex-1 min-h-0" autoSave="voice-view-participants">
           {panels}
-        </PanelGroup>
+        </Group>
       )
     }
     return (
@@ -471,19 +471,19 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
 
         {isInThisChannel && (
           hasScreenShare ? (
-            <PanelGroup direction="vertical" autoSaveId="voice-view-screen-participants" className="flex-1 min-h-0">
+            <Group orientation="vertical" autoSave="voice-view-screen-participants" className="flex-1 min-h-0">
               <Panel defaultSize={60} minSize={20} maxSize={90} className="min-h-0">
                 <div className="h-full p-4 flex flex-col min-h-0">
                   <VideoElement stream={primaryScreenShare.stream} muted label={`${primaryScreenShare.username} — Screen Share`} />
                 </div>
               </Panel>
-              <PanelResizeHandle className="h-2 bg-app-dark hover:bg-app-hover/50 transition-colors data-[resize-handle-active]:bg-app-accent/50 flex items-center justify-center">
+              <Separator className="h-2 bg-app-dark hover:bg-app-hover/50 transition-colors data-[resize-handle-active]:bg-app-accent/50 flex items-center justify-center">
                 <div className="w-12 h-1 rounded-full bg-app-muted/50" />
-              </PanelResizeHandle>
+              </Separator>
               <Panel defaultSize={40} minSize={10} maxSize={80} className="min-h-0">
                 {renderParticipantsArea()}
               </Panel>
-            </PanelGroup>
+            </Group>
           ) : (
             renderParticipantsArea()
           )

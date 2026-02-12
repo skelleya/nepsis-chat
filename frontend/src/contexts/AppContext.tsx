@@ -33,6 +33,9 @@ interface Server {
   icon_url?: string
   banner_url?: string
   owner_id: string
+  rules_channel_id?: string | null
+  lock_channels_until_rules_accepted?: boolean
+  rules_accept_emoji?: string
 }
 
 interface Channel {

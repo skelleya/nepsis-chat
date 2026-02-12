@@ -104,7 +104,7 @@ function AppContent() {
 
 interface MainLayoutProps {
   user: { id: string; username: string; avatar_url?: string; banner_url?: string; is_guest?: boolean }
-  servers: { id: string; name: string; icon_url?: string; banner_url?: string; owner_id: string }[]
+  servers: { id: string; name: string; icon_url?: string; banner_url?: string; owner_id: string; rules_channel_id?: string | null; lock_channels_until_rules_accepted?: boolean; rules_accept_emoji?: string }[]
   channels: { id: string; server_id: string; name: string; type: 'text' | 'voice'; order: number; category_id?: string | null }[]
   categories: { id: string; server_id: string; name: string; order: number }[]
   messages: Record<string, { id: string; channel_id: string; user_id: string; content: string; created_at: string; edited_at?: string; username?: string; reply_to_id?: string; reply_to?: { username?: string; content?: string }; attachments?: { url: string; type: string; filename?: string }[]; reactions?: { user_id: string; emoji: string }[] }[]>
@@ -116,7 +116,7 @@ interface MainLayoutProps {
   setCurrentDM: (id: string | null) => void
   dmUnreadCounts: Record<string, number>
   channelUnreadCounts: Record<string, number>
-  openDM: (targetUserId: string, targetUsername: string) => Promise<void>
+  openDM: (targetUserId: string, targetUsername: string) => Promise<string | undefined>
   sendDMMessage: (conversationId: string, content: string) => Promise<void>
   setCurrentServer: (id: string) => void
   setCurrentChannel: (id: string) => void
@@ -125,7 +125,7 @@ interface MainLayoutProps {
   updateServer: (serverId: string, data: { name?: string; icon_url?: string; banner_url?: string }) => Promise<void>
   deleteServer: (serverId: string) => Promise<void>
   reorderServers: (updates: { serverId: string; order: number }[]) => Promise<void>
-  createChannel: (name: string, type: 'text' | 'voice', categoryId?: string) => Promise<unknown>
+  createChannel: (name: string, type: 'text' | 'voice' | 'rules', categoryId?: string) => Promise<unknown>
   createCategory: (name: string) => Promise<unknown>
   reorderChannels: (updates: { id: string; order: number }[]) => Promise<void>
   updateChannel: (channelId: string, data: { name?: string; order?: number; categoryId?: string | null }) => Promise<void>
@@ -383,7 +383,7 @@ function MainLayout({
   const rulesChannelId = currentServer?.rules_channel_id
   const lockUntilAccepted = !!currentServer?.lock_channels_until_rules_accepted
   const mustAcceptRules = lockUntilAccepted && !!rulesChannelId
-  const rulesAcceptanceKnown = !rulesChannelId || (currentServerId !== undefined && currentServerId in rulesAccepted)
+  const rulesAcceptanceKnown = !rulesChannelId || (currentServerId != null && currentServerId in rulesAccepted)
   const hasAcceptedRules = rulesChannelId ? (rulesAccepted[currentServerId ?? ''] === true) : true
 
   useEffect(() => {
