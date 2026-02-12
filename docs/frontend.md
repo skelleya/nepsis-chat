@@ -41,7 +41,7 @@ frontend/src/
 |-----------|---------|
 | VoiceIcons | Shared mic/mic-off/headphones/headphones-off SVGs (prevents clipping/snipping) |
 | ServerBar | Server list (left sidebar) |
-| ChannelList | Text + voice channels; highlights text channels with new messages (white) when user isn't viewing them |
+| ChannelList | Text + voice channels; highlights text channels with new messages (white) when user isn't viewing them. **Owner:** drag categories to reorder; drag channels to reorder or move between categories; 3-dot menu on category/channel for Edit/Delete. **Admin:** drag voice users onto another voice channel to move them |
 | ChatView | Messages, input; scrolls to bottom on load; shows "New messages" indicator when scrolled up and new messages arrive; click to jump to new messages |
 | VoiceView | Voice participants, join/leave |
 | MembersSidebar | Online members |
@@ -117,6 +117,23 @@ frontend/src/
 | `ChannelList.tsx` | Text channel items with hasUnread styling (white highlight) |
 | `ChatView.tsx` | Scroll container, scroll-to-bottom, new message indicator, jumpToNewMessages |
 | `realtime.ts` | subscribeToAllChannelMessages (no filter, INSERT only) |
+
+---
+
+## Channel & Category Management (Owner/Admin)
+
+| Feature | Implementation |
+|---------|----------------|
+| **Reorder categories** | Drag category header (grip icon on hover); `onReorderCategories` → `api.reorderCategories` |
+| **Reorder channels** | Drag channel within category; drop on channel reorders; drop on category header moves channel to that category |
+| **Move channel to uncategorized** | Drag channel onto "Channels" header (uncategorized section) |
+| **Edit category** | 3-dot menu on category header → Edit Category → inline input |
+| **Delete category** | 3-dot menu → Delete; channels become uncategorized |
+| **Edit channel** | 3-dot menu on channel → Edit Channel → inline input |
+| **Delete channel** | 3-dot menu → Delete (with confirm) |
+| **Move user to voice channel** | Admin: drag voice user (in channel list) onto another voice channel |
+
+All features use `@dnd-kit/core` and `@dnd-kit/sortable`. Single DndContext with ID prefixes: `cat-`, `ch-`, `user-`, `voice-drop-`.
 
 ---
 

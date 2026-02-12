@@ -97,7 +97,7 @@ export async function createChannel(serverId: string, name: string, type: 'text'
 export async function updateChannel(
   serverId: string,
   channelId: string,
-  data: { order?: number; name?: string; categoryId?: string }
+  data: { order?: number; name?: string; categoryId?: string | null }
 ) {
   const body: Record<string, unknown> = {}
   if (data.order !== undefined) body.order = data.order
@@ -148,6 +148,29 @@ export async function createCategory(serverId: string, name: string) {
     body: JSON.stringify({ name }),
   })
   if (!res.ok) throw new Error('Failed to create category')
+  return res.json()
+}
+
+export async function updateCategory(serverId: string, catId: string, data: { name?: string; order?: number }) {
+  const body: Record<string, unknown> = {}
+  if (data.name !== undefined) body.name = data.name
+  if (data.order !== undefined) body.order = data.order
+  const res = await fetch(`${API_BASE}/servers/${serverId}/categories/${catId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error('Failed to update category')
+  return res.json()
+}
+
+export async function reorderCategories(serverId: string, updates: { id: string; order: number }[]) {
+  const res = await fetch(`${API_BASE}/servers/${serverId}/categories/reorder`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ updates }),
+  })
+  if (!res.ok) throw new Error('Failed to reorder categories')
   return res.json()
 }
 
@@ -567,5 +590,27 @@ export async function saveUserProfile(
     body: JSON.stringify({ profile_type: profileType, ...data }),
   })
   if (!res.ok) throw new Error('Failed to save profile')
+  return res.json()
+}
+
+// ─── Bug Reports ────────────────────────────────────────
+
+export async function submitBugReport(data: {
+  userId?: string
+  username?: string
+  email?: string
+  title: string
+  description: string
+  url?: string
+}): Promise<{ id: string; success: boolean }> {
+  const res = await fetch(`${API_BASE}/bug-reports`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to submit bug report')
+  }
   return res.json()
 }

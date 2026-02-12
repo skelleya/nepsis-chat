@@ -355,6 +355,57 @@ serversRouter.post('/:id/categories', async (req, res) => {
   }
 })
 
+// Reorder categories (bulk update — must be before /:catId to avoid "reorder" as catId)
+serversRouter.put('/:serverId/categories/reorder', async (req, res) => {
+  try {
+    const { updates } = req.body
+    if (!Array.isArray(updates) || updates.length === 0) {
+      return res.status(400).json({ error: 'updates array required' })
+    }
+    for (const { id, order } of updates) {
+      if (!id || typeof order !== 'number') continue
+      await supabase
+        .from('categories')
+        .update({ order })
+        .eq('id', id)
+        .eq('server_id', req.params.serverId)
+    }
+    const { data } = await supabase
+      .from('categories')
+      .select('*')
+      .eq('server_id', req.params.serverId)
+      .order('order')
+    res.json(data || [])
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to reorder categories' })
+  }
+})
+
+// Update a category (name, order)
+serversRouter.patch('/:serverId/categories/:catId', async (req, res) => {
+  try {
+    const { name, order } = req.body
+    const updates = {}
+    if (name !== undefined) updates.name = name
+    if (typeof order === 'number') updates.order = order
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No valid updates provided' })
+    }
+    const { data, error } = await supabase
+      .from('categories')
+      .update(updates)
+      .eq('id', req.params.catId)
+      .eq('server_id', req.params.serverId)
+      .select()
+      .single()
+    if (error) throw error
+    if (!data) return res.status(404).json({ error: 'Category not found' })
+    res.json(data)
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update category' })
+  }
+})
+
 // Delete a category
 serversRouter.delete('/:serverId/categories/:catId', async (req, res) => {
   try {

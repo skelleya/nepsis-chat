@@ -1,7 +1,93 @@
 import { useState, useEffect, useRef } from 'react'
 import * as api from '../services/api'
 
-type TabId = 'account' | 'profiles' | 'privacy' | 'appearance' | 'voice' | 'notifications'
+type TabId = 'account' | 'profiles' | 'privacy' | 'appearance' | 'voice' | 'notifications' | 'help'
+
+function HelpTab({ user }: { user: { id: string; username: string } }) {
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const trimTitle = title.trim()
+    const trimDesc = description.trim()
+    if (!trimTitle || !trimDesc) {
+      setMessage({ type: 'error', text: 'Please fill in both title and description.' })
+      return
+    }
+    setSubmitting(true)
+    setMessage(null)
+    try {
+      await api.submitBugReport({
+        userId: user.id,
+        username: user.username,
+        title: trimTitle,
+        description: trimDesc,
+        url: typeof window !== 'undefined' ? window.location.href : undefined,
+      })
+      setMessage({ type: 'success', text: 'Thank you! Your bug report has been sent to the developers.' })
+      setTitle('')
+      setDescription('')
+    } catch (err) {
+      setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to submit report' })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div>
+      <h3 className="text-xl font-bold text-white mb-4">Help & Support</h3>
+      <div className="bg-[#2b2d31] rounded-lg p-4 space-y-4">
+        <h4 className="font-semibold text-white">Report a Bug</h4>
+        <p className="text-app-muted text-sm">
+          Found a bug? Let us know! Your report will be sent to the development team. Include as much detail as you can.
+        </p>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div>
+            <label className="block text-xs font-bold text-app-muted uppercase mb-1">Title</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Brief summary of the issue"
+              maxLength={256}
+              className="w-full px-3 py-2 bg-[#1e1f22] rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none placeholder:text-app-muted"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-app-muted uppercase mb-1">Description</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Steps to reproduce, what you expected, what happened..."
+              rows={4}
+              maxLength={8000}
+              className="w-full px-3 py-2 bg-[#1e1f22] rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none placeholder:text-app-muted resize-none"
+            />
+          </div>
+          <p className="text-app-muted text-xs">
+            Your username and current page URL will be included to help us investigate.
+          </p>
+          {message && (
+            <p className={`text-sm ${message.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+              {message.text}
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={submitting}
+            className="px-4 py-2 bg-app-accent hover:bg-app-accent-hover rounded text-sm text-white font-medium disabled:opacity-50"
+          >
+            {submitting ? 'Sending...' : 'Send Report'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
 
 interface UserSettingsModalProps {
   user: { id: string; username: string; avatar_url?: string; banner_url?: string; is_guest?: boolean }
@@ -94,6 +180,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
     { id: 'appearance', label: 'Appearance' },
     { id: 'voice', label: 'Voice & Video' },
     { id: 'notifications', label: 'Notifications' },
+    { id: 'help', label: 'Help & Support' },
   ]
 
   useEffect(() => {
@@ -295,6 +382,10 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
                 <p className="text-app-muted text-sm">Manage notification preferences.</p>
               </div>
             </div>
+          )}
+
+          {activeTab === 'help' && (
+            <HelpTab user={user} />
           )}
         </div>
 

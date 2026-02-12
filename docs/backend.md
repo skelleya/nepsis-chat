@@ -41,6 +41,7 @@ Node.js + Express + Socket.io + SQLite.
 | DELETE | `/api/servers/:id/invites/:code` | Revoke invite (`?revokedBy=`) |
 | GET | `/api/servers/:id/audit-log` | List audit log entries (invite_created, invite_revoked, member_kicked, member_joined) |
 | GET | `/api/version` | App version |
+| POST | `/api/bug-reports` | Submit bug report (`userId`, `username`, `email`, `title`, `description`, `url`) — public |
 
 ### Static
 
@@ -64,6 +65,7 @@ Node.js + Express + Socket.io + SQLite.
 | friend_requests | requester_id, addressee_id, status (pending/accepted/rejected), created_at — see migration `20250211000002_friend_requests.sql` |
 | server_invites | code, server_id, created_by, expires_at, max_uses, use_count, created_at — see migration `20250211000004_server_invites_audit.sql` |
 | server_audit_log | id, server_id, user_id, action, details (JSONB), created_at — see migration `20250211000004_server_invites_audit.sql` |
+| bug_reports | id, user_id, username, email, title, description, url, user_agent, status (pending/reviewed/resolved/wontfix), created_at — see migration `20250211000008_bug_reports.sql` |
 
 **File:** `backend/data.sqlite` (legacy) — Supabase Postgres used in production
 

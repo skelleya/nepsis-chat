@@ -180,3 +180,25 @@ END $$;
 -- Migration 8: Server icon and banner
 -- ============================================================
 ALTER TABLE servers ADD COLUMN IF NOT EXISTS banner_url TEXT;
+
+-- ============================================================
+-- Migration 9: Bug reports
+-- ============================================================
+CREATE TABLE IF NOT EXISTS bug_reports (
+  id TEXT PRIMARY KEY,
+  user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+  username TEXT,
+  email TEXT,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  url TEXT,
+  user_agent TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'reviewed', 'resolved', 'wontfix')),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_bug_reports_status ON bug_reports(status);
+CREATE INDEX IF NOT EXISTS idx_bug_reports_created ON bug_reports(created_at DESC);
+ALTER TABLE bug_reports ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow insert bug_reports" ON bug_reports;
+CREATE POLICY "Allow insert bug_reports" ON bug_reports FOR INSERT WITH CHECK (true);

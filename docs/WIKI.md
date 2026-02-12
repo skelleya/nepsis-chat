@@ -55,6 +55,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Voice UI v2 — Discord-style square grid for participants filling center; members sidebar minimizable; member profile panel with Message and Add Friend |
 | + | Voice fix v3 — Fixed remote video/screen share display; combined remote MediaStream per peer prevents audio loss when video tracks arrive; ParticipantCard shows video when camera/screen active; track.onmute fallback for cross-browser compat |
 | + | Voice UI v3 — End-call icon for disconnect; mic/headphone icons for mute/deafen; show users in voice channels before joining; drag channels to reorder; right-click user context menu (Message, Add Friend, Kick, Move to Channel); admin can move users between voice channels via right-click |
+| + | Category & channel management — Server owners can: reorder categories (drag); reorder channels within/between categories (drag); edit/delete categories and channels (3-dot menu); drag voice users from one voice channel to another (admin only) |
 | + | Split deployment — Frontend on Vercel (git push, ~1 min), backend on Fly.io (API + Socket.io). Download page links to /updates/download redirect |
 | + | Voice status server-scoped — "In voice" and voice connection bar only show for the server where the user is actually in voice; no cross-server confusion |
 | + | Layout cache — Channels and categories cached in localStorage; instant server preview on switch; background refresh when tab becomes visible; preload for other servers |
@@ -81,6 +82,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Text channel unread indicators — New messages highlight channel in white in sidebar; ChatView scrolls to bottom on load; "New messages" indicator when scrolled up; click to jump to start of new messages |
 | + | Profile pictures everywhere — User avatars display in voice channels (grid + sidebar list), ChatView messages, DM list/header/messages, MembersSidebar, MemberProfilePanel, CallOverlay (outgoing/incoming/in-call). Pass avatar_url through voiceUsers, members, and CallContext. |
 | + | Server icon and banner — Server Settings > Overview: upload server profile picture (icon) and banner. Backend PATCH supports icon_url and banner_url; migration adds banner_url to servers table. |
+| + | Bug reports — User Settings > Help & Support: Report a Bug form. Submits to `bug_reports` table (Supabase); sends title, description, user info, URL, user-agent to devs. Migration `20250211000008_bug_reports.sql`. |
 
 ---
 

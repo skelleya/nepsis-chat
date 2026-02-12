@@ -94,8 +94,11 @@ interface AppContextValue {
   deleteServer: (serverId: string) => Promise<void>
   createChannel: (name: string, type: 'text' | 'voice', categoryId?: string) => Promise<Channel | null>
   reorderChannels: (updates: { id: string; order: number }[]) => Promise<void>
+  updateChannel: (channelId: string, data: { name?: string; order?: number; categoryId?: string | null }) => Promise<void>
   deleteChannel: (channelId: string) => Promise<void>
   createCategory: (name: string) => Promise<Category | null>
+  updateCategory: (catId: string, data: { name?: string; order?: number }) => Promise<void>
+  reorderCategories: (updates: { id: string; order: number }[]) => Promise<void>
   deleteCategory: (catId: string) => Promise<void>
   loadServers: (userIdOverride?: string) => Promise<void>
   // DM
@@ -600,6 +603,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [currentServerId, categories]
   )
 
+  const updateChannelFn = useCallback(
+    async (channelId: string, data: { name?: string; order?: number; categoryId?: string | null }) => {
+      if (!currentServerId) return
+      try {
+        const payload: { name?: string; order?: number; categoryId?: string | null } = {}
+        if (data.name !== undefined) payload.name = data.name
+        if (data.order !== undefined) payload.order = data.order
+        if (data.categoryId !== undefined) payload.categoryId = data.categoryId
+        const updated = await api.updateChannel(currentServerId, channelId, payload)
+        setChannels((prev) => prev.map((c) => (c.id === channelId ? { ...c, ...updated } : c)))
+        await loadChannels(currentServerId)
+      } catch (err) {
+        console.error('Failed to update channel:', err)
+      }
+    },
+    [currentServerId, loadChannels]
+  )
+
   // ─── Category CRUD ────────────────────────────────────
 
   const createCategoryFn = useCallback(async (name: string): Promise<Category | null> => {
@@ -613,6 +634,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return null
     }
   }, [currentServerId, loadChannels])
+
+  const updateCategoryFn = useCallback(
+    async (catId: string, data: { name?: string; order?: number }) => {
+      if (!currentServerId) return
+      try {
+        const updated = await api.updateCategory(currentServerId, catId, data)
+        setCategories((prev) => prev.map((c) => (c.id === catId ? { ...c, ...updated } : c)))
+        await loadChannels(currentServerId)
+      } catch (err) {
+        console.error('Failed to update category:', err)
+      }
+    },
+    [currentServerId, loadChannels]
+  )
+
+  const reorderCategoriesFn = useCallback(
+    async (updates: { id: string; order: number }[]) => {
+      if (!currentServerId) return
+      try {
+        const updated = await api.reorderCategories(currentServerId, updates)
+        setCategories((updated as Category[]) || [])
+        await loadChannels(currentServerId)
+      } catch (err) {
+        console.error('Failed to reorder categories:', err)
+      }
+    },
+    [currentServerId, loadChannels]
+  )
 
   const deleteCategoryFn = useCallback(async (catId: string) => {
     if (!currentServerId) return
@@ -1012,8 +1061,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         deleteServer: deleteServerFn,
         createChannel: createChannelFn,
         reorderChannels: reorderChannelsFn,
+        updateChannel: updateChannelFn,
         deleteChannel: deleteChannelFn,
         createCategory: createCategoryFn,
+        updateCategory: updateCategoryFn,
+        reorderCategories: reorderCategoriesFn,
         deleteCategory: deleteCategoryFn,
         loadServers,
         login,

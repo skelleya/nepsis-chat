@@ -49,6 +49,11 @@ function AppContent() {
     createChannel,
     createCategory,
     reorderChannels,
+    updateChannel,
+    updateCategory,
+    reorderCategories,
+    deleteChannel,
+    deleteCategory,
     logout,
   } = useApp()
 
@@ -82,6 +87,11 @@ function AppContent() {
         createChannel={createChannel}
         createCategory={createCategory}
         reorderChannels={reorderChannels}
+        updateChannel={updateChannel}
+        updateCategory={updateCategory}
+        reorderCategories={reorderCategories}
+        deleteChannel={deleteChannel}
+        deleteCategory={deleteCategory}
         logout={logout}
       />
       </CallProvider>
@@ -114,6 +124,11 @@ interface MainLayoutProps {
   createChannel: (name: string, type: 'text' | 'voice', categoryId?: string) => Promise<unknown>
   createCategory: (name: string) => Promise<unknown>
   reorderChannels: (updates: { id: string; order: number }[]) => Promise<void>
+  updateChannel: (channelId: string, data: { name?: string; order?: number; categoryId?: string | null }) => Promise<void>
+  updateCategory: (catId: string, data: { name?: string; order?: number }) => Promise<void>
+  reorderCategories: (updates: { id: string; order: number }[]) => Promise<void>
+  deleteChannel: (channelId: string) => Promise<void>
+  deleteCategory: (catId: string) => Promise<void>
   logout: () => void
 }
 
@@ -142,6 +157,11 @@ function MainLayout({
   createChannel,
   createCategory,
   reorderChannels,
+  updateChannel,
+  updateCategory,
+  reorderCategories,
+  deleteChannel,
+  deleteCategory,
   logout,
 }: MainLayoutProps) {
   const voice = useVoice()
@@ -376,6 +396,22 @@ function MainLayout({
           onCreateChannel={async (name, type, catId) => { await createChannel(name, type, catId) }}
           onCreateCategory={async (name) => { await createCategory(name) }}
           onReorderChannels={async (updates) => { await reorderChannels(updates) }}
+          onUpdateChannel={updateChannel}
+          onUpdateCategory={updateCategory}
+          onReorderCategories={async (updates) => { await reorderCategories(updates) }}
+          onDeleteChannel={deleteChannel}
+          onDeleteCategory={deleteCategory}
+          onMoveToChannel={async (targetUserId, channelId) => {
+            if (!currentServerId) return
+            try {
+              await api.moveMemberToVoiceChannel(currentServerId, targetUserId, channelId, user.id)
+              showNotification('User moved to voice channel')
+              const updated = await api.getServerMembers(currentServerId)
+              setServerMembers(updated)
+            } catch (e) {
+              showNotification((e as Error).message, 'error')
+            }
+          }}
           voiceConnection={voiceConnection}
           voiceUsers={voiceUsers}
           onOpenServerSettings={() => setShowServerSettings(true)}
@@ -429,6 +465,8 @@ function MainLayout({
               currentUserAvatarUrl={user.avatar_url}
               onSendMessage={(content) => sendDMMessage(currentDMId, content)}
               onClose={() => setCurrentDM(null)}
+              onBlockUser={() => showNotification('Block feature coming soon')}
+              onReportUser={() => showNotification('Report feature coming soon')}
             />
           )
         })()
