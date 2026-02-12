@@ -251,8 +251,6 @@ export function VoiceView({ channel, currentUserId, currentUsername, onInvitePeo
     ? [localParticipant, ...participants]
     : participants
 
-  const hasVideo = isInThisChannel && (isCameraOn || isScreenSharing)
-
   return (
     <div className="flex-1 flex flex-col bg-app-darker">
       {/* Header */}

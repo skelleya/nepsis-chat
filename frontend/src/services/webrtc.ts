@@ -117,7 +117,7 @@ export function createWebRTCClient(
     if (from === localId) return
     let entry = peers.get(from)
     if (!entry) {
-      const pc = createPeerConnection(from, fromUserId, fromUsername)
+      createPeerConnection(from, fromUserId, fromUsername)
       entry = peers.get(from)!
     } else {
       // Update metadata if we now have a username
