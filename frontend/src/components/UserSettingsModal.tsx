@@ -90,15 +90,16 @@ function HelpTab({ user }: { user: { id: string; username: string } }) {
 }
 
 interface UserSettingsModalProps {
-  user: { id: string; username: string; avatar_url?: string; banner_url?: string; is_guest?: boolean }
+  user: { id: string; username: string; display_name?: string | null; avatar_url?: string; banner_url?: string; is_guest?: boolean }
   onClose: () => void
   onLogout: () => void
-  onUserUpdate?: (data: { username?: string; avatar_url?: string; banner_url?: string }) => void
+  onUserUpdate?: (data: { username?: string; display_name?: string | null; avatar_url?: string; banner_url?: string }) => void
 }
 
 export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: UserSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<TabId>('account')
   const [username, setUsername] = useState(user.username)
+  const [displayName, setDisplayName] = useState(user.display_name ?? '')
   const [avatarUrl, setAvatarUrl] = useState(user.avatar_url || '')
   const [bannerUrl, setBannerUrl] = useState(user.banner_url || '')
   const [saving, setSaving] = useState(false)
@@ -112,6 +113,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
 
   useEffect(() => {
     setUsername(user.username)
+    setDisplayName(user.display_name ?? '')
     setAvatarUrl(user.avatar_url || '')
     setBannerUrl(user.banner_url || '')
   }, [user])
@@ -168,6 +170,22 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
       onUserUpdate?.({ username: trimmed })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update username')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSaveDisplayName = async () => {
+    const trimmed = displayName.trim()
+    const currentVal = user.display_name ?? ''
+    if (trimmed === currentVal) return
+    setSaving(true)
+    setError('')
+    try {
+      await api.updateUserProfile(user.id, { display_name: trimmed || null })
+      onUserUpdate?.({ display_name: trimmed ? trimmed : null })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update display name')
     } finally {
       setSaving(false)
     }
@@ -255,10 +273,10 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
                   <div className="flex items-end gap-4 -mt-10">
                     <div className="relative">
                       {avatarUrl ? (
-                        <img key={avatarUrl} src={avatarUrl} alt={user.username} className="w-20 h-20 rounded-full object-cover border-4 border-[#111214]" />
+                        <img key={avatarUrl} src={avatarUrl} alt={(user.display_name || user.username)} className="w-20 h-20 rounded-full object-cover border-4 border-[#111214]" />
                       ) : (
                         <div className="w-20 h-20 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-2xl border-4 border-[#111214]">
-                          {user.username.charAt(0).toUpperCase()}
+                          {(user.display_name || user.username).charAt(0).toUpperCase()}
                         </div>
                       )}
                       <input
@@ -280,21 +298,45 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
                   <div className="mt-4 space-y-4">
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex-1">
+                        <label className="text-xs font-bold text-app-muted uppercase">Display name</label>
+                        <p className="text-xs text-app-muted mt-0.5 mb-1">This is how others see you. Leave blank to use your username.</p>
+                        <input
+                          type="text"
+                          value={displayName}
+                          onChange={(e) => setDisplayName(e.target.value)}
+                          placeholder={user.username}
+                          className="w-full mt-1 px-3 py-2 bg-[#2b2d31] rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none placeholder:text-app-muted/60"
+                        />
+                      </div>
+                      <button
+                        onClick={handleSaveDisplayName}
+                        disabled={saving || (displayName.trim() || '') === (user.display_name ?? '')}
+                        className="px-4 py-2 bg-app-accent hover:bg-app-accent-hover rounded text-sm text-white font-medium disabled:opacity-50 self-end"
+                      >
+                        Save
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1">
                         <label className="text-xs font-bold text-app-muted uppercase">Username</label>
+                        <p className="text-xs text-app-muted mt-0.5 mb-1">Used for login. Cannot be changed for guest accounts.</p>
                         <input
                           type="text"
                           value={username}
                           onChange={(e) => setUsername(e.target.value)}
-                          className="w-full mt-1 px-3 py-2 bg-[#2b2d31] rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none"
+                          disabled={isGuest}
+                          className="w-full mt-1 px-3 py-2 bg-[#2b2d31] rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                         />
                       </div>
-                      <button
-                        onClick={handleSaveUsername}
-                        disabled={saving || username.trim() === user.username}
-                        className="px-4 py-2 bg-app-accent hover:bg-app-accent-hover rounded text-sm text-white font-medium disabled:opacity-50"
-                      >
-                        Save
-                      </button>
+                      {!isGuest && (
+                        <button
+                          onClick={handleSaveUsername}
+                          disabled={saving || username.trim() === user.username}
+                          className="px-4 py-2 bg-app-accent hover:bg-app-accent-hover rounded text-sm text-white font-medium disabled:opacity-50 self-end"
+                        >
+                          Save
+                        </button>
+                      )}
                     </div>
                     <div>
                       <div className="text-xs font-bold text-app-muted uppercase">User ID</div>

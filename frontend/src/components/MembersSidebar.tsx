@@ -23,6 +23,8 @@ interface MembersSidebarProps {
   onAddFriend?: (userId: string, username: string) => void
   onCall?: (userId: string, username: string, avatarUrl?: string) => void
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
+  onMuteInVoice?: (userId: string) => Promise<void>
+  onDisconnectFromVoice?: (userId: string) => Promise<void>
   title?: string
 }
 
@@ -38,6 +40,8 @@ export function MembersSidebar({
   onAddFriend,
   onCall,
   onMoveToChannel,
+  onMuteInVoice,
+  onDisconnectFromVoice,
   title = 'Members',
 }: MembersSidebarProps) {
   const [kicking, setKicking] = useState<string | null>(null)
@@ -80,6 +84,15 @@ export function MembersSidebar({
     voiceChannels.some((ch) => ch.id === m.voiceChannelId) && // only if in voice on this server
     onMoveToChannel &&
     voiceChannels.length > 0
+
+  const canMuteOrDisconnect = (m: ServerMember) =>
+    isAdminOrOwner &&
+    m.userId !== currentUserId &&
+    m.status === 'in-voice' &&
+    m.voiceChannelId &&
+    voiceChannels.some((ch) => ch.id === m.voiceChannelId) &&
+    m.role !== 'owner' &&
+    (currentUserRole === 'owner' || m.role === 'member')
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent, member: ServerMember) => {
@@ -260,6 +273,34 @@ export function MembersSidebar({
               </svg>
               Kick from Server
             </button>
+          )}
+          {canMuteOrDisconnect(contextMenu.member) && (
+            <>
+              <button
+                onClick={async () => {
+                  await onMuteInVoice?.(contextMenu.member.userId)
+                  setContextMenu(null)
+                }}
+                className="w-full px-3 py-2 text-left text-sm text-app-text hover:bg-app-accent hover:text-white flex items-center gap-2"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27 6.05 7.3C6.02 7.46 6 7.62 6 7.79v4.26c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5-2.24-5-5h1.7c0 2.25 1.83 4.08 4.06 4.08.48 0 .94-.09 1.38-.24L19.73 21 21 19.73 4.27 3z"/>
+                </svg>
+                Mute in Voice
+              </button>
+              <button
+                onClick={async () => {
+                  await onDisconnectFromVoice?.(contextMenu.member.userId)
+                  setContextMenu(null)
+                }}
+                className="w-full px-3 py-2 text-left text-sm text-app-text hover:bg-app-accent hover:text-white flex items-center gap-2"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 00-2.67-1.85.996.996 0 01-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
+                </svg>
+                Disconnect from Voice
+              </button>
+            </>
           )}
           {canMoveToChannel(contextMenu.member) && (
             <div className="relative">

@@ -9,19 +9,29 @@ export function DownloadPage() {
   const [available, setAvailable] = useState<boolean | null>(null)
 
   useEffect(() => {
-    fetch(GITHUB_RELEASES_API)
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 8000)
+
+    fetch(GITHUB_RELEASES_API, { signal: controller.signal })
       .then((res) => {
-        if (!res.ok) return false
+        if (!res.ok) return null
         return res.json()
       })
       .then((data) => {
-        if (!data?.assets) return false
+        clearTimeout(timeout)
+        if (!data?.assets) {
+          setAvailable(false)
+          return
+        }
         const hasExe = data.assets.some((a: { name: string }) =>
           a.name === 'NepsisChat-Setup.exe'
         )
         setAvailable(hasExe)
       })
-      .catch(() => setAvailable(false))
+      .catch(() => {
+        clearTimeout(timeout)
+        setAvailable(false)
+      })
   }, [])
 
   return (

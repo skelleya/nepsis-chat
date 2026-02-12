@@ -4,7 +4,7 @@ import { MicIcon, MicOffIcon, HeadphonesIcon, HeadphonesOffIcon } from './icons/
 import type { UserStatus } from '../contexts/AppContext'
 
 interface UserPanelProps {
-  user: { id: string; username: string; avatar_url?: string; banner_url?: string; is_guest?: boolean }
+  user: { id: string; username: string; display_name?: string | null; avatar_url?: string; banner_url?: string; is_guest?: boolean }
   isMuted: boolean
   isDeafened: boolean
   isSpeaking?: boolean
@@ -13,7 +13,7 @@ interface UserPanelProps {
   onToggleMute: () => void
   onToggleDeafen: () => void
   onLogout: () => void
-  onUserUpdate?: (data: { username?: string; avatar_url?: string; banner_url?: string }) => void
+  onUserUpdate?: (data: { username?: string; display_name?: string | null; avatar_url?: string; banner_url?: string }) => void
 }
 
 const STATUS_COLORS: Record<UserStatus, string> = {
@@ -58,6 +58,7 @@ export function UserPanel({
 
   const displayStatus = userStatus === 'online' && isSpeaking ? 'Speaking' : STATUS_LABELS[userStatus]
   const statusColor = userStatus === 'online' && isSpeaking ? 'bg-[#23a559]' : STATUS_COLORS[userStatus]
+  const displayName = (user.display_name && user.display_name.trim()) || user.username
 
   return (
     <>
@@ -72,10 +73,10 @@ export function UserPanel({
               isSpeaking ? 'ring-2 ring-[#23a559] shadow-[0_0_12px_rgba(35,165,89,0.8)]' : ''
             }`}>
               {user.avatar_url ? (
-                <img key={user.avatar_url} src={user.avatar_url} alt={user.username} className="w-8 h-8 rounded-full object-cover" />
+                <img key={user.avatar_url} src={user.avatar_url} alt={displayName} className="w-8 h-8 rounded-full object-cover" />
               ) : (
                 <div className="w-8 h-8 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-sm">
-                  {user.username.charAt(0).toUpperCase()}
+                  {displayName.charAt(0).toUpperCase()}
                 </div>
               )}
               <div
@@ -86,7 +87,7 @@ export function UserPanel({
             </div>
             <div className="min-w-0">
               <div className="text-sm font-semibold text-white truncate leading-tight flex items-center gap-1.5">
-                <span className="truncate">{user.username}</span>
+                <span className="truncate">{displayName}</span>
                 {isMuted && <MicOffIcon size={12} className="text-red-400 flex-shrink-0" />}
                 {isDeafened && <HeadphonesOffIcon size={12} className="text-red-400 flex-shrink-0" />}
               </div>

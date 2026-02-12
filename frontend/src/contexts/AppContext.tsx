@@ -21,6 +21,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 interface User {
   id: string
   username: string
+  display_name?: string | null
   email?: string
   avatar_url?: string
   banner_url?: string
@@ -83,6 +84,7 @@ interface AppContextValue {
   currentChannelId: string | null
   login: (username: string) => Promise<void>
   loginWithEmail: (email: string, password: string) => Promise<void>
+  loginWithUsername: (username: string, password: string) => Promise<void>
   logout: () => Promise<void>
   setCurrentServer: (id: string) => void
   setCurrentChannel: (id: string) => void
@@ -300,6 +302,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!data.session?.user) throw new Error('No session returned')
   }, [])
 
+  // Username + password login (backend looks up email, returns session; we set it locally)
+  const loginWithUsername = useCallback(async (username: string, password: string) => {
+    if (!supabase) throw new Error('Email auth not configured')
+    const { access_token, refresh_token } = await api.loginWithUsername(username, password)
+    const { error } = await supabase.auth.setSession({ access_token, refresh_token })
+    if (error) throw error
+  }, [])
+
   const logout = useCallback(async () => {
     const wasGuest = user?.is_guest
     const guestId = user?.id
@@ -431,13 +441,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           [channelId]: [...(prev[channelId] || []), msg],
         }))
       } catch {
+        const displayName = (user.display_name && user.display_name.trim()) || user.username
         const tempMsg: Message = {
           id: 'temp-' + Date.now(),
           channel_id: channelId,
           user_id: user.id,
           content,
           created_at: new Date().toISOString(),
-          username: user.username,
+          username: displayName,
           reply_to_id: options?.replyToId,
           attachments: options?.attachments,
         }
@@ -1093,6 +1104,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         reorderServers: reorderServersFn,
         login,
         loginWithEmail,
+        loginWithUsername,
         logout,
         setCurrentServer,
         setCurrentChannel,

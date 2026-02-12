@@ -17,8 +17,10 @@ interface VoiceContextValue {
   isConnected: boolean
   isMuted: boolean
   isDeafened: boolean
+  isSoundboardMuted: boolean
   setIsMuted: (v: boolean) => void
   setIsDeafened: (v: boolean) => void
+  setIsSoundboardMuted: (v: boolean) => void
   isCameraOn: boolean
   isScreenSharing: boolean
   toggleCamera: () => Promise<void>
@@ -26,6 +28,8 @@ interface VoiceContextValue {
   videoStream: MediaStream | null
   screenStream: MediaStream | null
   participants: VoiceParticipant[]
+  /** User IDs that have left (peer-left) — exclude from presence merge to avoid ghost "Connecting..." */
+  leftUserIds: Set<string>
   localStream: MediaStream | null
   isSpeaking: boolean      // local user speaking detection
   ping: number | null       // latency in ms
@@ -53,6 +57,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
   const [isMuted, setIsMuted] = useState(false)
   const [isDeafened, setIsDeafened] = useState(false)
+  const [isSoundboardMuted, setIsSoundboardMuted] = useState(false)
   const [isCameraOn, setIsCameraOn] = useState(false)
   const [isScreenSharing, setIsScreenSharing] = useState(false)
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null)
@@ -60,11 +65,15 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   const [error, setError] = useState<string | null>(null)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [ping, setPing] = useState<number | null>(null)
+  const [leftUserIds, setLeftUserIds] = useState<Set<string>>(new Set())
 
   const webrtcRef = useRef<ReturnType<typeof createWebRTCClient> | null>(null)
   const signalingRef = useRef<ReturnType<typeof createBroadcastSignaling> | ReturnType<typeof createSocketSignaling> | null>(null)
   const isDeafenedRef = useRef(false)
+  const isSoundboardMutedRef = useRef(false)
+  const playingSoundboardRef = useRef<Map<string, HTMLAudioElement>>(new Map())
   isDeafenedRef.current = isDeafened
+  isSoundboardMutedRef.current = isSoundboardMuted
 
   const addOrUpdateParticipant = useCallback((pUserId: string, pUsername: string, stream: MediaStream | null, isSpeaking = false) => {
     setParticipants((prev) => {
@@ -77,6 +86,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   }, [])
 
   const removeParticipant = useCallback((peerId: string) => {
+    setLeftUserIds((prev) => new Set(prev).add(peerId))
     setParticipants((prev) => prev.filter((p) => p.userId !== peerId))
   }, [])
 
@@ -92,12 +102,14 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     setVideoStream(null)
     setScreenStream(null)
     setParticipants([])
+    setLeftUserIds(new Set())
     setVoiceChannelId(null)
     setVoiceChannelName(null)
     setIsCameraOn(false)
     setIsScreenSharing(false)
     setIsMuted(false)
     setIsDeafened(false)
+    setIsSoundboardMuted(false)
     setIsSpeaking(false)
     setPing(null)
     setError(null)
@@ -214,13 +226,33 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     return () => unsub?.()
   }, [voiceChannelId, leaveVoice, joinVoice])
 
+  // ─── Admin mute listener (when an admin force-mutes this user) ─
+  useEffect(() => {
+    const signaling = signalingRef.current
+    if (!signaling || !voiceChannelId) return
+    const unsub = (signaling as { onAdminMute?: (cb: () => void) => () => void }).onAdminMute?.(() => {
+      setIsMuted(true)
+    })
+    return () => unsub?.()
+  }, [voiceChannelId])
+
+  // ─── Admin disconnect listener (when an admin disconnects this user from voice) ─
+  useEffect(() => {
+    const signaling = signalingRef.current
+    if (!signaling || !voiceChannelId) return
+    const unsub = (signaling as { onAdminDisconnect?: (cb: () => void) => () => void }).onAdminDisconnect?.(() => {
+      leaveVoice()
+    })
+    return () => unsub?.()
+  }, [voiceChannelId, leaveVoice])
+
   // ─── Soundboard play listener (receive and play sounds from peers) ─
   useEffect(() => {
     const signaling = signalingRef.current
     const sig = signaling as { onSoundboardPlay?: (cb: (d: { soundUrl: string }) => void) => () => void }
     if (!sig?.onSoundboardPlay) return
     const unsub = sig.onSoundboardPlay(({ soundUrl }) => {
-      if (isDeafenedRef.current) return
+      if (isDeafenedRef.current || isSoundboardMutedRef.current) return
       const audio = new Audio(soundUrl)
       audio.volume = 0.8
       audio.play().catch(() => {})
@@ -309,9 +341,17 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     const sig = signalingRef.current as { emitSoundboardPlay?: (url: string) => void } | null
     if (sig?.emitSoundboardPlay) {
       sig.emitSoundboardPlay(soundUrl)
-      if (!isDeafenedRef.current) {
+      if (!isDeafenedRef.current && !isSoundboardMutedRef.current) {
+        // Restart on spam-click: stop any existing playback for this URL
+        const existing = playingSoundboardRef.current.get(soundUrl)
+        if (existing) {
+          existing.pause()
+          existing.currentTime = 0
+        }
         const audio = new Audio(soundUrl)
         audio.volume = 0.8
+        playingSoundboardRef.current.set(soundUrl, audio)
+        audio.addEventListener('ended', () => playingSoundboardRef.current.delete(soundUrl))
         audio.play().catch(() => {})
       }
     }
@@ -325,8 +365,10 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         isConnected,
         isMuted,
         isDeafened,
+        isSoundboardMuted,
         setIsMuted,
         setIsDeafened,
+        setIsSoundboardMuted,
         isCameraOn,
         isScreenSharing,
         toggleCamera,
@@ -334,6 +376,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         videoStream,
         screenStream,
         participants,
+        leftUserIds,
         localStream,
         isSpeaking,
         ping,

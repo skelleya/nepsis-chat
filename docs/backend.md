@@ -8,7 +8,8 @@ Node.js + Express + Socket.io + SQLite.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/auth/login` | Login with username, returns user |
+| POST | `/api/auth/login` | Guest login with username, returns user |
+| POST | `/api/auth/signin-username` | Sign in with username + password (registered users; returns session tokens) |
 | GET | `/api/servers` | List servers (ordered by user's `display_order` in `server_members`) |
 | PUT | `/api/servers/reorder` | Reorder user's server list (`userId`, `updates: [{ serverId, order }]`) |
 | GET | `/api/servers/:id/channels` | List channels for server |
@@ -22,15 +23,18 @@ Node.js + Express + Socket.io + SQLite.
 | POST | `/api/servers/:id/join` | Join server (`userId`) |
 | GET | `/api/servers/:id/members` | List members with roles & presence |
 | DELETE | `/api/servers/:id/members/:userId` | Kick user (`?kickerUserId=`) — owner/admin only |
+| POST | `/api/servers/:id/members/:userId/mute-voice` | Mute user in voice (`adminUserId`) — owner/admin only; emits admin-mute to target socket |
+| POST | `/api/servers/:id/members/:userId/disconnect-voice` | Disconnect user from voice (`adminUserId`) — owner/admin only; clears presence, emits admin-disconnect-from-voice |
 | POST | `/api/servers/:id/members/:userId/move-voice` | Move user to another voice channel (`targetChannelId`, `adminUserId`) — owner/admin only |
 | PATCH | `/api/servers/:id/channels/:channelId` | Update channel (`order`, `name`, `categoryId`) |
 | PUT | `/api/servers/:id/channels/reorder` | Bulk reorder channels (`updates: [{ id, order }]`) |
+| GET | `/api/users/lookup` | Lookup user by username (`?username=`) — for Add Friend; case-insensitive |
 | PUT | `/api/users/:id/presence` | Update presence (`status`: online, away, dnd, offline, in-voice; `voiceChannelId`) |
-| PATCH | `/api/users/:id` | Update profile (`username`, `avatar_url`, `banner_url`) |
+| PATCH | `/api/users/:id` | Update profile (`username`, `display_name`, `avatar_url`, `banner_url`) |
 | GET | `/api/users/:id/profiles` | List user profiles (personal, work) |
 | PUT | `/api/users/:id/profiles` | Upsert profile (`profile_type`, `display_name`, `avatar_url`, `banner_url`) |
 | POST | `/api/dm/conversations` | Create or get DM between two users (`userId`, `targetUserId`) |
-| GET | `/api/friends/list` | List friends (`?userId=`) |
+| GET | `/api/friends/list` | List friends (`?userId=`) — includes `status` (online/in-voice/away/dnd/offline) from user_presence |
 | GET | `/api/friends/requests` | List pending friend requests (`?userId=`) |
 | POST | `/api/friends/accept` | Accept friend request (`userId`, `requesterId`) |
 | POST | `/api/friends/decline` | Decline friend request (`userId`, `requesterId`) |
@@ -44,7 +48,8 @@ Node.js + Express + Socket.io + SQLite.
 | GET | `/api/version` | App version |
 | POST | `/api/bug-reports` | Submit bug report (`userId`, `username`, `email`, `title`, `description`, `url`) — public |
 | GET | `/api/soundboard` | List user soundboard sounds (`?userId=`) |
-| POST | `/api/soundboard` | Upload soundboard sound (multipart: `file`, `userId`, `name`) — max 10s, MP3/WAV/OGG/WebM/M4A |
+| POST | `/api/soundboard` | Upload soundboard sound (multipart: `file`, `userId`, `name`, `emoji`?) — max 10s, MP3/WAV/OGG/WebM/M4A |
+| PATCH | `/api/soundboard/:id` | Update soundboard sound (JSON: `userId`, `emoji`) — change emoji |
 | DELETE | `/api/soundboard/:id` | Delete soundboard sound (`?userId=`) |
 | GET | `/api/servers/:id/rules-acceptance` | Check if user accepted rules (`?userId=`) — for channel lock |
 
@@ -60,7 +65,7 @@ Node.js + Express + Socket.io + SQLite.
 
 | Table | Columns |
 |-------|---------|
-| users | id, username, avatar_url, banner_url, created_at |
+| users | id, username, display_name, avatar_url, banner_url, created_at — display_name shown in UI; migration `20250211000013_user_display_name.sql` |
 | servers | id, name, icon_url, owner_id |
 | channels | id, server_id, name, type (text/voice/rules), order |
 | servers | + rules_channel_id, lock_channels_until_rules_accepted, rules_accept_emoji |
@@ -74,7 +79,7 @@ Node.js + Express + Socket.io + SQLite.
 | server_invites | code, server_id, created_by, expires_at, max_uses, use_count, created_at — see migration `20250211000004_server_invites_audit.sql` |
 | server_audit_log | id, server_id, user_id, action, details (JSONB), created_at — see migration `20250211000004_server_invites_audit.sql` |
 | bug_reports | id, user_id, username, email, title, description, url, user_agent, status (pending/reviewed/resolved/wontfix), created_at — see migration `20250211000008_bug_reports.sql` |
-| soundboard_sounds | id, user_id, name, url, duration_seconds, storage_path, created_at — max 10s audio; migration `20250211000009_soundboard_sounds.sql` |
+| soundboard_sounds | id, user_id, name, url, duration_seconds, storage_path, emoji, created_at — max 10s audio; emoji shown on each sound; migration `20250211000009_soundboard_sounds.sql`, `20250211000014_soundboard_emoji.sql` |
 
 **File:** `backend/data.sqlite` (legacy) — Supabase Postgres used in production
 
@@ -110,6 +115,8 @@ Node.js + Express + Socket.io + SQLite.
 | soundboard-play | Client → Server | soundUrl, userId, username — play sound to all peers in room |
 | soundboard-play | Server → Client | soundUrl, userId, username — broadcast to room |
 | admin-move-to-channel | Server → Client | channelId, channelName — emitted to target user when admin moves them to another voice channel |
+| admin-mute | Server → Client | — emitted to target user when admin force-mutes them |
+| admin-disconnect-from-voice | Server → Client | — emitted to target user when admin disconnects them from voice |
 
 ### `/calls` (DM private calls)
 

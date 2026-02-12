@@ -43,7 +43,7 @@ soundboardRouter.get('/', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('soundboard_sounds')
-      .select('id, name, url, duration_seconds')
+      .select('id, name, url, duration_seconds, emoji')
       .eq('user_id', userId)
       .order('created_at', { ascending: true })
 
@@ -59,10 +59,11 @@ soundboardRouter.get('/', async (req, res) => {
 
 // Upload soundboard sound (max 10 seconds)
 soundboardRouter.post('/', upload.single('file'), async (req, res) => {
-  const { userId, name } = req.body
+  const { userId, name, emoji } = req.body
   if (!userId || !name || !req.file) {
     return res.status(400).json({ error: 'userId, name, and file required' })
   }
+  const emojiVal = (emoji && String(emoji).trim().slice(0, 8)) || '🔊'
 
   try {
     let durationSeconds = 0
@@ -107,8 +108,9 @@ soundboardRouter.post('/', upload.single('file'), async (req, res) => {
         url: urlData.publicUrl,
         duration_seconds: Math.round(durationSeconds * 100) / 100,
         storage_path: uploadData.path,
+        emoji: emojiVal,
       })
-      .select('id, name, url, duration_seconds')
+      .select('id, name, url, duration_seconds, emoji')
       .single()
 
     if (insertError) throw insertError
@@ -116,6 +118,31 @@ soundboardRouter.post('/', upload.single('file'), async (req, res) => {
   } catch (err) {
     console.error('Soundboard upload error:', err)
     res.status(500).json({ error: err?.message || 'Failed to upload sound' })
+  }
+})
+
+// Update soundboard sound (emoji)
+soundboardRouter.patch('/:id', async (req, res) => {
+  const { id } = req.params
+  const { userId, emoji } = req.body
+  if (!userId) return res.status(400).json({ error: 'userId required' })
+
+  try {
+    const emojiVal = (emoji && String(emoji).trim().slice(0, 8)) || '🔊'
+    const { data, error } = await supabase
+      .from('soundboard_sounds')
+      .update({ emoji: emojiVal })
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select('id, name, url, duration_seconds, emoji')
+      .single()
+
+    if (error) throw error
+    if (!data) return res.status(404).json({ error: 'Sound not found' })
+    res.json(data)
+  } catch (err) {
+    console.error('Soundboard update error:', err)
+    res.status(500).json({ error: 'Failed to update sound' })
   }
 })
 

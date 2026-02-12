@@ -246,7 +246,7 @@ export function DMView({
               return (
                 <div
                   key={msg.id}
-                  className={`group flex gap-3 w-full ${isMe ? 'flex-row-reverse justify-end' : 'justify-start'} ${isNextFromSameSender ? 'mb-1.5' : 'mb-5'}`}
+                  className={`group flex gap-3 w-full ${isMe ? 'flex-row-reverse justify-end' : 'justify-start'} ${isNextFromSameSender ? 'mb-1.5' : 'mb-3'}`}
                 >
                   <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-bold flex-shrink-0 overflow-hidden ${avatarUrl ? 'bg-transparent' : 'bg-app-channel'} ${isFromSameSender ? 'opacity-0 invisible' : ''}`}>
                     {avatarUrl ? (

@@ -36,6 +36,46 @@ authRouter.post('/login', async (req, res) => {
   }
 })
 
+// Sign in with username + password (for registered users; looks up email server-side)
+authRouter.post('/signin-username', async (req, res) => {
+  const { username, password } = req.body
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password required' })
+  }
+  try {
+    // Look up non-guest user by username
+    const { data: appUser, error: userError } = await supabase
+      .from('users')
+      .select('id, username, email, auth_id')
+      .eq('username', username.trim())
+      .eq('is_guest', false)
+      .not('auth_id', 'is', null)
+      .maybeSingle()
+
+    if (userError || !appUser?.email) {
+      return res.status(401).json({ error: 'Invalid username or password' })
+    }
+
+    // Sign in via Supabase Auth (email + password)
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: appUser.email,
+      password,
+    })
+
+    if (authError || !authData?.session) {
+      return res.status(401).json({ error: 'Invalid username or password' })
+    }
+
+    res.json({
+      access_token: authData.session.access_token,
+      refresh_token: authData.session.refresh_token,
+    })
+  } catch (err) {
+    console.error('Username sign-in error:', err)
+    res.status(500).json({ error: 'Sign-in failed' })
+  }
+})
+
 // Email login/register — via Supabase Auth token
 authRouter.post('/auth/callback', async (req, res) => {
   const { auth_id, email, username } = req.body
@@ -136,7 +176,7 @@ authRouter.get('/users', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('users')
-      .select('id, username, avatar_url, is_guest')
+      .select('id, username, display_name, avatar_url, is_guest')
     if (error) throw error
     res.json(data)
   } catch (err) {

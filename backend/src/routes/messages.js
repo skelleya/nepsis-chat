@@ -3,10 +3,14 @@ import supabase from '../db/supabase.js'
 
 export const messagesRouter = Router()
 
+function displayName(u) {
+  return (u?.display_name && u.display_name.trim()) || u?.username || 'Unknown'
+}
+
 function formatMessage(m) {
   return {
     ...m,
-    username: m.users?.username || 'Unknown',
+    username: displayName(m.users),
     users: undefined,
   }
 }
@@ -19,7 +23,7 @@ messagesRouter.get('/channel/:channelId', async (req, res) => {
   try {
     let query = supabase
       .from('messages')
-      .select('*, users!messages_user_id_fkey(username)')
+      .select('*, users!messages_user_id_fkey(username, display_name)')
       .eq('channel_id', channelId)
       .order('created_at', { ascending: false })
       .limit(limit)
@@ -40,10 +44,10 @@ messagesRouter.get('/channel/:channelId', async (req, res) => {
     if (replyToIds.length > 0) {
       const { data: replyMsgs } = await supabase
         .from('messages')
-        .select('id, content, user_id, users!messages_user_id_fkey(username)')
+        .select('id, content, user_id, users!messages_user_id_fkey(username, display_name)')
         .in('id', replyToIds)
       ;(replyMsgs || []).forEach((m) => {
-        replyToMap[m.id] = { username: m.users?.username || 'Unknown', content: (m.content || '').slice(0, 100) }
+        replyToMap[m.id] = { username: displayName(m.users), content: (m.content || '').slice(0, 100) }
       })
     }
 
@@ -78,7 +82,7 @@ messagesRouter.get('/single/:id', async (req, res) => {
   try {
     const { data: m, error } = await supabase
       .from('messages')
-      .select('*, users!messages_user_id_fkey(username)')
+      .select('*, users!messages_user_id_fkey(username, display_name)')
       .eq('id', id)
       .single()
     if (error || !m) return res.status(404).json({ error: 'Message not found' })
@@ -87,10 +91,10 @@ messagesRouter.get('/single/:id', async (req, res) => {
     if (m.reply_to_id) {
       const { data: parent } = await supabase
         .from('messages')
-        .select('id, content, user_id, users!messages_user_id_fkey(username)')
+        .select('id, content, user_id, users!messages_user_id_fkey(username, display_name)')
         .eq('id', m.reply_to_id)
         .single()
-      if (parent) replyTo = { username: parent.users?.username || 'Unknown', content: (parent.content || '').slice(0, 100) }
+      if (parent) replyTo = { username: displayName(parent.users), content: (parent.content || '').slice(0, 100) }
     }
 
     const { data: reactions } = await supabase
@@ -144,7 +148,7 @@ messagesRouter.post('/', async (req, res) => {
 
     const { data: msg, error: fetchError } = await supabase
       .from('messages')
-      .select('*, users!messages_user_id_fkey(username)')
+      .select('*, users!messages_user_id_fkey(username, display_name)')
       .eq('id', id)
       .single()
 
@@ -154,10 +158,10 @@ messagesRouter.post('/', async (req, res) => {
     if (msg.reply_to_id) {
       const { data: parent } = await supabase
         .from('messages')
-        .select('id, content, users!messages_user_id_fkey(username)')
+        .select('id, content, users!messages_user_id_fkey(username, display_name)')
         .eq('id', msg.reply_to_id)
         .single()
-      if (parent) replyTo = { username: parent.users?.username || 'Unknown', content: (parent.content || '').slice(0, 100) }
+      if (parent) replyTo = { username: displayName(parent.users), content: (parent.content || '').slice(0, 100) }
     }
     const { data: reactions } = await supabase.from('message_reactions').select('message_id, user_id, emoji').eq('message_id', id)
 
@@ -193,7 +197,7 @@ messagesRouter.patch('/:id', async (req, res) => {
       .from('messages')
       .update({ content: String(content).trim(), edited_at: new Date().toISOString() })
       .eq('id', id)
-      .select('*, users!messages_user_id_fkey(username)')
+      .select('*, users!messages_user_id_fkey(username, display_name)')
       .single()
 
     if (error) throw error

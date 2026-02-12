@@ -14,6 +14,11 @@ interface VoiceViewProps {
   /** Users in this channel from presence (sidebar) — ensures we show them even before WebRTC connects */
   voiceUsersInChannel?: { userId: string; username: string; avatar_url?: string }[]
   onInvitePeople?: () => Promise<void>
+  /** Admin/owner: mute and disconnect users in voice */
+  isAdminOrOwner?: boolean
+  serverId?: string
+  onMuteMember?: (userId: string) => Promise<void>
+  onDisconnectMember?: (userId: string) => Promise<void>
 }
 
 /** Detect if a video track is from screen share (getDisplayMedia) vs camera (getUserMedia) */
@@ -172,6 +177,9 @@ function ParticipantCard({
   isDeafened,
   isCameraOn,
   currentUserId,
+  isAdminOrOwner,
+  onMuteMember,
+  onDisconnectMember,
 }: {
   participant: { userId: string; username: string; stream: MediaStream | null; isSpeaking: boolean }
   avatarUrl?: string
@@ -183,7 +191,12 @@ function ParticipantCard({
   isDeafened: boolean
   isCameraOn: boolean
   currentUserId: string
+  isAdminOrOwner?: boolean
+  onMuteMember?: (userId: string) => Promise<void>
+  onDisconnectMember?: (userId: string) => Promise<void>
 }) {
+  const [showMenu, setShowMenu] = useState(false)
+  const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
   const detectStream = isLocal ? localStream : participant.stream
   const speaking = useSpeakingDetector(detectStream, isLocal ? !isMuted : true)
 
@@ -199,10 +212,58 @@ function ParticipantCard({
 
   const showVideo = isLocal ? isCameraOn && !!localVideoStream : hasRemoteVideo && !!participantVideoStream
 
+  const showAdminMenu = !isLocal && isAdminOrOwner && (onMuteMember || onDisconnectMember)
+
   return (
-    <div className={`relative flex flex-col items-center justify-center rounded-xl bg-app-dark/60 overflow-hidden border transition-all duration-150 min-h-[160px] flex-1 ${
+    <div
+      className={`relative flex flex-col items-center justify-center rounded-xl bg-app-dark/60 overflow-hidden border transition-all duration-150 min-h-[160px] flex-1 ${
       speaking ? 'border-[#23a559] shadow-[0_0_12px_rgba(35,165,89,0.3)]' : 'border-app-hover/50'
-    }`}>
+    }`}
+      onContextMenu={(e) => {
+        if (showAdminMenu) {
+          e.preventDefault()
+          setMenuPos({ x: e.clientX, y: e.clientY })
+          setShowMenu(true)
+        }
+      }}
+    >
+      {showAdminMenu && showMenu && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+              <div
+                className="fixed z-50 bg-[#111214] rounded-lg shadow-xl py-1 min-w-[180px] border border-app-hover/30"
+                style={{ left: menuPos.x, top: menuPos.y }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {onMuteMember && (
+                  <button
+                    onClick={async () => {
+                      await onMuteMember(participant.userId)
+                      setShowMenu(false)
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-app-text hover:bg-app-accent hover:text-white flex items-center gap-2"
+                  >
+                    <MicOffIcon size={14} />
+                    Mute
+                  </button>
+                )}
+                {onDisconnectMember && (
+                  <button
+                    onClick={async () => {
+                      await onDisconnectMember(participant.userId)
+                      setShowMenu(false)
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/20 flex items-center gap-2"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 00-2.67-1.85.996.996 0 01-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
+                    </svg>
+                    Disconnect
+                  </button>
+                )}
+              </div>
+            </>
+          )}
       {showVideo ? (
         <div className="flex-1 w-full relative bg-black min-h-0">
           {isLocal && localVideoStream ? (
@@ -270,7 +331,7 @@ function ParticipantCard({
   )
 }
 
-export function VoiceView({ channel, currentUserId, currentUsername, currentUserAvatarUrl, voiceUsersInChannel = [], onInvitePeople }: VoiceViewProps) {
+export function VoiceView({ channel, currentUserId, currentUsername, currentUserAvatarUrl, voiceUsersInChannel = [], onInvitePeople, isAdminOrOwner, serverId, onMuteMember, onDisconnectMember }: VoiceViewProps) {
   const voice = useVoice()
   const {
     participants,
@@ -278,6 +339,8 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
     setIsMuted,
     isDeafened,
     setIsDeafened,
+    isSoundboardMuted,
+    setIsSoundboardMuted,
     isCameraOn,
     isScreenSharing,
     toggleCamera,
@@ -286,6 +349,7 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
     screenStream,
     leaveVoice,
     voiceChannelId,
+    leftUserIds,
     localStream,
     playSoundboardSound,
     error,
@@ -313,6 +377,7 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
     participantByUserId.set(p.userId, p)
   }
   for (const vu of voiceUsersInChannel) {
+    if (leftUserIds.has(vu.userId)) continue // Exclude users who left (peer-left) — prevents ghost "Connecting..."
     if (!participantByUserId.has(vu.userId)) {
       participantByUserId.set(vu.userId, { userId: vu.userId, username: vu.username, stream: null, isSpeaking: false })
     }
@@ -356,6 +421,9 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
               isDeafened={isDeafened}
               isCameraOn={isCameraOn}
               currentUserId={currentUserId}
+              isAdminOrOwner={isAdminOrOwner}
+              onMuteMember={onMuteMember}
+              onDisconnectMember={onDisconnectMember}
             />
           </div>
         </div>
@@ -387,6 +455,9 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
                 isDeafened={isDeafened}
                 isCameraOn={isCameraOn}
                 currentUserId={currentUserId}
+                isAdminOrOwner={isAdminOrOwner}
+                onMuteMember={onMuteMember}
+                onDisconnectMember={onDisconnectMember}
               />
             </div>
           </Panel>
@@ -414,6 +485,9 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
               isDeafened={isDeafened}
               isCameraOn={isCameraOn}
               currentUserId={currentUserId}
+              isAdminOrOwner={isAdminOrOwner}
+              onMuteMember={onMuteMember}
+              onDisconnectMember={onDisconnectMember}
             />
           ))}
         </div>
@@ -514,6 +588,17 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
                 </svg>
               </button>
             </div>
+            <button
+              onClick={() => setIsSoundboardMuted(!isSoundboardMuted)}
+              className={`p-3 rounded-full transition-colors ${
+                isSoundboardMuted ? 'bg-amber-600/80 hover:bg-amber-600 text-white' : 'bg-app-hover hover:bg-app-channel text-app-text'
+              }`}
+              title={isSoundboardMuted ? 'Unmute soundboard' : 'Mute soundboard'}
+            >
+              <span className="text-lg" title={isSoundboardMuted ? 'Soundboard muted' : 'Soundboard on'}>
+                {isSoundboardMuted ? '🔇' : '🔊'}
+              </span>
+            </button>
             <button
               onClick={() => setIsMuted(!isMuted)}
               className={`p-3 rounded-full transition-colors ${

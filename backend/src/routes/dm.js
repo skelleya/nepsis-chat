@@ -45,7 +45,7 @@ dmRouter.get('/conversations', async (req, res) => {
 
     const { data: users } = await supabase
       .from('users')
-      .select('id, username, avatar_url')
+      .select('id, username, display_name, avatar_url')
       .in('id', otherIds)
 
     const userMap = {}
@@ -59,11 +59,12 @@ dmRouter.get('/conversations', async (req, res) => {
 
     const result = (convs || []).map((c) => {
       const otherId = otherByConv[c.id]
-      const other = userMap[otherId] || { id: otherId, username: 'Unknown', avatar_url: null }
+      const other = userMap[otherId] || { id: otherId, username: 'Unknown', display_name: null, avatar_url: null }
+      const displayName = (other.display_name && other.display_name.trim()) || other.username
       return {
         id: c.id,
         created_at: c.created_at,
-        other_user: { id: other.id, username: other.username, avatar_url: other.avatar_url },
+        other_user: { id: other.id, username: displayName, avatar_url: other.avatar_url },
       }
     })
 
@@ -102,10 +103,12 @@ dmRouter.get('/conversations/:id/messages', async (req, res) => {
 
     const userIds = [...new Set((data || []).map((m) => m.user_id))]
     const { data: users } = userIds.length
-      ? await supabase.from('users').select('id, username').in('id', userIds)
+      ? await supabase.from('users').select('id, username, display_name').in('id', userIds)
       : { data: [] }
     const userMap = {}
-    for (const u of users || []) userMap[u.id] = u.username
+    for (const u of users || []) {
+      userMap[u.id] = (u.display_name && u.display_name.trim()) || u.username
+    }
 
     const result = (data || []).map((m) => ({
       id: m.id,
@@ -224,11 +227,12 @@ dmRouter.post('/conversations', async (req, res) => {
           .eq('conversation_id', convId)
         const userIds = conv?.map((c) => c.user_id) ?? []
         if (userIds.includes(userId) && userIds.includes(targetUserId)) {
-          const { data: other } = await supabase.from('users').select('id, username, avatar_url').eq('id', targetUserId).single()
+          const { data: other } = await supabase.from('users').select('id, username, display_name, avatar_url').eq('id', targetUserId).single()
+          const dn = other ? ((other.display_name && other.display_name.trim()) || other.username) : 'Unknown'
           return res.json({
             id: convId,
             created_at: new Date().toISOString(),
-            other_user: other || { id: targetUserId, username: 'Unknown', avatar_url: null },
+            other_user: other ? { id: other.id, username: dn, avatar_url: other.avatar_url } : { id: targetUserId, username: 'Unknown', avatar_url: null },
           })
         }
       }
@@ -241,11 +245,12 @@ dmRouter.post('/conversations', async (req, res) => {
       { conversation_id: id, user_id: userId },
       { conversation_id: id, user_id: targetUserId },
     ])
-    const { data: other } = await supabase.from('users').select('id, username, avatar_url').eq('id', targetUserId).single()
+    const { data: other } = await supabase.from('users').select('id, username, display_name, avatar_url').eq('id', targetUserId).single()
+    const dn = other ? ((other.display_name && other.display_name.trim()) || other.username) : 'Unknown'
     return res.json({
       id,
       created_at: new Date().toISOString(),
-      other_user: other || { id: targetUserId, username: 'Unknown', avatar_url: null },
+      other_user: other ? { id: other.id, username: dn, avatar_url: other.avatar_url } : { id: targetUserId, username: 'Unknown', avatar_url: null },
     })
   } catch (err) {
     console.error('DM create error:', err)

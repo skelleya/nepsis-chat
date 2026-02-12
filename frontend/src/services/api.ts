@@ -11,6 +11,20 @@ export async function login(username: string) {
   return res.json()
 }
 
+// Sign in with username + password (backend looks up email, returns session tokens)
+export async function loginWithUsername(username: string, password: string): Promise<{ access_token: string; refresh_token: string }> {
+  const res = await fetch(`${API_BASE}/auth/signin-username`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: username.trim(), password }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string })?.error || 'Invalid username or password')
+  }
+  return res.json()
+}
+
 // Email auth callback — links Supabase Auth user to app user
 export async function authCallback(authId: string, email: string, username?: string) {
   const res = await fetch(`${API_BASE}/auth/auth/callback`, {
@@ -354,6 +368,46 @@ export async function uploadServerEmoji(serverId: string, userId: string, name: 
   return res.json()
 }
 
+export async function muteMemberInVoice(
+  serverId: string,
+  targetUserId: string,
+  adminUserId: string
+): Promise<{ success: boolean }> {
+  const res = await fetch(
+    `${API_BASE}/servers/${serverId}/members/${targetUserId}/mute-voice`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ adminUserId }),
+    }
+  )
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to mute user')
+  }
+  return res.json()
+}
+
+export async function disconnectMemberFromVoice(
+  serverId: string,
+  targetUserId: string,
+  adminUserId: string
+): Promise<{ success: boolean }> {
+  const res = await fetch(
+    `${API_BASE}/servers/${serverId}/members/${targetUserId}/disconnect-voice`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ adminUserId }),
+    }
+  )
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to disconnect user')
+  }
+  return res.json()
+}
+
 export async function moveMemberToVoiceChannel(
   serverId: string,
   targetUserId: string,
@@ -526,7 +580,7 @@ export async function createOrGetDMConversation(userId: string, targetUserId: st
 
 // ─── Friends ───────────────────────────────────────────
 
-export async function getFriendsList(userId: string): Promise<{ id: string; username: string; avatar_url?: string }[]> {
+export async function getFriendsList(userId: string): Promise<{ id: string; username: string; avatar_url?: string; status?: 'online' | 'offline' | 'in-voice' | 'away' | 'dnd' }[]> {
   const res = await fetch(`${API_BASE}/friends/list?userId=${encodeURIComponent(userId)}`)
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
@@ -570,6 +624,13 @@ export async function declineFriendRequest(userId: string, requesterId: string):
   return res.json()
 }
 
+export async function lookupUserByUsername(username: string): Promise<{ id: string; username: string; display_name?: string | null; avatar_url?: string } | null> {
+  const res = await fetch(`${API_BASE}/users/lookup?username=${encodeURIComponent(username.trim())}`)
+  if (!res.ok) throw new Error('Failed to lookup user')
+  const data = await res.json()
+  return data
+}
+
 export async function sendFriendRequest(userId: string, targetUserId: string): Promise<{ success: boolean }> {
   const res = await fetch(`${API_BASE}/friends/request`, {
     method: 'POST',
@@ -603,7 +664,7 @@ export async function updatePresence(
 
 export async function updateUserProfile(
   userId: string,
-  data: { username?: string; avatar_url?: string; banner_url?: string }
+  data: { username?: string; display_name?: string | null; avatar_url?: string; banner_url?: string }
 ) {
   const res = await fetch(`${API_BASE}/users/${userId}`, {
     method: 'PATCH',
@@ -644,6 +705,7 @@ export interface SoundboardSound {
   name: string
   url: string
   duration_seconds: number
+  emoji?: string
 }
 
 export async function getSoundboardSounds(userId: string): Promise<SoundboardSound[]> {
@@ -658,12 +720,14 @@ export async function getSoundboardSounds(userId: string): Promise<SoundboardSou
 export async function uploadSoundboardSound(
   userId: string,
   name: string,
-  file: File
+  file: File,
+  emoji?: string
 ): Promise<SoundboardSound> {
   const form = new FormData()
   form.append('file', file)
   form.append('userId', userId)
   form.append('name', name)
+  if (emoji) form.append('emoji', emoji)
 
   const res = await fetch(`${API_BASE}/soundboard`, {
     method: 'POST',
@@ -673,6 +737,20 @@ export async function uploadSoundboardSound(
     const err = await res.json().catch(() => ({}))
     throw new Error(err?.error || 'Failed to upload sound')
   }
+  return res.json()
+}
+
+export async function updateSoundboardSound(
+  userId: string,
+  soundId: string,
+  data: { emoji?: string }
+): Promise<SoundboardSound> {
+  const res = await fetch(`${API_BASE}/soundboard/${soundId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, ...data }),
+  })
+  if (!res.ok) throw new Error('Failed to update sound')
   return res.json()
 }
 

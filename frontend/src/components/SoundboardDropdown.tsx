@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import * as api from '../services/api'
+import { EmojiPicker } from './EmojiPicker'
 
 const MAX_DURATION_SECONDS = 10
+const DEFAULT_EMOJI = '🔊'
 
 interface SoundboardDropdownProps {
   userId: string
@@ -16,6 +18,8 @@ export function SoundboardDropdown({ userId, onPlay, anchorRef, isOpen, onClose 
   const [loading, setLoading] = useState(false)
   const [adding, setAdding] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [emojiForNew, setEmojiForNew] = useState(DEFAULT_EMOJI)
+  const [emojiPickerFor, setEmojiPickerFor] = useState<string | 'new' | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -83,13 +87,23 @@ export function SoundboardDropdown({ userId, onPlay, anchorRef, isOpen, onClose 
 
       setAdding(true)
       const name = file.name.replace(/\.[^/.]+$/, '').slice(0, 32) || 'Sound'
-      const sound = await api.uploadSoundboardSound(userId, name, file)
+      const sound = await api.uploadSoundboardSound(userId, name, file, emojiForNew)
       setSounds((prev) => [...prev, sound])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed')
     } finally {
       setAdding(false)
       e.target.value = ''
+    }
+  }
+
+  const handleUpdateEmoji = async (soundId: string, emoji: string) => {
+    try {
+      const updated = await api.updateSoundboardSound(userId, soundId, { emoji })
+      setSounds((prev) => prev.map((s) => (s.id === soundId ? { ...s, emoji: updated.emoji } : s)))
+      setEmojiPickerFor(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update emoji')
     }
   }
 
@@ -107,17 +121,36 @@ export function SoundboardDropdown({ userId, onPlay, anchorRef, isOpen, onClose 
   return (
     <div
       ref={dropdownRef}
-      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 max-h-80 overflow-hidden rounded-xl bg-[#2b2d31] border border-app-hover shadow-xl z-50 flex flex-col"
+      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-80 max-h-96 overflow-hidden rounded-xl bg-[#2b2d31] border border-app-hover shadow-xl z-50 flex flex-col"
     >
-      <div className="p-2 border-b border-app-hover flex items-center justify-between">
+      <div className={`p-2 border-b border-app-hover flex items-center justify-between gap-2 ${emojiPickerFor === 'new' ? 'relative' : ''}`}>
         <span className="font-semibold text-app-text text-sm">Soundboard</span>
-        <button
-          onClick={handleAddClick}
-          disabled={adding}
-          className="px-2 py-1 rounded text-xs bg-app-accent hover:bg-app-accent-hover text-white disabled:opacity-50"
-        >
-          {adding ? 'Uploading...' : '+ Add'}
-        </button>
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-app-muted">New emoji:</span>
+          <button
+            type="button"
+            onClick={() => setEmojiPickerFor(emojiPickerFor === 'new' ? null : 'new')}
+            className="text-xl p-0.5 rounded hover:bg-app-hover/80 transition-colors"
+            title="Pick emoji for next sound"
+          >
+            {emojiForNew}
+          </button>
+          {emojiPickerFor === 'new' && (
+            <div className="absolute right-0 bottom-full mb-1 z-[60]">
+              <EmojiPicker
+                onSelect={(emoji) => { setEmojiForNew(emoji); setEmojiPickerFor(null) }}
+                onClose={() => setEmojiPickerFor(null)}
+              />
+            </div>
+          )}
+          <button
+            onClick={handleAddClick}
+            disabled={adding}
+            className="px-2 py-1 rounded text-xs bg-app-accent hover:bg-app-accent-hover text-white disabled:opacity-50"
+          >
+            {adding ? 'Uploading...' : '+ Add'}
+          </button>
+        </div>
       </div>
       <input
         ref={fileInputRef}
@@ -142,18 +175,35 @@ export function SoundboardDropdown({ userId, onPlay, anchorRef, isOpen, onClose 
             {sounds.map((s) => (
               <div
                 key={s.id}
-                className="group flex items-center gap-2 p-2 rounded-lg hover:bg-app-hover/50"
+                className={`group flex items-center gap-2 p-2 rounded-lg hover:bg-app-hover/50 ${emojiPickerFor === s.id ? 'relative' : ''}`}
               >
                 <button
-                  onClick={() => onPlay(s.url)}
-                  className="flex-1 text-left text-sm text-app-text truncate py-1 px-2 rounded bg-app-dark hover:bg-app-channel transition-colors"
-                  title={s.name}
+                  type="button"
+                  onClick={() => setEmojiPickerFor(emojiPickerFor === s.id ? null : s.id)}
+                  className="text-xl w-8 h-8 flex items-center justify-center rounded hover:bg-app-channel shrink-0"
+                  title="Change emoji"
                 >
-                  {s.name} <span className="text-app-muted text-xs">({s.duration_seconds}s)</span>
+                  {s.emoji || DEFAULT_EMOJI}
+                </button>
+                {emojiPickerFor === s.id && (
+                  <div className="absolute left-0 bottom-full mb-1 z-[60]">
+                    <EmojiPicker
+                      onSelect={(emoji) => handleUpdateEmoji(s.id, emoji)}
+                      onClose={() => setEmojiPickerFor(null)}
+                    />
+                  </div>
+                )}
+                <button
+                  onClick={() => onPlay(s.url)}
+                  className="flex-1 text-left text-sm text-app-text truncate py-1.5 px-2 rounded bg-app-dark hover:bg-app-channel transition-colors min-w-0"
+                  title={`${s.name} — click to play (spam-click restarts)`}
+                >
+                  <span className="truncate block">{s.name}</span>
+                  <span className="text-app-muted text-xs">({s.duration_seconds}s)</span>
                 </button>
                 <button
                   onClick={() => handleDelete(s.id)}
-                  className="p-1 rounded text-app-muted hover:text-red-400 hover:bg-red-900/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="p-1 rounded text-app-muted hover:text-red-400 hover:bg-red-900/30 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                   title="Delete"
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">

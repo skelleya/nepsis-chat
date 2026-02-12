@@ -511,7 +511,7 @@ serversRouter.get('/:id/members', async (req, res) => {
   try {
     const { data: members, error } = await supabase
       .from('server_members')
-      .select('user_id, role, joined_at, users(id, username, avatar_url)')
+      .select('user_id, role, joined_at, users(id, username, display_name, avatar_url)')
       .eq('server_id', req.params.id)
     if (error) throw error
 
@@ -528,7 +528,7 @@ serversRouter.get('/:id/members', async (req, res) => {
       userId: m.user_id,
       role: m.role,
       joinedAt: m.joined_at,
-      username: m.users?.username || 'Unknown',
+      username: (m.users?.display_name && m.users.display_name.trim()) || m.users?.username || 'Unknown',
       avatarUrl: m.users?.avatar_url,
       status: presenceByUser[m.user_id]?.status || 'offline',
       voiceChannelId: presenceByUser[m.user_id]?.voice_channel_id,
@@ -537,6 +537,109 @@ serversRouter.get('/:id/members', async (req, res) => {
   } catch (err) {
     console.error('Get members error:', err)
     res.status(500).json({ error: 'Failed to fetch members' })
+  }
+})
+
+// Mute user in voice (owner/admin only, target must be in voice on this server)
+serversRouter.post('/:id/members/:userId/mute-voice', async (req, res) => {
+  const { id: serverId, userId: targetUserId } = req.params
+  const { adminUserId } = req.body
+  if (!adminUserId) return res.status(400).json({ error: 'adminUserId required' })
+
+  try {
+    const { data: admin } = await supabase
+      .from('server_members')
+      .select('role')
+      .eq('server_id', serverId)
+      .eq('user_id', adminUserId)
+      .single()
+
+    if (!admin || !['owner', 'admin'].includes(admin.role)) {
+      return res.status(403).json({ error: 'Only owner or admin can mute users' })
+    }
+
+    const { data: target } = await supabase
+      .from('server_members')
+      .select('role')
+      .eq('server_id', serverId)
+      .eq('user_id', targetUserId)
+      .single()
+
+    if (!target) return res.status(404).json({ error: 'User not in server' })
+    if (target.role === 'owner') return res.status(403).json({ error: 'Cannot mute server owner' })
+    if (admin.role === 'admin' && target.role === 'admin') {
+      return res.status(403).json({ error: 'Admins cannot mute other admins' })
+    }
+
+    const voiceNs = req.app.get('voiceNamespace')
+    if (voiceNs) {
+      for (const [, socket] of voiceNs.sockets) {
+        if (socket.userId === targetUserId) {
+          socket.emit('admin-mute')
+          break
+        }
+      }
+    }
+
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Mute voice error:', err)
+    res.status(500).json({ error: 'Failed to mute user' })
+  }
+})
+
+// Disconnect user from voice (owner/admin only, target must be in voice on this server)
+serversRouter.post('/:id/members/:userId/disconnect-voice', async (req, res) => {
+  const { id: serverId, userId: targetUserId } = req.params
+  const { adminUserId } = req.body
+  if (!adminUserId) return res.status(400).json({ error: 'adminUserId required' })
+
+  try {
+    const { data: admin } = await supabase
+      .from('server_members')
+      .select('role')
+      .eq('server_id', serverId)
+      .eq('user_id', adminUserId)
+      .single()
+
+    if (!admin || !['owner', 'admin'].includes(admin.role)) {
+      return res.status(403).json({ error: 'Only owner or admin can disconnect users' })
+    }
+
+    const { data: target } = await supabase
+      .from('server_members')
+      .select('role')
+      .eq('server_id', serverId)
+      .eq('user_id', targetUserId)
+      .single()
+
+    if (!target) return res.status(404).json({ error: 'User not in server' })
+    if (target.role === 'owner') return res.status(403).json({ error: 'Cannot disconnect server owner' })
+    if (admin.role === 'admin' && target.role === 'admin') {
+      return res.status(403).json({ error: 'Admins cannot disconnect other admins' })
+    }
+
+    await supabase
+      .from('user_presence')
+      .upsert(
+        { user_id: targetUserId, status: 'online', voice_channel_id: null, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id' }
+      )
+
+    const voiceNs = req.app.get('voiceNamespace')
+    if (voiceNs) {
+      for (const [, socket] of voiceNs.sockets) {
+        if (socket.userId === targetUserId) {
+          socket.emit('admin-disconnect-from-voice')
+          break
+        }
+      }
+    }
+
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Disconnect voice error:', err)
+    res.status(500).json({ error: 'Failed to disconnect user' })
   }
 })
 
@@ -747,8 +850,8 @@ serversRouter.get('/:id/audit-log', async (req, res) => {
     const userIds = [...new Set((rows || []).map((r) => r.user_id))]
     const usernames = {}
     if (userIds.length > 0) {
-      const { data: users } = await supabase.from('users').select('id, username').in('id', userIds)
-      ;(users || []).forEach((u) => { usernames[u.id] = u.username })
+      const { data: users } = await supabase.from('users').select('id, username, display_name').in('id', userIds)
+      ;(users || []).forEach((u) => { usernames[u.id] = (u.display_name && u.display_name.trim()) || u.username })
     }
     const result = (rows || []).map((r) => ({
       id: r.id,

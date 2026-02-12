@@ -41,19 +41,21 @@ frontend/src/
 |-----------|---------|
 | VoiceIcons | Shared mic/mic-off/headphones/headphones-off SVGs (prevents clipping/snipping) |
 | ServerBar | Server list (left sidebar); click-hold-and-drag to reorder servers |
-| ChannelList | Text + voice channels; server banner shown above header when `serverBannerUrl` set; highlights text channels with new messages (white) when user isn't viewing them. **Owner/Admin:** Server Settings (Overview: icon + banner upload); **Owner:** drag categories to reorder; drag channels to reorder or move between categories; 3-dot menu on category/channel for Edit/Delete. **Admin:** drag voice users onto another voice channel to move them |
+| ChannelList | Text + voice channels; server banner shown above header when `serverBannerUrl` set; highlights text channels with new messages (white) when user isn't viewing them. **Friends view** (`isFriendsView`): shows "Friends" header, DMs list, hides server channels. **Owner/Admin:** Server Settings (Overview: icon + banner upload); **Owner:** drag categories to reorder; drag channels to reorder or move between categories; 3-dot menu on category/channel for Edit/Delete. **Admin:** drag voice users onto another voice channel to move them |
 | ChatView | Messages, input; scrolls to bottom on load; shows "New messages" indicator when scrolled up and new messages arrive; click to jump to new messages |
-| VoiceView | Voice participants, join/leave; soundboard button (custom sounds, max 10s). **Resizable layout:** screen share vs participant cameras (drag divider); single participant centered; 2–4 participants in resizable horizontal panels; remote screen shares in main area. Uses `react-resizable-panels`. |
-| SoundboardDropdown | Soundboard UI: list sounds, add, delete; plays to all peers in voice channel |
-| MembersSidebar | Online members |
+| VoiceView | Voice participants, join/leave; soundboard button (custom sounds, max 10s); **soundboard mute** (🔊/🔇) — toggle to stop hearing soundboard from others. **Resizable layout:** screen share vs participant cameras (drag divider); single participant centered; 2–4 participants in resizable horizontal panels; remote screen shares in main area. Uses `react-resizable-panels`. **Admin:** right-click participant for Mute or Disconnect. |
+| SoundboardDropdown | Soundboard UI: list sounds with emoji; add (pick emoji for new sound); edit emoji per sound; delete; plays to all peers. Spam-click restarts playback. |
+| MembersSidebar | Online members. **Admin:** right-click member in voice for Mute in Voice, Disconnect from Voice, Move to Channel. |
 | RemoteAudio | Plays remote WebRTC stream |
 | CallOverlay | DM call UI: outgoing/incoming/in-call states |
 | DMView | Direct message chat; modern UI with gradient header, rounded bubbles, relative timestamps; groups consecutive messages from same sender (avatar/name shown only on first in group); spacing: 1.5 between same-sender, 5 between different senders |
-| FriendsPage | Friends list and friend requests; opened by clicking Nepsis logo |
-| OnboardingPage | Shown when new (non-guest) user has no servers; CTAs: Create first server, Explore community; persisted via `nepsis_onboarding_completed` |
+| FriendsPage | Discord-like Friends home: tabs (All, Pending, Online, Add Friend). Add Friend by username; Online shows friends with presence. Opened by clicking Nepsis logo. When viewing a DM, stays in Friends view—sidebar shows DMs + servers |
+| CreateServerModal | Create server: name input, gradient accent bar, loading spinner, error display; used by ServerBar (+ button) and OnboardingPage |
+| UserSettingsModal | User Settings > My Account: Display name (optional, shown to others), Username (login identifier). Display name shown in UserPanel, voice, chat, DMs. |
+| OnboardingPage | Shown when new (non-guest) user has no servers; CTAs: Create first server (opens CreateServerModal), Explore community; persisted via `nepsis_onboarding_completed` |
 | CommunityPage | Explore page: invite code entry, community servers list; shown when guest has no servers or when user completes onboarding |
 | UpdateButton | Green update (Electron only) |
-| LoginPage | Username login |
+| LoginPage | Guest (username only), Sign In (email or username + password), Sign Up (email + password) |
 
 ---
 
@@ -89,7 +91,7 @@ frontend/src/
 | **New message detection** | `subscribeToAllDMMessages` in realtime.ts listens to all dm_messages |
 | **Notification** | `sounds.messageNotification()` when message arrives in non-current DM |
 | **Clear unread** | `setCurrentDM(id)` clears unread when user opens a DM |
-| **DMView** | Modern header (gradient avatar), rounded bubbles, relative timestamps (Today, Yesterday) |
+| **DMView** | Modern header (gradient avatar), rounded bubbles, relative timestamps (Today, Yesterday); spacing: mb-1.5 between same-sender messages, mb-3 between different senders |
 
 ### Files
 

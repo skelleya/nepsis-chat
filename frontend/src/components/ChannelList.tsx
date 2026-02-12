@@ -72,6 +72,8 @@ interface ChannelListProps {
   serverId?: string
   isOwner?: boolean
   hasNoServers?: boolean
+  /** When true, show "Friends" header and DMs only; hide server channels */
+  isFriendsView?: boolean
   // DM
   dmConversations?: { id: string; created_at: string; other_user: { id: string; username: string; avatar_url?: string } }[]
   currentDMId?: string | null
@@ -605,6 +607,7 @@ export function ChannelList({
   serverId,
   isOwner,
   hasNoServers,
+  isFriendsView = false,
   dmConversations = [],
   currentDMId,
   dmUnreadCounts = {},
@@ -693,7 +696,7 @@ export function ChannelList({
     <>
       <div className="flex-1 bg-app-channel flex flex-col min-h-0">
         {/* Server Banner */}
-        {serverBannerUrl && !hasNoServers && (
+        {serverBannerUrl && !hasNoServers && !isFriendsView && (
           <div className="w-full h-20 flex-shrink-0 overflow-hidden">
             <img
               src={serverBannerUrl}
@@ -702,26 +705,34 @@ export function ChannelList({
             />
           </div>
         )}
-        {/* Server Header */}
+        {/* Server / Friends Header */}
         <div className="relative">
           <button
-            onClick={() => hasNoServers ? onOpenCommunity?.() : setShowServerMenu(!showServerMenu)}
+            onClick={() => {
+              if (isFriendsView) return
+              if (hasNoServers) onOpenCommunity?.()
+              else setShowServerMenu(!showServerMenu)
+            }}
             className="w-full h-12 px-4 flex items-center justify-between border-b border-app-dark/80 text-app-text font-semibold shadow-sm hover:bg-app-hover/50 transition-colors"
           >
-            <span className="truncate">{hasNoServers ? 'Explore' : (serverName ?? 'Server')}</span>
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              className={`text-app-muted transition-transform flex-shrink-0 ${showServerMenu ? 'rotate-180' : ''}`}
-            >
-              <path d="M7 10L12 15L17 10" />
-            </svg>
+            <span className="truncate">
+              {isFriendsView ? 'Friends' : hasNoServers ? 'Explore' : (serverName ?? 'Server')}
+            </span>
+            {!isFriendsView && (
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className={`text-app-muted transition-transform flex-shrink-0 ${showServerMenu ? 'rotate-180' : ''}`}
+              >
+                <path d="M7 10L12 15L17 10" />
+              </svg>
+            )}
           </button>
 
           {/* Server dropdown menu */}
-          {showServerMenu && !hasNoServers && (
+          {showServerMenu && !hasNoServers && !isFriendsView && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowServerMenu(false)} />
               <div className="absolute top-12 left-2 right-2 z-50 bg-[#111214] rounded-lg shadow-xl p-1.5 border border-app-hover/30">
@@ -853,7 +864,13 @@ export function ChannelList({
 
         {/* Channel List */}
         <div className="flex-1 overflow-y-auto py-1 px-0.5">
-          {hasNoServers && onOpenCommunity ? (
+          {isFriendsView ? (
+            <div className="p-4 text-center">
+              <p className="text-sm text-app-muted">
+                Your DMs are listed above. Select a conversation or add friends from the Friends tab.
+              </p>
+            </div>
+          ) : hasNoServers && onOpenCommunity ? (
             <div className="p-4 text-center">
               <p className="text-sm text-app-muted mb-3">You're not in any servers yet.</p>
               <button

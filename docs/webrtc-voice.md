@@ -79,10 +79,13 @@ Each peer maintains **one combined `MediaStream`** per remote peer. All incoming
 Users can play custom audio clips (max 10 seconds) to all peers in a voice channel. Flow:
 
 1. User uploads sounds via Soundboard UI (attachments bucket, `soundboard/{userId}/`)
-2. In voice, user clicks a sound → `emitSoundboardPlay(soundUrl)` via Socket.io
-3. Backend broadcasts `soundboard-play` to room (including sender)
-4. All peers receive event → play audio locally (unless deafened)
-5. Works only with Socket.io signaling (BroadcastChannel has no soundboard)
+2. Each sound has an emoji (default 🔊; pick when adding or click to edit)
+3. In voice, user clicks a sound → `emitSoundboardPlay(soundUrl)` via Socket.io
+4. Backend broadcasts `soundboard-play` to room (including sender)
+5. All peers receive event → play audio locally (unless deafened or soundboard muted)
+6. Spam-click restarts the sound from the beginning
+7. Per-user soundboard mute (🔊/🔇) in voice bar — lets users stop hearing soundboard without deafening
+8. Works only with Socket.io signaling (BroadcastChannel has no soundboard)
 
 ### Resizable Voice Layout (Voice UI v6)
 

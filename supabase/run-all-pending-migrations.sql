@@ -276,3 +276,16 @@ CREATE POLICY "Public read attachments"
 ON storage.objects FOR SELECT
 TO public
 USING (bucket_id = 'attachments');
+
+-- ============================================================
+-- Migration 14: User display name
+-- ============================================================
+-- Display name shown in UI; username stays for login
+ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT;
+
+-- ============================================================
+-- Migration 15: Soundboard emoji
+-- ============================================================
+ALTER TABLE soundboard_sounds ADD COLUMN IF NOT EXISTS emoji TEXT DEFAULT '🔊';
+DROP POLICY IF EXISTS "Users can update own soundboard sounds" ON soundboard_sounds;
+CREATE POLICY "Users can update own soundboard sounds" ON soundboard_sounds FOR UPDATE USING (true) WITH CHECK (true);

@@ -11,7 +11,7 @@ export function LoginPage() {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
-  const { login, loginWithEmail } = useApp()
+  const { login, loginWithEmail, loginWithUsername } = useApp()
 
   const handleGuestSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,6 +35,11 @@ export function LoginPage() {
 
     try {
       if (mode === 'signup') {
+        if (!email.includes('@')) {
+          setError('Please enter a valid email to create an account')
+          setLoading(false)
+          return
+        }
         if (!supabase) throw new Error('Email auth not configured')
         const { error: signUpError } = await supabase.auth.signUp({
           email,
@@ -43,7 +48,12 @@ export function LoginPage() {
         if (signUpError) throw signUpError
         setMessage('Check your email for a confirmation link!')
       } else {
-        await loginWithEmail(email, password)
+        // Support sign-in with email or username
+        if (email.includes('@')) {
+          await loginWithEmail(email, password)
+        } else {
+          await loginWithUsername(email.trim(), password)
+        }
       }
     } catch (err: any) {
       setError(err?.message || 'Authentication failed')
@@ -130,12 +140,12 @@ export function LoginPage() {
         ) : (
           <form onSubmit={handleEmailSubmit} className="space-y-6">
             <div className="space-y-3">
-              <label className="block text-sm text-app-muted">Email</label>
+              <label className="block text-sm text-app-muted">Email or username</label>
               <input
-                type="email"
+                type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
+                placeholder="you@example.com or username"
                 className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent"
               />
             </div>

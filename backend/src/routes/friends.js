@@ -35,11 +35,39 @@ friendsRouter.get('/list', async (req, res) => {
     const friendIds = rows.map((r) => (r.requester_id === userId ? r.addressee_id : r.requester_id))
     const { data: users, error: usersErr } = await supabase
       .from('users')
-      .select('id, username, avatar_url')
+      .select('id, username, display_name, avatar_url')
       .in('id', friendIds)
 
     if (usersErr) throw usersErr
-    return res.json(users || [])
+
+    // Fetch presence for friends (online status)
+    try {
+      const { data: presence } = await supabase
+        .from('user_presence')
+        .select('user_id, status')
+        .in('user_id', friendIds)
+      const presenceByUser = {}
+      ;(presence || []).forEach((p) => { presenceByUser[p.user_id] = p.status })
+      const displayName = (u) => (u?.display_name && u.display_name.trim()) || u?.username || 'Unknown'
+      return res.json(
+        (users || []).map((u) => ({
+          id: u.id,
+          username: displayName(u),
+          avatar_url: u.avatar_url,
+          status: presenceByUser[u.id] || 'offline',
+        }))
+      )
+    } catch {
+      const displayName = (u) => (u?.display_name && u.display_name.trim()) || u?.username || 'Unknown'
+      return res.json(
+        (users || []).map((u) => ({
+          id: u.id,
+          username: displayName(u),
+          avatar_url: u.avatar_url,
+          status: 'offline',
+        }))
+      )
+    }
   } catch (err) {
     console.error('Friends list error:', err)
     if (isTableMissingError(err)) {
@@ -73,18 +101,22 @@ friendsRouter.get('/requests', async (req, res) => {
     const requesterIds = rows.map((r) => r.requester_id)
     const { data: users, error: usersErr } = await supabase
       .from('users')
-      .select('id, username, avatar_url')
+      .select('id, username, display_name, avatar_url')
       .in('id', requesterIds)
 
     if (usersErr) throw usersErr
     const userMap = {}
     for (const u of users || []) userMap[u.id] = u
+    const displayName = (u) => (u?.display_name && u.display_name.trim()) || u?.username || 'Unknown'
     return res.json(
-      rows.map((r) => ({
-        requester_id: r.requester_id,
-        created_at: r.created_at,
-        user: userMap[r.requester_id] || { id: r.requester_id, username: 'Unknown', avatar_url: null },
-      }))
+      rows.map((r) => {
+        const u = userMap[r.requester_id] || { id: r.requester_id, username: 'Unknown', display_name: null, avatar_url: null }
+        return {
+          requester_id: r.requester_id,
+          created_at: r.created_at,
+          user: { id: u.id, username: displayName(u), avatar_url: u.avatar_url },
+        }
+      })
     )
   } catch (err) {
     console.error('Friend requests error:', err)

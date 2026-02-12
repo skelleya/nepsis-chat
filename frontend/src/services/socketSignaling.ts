@@ -100,6 +100,16 @@ export function createSocketSignaling(
     return () => socket.off('admin-move-to-channel', callback)
   }
 
+  const onAdminMute = (callback: () => void) => {
+    socket.on('admin-mute', callback)
+    return () => socket.off('admin-mute', callback)
+  }
+
+  const onAdminDisconnect = (callback: () => void) => {
+    socket.on('admin-disconnect-from-voice', callback)
+    return () => socket.off('admin-disconnect-from-voice', callback)
+  }
+
   const emitSoundboardPlay = (soundUrl: string) => {
     socket.emit('soundboard-play', { soundUrl, userId, username })
   }
@@ -109,5 +119,5 @@ export function createSocketSignaling(
     return () => socket.off('soundboard-play', callback)
   }
 
-  return { sendOffer, sendAnswer, sendIceCandidate, onMessage, join, leave, close, getSocketId, onAdminMove, emitSoundboardPlay, onSoundboardPlay }
+  return { sendOffer, sendAnswer, sendIceCandidate, onMessage, join, leave, close, getSocketId, onAdminMove, onAdminMute, onAdminDisconnect, emitSoundboardPlay, onSoundboardPlay }
 }

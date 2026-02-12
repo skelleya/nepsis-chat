@@ -61,9 +61,10 @@ function AppContent() {
 
   if (!user) return <LoginPage />
 
+  const displayName = (user.display_name && user.display_name.trim()) || user.username
   return (
-    <VoiceProvider userId={user.id} username={user.username}>
-      <CallProvider userId={user.id} username={user.username}>
+    <VoiceProvider userId={user.id} username={displayName}>
+      <CallProvider userId={user.id} username={displayName}>
       <MainLayout
         user={user}
         servers={servers}
@@ -103,7 +104,7 @@ function AppContent() {
 }
 
 interface MainLayoutProps {
-  user: { id: string; username: string; avatar_url?: string; banner_url?: string; is_guest?: boolean }
+  user: { id: string; username: string; display_name?: string | null; avatar_url?: string; banner_url?: string; is_guest?: boolean }
   servers: { id: string; name: string; icon_url?: string; banner_url?: string; owner_id: string; rules_channel_id?: string | null; lock_channels_until_rules_accepted?: boolean; rules_accept_emoji?: string }[]
   channels: { id: string; server_id: string; name: string; type: 'text' | 'voice'; order: number; category_id?: string | null }[]
   categories: { id: string; server_id: string; name: string; order: number }[]
@@ -171,6 +172,7 @@ function MainLayout({
 }: MainLayoutProps) {
   const voice = useVoice()
   const call = useCall()
+  const currentDisplayName = (user.display_name && user.display_name.trim()) || user.username
   const [showServerSettings, setShowServerSettings] = useState(false)
   const savedView = (() => {
     try {
@@ -218,9 +220,9 @@ function MainLayout({
         } else if (v.view === 'friends') {
           setShowFriends(true)
           setShowCommunity(false)
-        } else if (v.view === 'dm' && v.dmId) {
+        } else if ((v.view === 'dm' || v.view === 'friends') && v.dmId) {
           setShowCommunity(false)
-          setShowFriends(false)
+          setShowFriends(true)
           setCurrentDM(v.dmId)
         } else {
           setShowCommunity(false)
@@ -448,7 +450,7 @@ function MainLayout({
         // Add current user at the top
         voiceUsers[voice.voiceChannelId].unshift({
           userId: user.id,
-          username: user.username,
+          username: currentDisplayName,
           avatar_url: user.avatar_url,
           isMuted: voice.isMuted,
           isDeafened: voice.isDeafened,
@@ -512,6 +514,7 @@ function MainLayout({
       <ServerBar
         servers={servers.map((s) => ({ id: s.id, name: s.name, iconUrl: s.icon_url, bannerUrl: s.banner_url, ownerId: s.owner_id }))}
         currentServerId={currentServerId}
+        isFriendsActive={showFriends}
         onSelectServer={(id) => {
           setShowCommunity(false)
           setShowFriends(false)
@@ -576,6 +579,7 @@ function MainLayout({
           isOwner={currentServer?.owner_id === user.id || currentUserRole === 'owner'}
           isAdminOrOwner={currentUserRole === 'owner' || currentUserRole === 'admin'}
           hasNoServers={servers.length === 0}
+          isFriendsView={showFriends}
           dmConversations={dmConversations}
           currentDMId={currentDMId}
           dmUnreadCounts={dmUnreadCounts}
@@ -583,9 +587,9 @@ function MainLayout({
           onSelectDM={(id) => {
             setCurrentDM(id)
             setShowCommunity(false)
-            setShowFriends(false)
+            setShowFriends(true)
             try {
-              localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'dm', dmId: id }))
+              localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'friends', dmId: id }))
             } catch { /* ignore */ }
           }}
         />
@@ -604,7 +608,7 @@ function MainLayout({
       </div>
 
       {/* Main content */}
-      {showFriends ? (
+      {showFriends && !currentDMId ? (
         <FriendsPage
           onClose={() => {
             setShowFriends(false)
@@ -616,13 +620,13 @@ function MainLayout({
           }}
           onOpenDM={async (userId, username) => {
             const dmId = await openDM(userId, username)
-            setShowFriends(false)
             if (dmId) {
               try {
-                localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'dm', dmId }))
+                localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'friends', dmId }))
               } catch { /* ignore */ }
             }
           }}
+          stayOnFriendsWhenOpeningDM
         />
       ) : currentDMId ? (
         (() => {
@@ -689,7 +693,7 @@ function MainLayout({
             attachments: m.attachments,
             reactions: m.reactions?.map((r: { user_id: string; emoji: string }) => ({ userId: r.user_id, emoji: r.emoji })),
           }))}
-          users={[{ id: user.id, username: user.username, status: 'online' as const }]}
+          users={[{ id: user.id, username: currentDisplayName, status: 'online' as const }]}
           onSendMessage={(content, options) => sendMessage(currentChannel.id, content, options)}
           currentUserId={user.id}
           isAdminOrOwner={currentUserRole === 'owner' || currentUserRole === 'admin'}
@@ -700,10 +704,32 @@ function MainLayout({
         <VoiceView
           channel={{ id: currentChannel.id, name: currentChannel.name, type: currentChannel.type, serverId: currentChannel.server_id, order: currentChannel.order }}
           currentUserId={user.id}
-          currentUsername={user.username}
+          currentUsername={currentDisplayName}
           currentUserAvatarUrl={user.avatar_url}
           voiceUsersInChannel={voiceUsers[currentChannel.id] || []}
           onInvitePeople={handleInvitePeople}
+          isAdminOrOwner={currentUserRole === 'owner' || currentUserRole === 'admin'}
+          serverId={currentServerId ?? undefined}
+          onMuteMember={async (targetUserId) => {
+            if (!currentServerId) return
+            try {
+              await api.muteMemberInVoice(currentServerId, targetUserId, user.id)
+              showNotification('User muted in voice')
+            } catch (e) {
+              showNotification((e as Error).message, 'error')
+            }
+          }}
+          onDisconnectMember={async (targetUserId) => {
+            if (!currentServerId) return
+            try {
+              await api.disconnectMemberFromVoice(currentServerId, targetUserId, user.id)
+              showNotification('User disconnected from voice')
+              const updated = await api.getServerMembers(currentServerId)
+              setServerMembers(updated)
+            } catch (e) {
+              showNotification((e as Error).message, 'error')
+            }
+          }}
         />
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center text-app-muted">
@@ -754,6 +780,26 @@ function MainLayout({
           try {
             await api.moveMemberToVoiceChannel(currentServerId, targetUserId, channelId, user.id)
             showNotification('User moved to voice channel')
+            const updated = await api.getServerMembers(currentServerId)
+            setServerMembers(updated)
+          } catch (e) {
+            showNotification((e as Error).message, 'error')
+          }
+        }}
+        onMuteInVoice={async (targetUserId) => {
+          if (!currentServerId) return
+          try {
+            await api.muteMemberInVoice(currentServerId, targetUserId, user.id)
+            showNotification('User muted in voice')
+          } catch (e) {
+            showNotification((e as Error).message, 'error')
+          }
+        }}
+        onDisconnectFromVoice={async (targetUserId) => {
+          if (!currentServerId) return
+          try {
+            await api.disconnectMemberFromVoice(currentServerId, targetUserId, user.id)
+            showNotification('User disconnected from voice')
             const updated = await api.getServerMembers(currentServerId)
             setServerMembers(updated)
           } catch (e) {

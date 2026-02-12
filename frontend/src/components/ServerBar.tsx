@@ -28,6 +28,7 @@ interface ServerBarProps {
   canCreateServer?: boolean
   onOpenCommunity?: () => void
   onOpenFriends?: () => void
+  isFriendsActive?: boolean
 }
 
 const SERVER_PREFIX = 'server-'
@@ -93,7 +94,7 @@ function SortableServerIcon({ server, isActive, onClick }: { server: Server; isA
   )
 }
 
-export function ServerBar({ servers, currentServerId, onSelectServer, onCreateServer, onReorderServers, canCreateServer = true, onOpenCommunity, onOpenFriends }: ServerBarProps) {
+export function ServerBar({ servers, currentServerId, onSelectServer, onCreateServer, onReorderServers, canCreateServer = true, onOpenCommunity, onOpenFriends, isFriendsActive = false }: ServerBarProps) {
   const [showCreateModal, setShowCreateModal] = useState(false)
 
   const sensors = useSensors(
@@ -127,7 +128,7 @@ export function ServerBar({ servers, currentServerId, onSelectServer, onCreateSe
               <SortableServerIcon
                 key={server.id}
                 server={server}
-                isActive={currentServerId === server.id}
+                isActive={!isFriendsActive && currentServerId === server.id}
                 onClick={() => onSelectServer(server.id)}
               />
             ))}
@@ -138,7 +139,7 @@ export function ServerBar({ servers, currentServerId, onSelectServer, onCreateSe
           <SortableServerIcon
             key={server.id}
             server={server}
-            isActive={currentServerId === server.id}
+            isActive={!isFriendsActive && currentServerId === server.id}
             onClick={() => onSelectServer(server.id)}
           />
         ))
@@ -151,10 +152,16 @@ export function ServerBar({ servers, currentServerId, onSelectServer, onCreateSe
       <div className="w-[72px] min-w-[72px] bg-app-dark flex flex-col items-center py-3 gap-2 flex-shrink-0 overflow-x-hidden">
         {/* Home / Friends button */}
         <div className="relative group">
-          <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-1 rounded-r-full bg-white transition-all h-0 group-hover:h-5" />
+          <div className={`absolute -left-3 top-1/2 -translate-y-1/2 w-1 rounded-r-full bg-white transition-all ${
+            isFriendsActive ? 'h-10' : 'h-0 group-hover:h-5'
+          }`} />
           <button
             onClick={() => onOpenFriends?.()}
-            className="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-app-channel hover:bg-app-accent flex items-center justify-center cursor-pointer transition-all duration-200"
+            className={`w-12 h-12 flex items-center justify-center cursor-pointer transition-all duration-200 ${
+              isFriendsActive
+                ? 'bg-app-accent rounded-[16px]'
+                : 'rounded-[24px] hover:rounded-[16px] bg-app-channel hover:bg-app-accent'
+            }`}
             title="Friends"
           >
             <img src="./logo.png" alt="Nepsis" className="w-7 h-7 object-contain" />

@@ -3,6 +3,35 @@ import supabase from '../db/supabase.js'
 
 export const usersRouter = Router()
 
+// Lookup user by username (for Add Friend, etc.) — must be before /:id routes
+usersRouter.get('/lookup', async (req, res) => {
+  const { username } = req.query
+  if (!username || typeof username !== 'string') {
+    return res.status(400).json({ error: 'username query required' })
+  }
+  const q = username.trim()
+  if (!q) return res.status(400).json({ error: 'username cannot be empty' })
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, username, display_name, avatar_url')
+      .ilike('username', q)
+      .limit(1)
+      .maybeSingle()
+    if (error) throw error
+    if (!data) return res.json(null)
+    return res.json({
+      id: data.id,
+      username: data.username,
+      display_name: data.display_name,
+      avatar_url: data.avatar_url,
+    })
+  } catch (err) {
+    console.error('User lookup error:', err)
+    res.status(500).json({ error: 'Failed to lookup user' })
+  }
+})
+
 // Update presence (online, offline, in-voice)
 usersRouter.put('/:id/presence', async (req, res) => {
   const { id } = req.params
@@ -28,14 +57,15 @@ usersRouter.put('/:id/presence', async (req, res) => {
   }
 })
 
-// Update user profile (username, avatar_url, banner_url) — own account only
+// Update user profile (username, display_name, avatar_url, banner_url) — own account only
 usersRouter.patch('/:id', async (req, res) => {
   const { id } = req.params
-  const { username, avatar_url, banner_url } = req.body
+  const { username, display_name, avatar_url, banner_url } = req.body
 
   try {
     const updates = {}
     if (typeof username === 'string' && username.trim().length > 0) updates.username = username.trim()
+    if (display_name !== undefined) updates.display_name = typeof display_name === 'string' ? (display_name.trim() || null) : null
     if (typeof avatar_url === 'string') updates.avatar_url = avatar_url || null
     if (typeof banner_url === 'string') updates.banner_url = banner_url || null
 

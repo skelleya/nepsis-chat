@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { useApp } from '../contexts/AppContext'
+import { CreateServerModal } from '../components/CreateServerModal'
 
 interface OnboardingPageProps {
   onExplore: () => void
@@ -9,17 +11,18 @@ const ONBOARDING_COMPLETED_KEY = 'nepsis_onboarding_completed'
 export function OnboardingPage({ onExplore }: OnboardingPageProps) {
   const { user, createServer } = useApp()
   const isGuest = user?.is_guest ?? false
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
-  const handleCreateServer = async () => {
+  const handleCreateServer = async (name: string) => {
     try {
-      const name = prompt('Server name:')
-      if (!name?.trim()) return
-      await createServer(name.trim())
+      await createServer(name)
       try {
         localStorage.setItem(ONBOARDING_COMPLETED_KEY, 'true')
       } catch { /* ignore */ }
+      setShowCreateModal(false)
     } catch (e) {
       console.error('Create server failed:', e)
+      throw e
     }
   }
 
@@ -44,7 +47,7 @@ export function OnboardingPage({ onExplore }: OnboardingPageProps) {
         </div>
 
         <h1 className="text-2xl font-bold text-white text-center mb-3">
-          Welcome to Nepsis{user?.username ? `, ${user.username}` : ''}
+          Welcome to Nepsis{user ? `, ${(user.display_name && user.display_name.trim()) || user.username}` : ''}
         </h1>
         <p className="text-app-muted text-center mb-8 leading-relaxed">
           Nepsis is your place to talk — voice chat, text channels, and DMs.
@@ -54,7 +57,7 @@ export function OnboardingPage({ onExplore }: OnboardingPageProps) {
         <div className="flex flex-col gap-4 w-full">
           {!isGuest && (
             <button
-              onClick={handleCreateServer}
+              onClick={() => setShowCreateModal(true)}
               className="w-full py-3.5 px-6 rounded-xl bg-app-accent hover:bg-app-accent-hover text-white font-semibold transition-colors flex items-center justify-center gap-2"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -83,6 +86,13 @@ export function OnboardingPage({ onExplore }: OnboardingPageProps) {
           You can always create a server or join via invite later from the sidebar.
         </p>
       </div>
+
+      {showCreateModal && (
+        <CreateServerModal
+          onClose={() => setShowCreateModal(false)}
+          onCreate={handleCreateServer}
+        />
+      )}
     </div>
   )
 }

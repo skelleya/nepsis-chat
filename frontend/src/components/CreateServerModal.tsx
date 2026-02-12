@@ -26,73 +26,99 @@ export function CreateServerModal({ onClose, onCreate }: CreateServerModalProps)
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="create-server-title"
+    >
       <div
-        className="bg-[#313338] rounded-xl w-[440px] shadow-2xl overflow-hidden"
+        className="relative w-full max-w-[480px] mx-4 rounded-2xl bg-[#313338] shadow-2xl shadow-black/50 ring-1 ring-white/5 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="p-6 pb-2 text-center">
-          <h2 className="text-2xl font-bold text-white">Create a Server</h2>
-          <p className="text-app-muted text-sm mt-2">
-            Your server is where you and your friends hang out. Make yours and start talking. Requires an email account.
-          </p>
-        </div>
+        {/* Gradient accent bar */}
+        <div className="h-1 bg-gradient-to-r from-app-accent via-app-accent/80 to-app-online" />
 
-        {error && (
-          <div className="mx-6 mb-2 p-3 rounded bg-red-500/20 text-red-300 text-sm">
-            {error}
+        <div className="p-6 sm:p-8">
+          {/* Header */}
+          <div className="flex items-start gap-4 mb-6">
+            <div className="flex-shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-app-accent/30 to-app-accent/10 flex items-center justify-center border border-app-accent/20">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="text-app-accent">
+                <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 id="create-server-title" className="text-xl font-bold text-white mb-1">
+                Create your server
+              </h2>
+              <p className="text-sm text-app-muted leading-relaxed">
+                Your server is where you and your friends hang out. Make yours and start talking.
+              </p>
+            </div>
           </div>
-        )}
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6">
-          <div className="mb-6">
-            {/* Server icon placeholder */}
-            <div className="flex justify-center mb-6">
-              <div className="w-20 h-20 rounded-full border-2 border-dashed border-app-muted flex items-center justify-center cursor-pointer hover:border-app-text transition-colors">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-app-muted">
-                  <path d="M12 4C11.4477 4 11 4.44772 11 5V8H5C4.44772 8 4 8.44772 4 9C4 9.55228 4.44772 10 5 10H11V16C11 16.5523 11.4477 17 12 17C12.5523 17 13 16.5523 13 16V10H19C19.5523 10 20 9.55228 20 9C20 8.44772 19.5523 8 19 8H13V5C13 4.44772 12.5523 4 12 4Z" fill="currentColor"/>
-                  <path d="M4 14C4 13.4477 4.44772 13 5 13H7C7.55228 13 8 13.4477 8 14V19C8 19.5523 7.55228 20 7 20H5C4.44772 20 4 19.5523 4 19V14Z" fill="currentColor"/>
-                </svg>
-              </div>
+          {error && (
+            <div className="mb-4 flex items-center gap-2 rounded-lg bg-red-500/15 px-4 py-3 text-sm text-red-300">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="flex-shrink-0">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 8v4M12 16h.01" strokeLinecap="round" />
+              </svg>
+              {error}
+            </div>
+          )}
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label htmlFor="server-name" className="block text-xs font-semibold text-app-muted uppercase tracking-wider mb-2">
+                Server name
+              </label>
+              <input
+                id="server-name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. My Awesome Server"
+                className="w-full px-4 py-3 bg-[#1e1f22] rounded-lg text-app-text text-base placeholder:text-app-muted/50 outline-none focus:ring-2 focus:ring-app-accent focus:ring-offset-2 focus:ring-offset-[#313338] transition-shadow"
+                autoFocus
+                disabled={loading}
+              />
             </div>
 
-            <label className="block text-xs font-bold text-app-muted uppercase tracking-wider mb-2">
-              Server Name
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="My Awesome Server"
-              className="w-full px-3 py-2.5 bg-[#1e1f22] border-none rounded-[3px] text-app-text text-base outline-none focus:ring-2 focus:ring-app-accent placeholder:text-app-muted/50"
-              autoFocus
-            />
-          </div>
+            <p className="text-xs text-app-muted leading-relaxed">
+              By creating a server, you agree to Nepsis Chat&apos;s Community Guidelines.
+            </p>
 
-          <p className="text-xs text-app-muted mb-4">
-            By creating a server, you agree to Nepsis Chat's Community Guidelines.
-          </p>
-
-          {/* Buttons */}
-          <div className="flex justify-between items-center">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-app-text hover:underline text-sm"
-            >
-              Back
-            </button>
-            <button
-              type="submit"
-              disabled={!name.trim() || loading}
-              className="px-6 py-2.5 bg-app-accent hover:bg-app-accent-hover text-white rounded-[3px] text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Creating...' : 'Create'}
-            </button>
-          </div>
-        </form>
+            {/* Actions */}
+            <div className="flex flex-col-reverse sm:flex-row justify-between items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2.5 text-sm font-medium text-app-muted hover:text-app-text transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!name.trim() || loading}
+                className="w-full sm:w-auto px-6 py-2.5 rounded-lg bg-app-accent hover:bg-app-accent-hover text-white font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-app-accent min-w-[140px]"
+              >
+                {loading ? (
+                  <span className="inline-flex items-center gap-2">
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Creating…
+                  </span>
+                ) : (
+                  'Create server'
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   )
