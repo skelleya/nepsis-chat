@@ -34,6 +34,8 @@ export function createWebRTCClient(
   const peers = new Map<string, { pc: RTCPeerConnection; userId?: string; username?: string; remoteStream: MediaStream }>()
   // Reverse map: userId → socketId, so we can look up peers by either key
   const userIdToSocketId = new Map<string, string>()
+  // Buffer ICE candidates that arrive before the remote description is set
+  const pendingCandidates = new Map<string, RTCIceCandidateInit[]>()
   let currentLocalStream: MediaStream | null = null
   const isSocketMode = !!signaling.getSocketId
 
@@ -155,6 +157,7 @@ export function createWebRTCClient(
       }
 
       await entry.pc.setRemoteDescription(new RTCSessionDescription(sdp))
+      await flushCandidates(from, entry.pc)
       const answer = await entry.pc.createAnswer()
       await entry.pc.setLocalDescription(answer)
       if (entry.pc.localDescription) signaling.sendAnswer(from, entry.pc.localDescription)
@@ -172,14 +175,32 @@ export function createWebRTCClient(
     if (entry.pc.signalingState !== 'have-local-offer') return
     try {
       await entry.pc.setRemoteDescription(new RTCSessionDescription(sdp))
+      await flushCandidates(from, entry.pc)
     } catch (err) {
       console.warn('setRemoteDescription (answer) failed for', from, err)
+    }
+  }
+
+  // Flush any ICE candidates that were buffered while waiting for remote description
+  const flushCandidates = async (peerId: string, pc: RTCPeerConnection) => {
+    const queued = pendingCandidates.get(peerId)
+    if (!queued || queued.length === 0) return
+    pendingCandidates.delete(peerId)
+    for (const c of queued) {
+      try { await pc.addIceCandidate(new RTCIceCandidate(c)) } catch { /* ignore late candidates */ }
     }
   }
 
   const handleIceCandidate = async (from: string, candidate: RTCIceCandidateInit) => {
     const entry = peers.get(from)
     if (!entry) return
+    // Buffer if remote description isn't set yet
+    if (!entry.pc.remoteDescription) {
+      const buf = pendingCandidates.get(from) || []
+      buf.push(candidate)
+      pendingCandidates.set(from, buf)
+      return
+    }
     try {
       await entry.pc.addIceCandidate(new RTCIceCandidate(candidate))
     } catch (err) {
@@ -274,6 +295,7 @@ export function createWebRTCClient(
     peers.forEach(({ pc }) => pc.close())
     peers.clear()
     userIdToSocketId.clear()
+    pendingCandidates.clear()
     signaling.leave()
     signaling.close()
   }
