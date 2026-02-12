@@ -92,6 +92,7 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | **This machine has exhausted its maximum restart attempts (10)** | App process exits immediately on startup; Fly.io retries until limit. | **Most likely: missing Supabase secrets.** Set secrets: `fly secrets set SUPABASE_URL=https://YOUR_PROJECT.supabase.co SUPABASE_SERVICE_ROLE_KEY=your_service_role_key` (replace with your values). Then `fly deploy`. Check logs: `fly logs --app nepsis-chat`. |
 | Machine restart loop | Backend `process.exit(1)` when `SUPABASE_URL` or `SUPABASE_SERVICE_ROLE_KEY` are missing | Set both secrets via `fly secrets set`. Get keys from Supabase Dashboard → Settings → API. |
 | Volume mount error | `nepsis_data` volume missing or wrong region | Create volume: `fly volumes create nepsis_data --region ord --size 1` |
+| **CORS — "No 'Access-Control-Allow-Origin' header"** when frontend (nepsischat.vercel.app) calls API (nepsis-chat.fly.dev) | (1) Fly.io returns 502/503 before app starts (cold start, app asleep). (2) Backend env `CORS_ORIGINS` overridden by Fly secrets. (3) Unhandled error response missing CORS headers. | **Solutions**: (1) Run `npm run deploy` to redeploy backend. Ensure `fly.toml` has `CORS_ORIGINS = '*'` in [env]. If using Fly secrets, don't set `CORS_ORIGINS` unless you include Vercel domains. (2) Backend now sets CORS headers on all responses (404, 500, errors). (3) If app is cold-starting (min_machines_running=0), first request may fail; retry after a few seconds. |
 
 ---
 

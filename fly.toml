@@ -8,6 +8,7 @@ primary_region = 'ord'
   NODE_ENV = 'production'
   PORT = '8080'
   DATA_DIR = '/data'
+  # Allow all for dev; for production can use: https://nepsischat.vercel.app,https://nepsis-chat.vercel.app
   CORS_ORIGINS = '*'
 
 [http_service]

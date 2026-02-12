@@ -33,7 +33,7 @@ const allowedOrigins = allowAll
      'https://nepsischat.vercel.app', 'https://nepsis-chat.vercel.app',
      ...rawOrigins.split(',').map((o) => o.trim()).filter(Boolean)]
 
-app.use((req, res, next) => {
+function setCorsHeaders(req, res) {
   const origin = req.headers.origin
   const allowed = allowAll
     ? (origin || '*')
@@ -42,6 +42,10 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   if (allowed !== '*') res.setHeader('Access-Control-Allow-Credentials', 'true')
+}
+
+app.use((req, res, next) => {
+  setCorsHeaders(req, res)
   if (req.method === 'OPTIONS') return res.sendStatus(204)
   next()
 })
@@ -71,6 +75,19 @@ app.use('/api/dm', dmRouter)
 app.use('/api/friends', friendsRouter)
 app.use('/api/invites', invitesRouter)
 app.use('/api/version', versionRouter)
+
+// 404 — ensure CORS headers on unknown routes
+app.use((req, res) => {
+  setCorsHeaders(req, res)
+  res.status(404).json({ error: 'Not found' })
+})
+
+// Global error handler — ensure CORS headers on all error responses
+app.use((err, req, res, next) => {
+  setCorsHeaders(req, res)
+  console.error('Unhandled error:', err)
+  res.status(500).json({ error: 'Internal server error' })
+})
 
 // Updates are on GitHub Releases — Fly only serves API and Socket.io
 
