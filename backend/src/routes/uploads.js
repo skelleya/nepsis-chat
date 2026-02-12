@@ -41,7 +41,7 @@ uploadsRouter.post('/', upload.single('file'), async (req, res) => {
 
   try {
     const ext = (req.file.originalname.split('.').pop() || 'bin').slice(0, 10)
-    const name = `${crypto.randomUUID()}.${ext}`
+    const name = `uploads/${crypto.randomUUID()}.${ext}`
 
     const { data, error } = await supabase.storage
       .from(BUCKET)
@@ -56,13 +56,18 @@ uploadsRouter.post('/', upload.single('file'), async (req, res) => {
           error: 'Storage not configured. Create an "attachments" bucket in Supabase Dashboard > Storage.',
         })
       }
-      throw error
+      console.error('Supabase storage upload error:', error)
+      return res.status(500).json({
+        error: error.message || 'Failed to upload file',
+      })
     }
 
     const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(data.path)
     res.json({ url: urlData.publicUrl, path: data.path })
   } catch (err) {
     console.error('Upload error:', err)
-    res.status(500).json({ error: 'Failed to upload file' })
+    res.status(500).json({
+      error: err.message || 'Failed to upload file',
+    })
   }
 })

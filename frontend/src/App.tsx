@@ -573,7 +573,7 @@ function MainLayout({
           onInvitePeople={handleInvitePeople}
           onOpenCommunity={openCommunityView}
           serverId={currentServerId ?? undefined}
-          isOwner={currentServer?.owner_id === user.id}
+          isOwner={currentServer?.owner_id === user.id || currentUserRole === 'owner'}
           isAdminOrOwner={currentUserRole === 'owner' || currentUserRole === 'admin'}
           hasNoServers={servers.length === 0}
           dmConversations={dmConversations}

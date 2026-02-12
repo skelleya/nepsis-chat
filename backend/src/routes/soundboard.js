@@ -51,7 +51,9 @@ soundboardRouter.get('/', async (req, res) => {
     res.json(data || [])
   } catch (err) {
     console.error('Soundboard list error:', err)
-    res.status(500).json({ error: 'Failed to fetch soundboard' })
+    const msg = err?.message || 'Failed to fetch soundboard'
+    const hint = msg.includes('does not exist') ? ' Run migration 20250211000009_soundboard_sounds.sql in Supabase.' : ''
+    res.status(500).json({ error: msg + hint })
   }
 })
 

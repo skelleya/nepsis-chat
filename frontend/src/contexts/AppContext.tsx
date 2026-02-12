@@ -536,12 +536,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [user, loadServers])
 
   const updateServerFn = useCallback(async (serverId: string, data: { name?: string; icon_url?: string; banner_url?: string; rules_channel_id?: string | null; lock_channels_until_rules_accepted?: boolean; rules_accept_emoji?: string; updatedBy?: string }) => {
-    try {
-      await api.updateServer(serverId, data)
-      await loadServers()
-    } catch (err) {
-      console.error('Failed to update server:', err)
-    }
+    await api.updateServer(serverId, data)
+    await loadServers()
   }, [loadServers])
 
   const deleteServerFn = useCallback(async (serverId: string) => {
@@ -562,15 +558,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const reorderServersFn = useCallback(
     async (updates: { serverId: string; order: number }[]) => {
-      if (!user?.id) return
+      if (!user?.id || updates.length === 0) return
+      const orderMap = new Map(updates.map((u) => [u.serverId, u.order]))
+      const reordered = [...servers].sort(
+        (a, b) => (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999)
+      )
+      setServers(reordered)
       try {
         await api.reorderServers(user.id, updates)
         await loadServers()
       } catch (err) {
         console.error('Failed to reorder servers:', err)
+        await loadServers()
       }
     },
-    [user?.id, loadServers]
+    [user?.id, loadServers, servers]
   )
 
   // ─── Channel CRUD ─────────────────────────────────────

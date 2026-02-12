@@ -75,7 +75,10 @@ export async function updateServer(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
-  if (!res.ok) throw new Error('Failed to update server')
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to update server')
+  }
   return res.json()
 }
 
@@ -93,7 +96,10 @@ export async function reorderServers(userId: string, updates: { serverId: string
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId, updates }),
   })
-  if (!res.ok) throw new Error('Failed to reorder servers')
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to reorder servers')
+  }
   return res.json()
 }
 
@@ -642,7 +648,10 @@ export interface SoundboardSound {
 
 export async function getSoundboardSounds(userId: string): Promise<SoundboardSound[]> {
   const res = await fetch(`${API_BASE}/soundboard?userId=${encodeURIComponent(userId)}`)
-  if (!res.ok) throw new Error('Failed to fetch soundboard')
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to fetch soundboard')
+  }
   return res.json()
 }
 

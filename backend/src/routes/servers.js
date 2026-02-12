@@ -209,10 +209,14 @@ serversRouter.patch('/:id', async (req, res) => {
       .eq('id', req.params.id)
       .select()
       .single()
-    if (error) throw error
+    if (error) {
+      console.error('Server update error:', error)
+      return res.status(500).json({ error: error.message || 'Failed to update server' })
+    }
     res.json(data)
   } catch (err) {
-    res.status(500).json({ error: 'Failed to update server' })
+    console.error('Failed to update server:', err)
+    res.status(500).json({ error: err.message || 'Failed to update server' })
   }
 })
 

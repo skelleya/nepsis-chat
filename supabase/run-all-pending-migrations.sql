@@ -266,3 +266,13 @@ CREATE POLICY "Anyone can delete rules_acceptances" ON rules_acceptances FOR DEL
 ALTER TABLE server_members ADD COLUMN IF NOT EXISTS display_order INTEGER;
 DROP POLICY IF EXISTS "Anyone can update server_members" ON server_members;
 CREATE POLICY "Anyone can update server_members" ON server_members FOR UPDATE USING (true) WITH CHECK (true);
+
+-- ============================================================
+-- Migration 13: storage.objects policy for attachments bucket (public read)
+-- ============================================================
+-- Allows banner/icon URLs to load when displayed (without this, images return 403)
+DROP POLICY IF EXISTS "Public read attachments" ON storage.objects;
+CREATE POLICY "Public read attachments"
+ON storage.objects FOR SELECT
+TO public
+USING (bucket_id = 'attachments');
