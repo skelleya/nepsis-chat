@@ -12,7 +12,14 @@ export function createSocketSignaling(
   userId: string,
   username: string
 ) {
-  const socket = io(`${SOCKET_URL}/voice`, { autoConnect: true })
+  const socket = io(`${SOCKET_URL}/voice`, {
+    autoConnect: true,
+    withCredentials: true,
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 10000,
+    transports: ['websocket', 'polling'],
+  })
 
   const waitForConnect = () =>
     new Promise<void>((resolve) => {

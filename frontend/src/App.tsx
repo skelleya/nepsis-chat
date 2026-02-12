@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import * as api from './services/api'
+import { subscribeToServerMembers, unsubscribe } from './services/realtime'
 import { AppProvider, useApp } from './contexts/AppContext'
 import { VoiceProvider, useVoice } from './contexts/VoiceContext'
 import { CallProvider, useCall } from './contexts/CallContext'
@@ -161,12 +162,18 @@ function MainLayout({
     api.getServerEmojis(currentServerId).then(setServerEmojis).catch(() => setServerEmojis([]))
   }, [currentServerId])
 
+  // Track if a full refresh is already in progress to avoid duplicate fetches
+  const membersRefreshRef = useRef(false)
+
   useEffect(() => {
     if (!currentServerId || !user) {
       setServerMembers([])
       return
     }
+
     const load = async () => {
+      if (membersRefreshRef.current) return
+      membersRefreshRef.current = true
       try {
         const members = await api.getServerMembers(currentServerId)
         const isMember = members.some((m: ServerMember) => m.userId === user.id)
@@ -177,13 +184,30 @@ function MainLayout({
         setServerMembers(members)
       } catch {
         setServerMembers([])
+      } finally {
+        membersRefreshRef.current = false
       }
     }
+
+    // Initial fetch
     load()
-    // Poll faster when in voice so sidebar updates quickly when someone joins/leaves
-    const ms = voice.voiceChannelId ? 800 : 5000
+
+    // Subscribe to realtime changes on server_members for INSTANT join/leave updates
+    const channel = subscribeToServerMembers(currentServerId, (_payload) => {
+      // Any member change (join/leave/role update) → refetch full member list
+      // (includes presence, voice state, avatar, etc. that realtime payload doesn't carry)
+      load()
+    })
+
+    // Light fallback poll for presence/voice status changes (not in realtime publication).
+    // Faster when in voice so sidebar voice indicators stay responsive.
+    const ms = voice.voiceChannelId ? 2000 : 15000
     const interval = setInterval(load, ms)
-    return () => clearInterval(interval)
+
+    return () => {
+      clearInterval(interval)
+      unsubscribe(channel)
+    }
   }, [currentServerId, user?.id, user?.avatar_url, voice.voiceChannelId])
 
   // Update presence (online / in-voice / away / dnd) — in-voice overrides when in voice

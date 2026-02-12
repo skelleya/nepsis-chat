@@ -47,6 +47,7 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 
 | Error | Cause | Solution |
 |-------|-------|----------|
+| **Application entry file "main.js" in app.asar is corrupted: ENOENT** | `extraResources` with `"to": "app"` conflicts with electron-builder's main app packaging — `app.asar` was never created; only `resources/app/` (frontend) existed. | Change `extraResources` to use `"to": "webapp"` instead of `"to": "app"`. Update `main.js` fallback path from `process.resourcesPath, 'app'` to `process.resourcesPath, 'webapp'`. Clean `electron/dist` and run `npm run package`. |
 | Cannot create symbolic link (winCodeSign) | Windows symlink permissions | Set `signAndEditExecutable: false` |
 | Update not detected | Wrong UPDATE_URL or missing files | Ensure `backend/updates/` has latest.yml and installer; backend must serve `/updates/` |
 | Installer shows old text (e.g. old description) or wrong version | Using old build artifacts | Rebuild: `cd electron && npm run package:full` — installer reads from package.json |
@@ -100,6 +101,7 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 |-------|-------|----------|
 | "Friends feature not yet configured" when adding friend | `friend_requests` table missing | Run Supabase migration: `supabase/migrations/20250211000002_friend_requests.sql` in Supabase SQL Editor, or `supabase db push` |
 | **DM / Friends 404** — `/api/dm/conversations`, `/api/friends/list` return 404 | Backend on Fly.io not deployed with latest code, or CORS blocking | Redeploy backend: `npm run deploy` or `fly deploy --app nepsis-chat`. Ensure `CORS_ORIGINS=*` in fly.toml or Fly secrets. Run Supabase migrations for `dm_conversations`, `dm_participants`, `dm_messages`, `friend_requests`. |
+| **Guest logout 500** — "Failed to delete guest account" | FK constraints: user referenced by dm_messages, dm_participants, friend_requests, etc. | Backend now deletes from all referencing tables before deleting user. Redeploy backend. |
 | **"Failed to fetch friend requests"** | `friend_requests` table missing or migration not applied | Run Supabase migration: `supabase/migrations/20250211000002_friend_requests.sql` in Supabase Dashboard → SQL Editor. Copy contents of `supabase/run-all-pending-migrations.sql` (includes friend_requests) or run migration 2 explicitly. Backend now returns clearer "Friends feature not yet configured" when table is missing. |
 | **404 on `/api/dm/conversations`** / **"Cannot read properties of undefined (reading 'username')"** | (1) DM tables (`dm_conversations`, `dm_participants`, `dm_messages`) missing. (2) Backend deployment doesn't include DM routes. (3) Malformed API response. | Run `supabase/run-all-pending-migrations.sql` in Supabase SQL Editor — it now includes DM tables (Migration 5b). Redeploy backend to Fly so DM routes are served. Frontend now has defensive null checks for `other_user`/`username`. |
 
@@ -198,6 +200,29 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | Sounds too loud/quiet | Volume constants in `sounds.ts` | Adjust `volume` parameter in each sound method (0.0–1.0). Current defaults: 0.06–0.14 |
 
 **Files:** `frontend/src/services/sounds.ts`
+
+---
+
+## Server Members & Realtime
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| **Slow to see someone join/leave a server** — member list takes 5+ seconds to update | Frontend polled `server_members` every 5 seconds (no Supabase Realtime subscription). Unlike `messages` and `dm_messages`, `server_members` was never added to the `supabase_realtime` publication. | **Three fixes**: (1) Added `server_members` to `supabase_realtime` publication — run migration `20250211000006_server_members_realtime.sql` (or Migration 7 in `run-all-pending-migrations.sql`). (2) Added `subscribeToServerMembers()` in `realtime.ts` for instant join/leave updates via Supabase Realtime. (3) App.tsx now uses realtime subscription + light fallback poll (15s normal, 2s in voice) instead of aggressive 5s polling. |
+| **Guest logout 500** — "Failed to delete guest account" (repeated retries) | `message_reactions` table not cleaned up before deleting guest user. If guest reacted to messages, FK constraint `message_reactions.user_id → users.id` blocks deletion. | Added `message_reactions` to the cleanup table list in `auth.js` (before `messages`). Redeploy backend. |
+
+**Files:** `frontend/src/services/realtime.ts`, `frontend/src/App.tsx`, `backend/src/routes/auth.js`, `supabase/migrations/20250211000006_server_members_realtime.sql`
+
+---
+
+## Socket.io / CORS
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| **CORS errors on socket.io polling** — "No 'Access-Control-Allow-Origin' header" | (1) Socket.io CORS config was missing `credentials: true`. (2) When Fly.io backend is restarting, proxy returns 502 with no CORS headers — browser reports this as a CORS error. | **Fixes**: (1) Added `credentials: true` to socket.io CORS config. (2) Added `withCredentials: true` to all socket.io clients. (3) Added `transports: ['websocket', 'polling']` with reconnection settings (10 attempts, exponential backoff) to all socket clients. (4) Increased `pingTimeout` (30s) and `pingInterval` (25s) on server to reduce spurious disconnects on Fly.io. |
+| **WebSocket connection closed before established** | Fly.io machine wake-up latency — socket.io opens WebSocket probe while HTTP transport is still in use; server restarts mid-handshake. | Socket.io clients now configured with proper reconnection (10 attempts, 1s→10s delay). `allowEIO3: true` on server for broader protocol compatibility. |
+| **502 Bad Gateway on socket.io requests** | Fly.io proxy returns 502 when backend is starting/restarting. | Increased server ping/pong timeouts. Socket.io clients have reconnection enabled. No CORS headers appear on 502 responses — this is normal Fly.io proxy behavior; the client reconnects automatically. |
+
+**Files:** `backend/src/index.js`, `frontend/src/services/chatSocket.ts`, `frontend/src/services/socketSignaling.ts`, `frontend/src/contexts/CallContext.tsx`
 
 ---
 

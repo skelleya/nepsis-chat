@@ -50,7 +50,13 @@ const io = new Server(httpServer, {
   cors: {
     origin: allowAll ? true : allowedOrigins,
     methods: ['GET', 'POST'],
+    credentials: true,
   },
+  // Longer timeouts to reduce spurious disconnects on Fly.io
+  pingTimeout: 30000,
+  pingInterval: 25000,
+  // Allow EIO3 clients for broader compatibility
+  allowEIO3: true,
 })
 app.use(express.json())
 

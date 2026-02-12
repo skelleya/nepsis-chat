@@ -117,6 +117,47 @@ export function subscribeToDMMessages(
   return channel
 }
 
+export type ServerMemberPayload = {
+  server_id: string
+  user_id: string
+  role: string
+  joined_at?: string
+}
+
+/**
+ * Subscribe to server_members changes for a specific server.
+ * Fires on INSERT (join) and DELETE (leave/kick).
+ * Requires server_members table to be in supabase_realtime publication.
+ */
+export function subscribeToServerMembers(
+  serverId: string,
+  onMemberChange: (payload: { eventType: 'INSERT' | 'UPDATE' | 'DELETE'; new: ServerMemberPayload; old?: ServerMemberPayload }) => void
+): RealtimeChannel | null {
+  if (!supabase) return null
+
+  const channel = supabase
+    .channel(`server_members:${serverId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'server_members',
+        filter: `server_id=eq.${serverId}`,
+      },
+      (payload) => {
+        onMemberChange({
+          eventType: payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE',
+          new: payload.new as ServerMemberPayload,
+          old: payload.old as ServerMemberPayload,
+        })
+      }
+    )
+    .subscribe()
+
+  return channel
+}
+
 export function unsubscribe(channel: RealtimeChannel | null) {
   if (channel && supabase) {
     supabase.removeChannel(channel)

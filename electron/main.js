@@ -73,7 +73,7 @@ function createWindow() {
     // file:// protocol).  Fall back to local files if the server is unreachable.
     mainWindow.loadURL(PROD_URL)
     mainWindow.webContents.once('did-fail-load', () => {
-      const indexPath = path.join(process.resourcesPath, 'app', 'index.html')
+      const indexPath = path.join(process.resourcesPath, 'webapp', 'index.html')
       mainWindow.loadFile(indexPath)
     })
   } else {

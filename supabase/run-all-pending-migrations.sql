@@ -165,3 +165,13 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE dm_messages;
   END IF;
 END $$;
+
+-- ============================================================
+-- Migration 7: server_members Realtime (instant join/leave)
+-- ============================================================
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'server_members') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE server_members;
+  END IF;
+END $$;

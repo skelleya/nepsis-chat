@@ -53,7 +53,7 @@
     "extraResources": [
       {
         "from": "../frontend/dist",
-        "to": "app"
+        "to": "webapp"
       }
     ]
   }

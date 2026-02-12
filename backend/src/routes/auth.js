@@ -69,7 +69,7 @@ authRouter.post('/auth/callback', async (req, res) => {
   }
 })
 
-// Guest logout — leaves all servers, deletes guest account
+// Guest logout — leaves all servers, deletes guest account and all references
 authRouter.delete('/guest/:userId', async (req, res) => {
   const { userId } = req.params
   if (!userId) {
@@ -88,18 +88,35 @@ authRouter.delete('/guest/:userId', async (req, res) => {
       return res.status(404).json({ error: 'Guest user not found' })
     }
 
-    // Remove guest from all server_members (leave all servers)
-    const { error: leaveError } = await supabase
-      .from('server_members')
-      .delete()
-      .eq('user_id', userId)
+    // Delete in order to satisfy FK constraints (children before parents)
+    const tables = [
+      { table: 'dm_messages', column: 'user_id' },
+      { table: 'dm_participants', column: 'user_id' },
+      { table: 'friend_requests', column: null }, // uses requester_id OR addressee_id
+      { table: 'server_invites', column: 'created_by' },
+      { table: 'server_audit_log', column: 'user_id' },
+      { table: 'message_reactions', column: 'user_id' }, // must be before messages
+      { table: 'messages', column: 'user_id' },
+      { table: 'server_members', column: 'user_id' },
+    ]
 
-    if (leaveError) {
-      console.error('Failed to remove guest from servers:', leaveError)
-      // Continue anyway — still delete the account
+    for (const { table, column } of tables) {
+      try {
+        if (column) {
+          const { error } = await supabase.from(table).delete().eq(column, userId)
+          if (error) console.warn(`Guest delete: ${table}`, error.message)
+        } else if (table === 'friend_requests') {
+          const { error: e1 } = await supabase.from(table).delete().eq('requester_id', userId)
+          const { error: e2 } = await supabase.from(table).delete().eq('addressee_id', userId)
+          if (e1) console.warn(`Guest delete: ${table} requester`, e1.message)
+          if (e2) console.warn(`Guest delete: ${table} addressee`, e2.message)
+        }
+      } catch (e) {
+        console.warn(`Guest delete: ${table} (table may not exist)`, e?.message || e)
+      }
     }
 
-    // Delete the guest user account
+    // Delete the guest user account (user_presence, user_profiles cascade)
     const { error: deleteError } = await supabase
       .from('users')
       .delete()

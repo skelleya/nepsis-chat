@@ -187,7 +187,14 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
 
   // ─── Socket connection (persists for the lifetime of the provider)
   useEffect(() => {
-    const socket = io(`${SOCKET_URL}/calls`, { autoConnect: true })
+    const socket = io(`${SOCKET_URL}/calls`, {
+      autoConnect: true,
+      withCredentials: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
+      transports: ['websocket', 'polling'],
+    })
     socketRef.current = socket
 
     socket.on('connect', () => {
