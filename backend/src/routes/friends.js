@@ -3,6 +3,15 @@ import supabase from '../db/supabase.js'
 
 export const friendsRouter = Router()
 
+const FRIENDS_NOT_CONFIGURED = 'Friends feature not yet configured. Run the friends migration.'
+
+function isTableMissingError(err) {
+  if (!err) return false
+  const code = err.code || err?.error?.code
+  const msg = (err.message || err?.error?.message || '').toLowerCase()
+  return code === '42P01' || /relation.*does not exist/.test(msg) || /friend_requests.*does not exist/.test(msg)
+}
+
 // List friends (status = accepted)
 friendsRouter.get('/list', async (req, res) => {
   const { userId } = req.query
@@ -16,8 +25,8 @@ friendsRouter.get('/list', async (req, res) => {
       .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
 
     if (error) {
-      if (error.code === '42P01') {
-        return res.status(501).json({ error: 'Friends feature not yet configured. Run the friends migration.' })
+      if (isTableMissingError(error)) {
+        return res.status(501).json({ error: FRIENDS_NOT_CONFIGURED })
       }
       throw error
     }
@@ -33,6 +42,9 @@ friendsRouter.get('/list', async (req, res) => {
     return res.json(users || [])
   } catch (err) {
     console.error('Friends list error:', err)
+    if (isTableMissingError(err)) {
+      return res.status(501).json({ error: FRIENDS_NOT_CONFIGURED })
+    }
     return res.status(500).json({ error: 'Failed to fetch friends' })
   }
 })
@@ -51,8 +63,8 @@ friendsRouter.get('/requests', async (req, res) => {
       .order('created_at', { ascending: false })
 
     if (error) {
-      if (error.code === '42P01') {
-        return res.status(501).json({ error: 'Friends feature not yet configured. Run the friends migration.' })
+      if (isTableMissingError(error)) {
+        return res.status(501).json({ error: FRIENDS_NOT_CONFIGURED })
       }
       throw error
     }
@@ -76,6 +88,9 @@ friendsRouter.get('/requests', async (req, res) => {
     )
   } catch (err) {
     console.error('Friend requests error:', err)
+    if (isTableMissingError(err)) {
+      return res.status(501).json({ error: FRIENDS_NOT_CONFIGURED })
+    }
     return res.status(500).json({ error: 'Failed to fetch friend requests' })
   }
 })
@@ -96,8 +111,8 @@ friendsRouter.post('/accept', async (req, res) => {
       .eq('status', 'pending')
 
     if (error) {
-      if (error.code === '42P01') {
-        return res.status(501).json({ error: 'Friends feature not yet configured. Run the friends migration.' })
+      if (isTableMissingError(error)) {
+        return res.status(501).json({ error: FRIENDS_NOT_CONFIGURED })
       }
       throw error
     }
@@ -124,8 +139,8 @@ friendsRouter.post('/decline', async (req, res) => {
       .eq('status', 'pending')
 
     if (error) {
-      if (error.code === '42P01') {
-        return res.status(501).json({ error: 'Friends feature not yet configured. Run the friends migration.' })
+      if (isTableMissingError(error)) {
+        return res.status(501).json({ error: FRIENDS_NOT_CONFIGURED })
       }
       throw error
     }
@@ -154,8 +169,8 @@ friendsRouter.post('/request', async (req, res) => {
     })
 
     if (error) {
-      if (error.code === '42P01') {
-        return res.status(501).json({ error: 'Friends feature not yet configured. Run the friends migration.' })
+      if (isTableMissingError(error)) {
+        return res.status(501).json({ error: FRIENDS_NOT_CONFIGURED })
       }
       if (error.code === '23505') {
         return res.json({ success: true }) // Already sent
