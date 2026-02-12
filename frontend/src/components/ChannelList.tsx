@@ -79,6 +79,7 @@ interface ChannelListProps {
   currentDMId?: string | null
   dmUnreadCounts?: Record<string, number>
   channelUnreadCounts?: Record<string, number>
+  channelMentionCounts?: Record<string, number>
   onSelectDM?: (conversationId: string) => void
   // Admin: drop user onto voice channel to move them
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
@@ -186,6 +187,7 @@ function SortableChannelItem({
   onSelectChannel,
   voiceUsers,
   hasUnread,
+  hasMention,
   HashIcon,
   VoiceIcon,
   onUpdateChannel,
@@ -198,6 +200,7 @@ function SortableChannelItem({
   onSelectChannel: (ch: Channel) => void
   voiceUsers: Record<string, VoiceUserInfo[]>
   hasUnread?: boolean
+  hasMention?: boolean
   HashIcon: React.ComponentType<{ className?: string }>
   VoiceIcon: React.ComponentType<{ className?: string }>
   onUpdateChannel?: (channelId: string, data: { name?: string; order?: number; categoryId?: string | null }) => Promise<void>
@@ -260,13 +263,15 @@ function SortableChannelItem({
                 className={`flex-1 px-2 py-1.5 rounded flex items-center gap-1.5 text-left ${
                   currentChannelId === channel.id
                     ? 'bg-app-hover/60 text-white'
-                    : channel.type === 'text' && hasUnread
-                      ? 'bg-white/10 text-white hover:bg-white/15'
-                      : 'text-app-muted hover:bg-app-hover/40 hover:text-app-text'
+                    : channel.type === 'text' && hasMention
+                      ? 'bg-red-500/15 text-white font-semibold hover:bg-red-500/20'
+                      : channel.type === 'text' && hasUnread
+                        ? 'bg-white/10 text-white hover:bg-white/15 font-medium'
+                        : 'text-app-muted hover:bg-app-hover/40 hover:text-app-text'
                 }`}
               >
                 {channel.type === 'text' ? (
-                  <HashIcon className="w-5 h-5 flex-shrink-0 opacity-60" />
+                  <HashIcon className={`w-5 h-5 flex-shrink-0 ${hasUnread || hasMention ? 'opacity-100' : 'opacity-60'}`} />
                 ) : channel.type === 'rules' ? (
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 flex-shrink-0 opacity-60">
                     <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/>
@@ -276,6 +281,9 @@ function SortableChannelItem({
                   <VoiceIcon className="w-5 h-5 flex-shrink-0 opacity-60" />
                 )}
                 <span className="text-sm truncate flex-1">{channel.name}</span>
+                {hasMention && (
+                  <span className="ml-auto w-5 h-5 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold flex-shrink-0">@</span>
+                )}
               </button>
               {canEdit && (
                 <div className="relative">
@@ -514,6 +522,7 @@ function CategorySection({
   onMoveToChannel,
   voiceUsers,
   channelUnreadCounts,
+  channelMentionCounts,
   canEdit,
 }: {
   category: Category | null
@@ -528,6 +537,7 @@ function CategorySection({
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
   voiceUsers: Record<string, VoiceUserInfo[]>
   channelUnreadCounts?: Record<string, number>
+  channelMentionCounts?: Record<string, number>
   canEdit?: boolean
 }) {
   const [collapsed, setCollapsed] = useState(false)
@@ -567,6 +577,7 @@ function CategorySection({
                 onSelectChannel={onSelectChannel}
                 voiceUsers={voiceUsers}
                 hasUnread={channel.type === 'text' && (channelUnreadCounts?.[channel.id] ?? 0) > 0}
+                hasMention={channel.type === 'text' && (channelMentionCounts?.[channel.id] ?? 0) > 0}
                 HashIcon={HashIcon}
                 VoiceIcon={VoiceIcon}
                 onUpdateChannel={onUpdateChannel}
@@ -612,6 +623,7 @@ export function ChannelList({
   currentDMId,
   dmUnreadCounts = {},
   channelUnreadCounts = {},
+  channelMentionCounts = {},
   onSelectDM,
 }: ChannelListProps) {
   const [showCreateChannel, setShowCreateChannel] = useState(false)
@@ -905,6 +917,7 @@ export function ChannelList({
                   onMoveToChannel={onMoveToChannel}
                   voiceUsers={voiceUsers}
                   channelUnreadCounts={channelUnreadCounts}
+                  channelMentionCounts={channelMentionCounts}
                   canEdit={isOwner}
                 />
               ))}
@@ -927,6 +940,7 @@ export function ChannelList({
                   onMoveToChannel={onMoveToChannel}
                   voiceUsers={voiceUsers}
                   channelUnreadCounts={channelUnreadCounts}
+                  channelMentionCounts={channelMentionCounts}
                   canEdit={isOwner}
                 />
               )}

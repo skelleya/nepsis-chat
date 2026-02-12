@@ -77,6 +77,7 @@ export function DMView({
   const [uploading, setUploading] = useState(false)
   const [showAttachMenu, setShowAttachMenu] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState<string | null>(null)
+  const [emojiAnchorRect, setEmojiAnchorRect] = useState<DOMRect | null>(null)
   const [dmReactions, setDmReactions] = useState<Record<string, { emoji: string; userId: string }[]>>({})
   const [showUserMenu, setShowUserMenu] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -246,11 +247,16 @@ export function DMView({
               return (
                 <div
                   key={msg.id}
-                  className={`group flex gap-3 w-full ${isMe ? 'flex-row-reverse justify-end' : 'justify-start'} ${isNextFromSameSender ? 'mb-1.5' : 'mb-3'}`}
+                  className={`group flex gap-3 w-full ${isMe ? 'flex-row-reverse' : ''} ${isNextFromSameSender ? 'mb-1.5' : 'mb-3'}`}
                 >
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-bold flex-shrink-0 overflow-hidden ${avatarUrl ? 'bg-transparent' : 'bg-app-channel'} ${isFromSameSender ? 'opacity-0 invisible' : ''}`}>
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-bold flex-shrink-0 overflow-hidden bg-app-channel ${isFromSameSender ? 'opacity-0 invisible' : ''}`}>
                     {avatarUrl ? (
-                      <img src={avatarUrl} alt={msg.username ?? ''} className="w-full h-full object-cover" />
+                      <img
+                        src={avatarUrl}
+                        alt={msg.username ?? ''}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; e.currentTarget.parentElement!.textContent = (msg.username ?? '?').charAt(0).toUpperCase() }}
+                      />
                     ) : (
                       (msg.username ?? '?').charAt(0).toUpperCase()
                     )}
@@ -304,25 +310,31 @@ export function DMView({
                           {count > 1 && <span>{count}</span>}
                         </button>
                       ))}
-                      <div className="relative">
-                        <button
-                          onClick={() => setShowEmojiPicker(showEmojiPicker === msg.id ? null : msg.id)}
-                          className="opacity-0 group-hover:opacity-100 text-app-muted hover:text-app-text transition-opacity text-sm"
-                        >
-                          +
-                        </button>
-                        {showEmojiPicker === msg.id && (
-                          <div className="absolute left-0 bottom-full mb-1 z-50">
-                            <EmojiPicker
-                              onSelect={(emoji) => {
-                                toggleReaction(msg.id, emoji)
-                                setShowEmojiPicker(null)
-                              }}
-                              onClose={() => setShowEmojiPicker(null)}
-                            />
-                          </div>
-                        )}
-                      </div>
+                      <button
+                        onClick={(e) => {
+                          if (showEmojiPicker === msg.id) {
+                            setShowEmojiPicker(null)
+                            setEmojiAnchorRect(null)
+                          } else {
+                            setShowEmojiPicker(msg.id)
+                            setEmojiAnchorRect(e.currentTarget.getBoundingClientRect())
+                          }
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-app-muted hover:text-app-text transition-opacity text-sm"
+                      >
+                        +
+                      </button>
+                      {showEmojiPicker === msg.id && (
+                        <EmojiPicker
+                          anchorRect={emojiAnchorRect ?? undefined}
+                          onSelect={(emoji) => {
+                            toggleReaction(msg.id, emoji)
+                            setShowEmojiPicker(null)
+                            setEmojiAnchorRect(null)
+                          }}
+                          onClose={() => { setShowEmojiPicker(null); setEmojiAnchorRect(null) }}
+                        />
+                      )}
                     </div>
                   </div>
                 </div>

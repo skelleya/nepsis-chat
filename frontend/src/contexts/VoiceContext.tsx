@@ -9,6 +9,8 @@ export interface VoiceParticipant {
   username: string
   stream: MediaStream | null
   isSpeaking: boolean
+  /** Incremented when the stream's tracks change (forces React re-render) */
+  streamVersion: number
 }
 
 interface VoiceContextValue {
@@ -79,9 +81,11 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     setParticipants((prev) => {
       const existing = prev.find((p) => p.userId === pUserId)
       if (existing) {
-        return prev.map((p) => (p.userId === pUserId ? { ...p, stream: stream ?? p.stream, username: pUsername || p.username, isSpeaking } : p))
+        // Bump streamVersion when stream is provided (even same ref) to force re-render for new tracks
+        const newVersion = stream ? (existing.streamVersion ?? 0) + 1 : (existing.streamVersion ?? 0)
+        return prev.map((p) => (p.userId === pUserId ? { ...p, stream: stream ?? p.stream, username: pUsername || p.username, isSpeaking, streamVersion: newVersion } : p))
       }
-      return [...prev, { userId: pUserId, username: pUsername, stream, isSpeaking }]
+      return [...prev, { userId: pUserId, username: pUsername, stream, isSpeaking, streamVersion: 0 }]
     })
   }, [])
 

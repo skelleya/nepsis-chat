@@ -68,6 +68,7 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | Can't see friend's camera/screen share | VoiceView only rendered local video/screen (`videoStream`, `screenStream`). Remote participant video was never displayed. | **Fix**: `ParticipantCard` now checks `stream.getVideoTracks().length > 0` via `useVideoTrackCount` hook. When video tracks exist, it renders a `<video>` element filling the card. Track removal detected via `onended` + `onmute` fallback. Files: `VoiceView.tsx`, `webrtc.ts`. |
 | Remote user shows as socket ID (e.g. `RYmOZK82...`) instead of username | Backend `voice.js` only forwarded `fromUserId` in offer/answer/ice-candidate events, NOT `fromUsername`. The `socketSignaling.ts` also didn't map `fromUsername` to the `username` field. The webrtc client fell back to peerId (the socket ID) when username was undefined. | Backend now sends `fromUsername: socket.username` in all signaling events. `socketSignaling.ts` maps it to `username`. `webrtc.ts` uses `updatePeerMeta` to update username on every message. Files: `voice.js`, `socketSignaling.ts`, `webrtc.ts`. |
 | Camera/screen share not visible to remote users | Video/screen share streams were captured locally but never added to WebRTC peer connections. No renegotiation happened. | Added `addTrackToAllPeers` and `removeTrackFromAllPeers` to `webrtc.ts` which add/remove tracks and trigger SDP renegotiation. `VoiceContext.tsx` calls these when toggling camera/screen share. `handleOffer` now handles renegotiation offers for existing connections. |
+| **Remote camera/screen share not showing until switching channels** | `onRemoteStream` passes same `MediaStream` reference; React skips re-render. `MediaStream.addTrack()` doesn't fire the `addtrack` event. | Added `streamVersion` counter to `VoiceParticipant`; bumped on every `onRemoteStream` call. `useVideoTrackCount` now depends on `streamVersion` to force recount. Files: VoiceContext.tsx, VoiceView.tsx. |
 
 ---
 
@@ -108,6 +109,7 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | **"Failed to fetch friend requests"** | `friend_requests` table missing or migration not applied | Run Supabase migration: `supabase/migrations/20250211000002_friend_requests.sql` in Supabase Dashboard → SQL Editor. Copy contents of `supabase/run-all-pending-migrations.sql` (includes friend_requests) or run migration 2 explicitly. Backend now returns clearer "Friends feature not yet configured" when table is missing. |
 | **404 on `/api/dm/conversations`** / **"Cannot read properties of undefined (reading 'username')"** | (1) DM tables (`dm_conversations`, `dm_participants`, `dm_messages`) missing. (2) Backend deployment doesn't include DM routes. (3) Malformed API response. | Run `supabase/run-all-pending-migrations.sql` in Supabase SQL Editor — it now includes DM tables (Migration 5b). Redeploy backend to Fly so DM routes are served. Frontend now has defensive null checks for `other_user`/`username`. |
 | **404 on `/api/servers/reorder`** or **500 on `/api/servers/:id`** | Backend on Fly.io not deployed with latest code after git push. | **Redeploy backend**: `npm run deploy` or `cd backend && fly deploy --app nepsis-chat`. Pushing to GitHub does not auto-deploy the backend; you must run deploy manually. |
+| **Invite link doesn't add user to server** | InvitePage did `window.location.reload()` after join which was fragile — session restore could race, `setCurrentServerId(prev \|\| id)` wouldn't switch if prev was already set. | Fixed: InvitePage now calls `loadServers()` + `setCurrentServer(serverId)` directly (same as CommunityPage), then `navigate('/')` without reload. Files: InvitePage.tsx. |
 
 ---
 
@@ -248,6 +250,17 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | **Backend crash loop: `io.of is not a function`** in voice.js | `registerVoiceHandlers(voiceNamespace)` passes the `/voice` namespace as `io`, but code called `io.of('/voice')` which doesn't exist on namespaces (only on root Server). The crash killed the entire Node process, causing all API requests to fail with 502/CORS errors. | **Fix**: Changed `io.of('/voice').adapter.rooms.get(room)` → `io.adapter.rooms.get(room)` and `io.of('/voice').sockets.get(sid)` → `io.sockets.get(sid)` since `io` IS already the namespace. File: `backend/src/socket/voice.js`. |
 
 **Files:** `backend/src/index.js`, `frontend/src/services/chatSocket.ts`, `frontend/src/services/socketSignaling.ts`, `frontend/src/contexts/CallContext.tsx`
+
+---
+
+## UI / UX
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| **Emoji picker overlaps top of chat / clips off-screen** | Old EmojiPicker used `position: absolute` with `bottom-full` inside the message list scroll container. When a message was near the top, the picker would render above the viewport. | **Fix**: Complete redesign of `EmojiPicker.tsx`. Now uses `ReactDOM.createPortal` to render at `document.body` with `position: fixed`. Smart positioning calculates placement based on trigger button's `getBoundingClientRect()` — prefers above, flips below if overflowing top, clamps to viewport edges. Callers (`ChatView`, `DMView`, `SoundboardDropdown`) pass `anchorRect` prop captured on button click. |
+| **Emoji picker was too small and lacked search** | Old picker was 280×320px with only text category tabs and no search. | **Fix**: New picker is 352×435px with: search bar (matches shortcodes + category names), emoji category icon tabs (horizontal, with active highlight on scroll), scrollable grid with sticky category headers, "Frequently Used" section (persisted in localStorage), hover preview bar showing `:shortcode:` name, Escape key to close, and server emoji support. |
+
+**Files:** `frontend/src/components/EmojiPicker.tsx`, `frontend/src/components/ChatView.tsx`, `frontend/src/components/DMView.tsx`, `frontend/src/components/SoundboardDropdown.tsx`
 
 ---
 

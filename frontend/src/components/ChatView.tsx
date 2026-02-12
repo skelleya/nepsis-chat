@@ -11,6 +11,27 @@ interface ServerEmoji {
   image_url: string
 }
 
+/** Render message content with @mentions highlighted */
+function renderContentWithMentions(content: string, currentUsername: string): React.ReactNode {
+  const parts = content.split(/(@\w+)/g)
+  if (parts.length === 1) return content
+  return parts.map((part, i) => {
+    if (part.startsWith('@') && part.length > 1) {
+      const mentionName = part.slice(1).toLowerCase()
+      const isMe = mentionName === currentUsername.toLowerCase() || mentionName === 'everyone'
+      return (
+        <span
+          key={i}
+          className={`rounded px-1 py-0.5 font-medium ${isMe ? 'bg-yellow-500/25 text-yellow-200' : 'bg-app-accent/20 text-app-accent'}`}
+        >
+          {part}
+        </span>
+      )
+    }
+    return part
+  })
+}
+
 interface ChatViewProps {
   channel: Channel
   messages: Message[]
@@ -38,7 +59,8 @@ export function ChatView({
   canSendMessages = true,
   onAfterReaction,
 }: ChatViewProps) {
-  const { editMessage, deleteMessage, toggleReaction } = useApp()
+  const { user: appUser, editMessage, deleteMessage, toggleReaction } = useApp()
+  const currentUsername = appUser?.display_name || appUser?.username || ''
   const [input, setInput] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
@@ -47,6 +69,8 @@ export function ChatView({
   const [uploading, setUploading] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState<string | null>(null)
   const [showInputEmojiPicker, setShowInputEmojiPicker] = useState(false)
+  const [emojiAnchorRect, setEmojiAnchorRect] = useState<DOMRect | null>(null)
+  const [inputEmojiAnchorRect, setInputEmojiAnchorRect] = useState<DOMRect | null>(null)
   const [hasNewMessages, setHasNewMessages] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -298,7 +322,7 @@ export function ChatView({
                     </div>
                   </div>
                 ) : (
-                  <p className="text-app-text mt-0.5 whitespace-pre-wrap">{message.content}</p>
+                  <p className="text-app-text mt-0.5 whitespace-pre-wrap">{renderContentWithMentions(message.content, currentUsername)}</p>
                 )}
 
                 {message.attachments?.length ? (
@@ -357,27 +381,33 @@ export function ChatView({
                       </button>
                     )
                   })}
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowEmojiPicker(showEmojiPicker === message.id ? null : message.id)}
-                      className="opacity-0 group-hover:opacity-100 text-app-muted hover:text-app-text transition-opacity"
-                    >
-                      +
-                    </button>
-                    {showEmojiPicker === message.id && (
-                      <div className="absolute left-0 bottom-full mb-1 z-50">
-                        <EmojiPicker
-                          serverEmojis={serverEmojis}
-                          onSelect={async (emoji) => {
-                            await toggleReaction(message.id, emoji)
-                            onAfterReaction?.()
-                            setShowEmojiPicker(null)
-                          }}
-                          onClose={() => setShowEmojiPicker(null)}
-                        />
-                      </div>
-                    )}
-                  </div>
+                  <button
+                    onClick={(e) => {
+                      if (showEmojiPicker === message.id) {
+                        setShowEmojiPicker(null)
+                        setEmojiAnchorRect(null)
+                      } else {
+                        setShowEmojiPicker(message.id)
+                        setEmojiAnchorRect(e.currentTarget.getBoundingClientRect())
+                      }
+                    }}
+                    className="opacity-0 group-hover:opacity-100 text-app-muted hover:text-app-text transition-opacity"
+                  >
+                    +
+                  </button>
+                  {showEmojiPicker === message.id && (
+                    <EmojiPicker
+                      anchorRect={emojiAnchorRect ?? undefined}
+                      serverEmojis={serverEmojis}
+                      onSelect={async (emoji) => {
+                        await toggleReaction(message.id, emoji)
+                        onAfterReaction?.()
+                        setShowEmojiPicker(null)
+                        setEmojiAnchorRect(null)
+                      }}
+                      onClose={() => { setShowEmojiPicker(null); setEmojiAnchorRect(null) }}
+                    />
+                  )}
                 </div>
               </div>
             </div>
@@ -465,25 +495,30 @@ export function ChatView({
                 >
                   {uploading ? '⏳' : '📎'}
                 </button>
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setShowInputEmojiPicker(!showInputEmojiPicker)}
-                    className="p-2 text-app-muted hover:text-app-text"
-                    title="Add emoji"
-                  >
-                    😀
-                  </button>
-                  {showInputEmojiPicker && (
-                    <div className="absolute left-0 bottom-full mb-1 z-50">
-                      <EmojiPicker
-                        serverEmojis={serverEmojis}
-                        onSelect={(emoji) => { setInput((i) => i + emoji); setShowInputEmojiPicker(false) }}
-                        onClose={() => setShowInputEmojiPicker(false)}
-                      />
-                    </div>
-                  )}
-                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    if (showInputEmojiPicker) {
+                      setShowInputEmojiPicker(false)
+                      setInputEmojiAnchorRect(null)
+                    } else {
+                      setShowInputEmojiPicker(true)
+                      setInputEmojiAnchorRect(e.currentTarget.getBoundingClientRect())
+                    }
+                  }}
+                  className="p-2 text-app-muted hover:text-app-text"
+                  title="Add emoji"
+                >
+                  😀
+                </button>
+                {showInputEmojiPicker && (
+                  <EmojiPicker
+                    anchorRect={inputEmojiAnchorRect ?? undefined}
+                    serverEmojis={serverEmojis}
+                    onSelect={(emoji) => { setInput((i) => i + emoji); setShowInputEmojiPicker(false); setInputEmojiAnchorRect(null) }}
+                    onClose={() => { setShowInputEmojiPicker(false); setInputEmojiAnchorRect(null) }}
+                  />
+                )}
               </>
             }
           />

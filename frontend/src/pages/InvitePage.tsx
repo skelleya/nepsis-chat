@@ -6,7 +6,7 @@ import { useApp } from '../contexts/AppContext'
 export function InvitePage() {
   const { code } = useParams<{ code: string }>()
   const navigate = useNavigate()
-  const { user } = useApp()
+  const { user, loadServers, setCurrentServer } = useApp()
   const [invite, setInvite] = useState<{
     code: string
     server: { id: string; name: string; iconUrl?: string; bannerUrl?: string }
@@ -31,9 +31,10 @@ export function InvitePage() {
     setJoining(true)
     try {
       const { serverId } = await api.joinViaInvite(code, user.id)
-      sessionStorage.setItem('joinServerId', serverId)
-      navigate(`/`)
-      window.location.reload()
+      // Refresh server list and switch to the joined server directly (no reload needed)
+      await loadServers(user.id)
+      setCurrentServer(serverId)
+      navigate('/')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to join')
     } finally {

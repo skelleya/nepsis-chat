@@ -100,7 +100,9 @@ function VideoElement({ stream, muted = false, label }: { stream: MediaStream; m
 }
 
 // Hook to track video track count on a MediaStream (re-renders when tracks change)
-function useVideoTrackCount(stream: MediaStream | null): number {
+// `version` is bumped by VoiceContext whenever onRemoteStream fires, forcing a recount
+// even when the stream reference stays the same (MediaStream.addTrack doesn't fire addtrack event)
+function useVideoTrackCount(stream: MediaStream | null, version = 0): number {
   const [count, setCount] = useState(0)
   useEffect(() => {
     if (!stream) { setCount(0); return }
@@ -112,7 +114,7 @@ function useVideoTrackCount(stream: MediaStream | null): number {
       stream.removeEventListener('addtrack', update)
       stream.removeEventListener('removetrack', update)
     }
-  }, [stream])
+  }, [stream, version])
   return count
 }
 
@@ -193,7 +195,7 @@ function ParticipantCard({
   onMuteMember,
   onDisconnectMember,
 }: {
-  participant: { userId: string; username: string; stream: MediaStream | null; isSpeaking: boolean }
+  participant: { userId: string; username: string; stream: MediaStream | null; isSpeaking: boolean; streamVersion?: number }
   avatarUrl?: string
   isLocal: boolean
   localStream: MediaStream | null
@@ -212,7 +214,7 @@ function ParticipantCard({
   const detectStream = isLocal ? localStream : participant.stream
   const speaking = useSpeakingDetector(detectStream, isLocal ? !isMuted : true)
 
-  const remoteVideoCount = useVideoTrackCount(isLocal ? null : participant.stream)
+  const remoteVideoCount = useVideoTrackCount(isLocal ? null : participant.stream, participant.streamVersion ?? 0)
   const hasRemoteVideo = !isLocal && remoteVideoCount > 0
 
   const localVideoRef = useRef<HTMLVideoElement>(null)
@@ -391,7 +393,7 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
   for (const vu of voiceUsersInChannel) {
     if (leftUserIds.has(vu.userId)) continue // Exclude users who left (peer-left) — prevents ghost "Connecting..."
     if (!participantByUserId.has(vu.userId)) {
-      participantByUserId.set(vu.userId, { userId: vu.userId, username: vu.username, stream: null, isSpeaking: false })
+      participantByUserId.set(vu.userId, { userId: vu.userId, username: vu.username, stream: null, isSpeaking: false, streamVersion: 0 })
     }
     if (vu.avatar_url) avatarByUserId.set(vu.userId, vu.avatar_url)
   }

@@ -114,6 +114,7 @@ interface AppContextValue {
   setCurrentDM: (id: string | null) => void
   dmUnreadCounts: Record<string, number>
   channelUnreadCounts: Record<string, number>
+  channelMentionCounts: Record<string, number>
   loadDMConversations: () => Promise<void>
   openDM: (targetUserId: string, targetUsername: string) => Promise<string | undefined>
   sendDMMessage: (conversationId: string, content: string) => Promise<void>
@@ -176,6 +177,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentDMId, setCurrentDMId] = useState<string | null>(null)
   const [dmUnreadCounts, setDMUnreadCounts] = useState<Record<string, number>>({})
   const [channelUnreadCounts, setChannelUnreadCounts] = useState<Record<string, number>>({})
+  const [channelMentionCounts, setChannelMentionCounts] = useState<Record<string, number>>({})
   const realtimeChannelRef = useRef<RealtimeChannel | null>(null)
   const realtimeAllChannelRef = useRef<RealtimeChannel | null>(null)
   const realtimeAllDMRef = useRef<RealtimeChannel | null>(null)
@@ -333,6 +335,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCurrentDMId(null)
     setDMUnreadCounts({})
     setChannelUnreadCounts({})
+    setChannelMentionCounts({})
 
     // Now safely delete on the backend (no frontend polling can race)
     if (wasGuest && guestId) {
@@ -724,6 +727,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     setCurrentServerId(id)
     setChannelUnreadCounts({})
+    setChannelMentionCounts({})
 
     const lastId = getLastChannelStorage()[id] || null
     const channelsForNewServer = cached?.channels || []
@@ -735,6 +739,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCurrentChannelId(id)
     if (currentServerId) saveLastChannel(currentServerId, id)
     setChannelUnreadCounts((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+    setChannelMentionCounts((prev) => {
       const next = { ...prev }
       delete next[id]
       return next
@@ -881,7 +890,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (textChannelIds.size === 0) return
 
     const ch = subscribeToAllChannelMessages((payload) => {
-      const { channel_id, user_id } = payload.new
+      const { channel_id, user_id, content } = payload.new as { channel_id: string; user_id: string; content?: string }
       if (user_id === user.id) return
       if (currentChannelIdRef.current === channel_id) return
       if (!textChannelIds.has(channel_id)) return
@@ -890,6 +899,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ...prev,
         [channel_id]: (prev[channel_id] ?? 0) + 1,
       }))
+
+      // Check if the message mentions the current user (@username or @everyone)
+      if (content) {
+        const username = user.username?.toLowerCase() ?? ''
+        const displayName = user.display_name?.toLowerCase() ?? ''
+        const lower = content.toLowerCase()
+        if (lower.includes('@everyone') || (username && lower.includes(`@${username}`)) || (displayName && lower.includes(`@${displayName}`))) {
+          setChannelMentionCounts((prev) => ({
+            ...prev,
+            [channel_id]: (prev[channel_id] ?? 0) + 1,
+          }))
+        }
+      }
     })
 
     realtimeAllChannelRef.current = ch
@@ -1080,6 +1102,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setCurrentDM,
         dmUnreadCounts,
         channelUnreadCounts,
+        channelMentionCounts,
         loadDMConversations,
         openDM,
         sendDMMessage,

@@ -20,6 +20,7 @@ export function SoundboardDropdown({ userId, onPlay, anchorRef, isOpen, onClose 
   const [error, setError] = useState<string | null>(null)
   const [emojiForNew, setEmojiForNew] = useState(DEFAULT_EMOJI)
   const [emojiPickerFor, setEmojiPickerFor] = useState<string | 'new' | null>(null)
+  const [emojiAnchorRect, setEmojiAnchorRect] = useState<DOMRect | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -123,25 +124,32 @@ export function SoundboardDropdown({ userId, onPlay, anchorRef, isOpen, onClose 
       ref={dropdownRef}
       className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-80 max-h-96 overflow-hidden rounded-xl bg-[#2b2d31] border border-app-hover shadow-xl z-50 flex flex-col"
     >
-      <div className={`p-2 border-b border-app-hover flex items-center justify-between gap-2 ${emojiPickerFor === 'new' ? 'relative' : ''}`}>
+      <div className="p-2 border-b border-app-hover flex items-center justify-between gap-2">
         <span className="font-semibold text-app-text text-sm">Soundboard</span>
         <div className="flex items-center gap-1">
           <span className="text-xs text-app-muted">New emoji:</span>
           <button
             type="button"
-            onClick={() => setEmojiPickerFor(emojiPickerFor === 'new' ? null : 'new')}
+            onClick={(e) => {
+              if (emojiPickerFor === 'new') {
+                setEmojiPickerFor(null)
+                setEmojiAnchorRect(null)
+              } else {
+                setEmojiPickerFor('new')
+                setEmojiAnchorRect(e.currentTarget.getBoundingClientRect())
+              }
+            }}
             className="text-xl p-0.5 rounded hover:bg-app-hover/80 transition-colors"
             title="Pick emoji for next sound"
           >
             {emojiForNew}
           </button>
           {emojiPickerFor === 'new' && (
-            <div className="absolute right-0 bottom-full mb-1 z-[60]">
-              <EmojiPicker
-                onSelect={(emoji) => { setEmojiForNew(emoji); setEmojiPickerFor(null) }}
-                onClose={() => setEmojiPickerFor(null)}
-              />
-            </div>
+            <EmojiPicker
+              anchorRect={emojiAnchorRect ?? undefined}
+              onSelect={(emoji) => { setEmojiForNew(emoji); setEmojiPickerFor(null); setEmojiAnchorRect(null) }}
+              onClose={() => { setEmojiPickerFor(null); setEmojiAnchorRect(null) }}
+            />
           )}
           <button
             onClick={handleAddClick}
@@ -175,23 +183,30 @@ export function SoundboardDropdown({ userId, onPlay, anchorRef, isOpen, onClose 
             {sounds.map((s) => (
               <div
                 key={s.id}
-                className={`group flex items-center gap-2 p-2 rounded-lg hover:bg-app-hover/50 ${emojiPickerFor === s.id ? 'relative' : ''}`}
+                className="group flex items-center gap-2 p-2 rounded-lg hover:bg-app-hover/50"
               >
                 <button
                   type="button"
-                  onClick={() => setEmojiPickerFor(emojiPickerFor === s.id ? null : s.id)}
+                  onClick={(e) => {
+                    if (emojiPickerFor === s.id) {
+                      setEmojiPickerFor(null)
+                      setEmojiAnchorRect(null)
+                    } else {
+                      setEmojiPickerFor(s.id)
+                      setEmojiAnchorRect(e.currentTarget.getBoundingClientRect())
+                    }
+                  }}
                   className="text-xl w-8 h-8 flex items-center justify-center rounded hover:bg-app-channel shrink-0"
                   title="Change emoji"
                 >
                   {s.emoji || DEFAULT_EMOJI}
                 </button>
                 {emojiPickerFor === s.id && (
-                  <div className="absolute left-0 bottom-full mb-1 z-[60]">
-                    <EmojiPicker
-                      onSelect={(emoji) => handleUpdateEmoji(s.id, emoji)}
-                      onClose={() => setEmojiPickerFor(null)}
-                    />
-                  </div>
+                  <EmojiPicker
+                    anchorRect={emojiAnchorRect ?? undefined}
+                    onSelect={(emoji) => { handleUpdateEmoji(s.id, emoji); setEmojiAnchorRect(null) }}
+                    onClose={() => { setEmojiPickerFor(null); setEmojiAnchorRect(null) }}
+                  />
                 )}
                 <button
                   onClick={() => onPlay(s.url)}

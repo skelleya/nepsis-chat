@@ -39,6 +39,7 @@ function AppContent() {
     setCurrentDM,
     dmUnreadCounts,
     channelUnreadCounts,
+    channelMentionCounts,
     openDM,
     sendDMMessage,
     setCurrentServer,
@@ -79,6 +80,7 @@ function AppContent() {
         setCurrentDM={setCurrentDM}
         dmUnreadCounts={dmUnreadCounts}
         channelUnreadCounts={channelUnreadCounts}
+        channelMentionCounts={channelMentionCounts}
         openDM={openDM}
         sendDMMessage={sendDMMessage}
         setCurrentServer={setCurrentServer}
@@ -117,6 +119,7 @@ interface MainLayoutProps {
   setCurrentDM: (id: string | null) => void
   dmUnreadCounts: Record<string, number>
   channelUnreadCounts: Record<string, number>
+  channelMentionCounts: Record<string, number>
   openDM: (targetUserId: string, targetUsername: string) => Promise<string | undefined>
   sendDMMessage: (conversationId: string, content: string) => Promise<void>
   setCurrentServer: (id: string) => void
@@ -151,6 +154,7 @@ function MainLayout({
   setCurrentDM,
   dmUnreadCounts,
   channelUnreadCounts,
+  channelMentionCounts,
   openDM,
   sendDMMessage,
   setCurrentServer,
@@ -584,6 +588,7 @@ function MainLayout({
           currentDMId={currentDMId}
           dmUnreadCounts={dmUnreadCounts}
           channelUnreadCounts={channelUnreadCounts}
+          channelMentionCounts={channelMentionCounts}
           onSelectDM={(id) => {
             setCurrentDM(id)
             setShowCommunity(false)
