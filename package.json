@@ -10,10 +10,9 @@
     "electron": "cd electron && npm start",
     "package": "cd electron && npm run package",
     "package:full": "cd electron && npm run package:full",
-    "deploy": "node scripts/deploy.js",
     "clean-updates": "node scripts/clean-updates.js",
     "clean-disk": "node scripts/clean-disk.js",
     "release": "cd electron && npm run publish:github",
-    "release:full": "cd electron && npm run package:full && cd .. && node scripts/deploy.js"
+    "release:full": "cd electron && npm run package:full"
   }
 }

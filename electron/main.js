@@ -16,7 +16,7 @@ if (process.platform === 'win32') {
 let mainWindow = null
 let tray = null
 
-// Updates from GitHub Releases — no Fly upload needed
+// Updates from GitHub Releases
 if (!isDev && app.isPackaged) {
   autoUpdater.setFeedURL({ provider: 'github', owner: 'skelleya', repo: 'nepsis-chat' })
   autoUpdater.autoDownload = false  // User clicks download icon to start
@@ -70,7 +70,7 @@ function createWindow() {
   if (icon) mainWindow.setIcon(icon)
 
   if (app.isPackaged) {
-    // Load from bundled frontend (built with VITE_API_URL -> Fly.io). No Vercel dependency.
+    // Load from bundled frontend (built with VITE_API_URL). No Vercel dependency.
     // Fall back to PROD_URL only if bundled files are missing (e.g. dev package).
     mainWindow.loadFile(BUNDLED_INDEX).catch(() => {
       mainWindow.loadURL(PROD_URL)

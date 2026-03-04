@@ -6,7 +6,7 @@ Desktop app wrapper and packaging.
 
 ## Overview
 
-- **Installed app**: Loads from bundled frontend (`resources/webapp/`) — no Vercel dependency. API calls go to Fly.io (`VITE_API_URL` baked in at build). Falls back to PROD_URL only if bundled files are missing.
+- **Installed app**: Loads from bundled frontend (`resources/webapp/`) — no Vercel dependency. API calls go to your backend (`VITE_API_URL` baked in at build). Falls back to PROD_URL only if bundled files are missing.
 - **Dev mode**: Loads from URL (default: `http://localhost:5173`)
 - NSIS installer installs to Program Files
 - electron-updater for auto-updates
@@ -49,7 +49,7 @@ Exposed to the renderer via `window.electronAPI`:
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | APP_URL | http://localhost:5173 | URL the app loads (dev mode) |
-| PROD_URL | https://nepsis-chat.fly.dev | Production URL (packaged app loads this) |
+| PROD_URL | https://nepsischat.vercel.app | Fallback URL when bundled files missing |
 | UPDATE_URL | `${PROD_URL}/updates` | Update server URL |
 | NODE_ENV | — | `development` = dev tools |
 

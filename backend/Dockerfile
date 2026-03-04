@@ -1,5 +1,5 @@
 # Backend only — frontend is on Vercel
-# Build context: project root (Fly.io uses root .dockerignore)
+# Build with context: backend folder (docker build -f backend/Dockerfile backend)
 FROM node:20-alpine
 
 WORKDIR /app

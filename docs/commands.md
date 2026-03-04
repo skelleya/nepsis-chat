@@ -15,8 +15,7 @@ All npm scripts and CLI commands for Nepsis Chat.
 | `npm run electron` | Run Electron desktop app |
 | `npm run package` | Build Electron installer (from electron/) |
 | `npm run package:full` | Full Electron build (package + publish + copy + bump) |
-| `npm run deploy` | Deploy to Fly.io |
-| `npm run release` | **All-in-one**: package:full + deploy to Fly.io |
+| `npm run release` | **All-in-one**: package:full (build + publish to GitHub Releases) |
 
 ---
 
@@ -82,12 +81,12 @@ cd electron; npm start
 ```powershell
 npm run release
 ```
-This runs `package:full` (build frontend, package Electron installer, publish update files, copy exe, bump version) then deploys to Fly.io.
+This runs `package:full` (build frontend, package Electron installer, publish update files to GitHub Releases, copy exe, bump version).
 
 ### Release steps separately
 ```powershell
 npm run package:full    # Build + publish + copy + bump
-npm run deploy          # Deploy to Fly.io
+# Backend: run on your self-hosted server (see docs/deployment.md)
 ```
 
 ### Manual steps (instead of package:full)
@@ -119,21 +118,9 @@ From `electron` folder:
 
 ## Deployment
 
-| Command | Description |
-|---------|-------------|
-| `fly deploy` | Build Docker image and deploy to Fly.io |
-| `fly logs` | View live server logs |
-| `fly status` | Check machine status |
-| `fly ssh console` | SSH into the running machine |
-| `fly ssh sftp get /data/data.sqlite` | Download database backup |
-
-### First deploy
-```bash
-fly auth login
-fly launch            # fly.toml already configured
-fly volumes create nepsis_data --region ord --size 1
-fly deploy
-```
+Backend is self-hosted. See [deployment.md](deployment.md) for:
+- Running with Node.js: `cd backend && npm start`
+- Running with Docker: `docker build -f backend/Dockerfile -t nepsis-backend backend && docker run ...`
 
 ---
 

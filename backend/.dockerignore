@@ -4,6 +4,6 @@ node_modules/
 # SQLite (not used in production)
 data.sqlite
 
-# Env (use Fly secrets)
+# Env (set via -e or runtime config)
 .env
 .env.*

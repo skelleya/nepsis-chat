@@ -1,6 +1,6 @@
 # Deployment
 
-Split deployment: **Vercel** (frontend) + **Fly.io** (backend). Supabase for DB.
+Split deployment: **Vercel** (frontend) + **Self-hosted** (backend). Supabase for DB.
 
 ---
 
@@ -8,10 +8,10 @@ Split deployment: **Vercel** (frontend) + **Fly.io** (backend). Supabase for DB.
 
 ```
 User (browser)    → https://nepsis-chat.vercel.app   (Vercel — frontend only)
-User (Electron)   → loads from Vercel or local
+User (Electron)   → loads from Vercel or bundled
 
 Both connect to:
-   https://nepsis-chat.fly.dev   (Fly.io — backend)
+   YOUR_BACKEND_URL   (self-hosted — backend)
                    ├─ /api/*       → Express API (data from Supabase Postgres)
                    ├─ (updates on GitHub Releases)
                    └─ /socket.io   → Socket.io (chat + voice signaling)
@@ -31,15 +31,64 @@ git push   # Vercel auto-deploys from GitHub — ~1 min
 
 ---
 
-## Full deploy (backend or desktop release)
+## Self-hosted backend
+
+Run the backend on your own server (VPS, home server, etc.).
+
+### Option 1: Node.js directly
 
 ```bash
-# Backend only (no Electron)
-npm run deploy
-
-# Full release (includes desktop installer)
-npm run release
+cd backend
+# Create .env with: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, CORS_ORIGINS (optional, default *)
+npm install
+npm start
 ```
+
+Default port: 3000. Use `PORT=8080` to override.
+
+### Option 2: Docker
+
+```bash
+# From project root (build context: backend folder)
+docker build -f backend/Dockerfile -t nepsis-backend backend
+docker run -p 3000:8080 \
+  -e SUPABASE_URL=https://YOUR_PROJECT.supabase.co \
+  -e SUPABASE_SERVICE_ROLE_KEY=your_service_role_key \
+  -e CORS_ORIGINS='*' \
+  nepsis-backend
+```
+
+Or use the root `Dockerfile`:
+
+```bash
+docker build -t nepsis-backend .
+docker run -p 3000:8080 \
+  -e SUPABASE_URL=... \
+  -e SUPABASE_SERVICE_ROLE_KEY=... \
+  -e CORS_ORIGINS='*' \
+  nepsis-backend
+```
+
+### Environment variables (backend)
+
+| Variable | Purpose |
+|----------|---------|
+| `PORT` | Server port (default 8080 in Docker, 3000 in Node) |
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
+| `CORS_ORIGINS` | Allowed origins (default `*` for all) |
+| `DATA_DIR` | Optional: persistent data directory (for SQLite if used) |
+
+### Building frontend for your backend
+
+Set `VITE_API_URL` to your backend URL when building:
+
+```bash
+cd frontend
+VITE_API_URL=https://your-server.com/api npm run build
+```
+
+For Vercel: set `VITE_API_URL` in the Vercel dashboard to your backend URL.
 
 ---
 
@@ -87,7 +136,7 @@ Schema is in `backend/supabase-migration.sql`. Run it in the Supabase SQL Editor
 
 | Variable | Value |
 |----------|-------|
-| `VITE_API_URL` | `https://nepsis-chat.fly.dev/api` |
+| `VITE_API_URL` | Your backend API URL (e.g. `https://your-server.com/api`) |
 | `VITE_SUPABASE_URL` | (from Supabase) |
 | `VITE_SUPABASE_ANON_KEY` | (from Supabase) |
 
@@ -95,76 +144,21 @@ Schema is in `backend/supabase-migration.sql`. Run it in the Supabase SQL Editor
 
 Push to GitHub — Vercel auto-deploys. ~1 min.
 
-### First-time setup
-
-1. Go to [vercel.com](https://vercel.com) → New Project → Import your GitHub repo
-2. Set **Root Directory** to `frontend` (required for monorepo)
-3. Add env vars: `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
-4. Deploy
-
----
-
-## Fly.io (backend)
-
-| Item | Value |
-|------|-------|
-| App name | `nepsis-chat` |
-| URL | `https://nepsis-chat.fly.dev` |
-| Region | `ord` (Chicago) |
-| Internal port | 8080 |
-
-### Deploy (~50MB)
-
-Build context is **backend only** (`fly.toml` uses `context = "backend"`). Updates are on GitHub Releases — Fly only deploys API + Socket.io.
-
-```bash
-npm run deploy   # flyctl deploy
-```
-
-**Desktop release** (publish installer to GitHub):
-
-```bash
-npm run release   # electron-builder --win -p always (uploads to GitHub Releases)
-```
-
-Requires `GH_TOKEN` env with `repo` scope. The download page links to `https://github.com/skelleya/nepsis-chat/releases/latest/download/NepsisChat-Setup.exe`.
-
-### Logs and status
-
-```bash
-flyctl logs --app nepsis-chat --no-tail
-flyctl status --app nepsis-chat
-```
-
-### Secrets (set via `flyctl secrets set`)
-
-| Secret | Purpose |
-|--------|---------|
-| `SUPABASE_URL` | Supabase project URL |
-| `SUPABASE_ANON_KEY` | Supabase anon/public key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (private) |
-
 ---
 
 ## Docker (backend only)
 
-The `backend/Dockerfile` is used with `context = "backend"` — Fly only uploads the backend folder (~50MB + latest installer if present). Electron and frontend are never sent.
-
-After deploying, free disk space with:
-
-```bash
-docker system prune -a -f
-```
+The `backend/Dockerfile` builds the backend. Use `context = "backend"` or build from root with the root Dockerfile.
 
 ---
 
 ## Environment Variables
 
-### Backend (runtime — set via Fly.io secrets or `backend/.env`)
+### Backend (runtime — set via `backend/.env` or Docker `-e`)
 
 | Variable | Purpose |
 |----------|---------|
-| `PORT` | Server port (default 8080) |
+| `PORT` | Server port (default 8080 in Docker, 3000 in Node) |
 | `SUPABASE_URL` | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
 | `CORS_ORIGINS` | Allowed origins (default `*`) |
@@ -173,7 +167,7 @@ docker system prune -a -f
 
 | Variable | Dev | Production |
 |----------|-----|------------|
-| `VITE_API_URL` | `http://localhost:3000/api` | `https://nepsis-chat.fly.dev/api` |
+| `VITE_API_URL` | `http://localhost:3000/api` | Your backend URL (e.g. `https://your-server.com/api`) |
 | `VITE_SUPABASE_URL` | (from `.env.local`) | `https://opkatioqcmamnwmvqdtq.supabase.co` |
 | `VITE_SUPABASE_ANON_KEY` | (from `.env.local`) | (in `.env.production`) |
 

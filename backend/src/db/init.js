@@ -3,7 +3,7 @@ import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-// DATA_DIR env var allows persistent storage on Fly.io volumes; defaults to backend root
+// DATA_DIR env var allows persistent storage; defaults to backend root
 const dataDir = process.env.DATA_DIR || join(__dirname, '../..')
 const db = new Database(join(dataDir, 'data.sqlite'))
 

@@ -26,7 +26,7 @@ const app = express()
 const httpServer = createServer(app)
 
 // CORS: allow env-configured origins. CORS_ORIGINS=* or empty = allow all.
-// Use explicit middleware so headers are always set (avoids cors package quirks on Fly).
+// Use explicit middleware so headers are always set (avoids cors package quirks).
 const rawOrigins = (process.env.CORS_ORIGINS || '').trim()
 const allowAll = rawOrigins === '*' || rawOrigins === ''
 const allowedOrigins = allowAll
@@ -58,7 +58,7 @@ const io = new Server(httpServer, {
     methods: ['GET', 'POST'],
     credentials: true,
   },
-  // Longer timeouts to reduce spurious disconnects on Fly.io
+  // Longer timeouts to reduce spurious disconnects
   pingTimeout: 30000,
   pingInterval: 25000,
   // Allow EIO3 clients for broader compatibility
@@ -93,7 +93,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' })
 })
 
-// Updates are on GitHub Releases — Fly only serves API and Socket.io
+// Updates are on GitHub Releases — backend serves API and Socket.io
 
 const chatNamespace = io.of('/chat')
 const voiceNamespace = io.of('/voice')

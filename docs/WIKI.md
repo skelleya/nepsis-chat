@@ -15,7 +15,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | [Electron & Desktop App](electron.md) | Desktop app, installer, packaging |
 | [WebRTC & Voice](webrtc-voice.md) | Voice channels, signaling, Opus |
 | [Versioning & Updates](versioning-updates.md) | Versioning, auto-updates, release flow |
-| [Deployment](deployment.md) | Fly.io, Docker, GitHub |
+| [Deployment](deployment.md) | Self-hosted, Docker, GitHub |
 | [Errors & Solutions](errors-solutions.md) | Known issues and fixes |
 
 ---
@@ -28,7 +28,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | Start frontend | `npm run dev:frontend` |
 | Run desktop app | `npm run electron` |
 | Full release build | `npm run package:full` |
-| Deploy to Fly.io | `npm run deploy` |
+| Full release (Electron) | `npm run release` |
 | **Release everything** | **`npm run release`** |
 
 ---
@@ -45,7 +45,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Versioning 0.0.1, auto-updates, green update button |
 | + | Branding — Nepsis logo, bright orange (#FF6600), all locations consistent |
 | + | System tray — Close window hides to tray; right-click tray to Show/Quit |
-| + | Deployment — Fly.io, GitHub, Docker, env-based config |
+| + | Deployment — Self-hosted backend, GitHub, Docker, env-based config |
 | + | Supabase migration — Postgres DB + email auth (guest + email login) |
 | + | Guest logout — delete guest account + leave all servers on logout |
 | + | Discord-like UI overhaul — server creation, channel categories, voice user display, user panel, server settings, camera/screen share |
@@ -57,7 +57,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Voice UI v3 — End-call icon for disconnect; mic/headphone icons for mute/deafen; show users in voice channels before joining; drag channels to reorder; right-click user context menu (Message, Add Friend, Kick, Move to Channel); admin can move users between voice channels via right-click |
 | + | Admin voice controls — Owner/admin can mute users in voice (force-mute) and disconnect them from voice. Right-click participant in VoiceView or member in MembersSidebar; backend emits admin-mute and admin-disconnect-from-voice via Socket.io. |
 | + | Category & channel management — Server owners can: reorder categories (drag); reorder channels within/between categories (drag); edit/delete categories and channels (3-dot menu); drag voice users from one voice channel to another (admin only) |
-| + | Split deployment — Frontend on Vercel (git push, ~1 min), backend on Fly.io (API + Socket.io). Download page links to /updates/download redirect |
+| + | Split deployment — Frontend on Vercel (git push, ~1 min), backend self-hosted (API + Socket.io). Download page links to GitHub Releases |
 | + | Voice status server-scoped — "In voice" and voice connection bar only show for the server where the user is actually in voice; no cross-server confusion |
 | + | Layout cache — Channels and categories cached in localStorage; instant server preview on switch; background refresh when tab becomes visible; preload for other servers |
 | + | Voice UI v4 — Green circle glows when speaking (UserPanel); mute/deafen icons next to username (UserPanel + channel list voice users); signal dot + ping on left of "Voice Connected" bar |
@@ -94,6 +94,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Create server UI modernized — CreateServerModal: gradient accent bar, refined layout, loading spinner, improved error styling, accessibility; OnboardingPage uses modal instead of `prompt()` for server name. |
 | + | Display name — User Settings > My Account: editable display name (separate from username). Others see display name in chat, voice, DMs, member lists. Username stays for login. Migration `20250211000013_user_display_name.sql`. |
 | + | Sign in via username — Registered users can sign in with username + password (not just email). Sign In form accepts "Email or username"; backend looks up email by username and authenticates via Supabase Auth. |
+| + | **Fly.io removed** — Backend now self-hosted only. Removed fly.toml, scripts/deploy.js, npm run deploy. Updated docs (deployment.md, commands.md, errors-solutions.md). Frontend .env.production defaults to localhost:3000. See deployment.md for Node.js and Docker options. |
 
 ---
 

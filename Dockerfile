@@ -12,7 +12,7 @@ COPY backend/ ./
 
 ENV NODE_ENV=production
 ENV PORT=8080
-# Supabase keys are set via Fly.io secrets (not baked into image)
+# Supabase keys set via -e or .env (not baked into image)
 
 EXPOSE 8080
 
