@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, type RefObject } from 'react'
+import { useState, useLayoutEffect, useRef, useCallback, type RefObject } from 'react'
 import { Link } from 'react-router-dom'
 import gsap from 'gsap'
 import { useApp } from '../contexts/AppContext'
