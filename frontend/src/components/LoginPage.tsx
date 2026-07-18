@@ -255,19 +255,31 @@ export function LoginPage() {
           ))}
         </div>
 
-        <div className="overflow-hidden min-h-[220px]">
-          <div ref={panelRef} className="will-change-transform">
+        <div className="overflow-hidden h-[236px]">
+          <div ref={panelRef} className="will-change-transform h-full">
             {mode === 'guest' ? (
-              <form onSubmit={handleGuestSubmit} className="space-y-6">
-                <div className="space-y-3">
-                  <label className="block text-sm text-app-muted">Username</label>
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Enter a username"
-                    className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent"
-                  />
+              <form onSubmit={handleGuestSubmit} className="flex h-full flex-col justify-between">
+                <div className="space-y-6">
+                  <div className="space-y-3">
+                    <label className="block text-sm text-app-muted">Username</label>
+                    <input
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="Enter a username"
+                      className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent"
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <span className="block text-sm text-transparent select-none" aria-hidden="true">
+                      Password
+                    </span>
+                    <div className="w-full min-h-[48px] px-1 flex items-center justify-center">
+                      <p className="text-app-muted text-xs text-center">
+                        Guest accounts are temporary — no email required
+                      </p>
+                    </div>
+                  </div>
                 </div>
                 <button
                   type="submit"
@@ -276,33 +288,32 @@ export function LoginPage() {
                 >
                   {loading ? 'Joining...' : 'Continue as Guest'}
                 </button>
-                <p className="text-app-muted text-xs text-center pt-1">
-                  Guest accounts are temporary — no email required
-                </p>
               </form>
             ) : (
-              <form onSubmit={handleEmailSubmit} className="space-y-6">
-                <div className="space-y-3">
-                  <label className="block text-sm text-app-muted">
-                    {mode === 'signup' ? 'Email' : 'Email or username'}
-                  </label>
-                  <input
-                    type="text"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder={mode === 'signup' ? 'you@example.com' : 'you@example.com or username'}
-                    className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent"
-                  />
-                </div>
-                <div className="space-y-3">
-                  <label className="block text-sm text-app-muted">Password</label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent"
-                  />
+              <form onSubmit={handleEmailSubmit} className="flex h-full flex-col justify-between">
+                <div className="space-y-6">
+                  <div className="space-y-3">
+                    <label className="block text-sm text-app-muted">
+                      {mode === 'signup' ? 'Email' : 'Email or username'}
+                    </label>
+                    <input
+                      type="text"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder={mode === 'signup' ? 'you@example.com' : 'you@example.com or username'}
+                      className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent"
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <label className="block text-sm text-app-muted">Password</label>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent"
+                    />
+                  </div>
                 </div>
                 <button
                   type="submit"
