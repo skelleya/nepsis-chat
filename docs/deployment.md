@@ -31,6 +31,57 @@ git push   # Vercel auto-deploys from GitHub — ~1 min
 
 ---
 
+## Railway (recommended for production API)
+
+Deploy the Express + Socket.io backend so Vercel can reach it (fixes production “Load failed”).
+
+### 1. Create the service
+
+1. Go to [railway.app](https://railway.app/) → sign up (GitHub is easiest)
+2. **New Project** → **Deploy from GitHub repo** → select `nepsis-chat`
+3. After it appears, open the service → **Settings**:
+   - **Root Directory:** `backend`
+   - **Start Command:** `npm start` (Railway usually detects this)
+4. **Settings → Networking → Generate Domain** (public HTTPS URL)
+
+You should get something like `https://nepsis-chat-production-xxxx.up.railway.app`.
+
+### 2. Environment variables (Railway → Variables)
+
+| Variable | Value |
+|----------|-------|
+| `SUPABASE_URL` | `https://qeopqyquskszzgprghiy.supabase.co` |
+| `SUPABASE_ANON_KEY` | Supabase anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase **service_role** key (Dashboard → Settings → API) |
+| `CORS_ORIGINS` | `https://nepsischat.vercel.app` (or `*` while testing) |
+| `PORT` | Leave unset — Railway injects `PORT` |
+
+Redeploy after saving variables.
+
+### 3. Smoke-test the API
+
+Open in a browser:
+
+`https://YOUR_RAILWAY_DOMAIN/api/version`
+
+You should see JSON like `{"version":"…"}`.
+
+### 4. Point Vercel at Railway
+
+Vercel → Project → **Settings → Environment Variables**:
+
+| Variable | Value |
+|----------|-------|
+| `VITE_API_URL` | `https://YOUR_RAILWAY_DOMAIN/api` |
+| `VITE_SUPABASE_URL` | `https://qeopqyquskszzgprghiy.supabase.co` |
+| `VITE_SUPABASE_ANON_KEY` | same anon key |
+
+Then **Deployments → … → Redeploy** (required — `VITE_*` is baked at build time).
+
+Sign-in on the live site should work after that.
+
+---
+
 ## Self-hosted backend
 
 Run the backend on your own server (VPS, home server, etc.).
