@@ -81,6 +81,7 @@ frontend/src/
 | socketSignaling.ts | Socket.io (with backend) |
 | webrtc.ts | WebRTC peer connections |
 | sounds.ts | Web Audio API notification/call sounds (no external files) |
+| iceConfig.ts | STUN + optional TURN for P2P voice/calls (`ensureIceServers`) |
 
 ---
 
@@ -171,5 +172,8 @@ Cache is cleared on logout. See `frontend/src/services/layoutCache.ts`.
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | VITE_API_URL | — | API base (e.g. `http://localhost:3000/api`) |
+| VITE_TURN_URLS | — | Optional comma-separated TURN URLs (fallback if API has no TURN) |
+| VITE_TURN_USERNAME | — | TURN username (with `VITE_TURN_URLS`) |
+| VITE_TURN_CREDENTIAL | — | TURN password (with `VITE_TURN_URLS`) |
 
-When `VITE_API_URL` is set, voice uses Socket.io instead of BroadcastChannel.
+When `VITE_API_URL` is set, voice uses Socket.io instead of BroadcastChannel. ICE/TURN: see [webrtc-voice.md](webrtc-voice.md). Preferred: backend `GET /api/webrtc/ice`.

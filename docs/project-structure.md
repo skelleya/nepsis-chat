@@ -60,7 +60,8 @@ e:\Nepsis Chat\
 - **layoutCache.ts** — Client-side cache for server layout (channels + categories), localStorage, instant preview on server switch
 - **signaling.ts** — BroadcastChannel signaling (2-tab test)
 - **socketSignaling.ts** — Socket.io signaling (with backend)
-- **webrtc.ts** — WebRTC client
+- **webrtc.ts** — WebRTC client (mesh P2P; accepts ICE server list)
+- **iceConfig.ts** — STUN + optional TURN (`ensureIceServers` from `/api/webrtc/ice` or `VITE_TURN_*`)
 - **chatSocket.ts** — Chat Socket.io (optional)
 
 ---
@@ -82,6 +83,7 @@ e:\Nepsis Chat\
 - `servers.js` — servers, channels
 - `messages.js` — messages
 - `version.js` — app version
+- `webrtc.js` — `GET /ice` (STUN + optional TURN from env)
 
 ### Socket namespaces
 

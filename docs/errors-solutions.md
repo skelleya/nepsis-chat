@@ -201,7 +201,7 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 |-------|-------|----------|
 | Call button does nothing / no ring | `/calls` namespace not registered on backend | Ensure `registerCallHandlers(callsNamespace)` is in `backend/src/index.js` and backend is restarted |
 | "User is offline" immediately after clicking Call | Target user's browser hasn't connected to the `/calls` namespace yet | The CallProvider must be mounted (user must be logged in). Check that `CallProvider` wraps `MainLayout` in `App.tsx` |
-| No audio after accepting call | WebRTC ICE candidate exchange failed (firewall/NAT) | Add TURN server to ICE_CONFIG in `CallContext.tsx` for strict NAT environments |
+| No audio after accepting call / voice | WebRTC ICE failed (firewall/strict NAT); STUN-only can’t relay | Configure TURN: set backend `TURN_URLS` + `TURN_USERNAME` + `TURN_CREDENTIAL`, restart API. Clients load via `GET /api/webrtc/ice`. Or set `VITE_TURN_*` as fallback. See [webrtc-voice.md](webrtc-voice.md). |
 | Call rings forever / doesn't auto-decline | Timeout not firing | Both caller and callee have 30s timeouts. Check browser console for errors in CallContext |
 
 **Files:** `backend/src/socket/calls.js`, `frontend/src/contexts/CallContext.tsx`, `frontend/src/components/CallOverlay.tsx`
