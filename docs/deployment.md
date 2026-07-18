@@ -138,9 +138,13 @@ Base schema: `backend/supabase-migration.sql`. Incrementals: `supabase/migration
 
 | Variable | Value |
 |----------|-------|
-| `VITE_API_URL` | Your backend API URL (e.g. `https://your-server.com/api`) |
-| `VITE_SUPABASE_URL` | (from Supabase) |
-| `VITE_SUPABASE_ANON_KEY` | (from Supabase) |
+| `VITE_API_URL` | Your **public** backend API URL (e.g. `https://api.yourdomain.com/api`). **Not** `localhost`. **Not** `nepsis-chat.fly.dev` (Fly removed). |
+| `VITE_SUPABASE_URL` | `https://qeopqyquskszzgprghiy.supabase.co` |
+| `VITE_SUPABASE_ANON_KEY` | Anon key from that Supabase project |
+
+After changing env vars, trigger a **Redeploy** (Vercel bakes `VITE_*` at build time).
+
+If sign-in shows **“Load failed”**, the site cannot reach the API — almost always a stale/wrong `VITE_API_URL`.
 
 ### Deploy
 
