@@ -255,7 +255,7 @@ export function LoginPage() {
           ))}
         </div>
 
-        <div className="overflow-hidden h-[268px]">
+        <div className="overflow-hidden h-[268px] -mx-1 px-1">
           <div ref={panelRef} className="will-change-transform h-full">
             {mode === 'guest' ? (
               <form onSubmit={handleGuestSubmit} className="flex h-full flex-col gap-6">
