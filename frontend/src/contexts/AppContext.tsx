@@ -183,8 +183,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const realtimeAllDMRef = useRef<RealtimeChannel | null>(null)
   const currentDMIdRef = useRef<string | null>(null)
   const currentChannelIdRef = useRef<string | null>(null)
+  const dmConversationsRef = useRef(dmConversations)
   currentChannelIdRef.current = currentChannelId
   currentDMIdRef.current = currentDMId
+  dmConversationsRef.current = dmConversations
   const realtimeReactionsRef = useRef<RealtimeChannel | null>(null)
   const realtimeDMRef = useRef<RealtimeChannel | null>(null)
   const messagesRef = useRef(messages)
@@ -836,7 +838,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const msg = await api.getMessage(payload.new.id)
           // Play notification sound for messages from other users
           if (msg.user_id !== user?.id) {
-            sounds.messageNotification()
+            sounds.messageNotification('channel')
           }
           setMessages((prev) => {
             const list = prev[currentChannelId] || []
@@ -1003,13 +1005,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return prev
       })
 
-      sounds.messageNotification()
+      sounds.messageNotification('dm')
       setDMUnreadCounts((prev) => ({
         ...prev,
         [conversation_id]: (prev[conversation_id] ?? 0) + 1,
       }))
       try {
         const msg = await api.getDMMessage(payload.new.id)
+        // Desktop notification when tab is hidden (opt-in via Notification settings)
+        try {
+          const { loadPrefs } = await import('../services/userPrefs')
+          const prefs = loadPrefs().notifications
+          if (
+            prefs.browserDmNotifications &&
+            typeof document !== 'undefined' &&
+            document.hidden &&
+            'Notification' in window &&
+            Notification.permission === 'granted'
+          ) {
+            const conv = dmConversationsRef.current?.find((c) => c.id === conversation_id)
+            const from = conv?.other_user?.username || msg.username || 'Someone'
+            new Notification('New direct message', {
+              body: `${from}: ${String(msg.content || '').slice(0, 120)}`,
+              icon: './logo.png',
+              tag: `nepsis-dm-${conversation_id}`,
+            })
+          }
+        } catch {
+          /* ignore notif errors */
+        }
         setDMMessages((prev) => {
           const list = prev[conversation_id] || []
           if (list.some((m) => m.id === msg.id)) return prev
@@ -1036,7 +1060,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const ch = subscribeToDMMessages(currentDMId, async (payload) => {
       if (payload.eventType === 'INSERT') {
         if (payload.new.user_id !== user?.id) {
-          sounds.messageNotification()
+          sounds.messageNotification('dm')
         }
         try {
           const msg = await api.getDMMessage(payload.new.id)

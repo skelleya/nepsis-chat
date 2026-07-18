@@ -235,7 +235,7 @@ export function ChatView({
             <div
               id={`msg-${message.id}`}
               key={message.id}
-              className="group flex gap-3 py-1.5 hover:bg-app-dark/50 rounded px-2 -mx-2 transition-all"
+              className="group flex gap-3 chat-msg-row hover:bg-app-dark/50 rounded px-2 -mx-2 transition-all"
             >
               <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 overflow-hidden ${getMemberAvatar(message.userId) ? 'bg-transparent' : 'bg-app-accent'}`}>
                 {getMemberAvatar(message.userId) ? (

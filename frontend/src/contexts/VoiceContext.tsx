@@ -3,6 +3,7 @@ import { createBroadcastSignaling } from '../services/signaling'
 import { createSocketSignaling } from '../services/socketSignaling'
 import { createWebRTCClient } from '../services/webrtc'
 import { sounds } from '../services/sounds'
+import { getAudioConstraints, getVideoConstraints } from '../services/userPrefs'
 
 export interface VoiceParticipant {
   userId: string
@@ -129,7 +130,10 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
 
     setError(null)
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: getAudioConstraints(),
+        video: false,
+      })
       setLocalStream(stream)
       setVoiceChannelId(channelId)
       setVoiceChannelName(channelName)
@@ -293,7 +297,10 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
       setIsCameraOn(false)
     } else {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: getVideoConstraints(),
+          audio: false,
+        })
         setVideoStream(stream)
         setIsCameraOn(true)
         // Add video tracks to all peer connections (triggers renegotiation)

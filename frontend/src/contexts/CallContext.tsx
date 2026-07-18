@@ -22,6 +22,7 @@ import {
 import { io, type Socket } from 'socket.io-client'
 import { sounds } from '../services/sounds'
 import { useVoice } from './VoiceContext'
+import { applyAudioOutputDevice, getAudioConstraints, loadPrefs } from '../services/userPrefs'
 
 const SOCKET_URL =
   import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000'
@@ -138,7 +139,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
   // ─── Setup WebRTC peer connection ───────────────────────────────
   const setupWebRTC = useCallback(
     async (isCaller: boolean) => {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: getAudioConstraints() })
       localStreamRef.current = stream
 
       const pc = new RTCPeerConnection(ICE_CONFIG)
@@ -153,6 +154,9 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
           remoteAudioRef.current = new Audio()
           remoteAudioRef.current.autoplay = true
         }
+        const voice = loadPrefs().voice
+        remoteAudioRef.current.volume = voice.outputVolume
+        applyAudioOutputDevice(remoteAudioRef.current, voice.audioOutputId)
         remoteAudioRef.current.srcObject = e.streams[0]
       }
 
@@ -237,7 +241,12 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
         stopRingRef.current = sounds.callRinging()
 
         // Browser notification when app is in background (another tab or minimized)
-        if (typeof document !== 'undefined' && document.hidden && 'Notification' in window) {
+        if (
+          loadPrefs().notifications.browserCallNotifications &&
+          typeof document !== 'undefined' &&
+          document.hidden &&
+          'Notification' in window
+        ) {
           const showNotif = () => {
             const n = new Notification('Incoming call', {
               body: `${callerUsername} is calling you`,

@@ -2,12 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --app-dark: #1e1f22;
+  --app-darker: #111214;
+  --app-channel: #2b2d31;
+  --app-hover: #35373c;
+  --app-accent: #5865f2;
+  --app-accent-hover: #4752c4;
+  --app-text: #dbdee1;
+  --app-muted: #b5bac1;
+  --app-font-size: 16px;
+  --chat-msg-py: 0.375rem;
+}
+
+html[data-density='compact'] {
+  --chat-msg-py: 0.125rem;
+}
+
 @layer base {
   html,
   body,
   #root {
     height: 100%;
     margin: 0;
+  }
+
+  html {
+    font-size: var(--app-font-size);
   }
 
   body {
@@ -22,6 +43,11 @@
   }
   .animate-dm-glow {
     animation: dm-glow 1.5s ease-in-out infinite;
+  }
+
+  .chat-msg-row {
+    padding-top: var(--chat-msg-py);
+    padding-bottom: var(--chat-msg-py);
   }
 }
 

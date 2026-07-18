@@ -9,6 +9,8 @@
  *   stop()                              // stops looping sound
  */
 
+import { loadPrefs } from './userPrefs'
+
 class SoundManager {
   private ctx: AudioContext | null = null
 
@@ -20,6 +22,19 @@ class SoundManager {
       this.ctx.resume()
     }
     return this.ctx
+  }
+
+  private allowMessage(kind: 'channel' | 'dm') {
+    const n = loadPrefs().notifications
+    return kind === 'dm' ? n.dmSounds : n.messageSounds
+  }
+
+  private allowCall() {
+    return loadPrefs().notifications.callSounds
+  }
+
+  private allowVoice() {
+    return loadPrefs().notifications.voiceSounds
   }
 
   /** Play a tone with smooth ADSR envelope */
@@ -52,7 +67,8 @@ class SoundManager {
   // ─── Notification ──────────────────────────────────────────────
 
   /** Short "ding" for new messages */
-  messageNotification() {
+  messageNotification(kind: 'channel' | 'dm' = 'channel') {
+    if (!this.allowMessage(kind)) return
     const ctx = this.getCtx()
     const t = ctx.currentTime
     this.tone(880, t, 0.15, { volume: 0.1 })
@@ -63,6 +79,7 @@ class SoundManager {
 
   /** Someone joined voice — rising two-note chime */
   userJoin() {
+    if (!this.allowVoice()) return
     const ctx = this.getCtx()
     if (ctx.state === 'suspended') {
       ctx.resume().then(() => this._playUserJoin())
@@ -80,6 +97,7 @@ class SoundManager {
 
   /** Someone left voice — falling two-note chime */
   userLeave() {
+    if (!this.allowVoice()) return
     const ctx = this.getCtx()
     if (ctx.state === 'suspended') {
       ctx.resume().then(() => this._playUserLeave())
@@ -97,6 +115,7 @@ class SoundManager {
 
   /** Connected to voice channel — rising chord */
   voiceConnected() {
+    if (!this.allowVoice()) return
     const ctx = this.getCtx()
     const t = ctx.currentTime
     this.tone(523.25, t, 0.18, { volume: 0.1 })
@@ -106,6 +125,7 @@ class SoundManager {
 
   /** Disconnected from voice channel — falling tone */
   voiceDisconnected() {
+    if (!this.allowVoice()) return
     const ctx = this.getCtx()
     const t = ctx.currentTime
     this.tone(440, t, 0.2, { volume: 0.1 })
@@ -116,6 +136,7 @@ class SoundManager {
 
   /** Call connected — success chime */
   callConnected() {
+    if (!this.allowCall()) return
     const ctx = this.getCtx()
     const t = ctx.currentTime
     this.tone(523.25, t, 0.18, { volume: 0.12 })
@@ -125,6 +146,7 @@ class SoundManager {
 
   /** Call ended / declined — low disconnect tone */
   callDisconnected() {
+    if (!this.allowCall()) return
     const ctx = this.getCtx()
     const t = ctx.currentTime
     this.tone(440, t, 0.2, { volume: 0.1 })
@@ -133,6 +155,7 @@ class SoundManager {
 
   /** Incoming call ring (loops) — returns stop function */
   callRinging(): () => void {
+    if (!this.allowCall()) return () => {}
     let stopped = false
     const timeouts: number[] = []
 
@@ -157,6 +180,7 @@ class SoundManager {
 
   /** Outgoing ring-back tone (loops) — returns stop function */
   callOutgoing(): () => void {
+    if (!this.allowCall()) return () => {}
     let stopped = false
     const timeouts: number[] = []
 

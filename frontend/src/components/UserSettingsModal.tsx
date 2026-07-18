@@ -4,6 +4,9 @@ import * as api from '../services/api'
 import type { ProfileType } from '../services/api'
 import { PrivacySettingsTab } from './settings/PrivacySettingsTab'
 import { ProfilesSettingsTab } from './settings/ProfilesSettingsTab'
+import { AppearanceSettingsTab } from './settings/AppearanceSettingsTab'
+import { VoiceVideoSettingsTab } from './settings/VoiceVideoSettingsTab'
+import { NotificationsSettingsTab } from './settings/NotificationsSettingsTab'
 
 type TabId = 'account' | 'profiles' | 'privacy' | 'appearance' | 'voice' | 'notifications' | 'help'
 
@@ -594,32 +597,11 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
                 <PrivacySettingsTab userId={user.id} />
               )}
 
-              {displayedTab === 'appearance' && (
-                <div>
-                  <h3 className="text-xl font-bold text-white mb-4">Appearance</h3>
-                  <div className="bg-[#2b2d31] rounded-lg p-4">
-                    <p className="text-app-muted text-sm">Theme and display preferences.</p>
-                  </div>
-                </div>
-              )}
+              {displayedTab === 'appearance' && <AppearanceSettingsTab />}
 
-              {displayedTab === 'voice' && (
-                <div>
-                  <h3 className="text-xl font-bold text-white mb-4">Voice & Video</h3>
-                  <div className="bg-[#2b2d31] rounded-lg p-4">
-                    <p className="text-app-muted text-sm">Microphone, speaker, and camera settings.</p>
-                  </div>
-                </div>
-              )}
+              {displayedTab === 'voice' && <VoiceVideoSettingsTab />}
 
-              {displayedTab === 'notifications' && (
-                <div>
-                  <h3 className="text-xl font-bold text-white mb-4">Notifications</h3>
-                  <div className="bg-[#2b2d31] rounded-lg p-4">
-                    <p className="text-app-muted text-sm">Manage notification preferences.</p>
-                  </div>
-                </div>
-              )}
+              {displayedTab === 'notifications' && <NotificationsSettingsTab />}
 
               {displayedTab === 'help' && (
                 <HelpTab user={user} />

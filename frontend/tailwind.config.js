@@ -8,14 +8,14 @@ export default {
     extend: {
       colors: {
         app: {
-          dark: '#1e1f22',
-          darker: '#111214',
-          channel: '#2b2d31',
-          hover: '#35373c',
-          accent: '#5865f2',
-          'accent-hover': '#4752c4',
-          text: '#dbdee1',
-          muted: '#b5bac1',
+          dark: 'var(--app-dark)',
+          darker: 'var(--app-darker)',
+          channel: 'var(--app-channel)',
+          hover: 'var(--app-hover)',
+          accent: 'var(--app-accent)',
+          'accent-hover': 'var(--app-accent-hover)',
+          text: 'var(--app-text)',
+          muted: 'var(--app-muted)',
           online: '#23a559',
           offline: '#80848e',
         }
