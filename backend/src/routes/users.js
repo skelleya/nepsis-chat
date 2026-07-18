@@ -145,7 +145,40 @@ usersRouter.patch('/:id', async (req, res) => {
       if (!['personal', 'work'].includes(active_profile)) {
         return res.status(400).json({ error: 'active_profile must be personal or work' })
       }
+
+      // Work requires a saved Work display name; otherwise keep Personal
+      if (active_profile === 'work') {
+        const { data: workProfile } = await supabase
+          .from('user_profiles')
+          .select('display_name')
+          .eq('user_id', id)
+          .eq('profile_type', 'work')
+          .maybeSingle()
+        if (!workProfile?.display_name?.trim()) {
+          return res.status(400).json({ error: 'Set up a Work profile display name before switching to Work' })
+        }
+      }
+
       updates.active_profile = active_profile
+
+      // Sync public presentation immediately from the selected profile (or username for empty Personal)
+      const { data: selected } = await supabase
+        .from('user_profiles')
+        .select('display_name, avatar_url, banner_url')
+        .eq('user_id', id)
+        .eq('profile_type', active_profile)
+        .maybeSingle()
+      const { data: accountRow } = await supabase
+        .from('users')
+        .select('username')
+        .eq('id', id)
+        .maybeSingle()
+      const fallbackName = accountRow?.username || null
+      updates.display_name = (selected?.display_name && selected.display_name.trim()) || fallbackName
+      if (selected) {
+        updates.avatar_url = selected.avatar_url || null
+        updates.banner_url = selected.banner_url || null
+      }
     }
 
     if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No valid fields to update' })

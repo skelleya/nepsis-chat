@@ -865,7 +865,14 @@ export async function setActiveProfile(userId: string, activeProfile: ProfileTyp
     const err = await res.json().catch(() => ({}))
     throw new Error(err?.error || 'Failed to set active profile')
   }
-  return res.json()
+  return res.json() as Promise<{
+    id: string
+    username: string
+    display_name?: string | null
+    avatar_url?: string | null
+    banner_url?: string | null
+    active_profile?: ProfileType
+  }>
 }
 
 // ─── Soundboard ──────────────────────────────────────────

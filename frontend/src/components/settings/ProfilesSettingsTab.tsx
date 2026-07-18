@@ -14,23 +14,46 @@ interface ProfileRow {
   discoverable?: boolean
 }
 
+type ProfilePreview = {
+  display_name: string
+  avatar_url?: string | null
+  banner_url?: string | null
+}
+
 interface ProfilesSettingsTabProps {
   user: { id: string; username: string; display_name?: string | null; avatar_url?: string; banner_url?: string; is_guest?: boolean }
   onUserUpdate?: (data: { username?: string; display_name?: string | null; avatar_url?: string; banner_url?: string }) => void
   /** When set from My Account, highlight this as the server default */
   defaultProfile?: ProfileType
   onDefaultProfileChange?: (type: ProfileType) => void
+  /** Keep My Account labels / presentation in sync when profiles load or save */
+  onProfilesChange?: (previews: Record<ProfileType, ProfilePreview>, active?: ProfileType) => void
 }
 
 function emptyProfile(type: ProfileType, user: ProfilesSettingsTabProps['user']): ProfileRow {
   return {
     id: `${user.id}-${type}`,
     profile_type: type,
-    display_name: type === 'personal' ? (user.display_name || '') : '',
+    display_name: type === 'personal' ? (user.display_name || user.username || '') : '',
     bio: '',
     avatar_url: type === 'personal' ? user.avatar_url || null : null,
     banner_url: type === 'personal' ? user.banner_url || null : null,
     discoverable: type === 'personal',
+  }
+}
+
+function toPreviews(profiles: Record<ProfileType, ProfileRow>): Record<ProfileType, ProfilePreview> {
+  return {
+    personal: {
+      display_name: profiles.personal.display_name || '',
+      avatar_url: profiles.personal.avatar_url,
+      banner_url: profiles.personal.banner_url,
+    },
+    work: {
+      display_name: profiles.work.display_name || '',
+      avatar_url: profiles.work.avatar_url,
+      banner_url: profiles.work.banner_url,
+    },
   }
 }
 
@@ -39,6 +62,7 @@ export function ProfilesSettingsTab({
   onUserUpdate,
   defaultProfile,
   onDefaultProfileChange,
+  onProfilesChange,
 }: ProfilesSettingsTabProps) {
   const isGuest = user.is_guest ?? true
   const [editing, setEditing] = useState<ProfileType>('personal')
@@ -54,6 +78,8 @@ export function ProfilesSettingsTab({
   const [error, setError] = useState<string | null>(null)
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const bannerInputRef = useRef<HTMLInputElement>(null)
+  const onProfilesChangeRef = useRef(onProfilesChange)
+  onProfilesChangeRef.current = onProfilesChange
 
   const current = profiles[editing]
   const hasBothProfiles = Boolean(
@@ -86,16 +112,24 @@ export function ProfilesSettingsTab({
           }
         }
       }
+      // Seed empty Personal with signup username (temporary until onboarding)
+      if (!next.personal.display_name.trim()) {
+        next.personal.display_name = user.username
+      }
       setProfiles(next)
       setFriends(friendRows)
-      const active = account?.active_profile === 'work' ? 'work' : defaultProfile || 'personal'
+      const workReady = Boolean(next.work.display_name.trim())
+      let active: ProfileType =
+        account?.active_profile === 'work' ? 'work' : 'personal'
+      if (active === 'work' && !workReady) active = 'personal'
       setActiveServerProfile(active)
+      onProfilesChangeRef.current?.(toPreviews(next), active)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load profiles')
     } finally {
       setLoading(false)
     }
-  }, [user, defaultProfile])
+  }, [user])
 
   useEffect(() => {
     if (!isGuest) load()
@@ -144,18 +178,18 @@ export function ProfilesSettingsTab({
         bio: current.bio || '',
         discoverable: !!current.discoverable,
       })
-      setProfiles((prev) => ({
-        ...prev,
-        [editing]: {
-          id: saved.id,
-          profile_type: editing,
-          display_name: saved.display_name,
-          bio: saved.bio || '',
-          avatar_url: saved.avatar_url,
-          banner_url: saved.banner_url,
-          discoverable: saved.discoverable !== false,
-        },
-      }))
+      const updatedRow: ProfileRow = {
+        id: saved.id,
+        profile_type: editing,
+        display_name: saved.display_name,
+        bio: saved.bio || '',
+        avatar_url: saved.avatar_url,
+        banner_url: saved.banner_url,
+        discoverable: saved.discoverable !== false,
+      }
+      const nextProfiles = { ...profiles, [editing]: updatedRow }
+      setProfiles(nextProfiles)
+      onProfilesChange?.(toPreviews(nextProfiles), activeServerProfile)
       if (editing === activeServerProfile) {
         onUserUpdate?.({
           display_name: saved.display_name,
@@ -172,18 +206,30 @@ export function ProfilesSettingsTab({
   }
 
   const handleSetActiveServerProfile = async (type: ProfileType) => {
+    if (type === 'work' && !profiles.work.display_name.trim()) {
+      setError('Save a Work display name before switching to Work.')
+      return
+    }
     setActiveServerProfile(type)
     onDefaultProfileChange?.(type)
+    const p = profiles[type]
+    if (p.display_name.trim()) {
+      onUserUpdate?.({
+        display_name: p.display_name,
+        avatar_url: p.avatar_url || undefined,
+        banner_url: p.banner_url || undefined,
+      })
+    }
+    onProfilesChange?.(toPreviews(profiles), type)
     setSaving(true)
     setError(null)
     try {
-      await api.setActiveProfile(user.id, type)
-      const p = profiles[type]
-      if (p.display_name.trim()) {
+      const updated = await api.setActiveProfile(user.id, type)
+      if (updated?.display_name != null) {
         onUserUpdate?.({
-          display_name: p.display_name,
-          avatar_url: p.avatar_url || undefined,
-          banner_url: p.banner_url || undefined,
+          display_name: updated.display_name,
+          avatar_url: updated.avatar_url || undefined,
+          banner_url: updated.banner_url || undefined,
         })
       }
       setMessage(`New servers will use your ${type === 'personal' ? 'Personal' : 'Work'} profile`)
@@ -376,22 +422,28 @@ export function ProfilesSettingsTab({
           First time you join a server, this identity is used. You can change the preset per server later.
         </p>
         <div className="flex gap-2">
-          {(['personal', 'work'] as ProfileType[]).map((type) => (
-            <button
-              key={type}
-              type="button"
-              onClick={() => handleSetActiveServerProfile(type)}
-              disabled={saving || !profiles[type].display_name.trim()}
-              className={`px-3 py-1.5 rounded text-sm font-medium disabled:opacity-40 ${
-                activeServerProfile === type
-                  ? 'bg-app-accent text-white'
-                  : 'bg-[#1e1f22] text-app-muted hover:text-app-text'
-              }`}
-            >
-              {type === 'personal' ? 'Personal' : 'Work'}
-              {profiles[type].display_name.trim() ? ` · ${profiles[type].display_name}` : ''}
-            </button>
-          ))}
+          {(['personal', 'work'] as ProfileType[]).map((type) => {
+            const locked = type === 'work' && !profiles.work.display_name.trim()
+            const label = profiles[type].display_name.trim()
+              || (type === 'personal' ? user.username : '')
+            return (
+              <button
+                key={type}
+                type="button"
+                onClick={() => handleSetActiveServerProfile(type)}
+                disabled={saving || locked}
+                title={locked ? 'Save a Work display name to unlock' : undefined}
+                className={`px-3 py-1.5 rounded text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed ${
+                  activeServerProfile === type
+                    ? 'bg-app-accent text-white'
+                    : 'bg-[#1e1f22] text-app-muted hover:text-app-text'
+                }`}
+              >
+                {type === 'personal' ? 'Personal' : 'Work'}
+                {locked ? ' · locked' : label ? ` · ${label}` : ''}
+              </button>
+            )
+          })}
         </div>
       </div>
 

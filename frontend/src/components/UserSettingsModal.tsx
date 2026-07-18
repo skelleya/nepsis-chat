@@ -127,12 +127,22 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [defaultProfile, setDefaultProfile] = useState<ProfileType>('personal')
-  const [profileLabels, setProfileLabels] = useState<{ personal: string; work: string }>({
-    personal: '',
-    work: '',
+  const [profilePreviews, setProfilePreviews] = useState<Record<ProfileType, {
+    display_name: string
+    avatar_url?: string | null
+    banner_url?: string | null
+  }>>({
+    personal: { display_name: '' },
+    work: { display_name: '' },
   })
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const bannerInputRef = useRef<HTMLInputElement>(null)
+  const seededPersonalRef = useRef(false)
+
+  const personalLabel = profilePreviews.personal.display_name.trim() || user.username
+  const workLabel = profilePreviews.work.display_name.trim()
+  const workReady = Boolean(workLabel)
+  const profileLabels = { personal: personalLabel, work: workLabel }
   const overlayRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -279,38 +289,125 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
     setBannerUrl(user.banner_url || '')
   }, [user])
 
+  const pushPresentation = useCallback((
+    type: ProfileType,
+    preview: { display_name: string; avatar_url?: string | null; banner_url?: string | null },
+  ) => {
+    const name = (preview.display_name || '').trim() || (type === 'personal' ? user.username : '')
+    if (!name && type === 'work') return
+    setDisplayName(name)
+    setAvatarUrl(preview.avatar_url || '')
+    setBannerUrl(preview.banner_url || '')
+    onUserUpdate?.({
+      display_name: name,
+      avatar_url: preview.avatar_url || undefined,
+      banner_url: preview.banner_url || undefined,
+    })
+  }, [onUserUpdate, user.username])
+
+  const handleProfilesSynced = useCallback((next: Record<ProfileType, {
+    display_name: string
+    avatar_url?: string | null
+    banner_url?: string | null
+  }>, active?: ProfileType) => {
+    setProfilePreviews(next)
+    setDefaultProfile((prev) => {
+      const activeType = active || prev
+      const workHasName = Boolean(next.work.display_name?.trim())
+      const resolved: ProfileType = activeType === 'work' && !workHasName ? 'personal' : activeType
+      pushPresentation(resolved, next[resolved])
+      return resolved
+    })
+  }, [pushPresentation])
+
   useEffect(() => {
     if (isGuest) return
     let cancelled = false
-    Promise.all([
-      api.getAccount(user.id).catch(() => null),
-      api.getUserProfiles(user.id).catch(() => []),
-    ]).then(([account, profiles]) => {
+    ;(async () => {
+      const [account, profiles] = await Promise.all([
+        api.getAccount(user.id).catch(() => null),
+        api.getUserProfiles(user.id).catch(() => []),
+      ])
       if (cancelled) return
-      if (account?.active_profile === 'work' || account?.active_profile === 'personal') {
-        setDefaultProfile(account.active_profile)
+
+      const next = {
+        personal: { display_name: '', avatar_url: null as string | null, banner_url: null as string | null },
+        work: { display_name: '', avatar_url: null as string | null, banner_url: null as string | null },
       }
-      const labels = { personal: '', work: '' }
-      for (const p of profiles as { profile_type: string; display_name?: string }[]) {
+      for (const p of profiles as {
+        profile_type: string
+        display_name?: string
+        avatar_url?: string | null
+        banner_url?: string | null
+      }[]) {
         if (p.profile_type === 'personal' || p.profile_type === 'work') {
-          labels[p.profile_type] = p.display_name || ''
+          next[p.profile_type] = {
+            display_name: p.display_name || '',
+            avatar_url: p.avatar_url ?? null,
+            banner_url: p.banner_url ?? null,
+          }
         }
       }
-      setProfileLabels(labels)
-    })
+
+      // Until onboarding exists: auto Personal = signup username when unset
+      if (!next.personal.display_name.trim() && !seededPersonalRef.current) {
+        seededPersonalRef.current = true
+        try {
+          const saved = await api.saveUserProfile(user.id, 'personal', {
+            display_name: user.username,
+            avatar_url: user.avatar_url,
+            banner_url: user.banner_url,
+            discoverable: true,
+          })
+          if (cancelled) return
+          next.personal = {
+            display_name: saved.display_name || user.username,
+            avatar_url: saved.avatar_url ?? null,
+            banner_url: saved.banner_url ?? null,
+          }
+          await api.setActiveProfile(user.id, 'personal').catch(() => null)
+        } catch {
+          next.personal.display_name = user.username
+        }
+      }
+
+      if (cancelled) return
+      setProfilePreviews(next)
+
+      const workHasName = Boolean(next.work.display_name.trim())
+      let active: ProfileType =
+        account?.active_profile === 'work' || account?.active_profile === 'personal'
+          ? account.active_profile
+          : 'personal'
+      if (active === 'work' && !workHasName) active = 'personal'
+      setDefaultProfile(active)
+      pushPresentation(active, next[active])
+    })()
     return () => { cancelled = true }
-  }, [user.id, isGuest])
+    // Only re-run when account identity changes — not on every presentation push
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.id, user.username, isGuest])
 
   const handleSetDefaultProfile = async (type: ProfileType) => {
+    if (type === 'work' && !workReady) {
+      setError('Set up a Work profile under Profiles first.')
+      return
+    }
     setDefaultProfile(type)
+    pushPresentation(type, profilePreviews[type])
     setSaving(true)
     setError('')
     try {
-      await api.setActiveProfile(user.id, type)
-      const label = profileLabels[type]
-      if (label) {
-        setDisplayName(label)
-        onUserUpdate?.({ display_name: label })
+      const updated = await api.setActiveProfile(user.id, type)
+      if (updated?.display_name != null) {
+        setDisplayName(updated.display_name)
+        setAvatarUrl(updated.avatar_url || '')
+        setBannerUrl(updated.banner_url || '')
+        onUserUpdate?.({
+          display_name: updated.display_name,
+          avatar_url: updated.avatar_url || undefined,
+          banner_url: updated.banner_url || undefined,
+        })
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to set default profile')
@@ -546,23 +643,36 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
                             Edit names, bios, and photos under Profiles. Login username stays private.
                           </p>
                           <div className="flex gap-2 flex-wrap">
-                            {(['personal', 'work'] as ProfileType[]).map((type) => (
-                              <button
-                                key={type}
-                                type="button"
-                                onClick={() => handleSetDefaultProfile(type)}
-                                disabled={saving}
-                                className={`px-3 py-2 rounded text-sm font-medium ${
-                                  defaultProfile === type
-                                    ? 'bg-app-accent text-white'
-                                    : 'bg-[#2b2d31] text-app-muted hover:text-app-text'
-                                }`}
-                              >
-                                {type === 'personal' ? 'Personal' : 'Work'}
-                                {profileLabels[type] ? ` · ${profileLabels[type]}` : ' · set in Profiles'}
-                              </button>
-                            ))}
+                            {(['personal', 'work'] as ProfileType[]).map((type) => {
+                              const locked = type === 'work' && !workReady
+                              return (
+                                <button
+                                  key={type}
+                                  type="button"
+                                  onClick={() => handleSetDefaultProfile(type)}
+                                  disabled={saving || locked}
+                                  title={locked ? 'Save a Work profile under Profiles to unlock' : undefined}
+                                  className={`px-3 py-2 rounded text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed ${
+                                    defaultProfile === type
+                                      ? 'bg-app-accent text-white'
+                                      : 'bg-[#2b2d31] text-app-muted hover:text-app-text'
+                                  }`}
+                                >
+                                  {type === 'personal' ? 'Personal' : 'Work'}
+                                  {locked
+                                    ? ' · locked'
+                                    : profileLabels[type]
+                                      ? ` · ${profileLabels[type]}`
+                                      : ' · set in Profiles'}
+                                </button>
+                              )
+                            })}
                           </div>
+                          {!workReady && (
+                            <p className="text-xs text-app-muted mt-2">
+                              Work stays locked until you save a Work display name in Profiles. Personal uses your username until then.
+                            </p>
+                          )}
                         </div>
                       )}
                       <div className="flex items-center justify-between gap-4">
@@ -603,9 +713,15 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
               {displayedTab === 'profiles' && (
                 <ProfilesSettingsTab
                   user={user}
-                  onUserUpdate={onUserUpdate}
+                  onUserUpdate={(data) => {
+                    if (data.display_name !== undefined) setDisplayName(data.display_name ?? '')
+                    if (data.avatar_url !== undefined) setAvatarUrl(data.avatar_url || '')
+                    if (data.banner_url !== undefined) setBannerUrl(data.banner_url || '')
+                    onUserUpdate?.(data)
+                  }}
                   defaultProfile={defaultProfile}
                   onDefaultProfileChange={setDefaultProfile}
+                  onProfilesChange={handleProfilesSynced}
                 />
               )}
 
