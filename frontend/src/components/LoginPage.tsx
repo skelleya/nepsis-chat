@@ -1,4 +1,4 @@
-import { useState, useLayoutEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import gsap from 'gsap'
 import { useApp } from '../contexts/AppContext'
@@ -35,10 +35,61 @@ export function LoginPage() {
   const tabsRef = useRef<HTMLDivElement>(null)
   const indicatorRef = useRef<HTMLDivElement>(null)
   const tabBtnRefs = useRef<Partial<Record<AuthMode, HTMLButtonElement | null>>>({})
+  const coinWrapRef = useRef<HTMLDivElement>(null)
+  const coinRef = useRef<HTMLImageElement>(null)
+  const coinRotationRef = useRef(0)
+  const coinVelocityRef = useRef(0)
   const pendingEnterRef = useRef(false)
   const slideDirectionRef = useRef(1)
   const targetModeRef = useRef<AuthMode>('guest')
   const tabIndicatorReadyRef = useRef(false)
+
+  // Logo coin: spin left/right with horizontal cursor movement (GSAP)
+  useEffect(() => {
+    const wrap = coinWrapRef.current
+    const coin = coinRef.current
+    if (!wrap || !coin) return
+
+    gsap.set(coin, {
+      transformPerspective: 600,
+      transformOrigin: '50% 50%',
+      force3D: true,
+    })
+
+    const quickRotate = gsap.quickTo(coin, 'rotationY', {
+      duration: 0.35,
+      ease: 'power2.out',
+    })
+
+    const onMove = (e: MouseEvent) => {
+      const delta = e.movementX
+      if (!delta) return
+      coinVelocityRef.current = delta
+      coinRotationRef.current += delta * 1.35
+      quickRotate(coinRotationRef.current)
+    }
+
+    const onLeave = () => {
+      const coast = coinVelocityRef.current * 10
+      coinVelocityRef.current = 0
+      if (Math.abs(coast) < 1) return
+      const target = coinRotationRef.current + coast
+      coinRotationRef.current = target
+      gsap.to(coin, {
+        rotationY: target,
+        duration: 0.7,
+        ease: 'power3.out',
+      })
+    }
+
+    wrap.addEventListener('mousemove', onMove)
+    wrap.addEventListener('mouseleave', onLeave)
+    return () => {
+      wrap.removeEventListener('mousemove', onMove)
+      wrap.removeEventListener('mouseleave', onLeave)
+      gsap.killTweensOf(coin)
+    }
+  }, [])
 
   const moveTabIndicator = useCallback((animate: boolean) => {
     const track = tabsRef.current
@@ -213,7 +264,19 @@ export function LoginPage() {
       className="fixed inset-0 flex items-center justify-center bg-app-darker"
     >
       <div ref={cardRef} className="w-full max-w-md p-10 rounded-xl bg-app-dark will-change-transform">
-        <img src="./logo.png" alt="Nepsis" className="h-12 mx-auto mb-6 object-contain bg-white rounded-full p-1" />
+        <div
+          ref={coinWrapRef}
+          className="mx-auto mb-6 w-16 h-16 flex items-center justify-center cursor-grab active:cursor-grabbing"
+          style={{ perspective: 600 }}
+        >
+          <img
+            ref={coinRef}
+            src="./logo.png"
+            alt="Nepsis"
+            className="h-12 w-12 object-contain bg-white rounded-full p-1 select-none pointer-events-none will-change-transform"
+            draggable={false}
+          />
+        </div>
         <h1 className="text-2xl font-bold text-white text-center mb-8">Nepsis Chat</h1>
 
         {!isElectron && (
