@@ -55,7 +55,7 @@ frontend/src/
 | OnboardingPage | Shown when new (non-guest) user has no servers; CTAs: Create first server (opens CreateServerModal), Explore community; persisted via `nepsis_onboarding_completed` |
 | CommunityPage | Explore page: invite code entry, community servers list; shown when guest has no servers or when user completes onboarding |
 | UpdateButton | Green update (Electron only) |
-| DownloadBanner | Web-only top banner: "Using the web app? Download Nepsis…"; dismissible (localStorage); sets `--download-banner-height` for page offset; hidden on `/download` and in Electron |
+| DownloadBanner | Web-only top banner: "Using the web app? Download Nepsis…"; message centered across full viewport; Download / dismiss absolute-right; dismissible (localStorage); sets `--download-banner-height` for page offset; hidden on `/download` and in Electron |
 | LoginPage | Guest (username only), Sign In (email or username + password), Sign Up (email + password); top padding from `--download-banner-height` when banner is visible |
 
 ---
