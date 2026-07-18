@@ -68,6 +68,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Download banner compact tab — Small centered top banner (not full-bleed); rounded bottom corners, sharp top edge flush with viewport |
 | + | GSAP motion — `gsap` drives download-banner open/close and login enter/exit (card rise in; shell fades out on auth; main app fades in) |
 | + | Login tab glide — Guest / Sign In / Sign Up form panel slides horizontally in the travel direction (with the pill) |
+| + | Login form height lock — Guest matches Sign In / Sign Up height (fixed panel) so tab switches don’t resize the card |
 | + | Login tab pill — Shared accent indicator slides between Guest / Sign In / Sign Up via GSAP (no per-button background flash) |
 | + | Download banner balance — Short prompt + clear Download button + subtle dismiss (not full marketing sentence, not link-only) |
 | + | Last channel per server — When switching servers, auto-restore the last selected channel for that server; persisted in localStorage (nepsis_last_channel); cleared on logout |
