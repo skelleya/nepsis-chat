@@ -15,6 +15,7 @@ import { dmRouter } from './routes/dm.js'
 import { friendsRouter } from './routes/friends.js'
 import { invitesRouter } from './routes/invites.js'
 import { versionRouter } from './routes/version.js'
+import { healthRouter } from './routes/health.js'
 import { bugReportsRouter } from './routes/bugReports.js'
 import { soundboardRouter } from './routes/soundboard.js'
 import { webrtcRouter } from './routes/webrtc.js'
@@ -78,6 +79,7 @@ app.use('/api/dm', dmRouter)
 app.use('/api/friends', friendsRouter)
 app.use('/api/invites', invitesRouter)
 app.use('/api/version', versionRouter)
+app.use('/api/health', healthRouter)
 app.use('/api/bug-reports', bugReportsRouter)
 app.use('/api/soundboard', soundboardRouter)
 app.use('/api/webrtc', webrtcRouter)
