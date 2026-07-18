@@ -33,7 +33,7 @@ Node.js + Express + Socket.io + SQLite.
 | GET | `/api/users/:id/account` | Account summary including `active_profile` and private `username` for settings |
 | PATCH | `/api/servers/:id/members/:userId/profile` | Set per-server presentation profile (`profileType`, `actorUserId`) |
 | PUT | `/api/users/:id/presence` | Update presence (`status`: online, away, dnd, offline, in-voice; `voiceChannelId`) |
-| PATCH | `/api/users/:id` | Update profile (`username`, `display_name`, `avatar_url`, `banner_url`, `active_profile`) |
+| PATCH | `/api/users/:id` | Update profile (`username`, `display_name`, `avatar_url`, `banner_url`, `active_profile`). Setting `active_profile` also copies that profile’s name/avatar/banner onto `users` (Work requires a saved Work display name). |
 | GET | `/api/users/:id/profiles` | List user profiles (personal, work) |
 | PUT | `/api/users/:id/profiles` | Upsert profile (`profile_type`, `display_name`, `avatar_url`, `banner_url`) |
 | GET | `/api/users/:id/privacy` | Get privacy settings (defaults if unset) |
