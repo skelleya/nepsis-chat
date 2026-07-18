@@ -100,6 +100,7 @@ For Vercel: set `VITE_API_URL` in the Vercel dashboard to your backend URL.
 | Project ref | `qeopqyquskszzgprghiy` |
 | Dashboard | `https://supabase.com/dashboard/project/qeopqyquskszzgprghiy` |
 | MCP (scoped) | `https://mcp.supabase.com/mcp?project_ref=qeopqyquskszzgprghiy` |
+| MCP Connect UI | [Dashboard → Connect → MCP](https://supabase.com/dashboard/project/qeopqyquskszzgprghiy?showConnect=true&connectTab=mcp) — copy Cursor config from there; auth is triggered inside Cursor, not by opening the MCP URL alone |
 | Database | Postgres (tables: users, servers, channels, messages, dm_*) |
 | Auth | Email/password sign up + sign in |
 
