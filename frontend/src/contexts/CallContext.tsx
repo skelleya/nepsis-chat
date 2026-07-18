@@ -189,6 +189,11 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
     [startDurationTimer]
   )
 
+  // Prefetch STUN/TURN so the first call does not wait on /api/webrtc/ice
+  useEffect(() => {
+    ensureIceServers().catch(() => {})
+  }, [])
+
   // ─── Socket connection (persists for the lifetime of the provider)
   useEffect(() => {
     const socket = io(`${SOCKET_URL}/calls`, {
