@@ -272,6 +272,14 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 
 ---
 
+## Supabase MCP / Cursor
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| **`{"message":"Unrecognized client_id"}` when authenticating Supabase MCP** | Cursor cached an old OAuth Dynamic Client Registration. Supabase no longer recognizes that `client_id`, so the browser auth page fails immediately. | **Fix (desktop Cursor):** (1) Settings → Tools & MCP / Plugins → **Disconnect/Logout** Supabase. (2) Remove the Supabase plugin/MCP entry. (3) Fully quit Cursor (all windows). (4) Reinstall/re-add Supabase MCP and authenticate again so a fresh client registers. Optional: scope URL to `https://mcp.supabase.com/mcp?project_ref=YOUR_REF`. If it still fails, check Output → **Cursor MCP** for `Saving client information` (missing = DCR bug). |
+
+---
+
 ## Adding New Issues
 
 When a new error occurs:
