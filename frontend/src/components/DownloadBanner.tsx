@@ -48,7 +48,9 @@ export function DownloadBanner() {
     }
   }, [mounted, pathname])
 
-  const dismiss = () => {
+  const dismiss = (e?: React.MouseEvent) => {
+    e?.preventDefault()
+    e?.stopPropagation()
     if (closing) return
     setClosing(true)
     localStorage.setItem(STORAGE_KEY, '1')
@@ -77,24 +79,21 @@ export function DownloadBanner() {
     <div className="fixed top-0 left-0 right-0 z-50 flex justify-center pointer-events-none">
       <div
         ref={bannerRef}
-        className="pointer-events-auto flex items-center gap-3 max-w-[min(92vw,36rem)] bg-app-accent text-white px-4 py-2.5 rounded-b-2xl shadow-md will-change-transform"
+        className="pointer-events-auto relative flex items-center gap-2 bg-app-accent text-white pl-4 pr-2 py-2 rounded-b-xl shadow-sm will-change-transform"
       >
-        <p className="min-w-0 text-sm font-semibold leading-snug text-center">
-          Using the web app? Download Nepsis for desktop for a better experience.
-        </p>
         <Link
           to="/download"
-          className="flex-shrink-0 px-3 py-1 rounded-md bg-white/20 hover:bg-white/30 font-medium text-sm transition-colors whitespace-nowrap"
+          className="text-[13px] font-medium tracking-wide hover:opacity-90 transition-opacity"
         >
-          Download
+          Download Nepsis for desktop
         </Link>
         <button
           onClick={dismiss}
-          className="flex-shrink-0 p-1 rounded hover:bg-white/20 transition-colors"
+          className="flex-shrink-0 p-1 rounded text-white/70 hover:text-white hover:bg-white/10 transition-colors"
           title="Dismiss"
           aria-label="Dismiss banner"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"/>
             <line x1="6" y1="6" x2="18" y2="18"/>
           </svg>

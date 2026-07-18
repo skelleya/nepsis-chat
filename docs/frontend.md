@@ -55,7 +55,7 @@ frontend/src/
 | OnboardingPage | Shown when new (non-guest) user has no servers; CTAs: Create first server (opens CreateServerModal), Explore community; persisted via `nepsis_onboarding_completed` |
 | CommunityPage | Explore page: invite code entry, community servers list; shown when guest has no servers or when user completes onboarding |
 | UpdateButton | Green update (Electron only) |
-| DownloadBanner | Web-only compact top tab: centered, accent fill, sharp top + rounded bottom corners (`rounded-b-2xl`); message + Download + dismiss; dismissible (localStorage); sets `--download-banner-height` for page offset; hidden on `/download` and in Electron. **GSAP:** slide/fade in on show; slide/fade out on dismiss before unmount |
+| DownloadBanner | Minimal centered top tab: short link copy (“Download Nepsis for desktop”) + subtle dismiss; `rounded-b-xl`, light shadow; dismissible (localStorage); sets `--download-banner-height`; hidden on `/download` and in Electron. **GSAP:** slide/fade in/out |
 | LoginPage | Guest (username only), Sign In (email or username + password), Sign Up (email + password); top padding from `--download-banner-height` when banner is visible. **GSAP:** page fade + card rise on mount |
 | AppContent (login transition) | Keeps LoginPage mounted until GSAP exit finishes after auth, then fades main app in (`gsap`) |
 
