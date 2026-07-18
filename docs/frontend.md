@@ -40,7 +40,7 @@ frontend/src/
 | Component | Purpose |
 |-----------|---------|
 | VoiceIcons | Shared mic/mic-off/headphones/headphones-off SVGs (prevents clipping/snipping) |
-| ServerBar | Server list (left sidebar); click-hold-and-drag to reorder servers |
+| ServerBar | Server list (left sidebar); click-hold-and-drag to reorder servers. **GSAP:** Friends + Community bubbles scale-punch on click |
 | ChannelList | Text + voice channels; server banner shown above header when `serverBannerUrl` set; highlights text channels with new messages (white) when user isn't viewing them. **Friends view** (`isFriendsView`): shows "Friends" header, DMs list, hides server channels. **Owner/Admin:** Server Settings (Overview: icon + banner upload); **Owner:** drag categories to reorder; drag channels to reorder or move between categories; 3-dot menu on category/channel for Edit/Delete. **Admin:** drag voice users onto another voice channel to move them |
 | ChatView | Messages, input; scrolls to bottom on load; shows "New messages" indicator when scrolled up and new messages arrive; click to jump to new messages |
 | VoiceView | Voice participants, join/leave; soundboard button (custom sounds, max 10s); **soundboard mute** (🔊/🔇) — toggle to stop hearing soundboard from others. **Resizable layout:** screen share vs participant cameras (drag divider); single participant centered; 2–4 participants in resizable horizontal panels; remote screen shares in main area. Uses `react-resizable-panels`. **Admin:** right-click participant for Mute or Disconnect. |
@@ -49,14 +49,21 @@ frontend/src/
 | RemoteAudio | Plays remote WebRTC stream |
 | CallOverlay | DM call UI: outgoing/incoming/in-call states |
 | DMView | Direct message chat; modern UI with gradient header, rounded bubbles, relative timestamps; groups consecutive messages from same sender (avatar/name shown only on first in group); spacing: 1.5 between same-sender, 5 between different senders |
-| FriendsPage | Discord-like Friends home: tabs (All, Pending, Online, Add Friend). Add Friend by username; Online shows friends with presence. Opened by clicking Nepsis logo. When viewing a DM, stays in Friends view—sidebar shows DMs + servers |
+| FriendsPage | Discord-like Friends home: tabs (All, Pending, Online, Add Friend). **Add Friend** searches discoverable **profile display names** (not login usernames); request targets that profile and is sent from your Personal/Work. Accept under a chosen profile. **GSAP:** fade+slide-in on mount |
 | CreateServerModal | Create server: name input, gradient accent bar, loading spinner, error display; used by ServerBar (+ button) and OnboardingPage |
-| UserSettingsModal | User Settings modal: fixed size (`h-[min(640px,90vh)]`) so tab changes don’t resize; GSAP open/close + soft content fade on tab switch. My Account: display name, username, avatar/banner. |
+| UserPanel | Bottom bar: avatar/status, mute, deafen, settings. **GSAP:** status menu open/close (fade+rise+scale); mute/deafen buttons punch-scale on click; status dot pops on change. Mute/deafen play Web Audio cues via `VoiceContext` / `CallContext`. |
+| UserSettingsModal | User Settings modal: fixed size (`h-[min(640px,90vh)]`) so tab changes don’t resize; GSAP open/close; **sidebar** uses a shared accent pill that slides between nav buttons (compact 15px labels, Log Out pinned at bottom); **content** slides horizontally in travel direction (down the list → left, up → right); close (X) overlays the top-right over a thin `.settings-scroll` scrollbar. **My Account (non-guest):** Personal defaults to signup username until Profiles are set; Work locked until a Work display name is saved; switching Personal/Work updates name/avatar/banner immediately; Profiles saves sync labels via `onProfilesChange`. **Appearance:** Coming soon. **Voice & Video / Notifications:** local prefs. Shared **SettingsDropdown** / **SettingsToggle**. |
+| SettingsDropdown | Custom select for settings pages — trigger + portal listbox, checkmark on selected option, open/close fade+scale via GSAP; closes on outside click, Escape, or scroll. |
+| SettingsToggle | Shared switch control — GSAP slides the knob and tweens track color with a light scale punch on change. |
+| Theme CSS vars | `--app-*` colors are space-separated RGB channels (`30 31 34`) so Tailwind opacity modifiers (`/50`, `/80`) work. Hex is converted in `userPrefs.applyAppearancePrefs`. |
+| CreateServerModal | Create-server dialog; GSAP open (overlay fade + panel rise/scale) and close (reverse before unmount); top accent bar is a 200%-wide accent→green gradient looped with GSAP (`xPercent: -50`, seamless). |
+| PrivacySettingsTab | Voice-focused privacy toggles/selects; persists via `GET/PUT /api/users/:id/privacy` |
+| ProfilesSettingsTab | Edit Personal/Work profiles; set server presentation; manage which friends see which profiles |
 | OnboardingPage | Shown when new (non-guest) user has no servers; CTAs: Create first server (opens CreateServerModal), Explore community; persisted via `nepsis_onboarding_completed` |
-| CommunityPage | Explore page: invite code entry, community servers list; shown when guest has no servers or when user completes onboarding |
+| CommunityPage | Explore page: invite code entry, community servers list; shown when guest has no servers or when user completes onboarding. **GSAP:** fade+slide-in on mount (compass bubble) |
 | UpdateButton | Green update (Electron only) |
 | DownloadBanner | Centered top tab: short prompt (“Prefer the desktop app?”) + clear Download button + subtle dismiss; `rounded-b-xl`; dismissible (localStorage); sets `--download-banner-height`; hidden on `/download` and in Electron. **GSAP:** slide/fade in/out |
-| LoginPage | Guest (username only), Sign In (email or username + password), Sign Up (email + password). **GSAP:** soft page/card enter; sliding accent pill on tabs; form panel slides with tab direction; logo coin uses `quickSetter(..., 'rotationY', 'deg')` so horizontal cursor swipe spins the 3D coin with inertia + face settle |
+| LoginPage | Guest (username only), Sign In (email or username + password), Sign Up (email + password). **GSAP:** soft page/card enter; sliding accent pill on tabs; form panel slides with tab direction; credential fields + Continue/Sign In button collapse upward together on submit (reopen on error); logo coin uses `quickSetter(..., 'rotationY', 'deg')` so horizontal cursor swipe spins the 3D coin with inertia + face settle |
 | AppContent (login transition) | Keeps LoginPage mounted until GSAP exit finishes after auth, then fades main app in (`gsap`) |
 
 ---
@@ -80,7 +87,7 @@ frontend/src/
 | signaling.ts | BroadcastChannel (2-tab test) |
 | socketSignaling.ts | Socket.io (with backend) |
 | webrtc.ts | WebRTC peer connections |
-| sounds.ts | Web Audio API notification/call sounds (no external files) |
+| sounds.ts | Web Audio API notification/call/voice sounds (no external files). Includes mute/unmute/deafen/undeafen cues gated by Notifications → Voice sounds. |
 | iceConfig.ts | STUN + optional TURN for P2P voice/calls (`ensureIceServers`) |
 
 ---

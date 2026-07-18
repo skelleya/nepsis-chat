@@ -4,7 +4,7 @@ import supabase from '../db/supabase.js'
 
 export const bugReportsRouter = Router()
 
-// Submit a bug report (public — anyone can report)
+// Submit a bug report — registered (non-guest) accounts only
 bugReportsRouter.post('/', async (req, res) => {
   try {
     const { userId, username, email, title, description } = req.body
@@ -13,13 +13,33 @@ bugReportsRouter.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Title and description are required' })
     }
 
+    if (!userId || typeof userId !== 'string') {
+      return res.status(403).json({ error: 'Sign in required to submit bug reports' })
+    }
+
+    const { data: account, error: userErr } = await supabase
+      .from('users')
+      .select('id, is_guest')
+      .eq('id', userId)
+      .maybeSingle()
+
+    if (userErr) throw userErr
+    if (!account) {
+      return res.status(403).json({ error: 'Sign in required to submit bug reports' })
+    }
+    if (account.is_guest) {
+      return res.status(403).json({
+        error: 'Guest accounts cannot submit bug reports. Sign in or create an account first.',
+      })
+    }
+
     const reportId = 'br-' + crypto.randomUUID()
     const url = req.body.url || null
     const userAgent = req.headers['user-agent'] || null
 
     const { error } = await supabase.from('bug_reports').insert({
       id: reportId,
-      user_id: userId || null,
+      user_id: userId,
       username: username?.trim() || null,
       email: email?.trim() || null,
       title: title.trim().slice(0, 256),

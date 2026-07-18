@@ -161,12 +161,26 @@ serversRouter.post('/', async (req, res) => {
     ])
     if (chError) console.error('Channel creation error:', chError)
 
-    // Add owner as member
-    await supabase.from('server_members').insert({
+    // Add owner as member using their default active profile
+    const { data: ownerUser } = await supabase
+      .from('users')
+      .select('active_profile')
+      .eq('id', ownerId)
+      .maybeSingle()
+    const ownerProfile = ownerUser?.active_profile === 'work' ? 'work' : 'personal'
+    const { error: ownerMemberErr } = await supabase.from('server_members').insert({
       server_id: serverId,
       user_id: ownerId,
       role: 'owner',
+      profile_type: ownerProfile,
     })
+    if (ownerMemberErr && /profile_type/i.test(ownerMemberErr.message || '')) {
+      await supabase.from('server_members').insert({
+        server_id: serverId,
+        user_id: ownerId,
+        role: 'owner',
+      })
+    }
 
     res.status(201).json(server)
   } catch (err) {
@@ -467,18 +481,41 @@ serversRouter.delete('/:serverId/categories/:catId', async (req, res) => {
   }
 })
 
-// Join server (add self as member)
+// Join server (add self as member) — uses default active_profile unless profileType provided
 serversRouter.post('/:id/join', async (req, res) => {
   try {
-    const { userId } = req.body
+    const { userId, profileType } = req.body
     if (!userId) return res.status(400).json({ error: 'userId required' })
+
+    let profile = profileType === 'work' ? 'work' : profileType === 'personal' ? 'personal' : null
+    if (!profile) {
+      const { data: userRow } = await supabase
+        .from('users')
+        .select('active_profile')
+        .eq('id', userId)
+        .maybeSingle()
+      profile = userRow?.active_profile === 'work' ? 'work' : 'personal'
+    }
 
     const { error } = await supabase
       .from('server_members')
-      .upsert({ server_id: req.params.id, user_id: userId, role: 'member' }, { onConflict: 'server_id,user_id' })
+      .upsert(
+        { server_id: req.params.id, user_id: userId, role: 'member', profile_type: profile },
+        { onConflict: 'server_id,user_id' }
+      )
 
-    if (error) throw error
-    res.json({ success: true })
+    if (error) {
+      // Older schema without profile_type
+      if (/profile_type/i.test(error.message || '')) {
+        const { error: retryErr } = await supabase
+          .from('server_members')
+          .upsert({ server_id: req.params.id, user_id: userId, role: 'member' }, { onConflict: 'server_id,user_id' })
+        if (retryErr) throw retryErr
+        return res.json({ success: true, profile_type: profile })
+      }
+      throw error
+    }
+    res.json({ success: true, profile_type: profile })
   } catch (err) {
     console.error('Join server error:', err)
     res.status(500).json({ error: 'Failed to join server' })
@@ -506,13 +543,22 @@ serversRouter.get('/:id/rules-acceptance', async (req, res) => {
   }
 })
 
-// Get server members (with roles and presence)
+// Get server members (with roles and presence) — public profile presentation only
 serversRouter.get('/:id/members', async (req, res) => {
   try {
-    const { data: members, error } = await supabase
+    let members
+    let error
+    ;({ data: members, error } = await supabase
       .from('server_members')
-      .select('user_id, role, joined_at, users(id, username, display_name, avatar_url)')
-      .eq('server_id', req.params.id)
+      .select('user_id, role, joined_at, profile_type, users(id, display_name, avatar_url, banner_url)')
+      .eq('server_id', req.params.id))
+
+    if (error && /profile_type/i.test(error.message || '')) {
+      ;({ data: members, error } = await supabase
+        .from('server_members')
+        .select('user_id, role, joined_at, users(id, display_name, avatar_url, banner_url)')
+        .eq('server_id', req.params.id))
+    }
     if (error) throw error
 
     const userIds = (members || []).map((m) => m.user_id)
@@ -524,19 +570,70 @@ serversRouter.get('/:id/members', async (req, res) => {
     const presenceByUser = {}
     ;(presence || []).forEach((p) => { presenceByUser[p.user_id] = p })
 
-    const result = (members || []).map((m) => ({
-      userId: m.user_id,
-      role: m.role,
-      joinedAt: m.joined_at,
-      username: (m.users?.display_name && m.users.display_name.trim()) || m.users?.username || 'Unknown',
-      avatarUrl: m.users?.avatar_url,
-      status: presenceByUser[m.user_id]?.status || 'offline',
-      voiceChannelId: presenceByUser[m.user_id]?.voice_channel_id,
-    }))
+    const { data: profiles } = await supabase
+      .from('user_profiles')
+      .select('user_id, profile_type, display_name, avatar_url, banner_url, bio')
+      .in('user_id', userIds.length ? userIds : ['__none__'])
+    const profileMap = {}
+    for (const p of profiles || []) {
+      if (!profileMap[p.user_id]) profileMap[p.user_id] = {}
+      profileMap[p.user_id][p.profile_type] = p
+    }
+
+    const result = (members || []).map((m) => {
+      const type = m.profile_type === 'work' ? 'work' : 'personal'
+      const profile = profileMap[m.user_id]?.[type] || profileMap[m.user_id]?.personal
+      const displayName =
+        (profile?.display_name && profile.display_name.trim()) ||
+        (m.users?.display_name && m.users.display_name.trim()) ||
+        'Unknown'
+      return {
+        userId: m.user_id,
+        role: m.role,
+        joinedAt: m.joined_at,
+        username: displayName,
+        displayName,
+        avatarUrl: profile?.avatar_url || m.users?.avatar_url,
+        bannerUrl: profile?.banner_url || m.users?.banner_url,
+        bio: profile?.bio || '',
+        profileType: type,
+        status: presenceByUser[m.user_id]?.status || 'offline',
+        voiceChannelId: presenceByUser[m.user_id]?.voice_channel_id,
+      }
+    })
     res.json(result)
   } catch (err) {
     console.error('Get members error:', err)
     res.status(500).json({ error: 'Failed to fetch members' })
+  }
+})
+
+// Set which profile you use on this server (per-server preset)
+serversRouter.patch('/:id/members/:userId/profile', async (req, res) => {
+  try {
+    const { id: serverId, userId } = req.params
+    const { profileType, actorUserId } = req.body
+    if (!['personal', 'work'].includes(profileType)) {
+      return res.status(400).json({ error: 'profileType must be personal or work' })
+    }
+    if (actorUserId && actorUserId !== userId) {
+      return res.status(403).json({ error: 'You can only change your own server profile' })
+    }
+
+    const { data, error } = await supabase
+      .from('server_members')
+      .update({ profile_type: profileType })
+      .eq('server_id', serverId)
+      .eq('user_id', userId)
+      .select('user_id, profile_type')
+      .maybeSingle()
+
+    if (error) throw error
+    if (!data) return res.status(404).json({ error: 'Membership not found' })
+    res.json(data)
+  } catch (err) {
+    console.error('Set member profile error:', err)
+    res.status(500).json({ error: 'Failed to update server profile' })
   }
 })
 

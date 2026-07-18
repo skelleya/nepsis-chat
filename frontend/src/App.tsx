@@ -597,7 +597,7 @@ function MainLayout({
       />
 
       {/* Channel list + User panel wrapper */}
-      <div className="w-60 bg-app-channel flex flex-col flex-shrink-0">
+      <div className="w-72 bg-app-channel flex flex-col flex-shrink-0">
         <ChannelList
           channels={displayChannels.map((c) => ({ id: c.id, name: c.name, type: c.type as 'text' | 'voice' | 'rules', serverId: c.server_id, order: c.order, categoryId: c.category_id }))}
           categories={categories.map((cat) => ({ id: cat.id, name: cat.name, serverId: cat.server_id, order: cat.order }))}
@@ -830,7 +830,8 @@ function MainLayout({
         }}
         onAddFriend={async (userId, username) => {
           try {
-            await api.sendFriendRequest(user.id, userId)
+            // From a server member card: add their Personal identity from your default profile
+            await api.sendFriendRequest(user.id, userId, 'personal', 'personal')
             showNotification(`Friend request sent to ${username}`)
           } catch (e) {
             showNotification((e as Error).message, 'error')

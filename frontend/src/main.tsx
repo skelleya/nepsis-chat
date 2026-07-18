@@ -3,6 +3,9 @@ import ReactDOM from 'react-dom/client'
 import { HashRouter } from 'react-router-dom'
 import App from './App'
 import './index.css'
+import { applyAppearancePrefs } from './services/userPrefs'
+
+applyAppearancePrefs()
 
 // HashRouter uses URL hashes (e.g. /#/download) which work correctly with
 // Electron's file:// protocol. BrowserRouter relies on the History API and

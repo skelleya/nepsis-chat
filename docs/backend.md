@@ -28,17 +28,23 @@ Node.js + Express + Socket.io + SQLite.
 | POST | `/api/servers/:id/members/:userId/move-voice` | Move user to another voice channel (`targetChannelId`, `adminUserId`) — owner/admin only |
 | PATCH | `/api/servers/:id/channels/:channelId` | Update channel (`order`, `name`, `categoryId`) |
 | PUT | `/api/servers/:id/channels/reorder` | Bulk reorder channels (`updates: [{ id, order }]`) |
-| GET | `/api/users/lookup` | Lookup user by username (`?username=`) — for Add Friend; case-insensitive |
+| GET | `/api/users/profiles/search` | Search discoverable profiles by display name (`?q=`) — public identity fields only |
+| GET | `/api/users/lookup` | Legacy lookup by login username — returns public presentation, not username string |
+| GET | `/api/users/:id/account` | Account summary including `active_profile` and private `username` for settings |
+| PATCH | `/api/servers/:id/members/:userId/profile` | Set per-server presentation profile (`profileType`, `actorUserId`) |
 | PUT | `/api/users/:id/presence` | Update presence (`status`: online, away, dnd, offline, in-voice; `voiceChannelId`) |
-| PATCH | `/api/users/:id` | Update profile (`username`, `display_name`, `avatar_url`, `banner_url`) |
+| PATCH | `/api/users/:id` | Update profile (`username`, `display_name`, `avatar_url`, `banner_url`, `active_profile`). Setting `active_profile` also copies that profile’s name/avatar/banner onto `users` (Work requires a saved Work display name). |
 | GET | `/api/users/:id/profiles` | List user profiles (personal, work) |
 | PUT | `/api/users/:id/profiles` | Upsert profile (`profile_type`, `display_name`, `avatar_url`, `banner_url`) |
+| GET | `/api/users/:id/privacy` | Get privacy settings (defaults if unset) |
+| PUT | `/api/users/:id/privacy` | Upsert privacy settings (DMs, calls, friend requests, voice/online visibility, speaking indicator) |
 | POST | `/api/dm/conversations` | Create or get DM between two users (`userId`, `targetUserId`) |
-| GET | `/api/friends/list` | List friends (`?userId=`) — includes `status` (online/in-voice/away/dnd/offline) from user_presence |
-| GET | `/api/friends/requests` | List pending friend requests (`?userId=`) |
-| POST | `/api/friends/accept` | Accept friend request (`userId`, `requesterId`) |
+| GET | `/api/friends/list` | List friends (`?userId=`) — includes `status`, `friendship_profile`, `visible_profiles` |
+| GET | `/api/friends/requests` | List pending friend requests (`?userId=`) — includes `requester_profile` |
+| POST | `/api/friends/accept` | Accept friend request (`userId`, `requesterId`, `profile?`, `visibleProfiles?`) |
 | POST | `/api/friends/decline` | Decline friend request (`userId`, `requesterId`) |
-| POST | `/api/friends/request` | Send friend request (`userId`, `targetUserId`) — requires `friend_requests` migration |
+| POST | `/api/friends/request` | Send friend request (`userId`, `targetUserId`, `profile?` personal\|work) — respects target `who_can_add_friend` |
+| PATCH | `/api/friends/visibility` | Update per-friend profile visibility (`userId`, `friendId`, `visibleProfiles?`, `friendshipProfile?`) |
 | GET | `/api/invites/:code` | Public invite details (server name, icon, inviter) — for join page |
 | POST | `/api/invites/:code/join` | Join server via invite (`userId`) |
 | POST | `/api/servers/:id/invites` | Create invite (`createdBy`) — any member |
@@ -76,13 +82,18 @@ Node.js + Express + Socket.io + SQLite.
 | dm_conversations | id, created_at |
 | dm_participants | conversation_id, user_id |
 | dm_messages | id, conversation_id, user_id, content, created_at |
-| friend_requests | requester_id, addressee_id, status (pending/accepted/rejected), created_at — see migration `20250211000002_friend_requests.sql` |
+| friend_requests | requester_id, addressee_id, status (pending/accepted/rejected), requester_profile (personal\|work), created_at — see migrations `20250211000002_friend_requests.sql`, `20250211000015_privacy_profiles_friends.sql` |
+| user_privacy_settings | user_id, who_can_dm, who_can_call, who_can_add_friend, show_voice_channel, show_online_status, allow_voice_activity_indicator — migration `20250211000015_privacy_profiles_friends.sql` |
+| friend_profile_settings | user_id, friend_id, friendship_profile, visible_profiles (personal\|work\|both) — migration `20250211000015` |
+| users | + active_profile (personal\|work) — which profile is used when joining/appearing in servers |
 | server_invites | code, server_id, created_by, expires_at, max_uses, use_count, created_at — see migration `20250211000004_server_invites_audit.sql` |
 | server_audit_log | id, server_id, user_id, action, details (JSONB), created_at — see migration `20250211000004_server_invites_audit.sql` |
 | bug_reports | id, user_id, username, email, title, description, url, user_agent, status (pending/reviewed/resolved/wontfix), created_at — see migration `20250211000008_bug_reports.sql` |
 | soundboard_sounds | id, user_id, name, url, duration_seconds, storage_path, emoji, created_at — max 10s audio; emoji shown on each sound; migration `20250211000009_soundboard_sounds.sql`, `20250211000014_soundboard_emoji.sql` |
 
 **File:** `backend/data.sqlite` (legacy) — Supabase Postgres used in production
+
+**Active Supabase:** `qeopqyquskszzgprghiy` — schema applied (19 migrations). Backend needs `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` in `backend/.env` (see `.env.example`). Storage uploads use public bucket `attachments`.
 
 ---
 

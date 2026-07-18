@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { applyAudioOutputDevice, loadPrefs, subscribePrefs } from '../services/userPrefs'
 
 interface RemoteAudioProps {
   stream: MediaStream | null
@@ -18,6 +19,8 @@ export function RemoteAudio({ stream, muted }: RemoteAudioProps) {
 
     const audioOnly = new MediaStream(audioTracks)
     audio.srcObject = audioOnly
+    audio.volume = loadPrefs().voice.outputVolume
+    applyAudioOutputDevice(audio)
     audio.play().catch(() => {})
 
     // If audio tracks are added/removed later, update
@@ -36,6 +39,18 @@ export function RemoteAudio({ stream, muted }: RemoteAudioProps) {
       stream.removeEventListener('removetrack', onTrackChange)
     }
   }, [stream])
+
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    const apply = () => {
+      const v = loadPrefs().voice
+      audio.volume = v.outputVolume
+      applyAudioOutputDevice(audio, v.audioOutputId)
+    }
+    apply()
+    return subscribePrefs(apply)
+  }, [])
 
   return <audio ref={audioRef} autoPlay playsInline muted={muted} className="hidden" />
 }

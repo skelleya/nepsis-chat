@@ -4,6 +4,7 @@ import { createSocketSignaling } from '../services/socketSignaling'
 import { createWebRTCClient } from '../services/webrtc'
 import { ensureIceServers } from '../services/iceConfig'
 import { sounds } from '../services/sounds'
+import { getAudioConstraints, getVideoConstraints } from '../services/userPrefs'
 
 export interface VoiceParticipant {
   userId: string
@@ -58,8 +59,8 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   const [voiceChannelName, setVoiceChannelName] = useState<string | null>(null)
   const [participants, setParticipants] = useState<VoiceParticipant[]>([])
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
-  const [isMuted, setIsMuted] = useState(false)
-  const [isDeafened, setIsDeafened] = useState(false)
+  const [isMuted, setIsMutedState] = useState(false)
+  const [isDeafened, setIsDeafenedState] = useState(false)
   const [isSoundboardMuted, setIsSoundboardMuted] = useState(false)
   const [isCameraOn, setIsCameraOn] = useState(false)
   const [isScreenSharing, setIsScreenSharing] = useState(false)
@@ -72,11 +73,50 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
 
   const webrtcRef = useRef<ReturnType<typeof createWebRTCClient> | null>(null)
   const signalingRef = useRef<ReturnType<typeof createBroadcastSignaling> | ReturnType<typeof createSocketSignaling> | null>(null)
+  const isMutedRef = useRef(false)
   const isDeafenedRef = useRef(false)
+  const mutedBeforeDeafenRef = useRef(false)
   const isSoundboardMutedRef = useRef(false)
   const playingSoundboardRef = useRef<Map<string, HTMLAudioElement>>(new Map())
+  isMutedRef.current = isMuted
   isDeafenedRef.current = isDeafened
   isSoundboardMutedRef.current = isSoundboardMuted
+
+  /** Unmute also undeafens */
+  const setIsMuted = useCallback((v: boolean) => {
+    const wasMuted = isMutedRef.current
+    const wasDeafened = isDeafenedRef.current
+    if (v === wasMuted && !(wasDeafened && !v)) return
+
+    setIsMutedState(v)
+    if (!v) {
+      setIsDeafenedState(false)
+      mutedBeforeDeafenRef.current = false
+      // Unmute (and undeafen if needed) — one unmute cue
+      if (wasMuted || wasDeafened) sounds.unmute()
+    } else if (!wasMuted) {
+      sounds.mute()
+    }
+  }, [])
+
+  /**
+   * Deafen always mutes. Undeafen restores mute to whatever it was
+   * before deafen (so mute→deafen→undeafen stays muted; deafen alone→undeafen unmutes).
+   */
+  const setIsDeafened = useCallback((v: boolean) => {
+    if (v) {
+      if (isDeafenedRef.current) return
+      mutedBeforeDeafenRef.current = isMutedRef.current
+      setIsDeafenedState(true)
+      setIsMutedState(true)
+      sounds.deafen()
+    } else {
+      if (!isDeafenedRef.current) return
+      setIsDeafenedState(false)
+      setIsMutedState(mutedBeforeDeafenRef.current)
+      sounds.undeafen()
+    }
+  }, [])
 
   const addOrUpdateParticipant = useCallback((pUserId: string, pUsername: string, stream: MediaStream | null, isSpeaking = false) => {
     setParticipants((prev) => {
@@ -112,8 +152,9 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     setVoiceChannelName(null)
     setIsCameraOn(false)
     setIsScreenSharing(false)
-    setIsMuted(false)
-    setIsDeafened(false)
+    setIsMutedState(false)
+    setIsDeafenedState(false)
+    mutedBeforeDeafenRef.current = false
     setIsSoundboardMuted(false)
     setIsSpeaking(false)
     setPing(null)
@@ -130,7 +171,10 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
 
     setError(null)
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: getAudioConstraints(),
+        video: false,
+      })
       setLocalStream(stream)
       setVoiceChannelId(channelId)
       setVoiceChannelName(channelName)
@@ -242,7 +286,8 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     const signaling = signalingRef.current
     if (!signaling || !voiceChannelId) return
     const unsub = (signaling as { onAdminMute?: (cb: () => void) => () => void }).onAdminMute?.(() => {
-      setIsMuted(true)
+      // Force-mute only — do not undeafen
+      setIsMutedState(true)
     })
     return () => unsub?.()
   }, [voiceChannelId])
@@ -300,7 +345,10 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
       setIsCameraOn(false)
     } else {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: getVideoConstraints(),
+          audio: false,
+        })
         setVideoStream(stream)
         setIsCameraOn(true)
         // Add video tracks to all peer connections (triggers renegotiation)

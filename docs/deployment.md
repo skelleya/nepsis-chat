@@ -96,22 +96,24 @@ For Vercel: set `VITE_API_URL` in the Vercel dashboard to your backend URL.
 
 | Item | Value |
 |------|-------|
-| Project URL | `https://opkatioqcmamnwmvqdtq.supabase.co` |
-| Dashboard | `https://supabase.com/dashboard/project/opkatioqcmamnwmvqdtq` |
-| Database | Postgres (tables: users, servers, channels, messages, dm_*) |
+| Project URL | `https://qeopqyquskszzgprghiy.supabase.co` |
+| Project ref | `qeopqyquskszzgprghiy` |
+| Dashboard | `https://supabase.com/dashboard/project/qeopqyquskszzgprghiy` |
+| MCP (scoped) | `https://mcp.supabase.com/mcp?project_ref=qeopqyquskszzgprghiy` |
+| MCP Connect UI | [Dashboard → Connect → MCP](https://supabase.com/dashboard/project/qeopqyquskszzgprghiy?showConnect=true&connectTab=mcp) — copy Cursor config from there; auth is triggered inside Cursor, not by opening the MCP URL alone |
+| Database | Postgres — **configured** (19 migrations applied; 21 public tables; seed demo servers) |
+| Storage | Public bucket `attachments` (50MB) with public SELECT policy |
 | Auth | Email/password sign up + sign in |
 
-### Tables
+### Env wiring
 
-| Table | Purpose |
-|-------|---------|
-| `users` | All users — guests (`is_guest=true`) and email accounts (`auth_id` links to Supabase Auth) |
-| `servers` | Chat servers |
-| `channels` | Text and voice channels per server |
-| `messages` | Chat messages |
-| `dm_conversations` | DM threads |
-| `dm_participants` | DM participants |
-| `dm_messages` | DM messages |
+| File | Status |
+|------|--------|
+| `frontend/.env.production` | URL + anon key for project `qeopqyquskszzgprghiy` |
+| `frontend/.env.local` | Same (gitignored) for local Vite |
+| `backend/.env.example` | Template with project URL |
+| `backend/.env` | URL + anon set; **paste `SUPABASE_SERVICE_ROLE_KEY`** from Dashboard → API (gitignored) |
+| Vercel | Set `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` to the new project values |
 
 ### Auth flow
 
@@ -120,7 +122,7 @@ For Vercel: set `VITE_API_URL` in the Vercel dashboard to your backend URL.
 
 ### Migration
 
-Schema is in `backend/supabase-migration.sql`. Run it in the Supabase SQL Editor to create/reset tables.
+Base schema: `backend/supabase-migration.sql`. Incrementals: `supabase/migrations/`. Fresh project was bootstrapped via Supabase MCP (`apply_migration` × 19).
 
 ---
 
@@ -171,8 +173,8 @@ The `backend/Dockerfile` builds the backend. Use `context = "backend"` or build 
 | Variable | Dev | Production |
 |----------|-----|------------|
 | `VITE_API_URL` | `http://localhost:3000/api` | Your backend URL (e.g. `https://your-server.com/api`) |
-| `VITE_SUPABASE_URL` | (from `.env.local`) | `https://opkatioqcmamnwmvqdtq.supabase.co` |
-| `VITE_SUPABASE_ANON_KEY` | (from `.env.local`) | (in `.env.production`) |
+| `VITE_SUPABASE_URL` | (from `.env.local`) | `https://qeopqyquskszzgprghiy.supabase.co` |
+| `VITE_SUPABASE_ANON_KEY` | (from `.env.local`) | (paste from new project API settings into `.env.production` / Vercel) |
 | `VITE_TURN_*` | — | Optional TURN fallback; prefer backend `TURN_*` + `/api/webrtc/ice` |
 
 ### Electron
