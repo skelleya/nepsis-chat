@@ -10,7 +10,8 @@ import { NotificationsSettingsTab } from './settings/NotificationsSettingsTab'
 
 type TabId = 'account' | 'profiles' | 'privacy' | 'appearance' | 'voice' | 'notifications' | 'help'
 
-function HelpTab({ user }: { user: { id: string; username: string } }) {
+function HelpTab({ user }: { user: { id: string; username: string; is_guest?: boolean } }) {
+  const isGuest = user.is_guest ?? true
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -18,6 +19,10 @@ function HelpTab({ user }: { user: { id: string; username: string } }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isGuest) {
+      setMessage({ type: 'error', text: 'Guest accounts cannot submit bug reports. Sign in or create an account first.' })
+      return
+    }
     const trimTitle = title.trim()
     const trimDesc = description.trim()
     if (!trimTitle || !trimDesc) {
@@ -49,48 +54,56 @@ function HelpTab({ user }: { user: { id: string; username: string } }) {
       <h3 className="text-xl font-bold text-white mb-4">Help & Support</h3>
       <div className="bg-[#2b2d31] rounded-lg p-4 space-y-4">
         <h4 className="font-semibold text-white">Report a Bug</h4>
-        <p className="text-app-muted text-sm">
-          Found a bug? Let us know! Your report will be sent to the development team. Include as much detail as you can.
-        </p>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div>
-            <label className="block text-xs font-bold text-app-muted uppercase mb-1">Title</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Brief summary of the issue"
-              maxLength={256}
-              className="w-full px-3 py-2 bg-[#1e1f22] rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none placeholder:text-app-muted"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-app-muted uppercase mb-1">Description</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Steps to reproduce, what you expected, what happened..."
-              rows={4}
-              maxLength={8000}
-              className="w-full px-3 py-2 bg-[#1e1f22] rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none placeholder:text-app-muted resize-none"
-            />
-          </div>
-          <p className="text-app-muted text-xs">
-            Your username and current page URL will be included to help us investigate.
+        {isGuest ? (
+          <p className="text-app-muted text-sm">
+            Guest accounts can’t submit bug reports. Sign in or create an account to send feedback to the developers.
           </p>
-          {message && (
-            <p className={`text-sm ${message.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>
-              {message.text}
+        ) : (
+          <>
+            <p className="text-app-muted text-sm">
+              Found a bug? Let us know! Your report will be sent to the development team. Include as much detail as you can.
             </p>
-          )}
-          <button
-            type="submit"
-            disabled={submitting}
-            className="px-4 py-2 bg-app-accent hover:bg-app-accent-hover rounded text-sm text-white font-medium disabled:opacity-50"
-          >
-            {submitting ? 'Sending...' : 'Send Report'}
-          </button>
-        </form>
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-app-muted uppercase mb-1">Title</label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Brief summary of the issue"
+                  maxLength={256}
+                  className="w-full px-3 py-2 bg-[#1e1f22] rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none placeholder:text-app-muted"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-app-muted uppercase mb-1">Description</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Steps to reproduce, what you expected, what happened..."
+                  rows={4}
+                  maxLength={8000}
+                  className="w-full px-3 py-2 bg-[#1e1f22] rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none placeholder:text-app-muted resize-none"
+                />
+              </div>
+              <p className="text-app-muted text-xs">
+                Your username and current page URL will be included to help us investigate.
+              </p>
+              {message && (
+                <p className={`text-sm ${message.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+                  {message.text}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-4 py-2 bg-app-accent hover:bg-app-accent-hover rounded text-sm text-white font-medium disabled:opacity-50"
+              >
+                {submitting ? 'Sending...' : 'Send Report'}
+              </button>
+            </form>
+          </>
+        )}
       </div>
     </div>
   )
