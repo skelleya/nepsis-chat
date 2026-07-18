@@ -128,8 +128,46 @@ export function LoginPage() {
     spinCoinBy(delta)
   }
 
+  const settleCoinToFace = () => {
+    const coin = coinRef.current
+    if (!coin) return
+
+    const face = 180
+    const current = coinRotationRef.current
+    const velocity = coinVelocityRef.current
+    coinVelocityRef.current = 0
+    coinLastXRef.current = null
+
+    let target: number
+    if (Math.abs(velocity) > 1.5) {
+      // Keep momentum: glide to the next face in the spin direction
+      if (velocity > 0) {
+        target = Math.ceil(current / face) * face
+        if (Math.abs(target - current) < 0.5) target += face
+      } else {
+        target = Math.floor(current / face) * face
+        if (Math.abs(target - current) < 0.5) target -= face
+      }
+    } else {
+      target = Math.round(current / face) * face
+    }
+
+    const distance = Math.abs(target - current)
+    const duration = Math.min(1.35, Math.max(0.55, 0.45 + distance / 420))
+
+    coinRotationRef.current = target
+    gsap.to(coin, {
+      rotationY: target,
+      duration,
+      ease: 'power3.inOut',
+      overwrite: 'auto',
+      transformStyle: 'preserve-3d',
+    })
+  }
+
   const handleCoinPointerEnter = (e: React.PointerEvent<HTMLDivElement>) => {
     coinLastXRef.current = e.clientX
+    gsap.killTweensOf(coinRef.current)
     try {
       e.currentTarget.setPointerCapture(e.pointerId)
     } catch {
@@ -138,19 +176,7 @@ export function LoginPage() {
   }
 
   const handleCoinPointerLeave = () => {
-    coinLastXRef.current = null
-    const coin = coinRef.current
-    const coast = coinVelocityRef.current * 8
-    coinVelocityRef.current = 0
-    if (!coin || Math.abs(coast) < 1) return
-    coinRotationRef.current += coast
-    gsap.to(coin, {
-      rotationY: coinRotationRef.current,
-      duration: 0.65,
-      ease: 'power3.out',
-      overwrite: 'auto',
-      transformStyle: 'preserve-3d',
-    })
+    settleCoinToFace()
   }
 
   const moveTabIndicator = useCallback((animate: boolean) => {
