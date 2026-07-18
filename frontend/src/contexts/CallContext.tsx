@@ -442,8 +442,21 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
     cleanup()
   }, [cleanup])
 
-  const toggleMute = useCallback(() => setIsMuted((v) => !v), [])
-  const toggleDeafen = useCallback(() => setIsDeafened((v) => !v), [])
+  // Discord-style: unmute undeafens; deafen mutes
+  const toggleMute = useCallback(() => {
+    setIsMuted((prev) => {
+      const next = !prev
+      if (!next) setIsDeafened(false)
+      return next
+    })
+  }, [])
+  const toggleDeafen = useCallback(() => {
+    setIsDeafened((prev) => {
+      const next = !prev
+      if (next) setIsMuted(true)
+      return next
+    })
+  }, [])
 
   return (
     <CallContext.Provider

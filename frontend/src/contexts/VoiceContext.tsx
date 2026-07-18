@@ -58,8 +58,20 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   const [voiceChannelName, setVoiceChannelName] = useState<string | null>(null)
   const [participants, setParticipants] = useState<VoiceParticipant[]>([])
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
-  const [isMuted, setIsMuted] = useState(false)
-  const [isDeafened, setIsDeafened] = useState(false)
+  const [isMuted, setIsMutedState] = useState(false)
+  const [isDeafened, setIsDeafenedState] = useState(false)
+
+  /** Discord-style: unmute also undeafens */
+  const setIsMuted = useCallback((v: boolean) => {
+    setIsMutedState(v)
+    if (!v) setIsDeafenedState(false)
+  }, [])
+
+  /** Discord-style: deafen also mutes */
+  const setIsDeafened = useCallback((v: boolean) => {
+    setIsDeafenedState(v)
+    if (v) setIsMutedState(true)
+  }, [])
   const [isSoundboardMuted, setIsSoundboardMuted] = useState(false)
   const [isCameraOn, setIsCameraOn] = useState(false)
   const [isScreenSharing, setIsScreenSharing] = useState(false)
@@ -112,8 +124,8 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     setVoiceChannelName(null)
     setIsCameraOn(false)
     setIsScreenSharing(false)
-    setIsMuted(false)
-    setIsDeafened(false)
+    setIsMutedState(false)
+    setIsDeafenedState(false)
     setIsSoundboardMuted(false)
     setIsSpeaking(false)
     setPing(null)
@@ -239,7 +251,8 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     const signaling = signalingRef.current
     if (!signaling || !voiceChannelId) return
     const unsub = (signaling as { onAdminMute?: (cb: () => void) => () => void }).onAdminMute?.(() => {
-      setIsMuted(true)
+      // Force-mute only — do not undeafen
+      setIsMutedState(true)
     })
     return () => unsub?.()
   }, [voiceChannelId])
