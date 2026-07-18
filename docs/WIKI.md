@@ -71,6 +71,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Login form height lock — Guest matches Sign In / Sign Up height (fixed panel) so tab switches don’t resize the card |
 | + | App height fill fix — html/body/#root 100% height; main shell uses `fixed inset-0` to remove black bottom gap |
 | + | User Settings GSAP — Modal opens/closes with GSAP; fixed panel height so switching settings pages doesn’t move/resize the box |
+| + | User Settings page slide — Sidebar tabs (My Account → Help) animate content with directional GSAP horizontal slide |
 | + | Login logo coin spin — Nepsis logo on LoginPage spins left/right with cursor movement via GSAP `rotationY` (`quickSetter` must pass `'deg'` or non-zero spins are ignored) |
 | + | Login logo coin thickness — 3D coin with front/back faces + rim segments so the edge shows when viewed on its side |
 | + | Login tab pill — Shared accent indicator slides between Guest / Sign In / Sign Up via GSAP (no per-button background flash) |
