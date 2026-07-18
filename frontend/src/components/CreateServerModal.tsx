@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
+import gsap from 'gsap'
 
 interface CreateServerModalProps {
   onClose: () => void
@@ -9,6 +10,26 @@ export function CreateServerModal({ onClose, onCreate }: CreateServerModalProps)
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const accentFillRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    const fill = accentFillRef.current
+    if (!fill) return
+    // Seamless loop: strip is 200% wide with a mirrored gradient; slide by half its width.
+    const tween = gsap.fromTo(
+      fill,
+      { xPercent: 0 },
+      {
+        xPercent: -50,
+        duration: 2.4,
+        ease: 'none',
+        repeat: -1,
+      }
+    )
+    return () => {
+      tween.kill()
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -37,8 +58,13 @@ export function CreateServerModal({ onClose, onCreate }: CreateServerModalProps)
         className="relative w-full max-w-[480px] mx-4 rounded-2xl bg-[#313338] shadow-2xl shadow-black/50 ring-1 ring-white/5 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Gradient accent bar */}
-        <div className="h-1 bg-gradient-to-r from-app-accent via-app-accent/80 to-app-online" />
+        {/* Moving gradient accent bar */}
+        <div className="h-1 overflow-hidden" aria-hidden>
+          <div
+            ref={accentFillRef}
+            className="h-full w-[200%] will-change-transform bg-[linear-gradient(90deg,rgb(var(--app-accent))_0%,#23a559_25%,rgb(var(--app-accent))_50%,#23a559_75%,rgb(var(--app-accent))_100%)]"
+          />
+        </div>
 
         <div className="p-6 sm:p-8">
           {/* Header */}
