@@ -239,7 +239,7 @@ export function ServerBar({ servers, currentServerId, onSelectServer, onCreateSe
           onClose={() => setShowCreateModal(false)}
           onCreate={async (name) => {
             await onCreateServer(name)
-            setShowCreateModal(false)
+            // Modal runs its own GSAP close after create succeeds
           }}
         />
       )}

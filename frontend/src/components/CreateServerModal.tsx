@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import gsap from 'gsap'
 
 interface CreateServerModalProps {
@@ -11,6 +11,30 @@ export function CreateServerModal({ onClose, onCreate }: CreateServerModalProps)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const accentFillRef = useRef<HTMLDivElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const closingRef = useRef(false)
+
+  useLayoutEffect(() => {
+    const overlay = overlayRef.current
+    const panel = panelRef.current
+    if (!overlay || !panel) return
+
+    gsap.fromTo(overlay, { opacity: 0 }, { opacity: 1, duration: 0.25, ease: 'sine.out' })
+    gsap.fromTo(
+      panel,
+      { opacity: 0, y: 22, scale: 0.96 },
+      {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        duration: 0.38,
+        ease: 'power3.out',
+        force3D: false,
+        clearProps: 'transform',
+      }
+    )
+  }, [])
 
   useLayoutEffect(() => {
     const fill = accentFillRef.current
@@ -31,6 +55,35 @@ export function CreateServerModal({ onClose, onCreate }: CreateServerModalProps)
     }
   }, [])
 
+  const requestClose = useCallback(() => {
+    if (closingRef.current) return
+    closingRef.current = true
+    const overlay = overlayRef.current
+    const panel = panelRef.current
+    if (!overlay || !panel) {
+      onClose()
+      return
+    }
+    gsap.killTweensOf([overlay, panel])
+    gsap.to(overlay, { opacity: 0, duration: 0.2, ease: 'sine.in' })
+    gsap.to(panel, {
+      opacity: 0,
+      y: 14,
+      scale: 0.97,
+      duration: 0.22,
+      ease: 'power2.in',
+      onComplete: onClose,
+    })
+  }, [onClose])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !loading) requestClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [requestClose, loading])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim() || loading) return
@@ -38,9 +91,10 @@ export function CreateServerModal({ onClose, onCreate }: CreateServerModalProps)
     setLoading(true)
     try {
       await onCreate(name.trim())
-      onClose()
+      requestClose()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to create server')
+      closingRef.current = false
     } finally {
       setLoading(false)
     }
@@ -48,14 +102,16 @@ export function CreateServerModal({ onClose, onCreate }: CreateServerModalProps)
 
   return (
     <div
+      ref={overlayRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
+      onClick={(e) => e.target === e.currentTarget && !loading && requestClose()}
       role="dialog"
       aria-modal="true"
       aria-labelledby="create-server-title"
     >
       <div
-        className="relative w-full max-w-[480px] mx-4 rounded-2xl bg-[#313338] shadow-2xl shadow-black/50 ring-1 ring-white/5 overflow-hidden"
+        ref={panelRef}
+        className="relative w-full max-w-[480px] mx-4 rounded-2xl bg-[#313338] shadow-2xl shadow-black/50 ring-1 ring-white/5 overflow-hidden will-change-transform"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Moving gradient accent bar */}
@@ -120,8 +176,9 @@ export function CreateServerModal({ onClose, onCreate }: CreateServerModalProps)
             <div className="flex flex-col-reverse sm:flex-row justify-between items-center gap-3 pt-2">
               <button
                 type="button"
-                onClick={onClose}
-                className="px-4 py-2.5 text-sm font-medium text-app-muted hover:text-app-text transition-colors"
+                onClick={requestClose}
+                disabled={loading}
+                className="px-4 py-2.5 text-sm font-medium text-app-muted hover:text-app-text transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>

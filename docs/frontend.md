@@ -56,7 +56,7 @@ frontend/src/
 | SettingsDropdown | Custom select for settings pages — trigger + portal listbox, checkmark on selected option, open/close fade+scale via GSAP; closes on outside click, Escape, or scroll. |
 | SettingsToggle | Shared switch control — GSAP slides the knob and tweens track color with a light scale punch on change. |
 | Theme CSS vars | `--app-*` colors are space-separated RGB channels (`30 31 34`) so Tailwind opacity modifiers (`/50`, `/80`) work. Hex is converted in `userPrefs.applyAppearancePrefs`. |
-| CreateServerModal | Create-server dialog; top accent bar is a 200%-wide accent→green gradient looped with GSAP (`xPercent: -50`, seamless). |
+| CreateServerModal | Create-server dialog; GSAP open (overlay fade + panel rise/scale) and close (reverse before unmount); top accent bar is a 200%-wide accent→green gradient looped with GSAP (`xPercent: -50`, seamless). |
 | PrivacySettingsTab | Voice-focused privacy toggles/selects; persists via `GET/PUT /api/users/:id/privacy` |
 | ProfilesSettingsTab | Edit Personal/Work profiles; set server presentation; manage which friends see which profiles |
 | OnboardingPage | Shown when new (non-guest) user has no servers; CTAs: Create first server (opens CreateServerModal), Explore community; persisted via `nepsis_onboarding_completed` |
