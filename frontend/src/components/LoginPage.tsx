@@ -6,12 +6,6 @@ import { supabase } from '../services/supabase'
 
 type AuthMode = 'guest' | 'login' | 'signup'
 
-const MODE_ORDER: Record<AuthMode, number> = {
-  guest: 0,
-  login: 1,
-  signup: 2,
-}
-
 export function LoginPage() {
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
@@ -25,7 +19,7 @@ export function LoginPage() {
   const pageRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
-  const slideDirectionRef = useRef(0)
+  const pendingEnterRef = useRef(false)
 
   useLayoutEffect(() => {
     const page = pageRef.current
@@ -36,12 +30,12 @@ export function LoginPage() {
       gsap.fromTo(
         page,
         { opacity: 0 },
-        { opacity: 1, duration: 0.35, ease: 'power2.out' }
+        { opacity: 1, duration: 0.45, ease: 'sine.out' }
       )
       gsap.fromTo(
         card,
-        { opacity: 0, y: 28, scale: 0.96 },
-        { opacity: 1, y: 0, scale: 1, duration: 0.55, ease: 'power3.out', delay: 0.05 }
+        { opacity: 0, y: 20 },
+        { opacity: 1, y: 0, duration: 0.65, ease: 'power3.out', delay: 0.04 }
       )
     }, page)
 
@@ -50,26 +44,28 @@ export function LoginPage() {
 
   useLayoutEffect(() => {
     const panel = panelRef.current
-    const direction = slideDirectionRef.current
-    if (!panel || direction === 0) return
+    if (!panel || !pendingEnterRef.current) return
+    pendingEnterRef.current = false
 
+    const fields = panel.querySelectorAll<HTMLElement>('label, input, button[type="submit"], p')
+    gsap.set(panel, { opacity: 1, x: 0, y: 0 })
     gsap.fromTo(
-      panel,
-      { x: 40 * direction, opacity: 0 },
+      fields,
+      { y: -22, opacity: 0 },
       {
-        x: 0,
+        y: 0,
         opacity: 1,
-        duration: 0.28,
-        ease: 'power2.out',
+        duration: 0.55,
+        stagger: 0.07,
+        ease: 'power3.out',
+        clearProps: 'transform',
         onComplete: () => setSwitching(false),
       }
     )
-    slideDirectionRef.current = 0
   }, [mode])
 
   const switchMode = (next: AuthMode) => {
     if (next === mode || switching) return
-    const direction = MODE_ORDER[next] > MODE_ORDER[mode] ? 1 : -1
     const panel = panelRef.current
     setError('')
     setMessage('')
@@ -80,13 +76,18 @@ export function LoginPage() {
     }
 
     setSwitching(true)
-    slideDirectionRef.current = direction
-    gsap.to(panel, {
-      x: -40 * direction,
+    const fields = panel.querySelectorAll<HTMLElement>('label, input, button[type="submit"], p')
+    gsap.killTweensOf([panel, fields])
+    gsap.to(fields, {
+      y: 18,
       opacity: 0,
-      duration: 0.18,
-      ease: 'power2.in',
-      onComplete: () => setMode(next),
+      duration: 0.4,
+      stagger: 0.05,
+      ease: 'sine.inOut',
+      onComplete: () => {
+        pendingEnterRef.current = true
+        setMode(next)
+      },
     })
   }
 
@@ -199,7 +200,7 @@ export function LoginPage() {
           </button>
         </div>
 
-        <div className="overflow-hidden">
+        <div className="overflow-hidden min-h-[220px]">
           <div ref={panelRef} className="will-change-transform">
             {mode === 'guest' ? (
               <form onSubmit={handleGuestSubmit} className="space-y-6">
