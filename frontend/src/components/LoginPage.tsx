@@ -19,68 +19,48 @@ const MODE_ORDER: Record<AuthMode, number> = {
 }
 
 const COIN_SIZE = 48
-const COIN_THICKNESS = 10
-const COIN_EDGE_COUNT = 32
-const COIN_RADIUS = COIN_SIZE / 2
+const COIN_THICKNESS = 12
+const COIN_LAYERS = 12
 
+/** Stacked discs along Z — reliable thickness when spun on edge (no fragile cylinder mesh). */
 function NepsisCoin({ coinRef }: { coinRef: RefObject<HTMLDivElement | null> }) {
   return (
     <div
       ref={coinRef}
-      className="relative will-change-transform"
+      className="relative"
       style={{
         width: COIN_SIZE,
         height: COIN_SIZE,
         transformStyle: 'preserve-3d',
       }}
     >
-      {/* Front face */}
-      <div
-        className="absolute inset-0 rounded-full bg-white overflow-hidden shadow-sm"
-        style={{
-          transform: `translateZ(${COIN_THICKNESS / 2}px)`,
-          backfaceVisibility: 'hidden',
-        }}
-      >
-        <img
-          src="./logo.png"
-          alt=""
-          className="h-full w-full object-contain p-1 select-none"
-          draggable={false}
-        />
-      </div>
-
-      {/* Back face */}
-      <div
-        className="absolute inset-0 rounded-full bg-white overflow-hidden shadow-sm"
-        style={{
-          transform: `rotateY(180deg) translateZ(${COIN_THICKNESS / 2}px)`,
-          backfaceVisibility: 'hidden',
-        }}
-      >
-        <img
-          src="./logo.png"
-          alt=""
-          className="h-full w-full object-contain p-1 select-none scale-x-[-1]"
-          draggable={false}
-        />
-      </div>
-
-      {/* Edge / thickness rim (cylinder strips) */}
-      {Array.from({ length: COIN_EDGE_COUNT }, (_, i) => {
-        const angle = (i / COIN_EDGE_COUNT) * 360
+      {Array.from({ length: COIN_LAYERS }, (_, i) => {
+        const t = COIN_LAYERS === 1 ? 0 : i / (COIN_LAYERS - 1)
+        const z = (t - 0.5) * COIN_THICKNESS
+        const isFront = i === COIN_LAYERS - 1
+        const isBack = i === 0
+        const isFace = isFront || isBack
         return (
           <div
             key={i}
-            className="absolute top-0"
+            className="absolute inset-0 rounded-full overflow-hidden"
             style={{
-              left: (COIN_SIZE - COIN_THICKNESS) / 2,
-              width: COIN_THICKNESS,
-              height: COIN_SIZE,
-              background: 'linear-gradient(90deg, #bdbdbd 0%, #f7f7f7 40%, #e0e0e0 70%, #b8b8b8 100%)',
-              transform: `rotateY(${angle}deg) translateZ(${COIN_RADIUS}px)`,
+              transform: `translateZ(${z}px)`,
+              background: isFace
+                ? '#ffffff'
+                : 'linear-gradient(180deg, #d0d0d0 0%, #f3f3f3 45%, #c4c4c4 100%)',
+              boxShadow: isFace ? 'inset 0 0 0 1px rgba(0,0,0,0.08)' : undefined,
             }}
-          />
+          >
+            {isFace && (
+              <img
+                src="./logo.png"
+                alt=""
+                className={`h-full w-full object-contain p-1 select-none ${isBack ? 'scale-x-[-1]' : ''}`}
+                draggable={false}
+              />
+            )}
+          </div>
         )
       })}
     </div>
@@ -120,10 +100,12 @@ export function LoginPage() {
     if (!wrap || !coin) return
 
     gsap.set(coin, {
-      transformPerspective: 800,
       transformOrigin: '50% 50%',
       transformStyle: 'preserve-3d',
-      force3D: true,
+    })
+    gsap.set(wrap, {
+      perspective: 900,
+      transformStyle: 'preserve-3d',
     })
 
     const quickRotate = gsap.quickTo(coin, 'rotationY', {
@@ -333,11 +315,17 @@ export function LoginPage() {
       ref={pageRef}
       className="fixed inset-0 flex items-center justify-center bg-app-darker"
     >
-      <div ref={cardRef} className="w-full max-w-md p-10 rounded-xl bg-app-dark will-change-transform">
+      <div ref={cardRef} className="w-full max-w-md p-10 rounded-xl bg-app-dark">
         <div
           ref={coinWrapRef}
-          className="mx-auto mb-6 w-16 h-16 flex items-center justify-center cursor-grab active:cursor-grabbing"
-          style={{ perspective: 800 }}
+          className="mx-auto mb-6 flex items-center justify-center cursor-grab active:cursor-grabbing"
+          style={{
+            width: 72,
+            height: 72,
+            perspective: 900,
+            transformStyle: 'preserve-3d',
+            overflow: 'visible',
+          }}
           role="img"
           aria-label="Nepsis"
         >
