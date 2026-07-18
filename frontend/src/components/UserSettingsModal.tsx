@@ -396,7 +396,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
     >
       <div
         ref={panelRef}
-        className="bg-[#313338] rounded-lg shadow-2xl w-full max-w-[740px] h-[min(640px,90vh)] flex overflow-hidden"
+        className="relative bg-[#313338] rounded-lg shadow-2xl w-full max-w-[740px] h-[min(640px,90vh)] flex overflow-hidden"
       >
         {/* Left sidebar */}
         <div className="w-[218px] bg-[#2b2d31] flex-shrink-0 flex flex-col min-h-0">
