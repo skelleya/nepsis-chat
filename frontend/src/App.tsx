@@ -114,7 +114,13 @@ function AppContent() {
     gsap.fromTo(
       el,
       { opacity: 0 },
-      { opacity: 1, duration: 0.4, ease: 'power2.out' }
+      {
+        opacity: 1,
+        duration: 0.4,
+        ease: 'power2.out',
+        force3D: false,
+        clearProps: 'transform',
+      }
     )
     return () => {
       gsap.killTweensOf(el)
@@ -123,7 +129,7 @@ function AppContent() {
 
   if (showLogin || !user) {
     return (
-      <div ref={loginShellRef} className="min-h-screen will-change-transform">
+      <div ref={loginShellRef} className="min-h-full">
         <LoginPage />
       </div>
     )
@@ -131,7 +137,7 @@ function AppContent() {
 
   const displayName = (user.display_name && user.display_name.trim()) || user.username
   return (
-    <div ref={appShellRef} className="h-screen will-change-transform">
+    <div ref={appShellRef} className="h-full min-h-0">
       <VoiceProvider userId={user.id} username={displayName}>
         <CallProvider userId={user.id} username={displayName}>
         <MainLayout
@@ -583,7 +589,7 @@ function MainLayout({
   }, [showServerSettings])
 
   return (
-    <div className="h-screen flex bg-app-darker overflow-x-hidden">
+    <div className="h-full min-h-0 flex bg-app-darker overflow-x-hidden">
       <ServerBar
         servers={servers.map((s) => ({ id: s.id, name: s.name, iconUrl: s.icon_url, bannerUrl: s.banner_url, ownerId: s.owner_id }))}
         currentServerId={currentServerId}

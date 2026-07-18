@@ -202,7 +202,7 @@ export function LoginPage() {
   return (
     <div
       ref={pageRef}
-      className="min-h-screen flex items-center justify-center bg-app-darker"
+      className="min-h-full flex items-center justify-center bg-app-darker"
       style={{ paddingTop: 'var(--download-banner-height, 0px)' }}
     >
       <div ref={cardRef} className="w-full max-w-md p-10 rounded-xl bg-app-dark will-change-transform">
