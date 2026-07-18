@@ -87,45 +87,89 @@ export function LoginPage() {
   const coinWrapRef = useRef<HTMLDivElement>(null)
   const coinRef = useRef<HTMLDivElement>(null)
   const coinRotationRef = useRef(0)
-  const coinVelocityRef = useRef(0)
-  const coinPeakVelocityRef = useRef(0)
+  /** Angular velocity in degrees/second */
+  const coinAngularVelRef = useRef(0)
   const coinLastXRef = useRef<number | null>(null)
+  const coinDraggingRef = useRef(false)
   const coinSetRotationRef = useRef<((value: number) => void) | null>(null)
   const pendingEnterRef = useRef(false)
   const slideDirectionRef = useRef(1)
   const targetModeRef = useRef<AuthMode>('guest')
   const tabIndicatorReadyRef = useRef(false)
 
+  // Free-spin physics: instant drag response + inertia; reverse swipe slows then flips direction
   useLayoutEffect(() => {
     const coin = coinRef.current
     if (!coin) return
+
     gsap.set(coin, {
       transformOrigin: '50% 50%',
       transformStyle: 'preserve-3d',
       rotationY: 0,
     })
-    coinSetRotationRef.current = gsap.quickSetter(coin, 'rotationY') as (value: number) => void
+    const setRot = gsap.quickSetter(coin, 'rotationY') as (value: number) => void
+    coinSetRotationRef.current = setRot
+
+    const MAX_VEL = 3200
+    const FRICTION = 1.65
+    const SETTLE_START = 90
+    const FACE = 180
+
+    const tick = () => {
+      const dt = gsap.ticker.deltaRatio() / 60
+      if (dt <= 0) return
+
+      // While dragging, pointer move owns rotation directly (zero lag)
+      if (coinDraggingRef.current) return
+
+      let vel = coinAngularVelRef.current
+      if (Math.abs(vel) < 0.05) {
+        // Final magnetic snap to face
+        const target = Math.round(coinRotationRef.current / FACE) * FACE
+        const err = target - coinRotationRef.current
+        if (Math.abs(err) < 0.15) {
+          coinRotationRef.current = target
+          coinAngularVelRef.current = 0
+          setRot(target)
+          return
+        }
+        coinAngularVelRef.current = err * 10
+        vel = coinAngularVelRef.current
+      }
+
+      // Friction while free-spinning
+      vel *= Math.exp(-FRICTION * dt)
+
+      // When slow enough, gently pull toward the nearest face in the travel direction
+      if (Math.abs(vel) < SETTLE_START) {
+        const dir = vel >= 0 ? 1 : -1
+        let target =
+          Math.abs(vel) > 12
+            ? dir > 0
+              ? Math.ceil(coinRotationRef.current / FACE) * FACE
+              : Math.floor(coinRotationRef.current / FACE) * FACE
+            : Math.round(coinRotationRef.current / FACE) * FACE
+        if (Math.abs(vel) > 12 && Math.abs(target - coinRotationRef.current) < 0.5) {
+          target += dir * FACE
+        }
+        const err = target - coinRotationRef.current
+        vel += err * 6 * dt
+        vel *= Math.exp(-2.4 * dt)
+      }
+
+      coinAngularVelRef.current = Math.max(-MAX_VEL, Math.min(MAX_VEL, vel))
+      coinRotationRef.current += coinAngularVelRef.current * dt
+      setRot(coinRotationRef.current)
+    }
+
+    gsap.ticker.add(tick)
     return () => {
+      gsap.ticker.remove(tick)
       coinSetRotationRef.current = null
     }
   }, [])
 
-  const spinCoinBy = (deltaX: number) => {
-    if (!deltaX) return
-    coinVelocityRef.current = deltaX
-    // Track peak swipe speed (signed) for multi-spin settle
-    if (Math.abs(deltaX) > Math.abs(coinPeakVelocityRef.current)) {
-      coinPeakVelocityRef.current = deltaX
-    }
-    // Faster cursor = stronger immediate spin
-    const boost = 1.5 + Math.min(2.5, Math.abs(deltaX) * 0.08)
-    coinRotationRef.current += deltaX * boost
-    // Instant — no tween lag while dragging
-    coinSetRotationRef.current?.(coinRotationRef.current)
-  }
-
   const handleCoinPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    // Prefer movementX so the first frame spins immediately
     let delta = e.movementX
     if (!delta) {
       if (coinLastXRef.current == null) {
@@ -135,65 +179,24 @@ export function LoginPage() {
       delta = e.clientX - coinLastXRef.current
     }
     coinLastXRef.current = e.clientX
-    spinCoinBy(delta)
-  }
+    if (!delta) return
 
-  const settleCoinToFace = () => {
-    const coin = coinRef.current
-    if (!coin) return
+    // Instant visual follow
+    coinRotationRef.current += delta * 1.35
+    coinSetRotationRef.current?.(coinRotationRef.current)
 
-    const face = 180
-    const turn = 360
-    const current = coinRotationRef.current
-    // Prefer latest velocity; fall back to peak swipe speed for quick fly-bys
-    const velocity =
-      Math.abs(coinVelocityRef.current) > 1.2
-        ? coinVelocityRef.current
-        : coinPeakVelocityRef.current
-
-    coinVelocityRef.current = 0
-    coinPeakVelocityRef.current = 0
-    coinLastXRef.current = null
-
-    const speed = Math.abs(velocity)
-    const dir = velocity >= 0 ? 1 : -1
-
-    // Map swipe speed → extra full rotations (0–5) before landing on a face
-    const extraSpins =
-      speed < 2 ? 0 : Math.min(5, Math.floor((speed - 2) / 5) + 1)
-
-    let target: number
-    if (speed > 1.2) {
-      target = dir > 0 ? Math.ceil(current / face) * face : Math.floor(current / face) * face
-      if (Math.abs(target - current) < 0.5) target += dir * face
-      target += dir * extraSpins * turn
-    } else {
-      target = Math.round(current / face) * face
-    }
-
-    const distance = Math.abs(target - current)
-    const duration = Math.min(2.2, Math.max(0.6, 0.5 + distance / 380))
-
-    coinRotationRef.current = target
-    gsap.to(coin, {
-      rotationY: target,
-      duration,
-      ease: 'power3.inOut',
-      overwrite: 'auto',
-      transformStyle: 'preserve-3d',
-    })
+    // Impulse into angular velocity — opposite swipes slow a fast spin, then reverse
+    const impulse = delta * 62
+    coinAngularVelRef.current = Math.max(
+      -3200,
+      Math.min(3200, coinAngularVelRef.current + impulse)
+    )
   }
 
   const handleCoinPointerEnter = (e: React.PointerEvent<HTMLDivElement>) => {
+    coinDraggingRef.current = true
     coinLastXRef.current = e.clientX
-    coinPeakVelocityRef.current = 0
-    // Kill settle tween so the next move is instant
-    gsap.killTweensOf(coinRef.current)
-    const coin = coinRef.current
-    if (coin) {
-      coinSetRotationRef.current = gsap.quickSetter(coin, 'rotationY') as (value: number) => void
-      coinSetRotationRef.current(coinRotationRef.current)
-    }
+    // Keep existing angular velocity so a reverse swipe can brake a fast spin
     try {
       e.currentTarget.setPointerCapture(e.pointerId)
     } catch {
@@ -202,7 +205,9 @@ export function LoginPage() {
   }
 
   const handleCoinPointerLeave = () => {
-    settleCoinToFace()
+    coinDraggingRef.current = false
+    coinLastXRef.current = null
+    // Free-spin + face settle continue on the ticker from current velocity
   }
 
   const moveTabIndicator = useCallback((animate: boolean) => {
