@@ -137,7 +137,7 @@ function AppContent() {
 
   const displayName = (user.display_name && user.display_name.trim()) || user.username
   return (
-    <div ref={appShellRef} className="h-full min-h-0">
+    <div ref={appShellRef} className="fixed inset-0 overflow-hidden">
       <VoiceProvider userId={user.id} username={displayName}>
         <CallProvider userId={user.id} username={displayName}>
         <MainLayout

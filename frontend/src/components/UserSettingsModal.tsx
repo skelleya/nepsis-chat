@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
+import gsap from 'gsap'
 import * as api from '../services/api'
 
 type TabId = 'account' | 'profiles' | 'privacy' | 'appearance' | 'voice' | 'notifications' | 'help'
@@ -108,8 +109,68 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
   const [, setProfiles] = useState<{ id: string; profile_type: string; display_name: string; avatar_url?: string; banner_url?: string }[]>([])
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const bannerInputRef = useRef<HTMLInputElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const closingRef = useRef(false)
+  const tabReadyRef = useRef(false)
 
   const isGuest = user.is_guest ?? true
+
+  useLayoutEffect(() => {
+    const overlay = overlayRef.current
+    const panel = panelRef.current
+    if (!overlay || !panel) return
+
+    gsap.fromTo(overlay, { opacity: 0 }, { opacity: 1, duration: 0.25, ease: 'sine.out' })
+    gsap.fromTo(
+      panel,
+      { opacity: 0, y: 18, scale: 0.98 },
+      {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        duration: 0.4,
+        ease: 'power3.out',
+        force3D: false,
+        clearProps: 'transform',
+      }
+    )
+  }, [])
+
+  useLayoutEffect(() => {
+    const content = contentRef.current
+    if (!content) return
+    if (!tabReadyRef.current) {
+      tabReadyRef.current = true
+      return
+    }
+    gsap.fromTo(
+      content,
+      { opacity: 0, y: 10 },
+      { opacity: 1, y: 0, duration: 0.28, ease: 'power2.out', force3D: false, clearProps: 'transform' }
+    )
+  }, [activeTab])
+
+  const requestClose = () => {
+    if (closingRef.current) return
+    closingRef.current = true
+    const overlay = overlayRef.current
+    const panel = panelRef.current
+    if (!overlay || !panel) {
+      onClose()
+      return
+    }
+    gsap.to(overlay, { opacity: 0, duration: 0.2, ease: 'sine.in' })
+    gsap.to(panel, {
+      opacity: 0,
+      y: 12,
+      scale: 0.98,
+      duration: 0.22,
+      ease: 'power2.in',
+      onComplete: onClose,
+    })
+  }
 
   useEffect(() => {
     setUsername(user.username)
@@ -203,21 +264,28 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') requestClose()
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="bg-[#313338] rounded-lg shadow-2xl w-full max-w-[740px] max-h-[90vh] flex overflow-hidden">
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+      onClick={(e) => e.target === e.currentTarget && requestClose()}
+    >
+      <div
+        ref={panelRef}
+        className="bg-[#313338] rounded-lg shadow-2xl w-full max-w-[740px] h-[min(640px,90vh)] flex overflow-hidden"
+      >
         {/* Left sidebar */}
-        <div className="w-[218px] bg-[#2b2d31] flex-shrink-0 flex flex-col">
-          <div className="p-4 border-b border-app-hover/40">
+        <div className="w-[218px] bg-[#2b2d31] flex-shrink-0 flex flex-col min-h-0">
+          <div className="p-4 border-b border-app-hover/40 flex-shrink-0">
             <h2 className="text-lg font-bold text-white">User Settings</h2>
           </div>
-          <div className="p-2 overflow-y-auto">
+          <div className="p-2 overflow-y-auto flex-1 min-h-0">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
@@ -242,8 +310,9 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
           </div>
         </div>
 
-        {/* Main content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        {/* Main content — fixed panel size; only inner content scrolls */}
+        <div className="flex-1 min-w-0 min-h-0 overflow-y-auto p-6">
+          <div ref={contentRef}>
           {activeTab === 'account' && (
             <div>
               <h3 className="text-xl font-bold text-white mb-4">My Account</h3>
@@ -429,12 +498,13 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
           {activeTab === 'help' && (
             <HelpTab user={user} />
           )}
+          </div>
         </div>
 
         {/* Close button */}
         <div className="p-4 flex-shrink-0">
           <button
-            onClick={onClose}
+            onClick={requestClose}
             className="w-9 h-9 rounded-full border-2 border-app-muted/60 flex items-center justify-center text-app-muted hover:text-white hover:border-white transition-colors"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
