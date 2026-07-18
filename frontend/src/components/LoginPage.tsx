@@ -502,64 +502,68 @@ export function LoginPage() {
         <div className="overflow-hidden h-[268px] -mx-1 px-1">
           <div ref={panelRef} className="will-change-transform h-full">
             {mode === 'guest' ? (
-              <form onSubmit={handleGuestSubmit} className="flex h-full flex-col gap-6">
-                <div ref={fieldsRef} className="space-y-3 origin-top">
-                  <label className="block text-sm text-app-muted">Username</label>
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Enter a username"
-                    disabled={loading}
-                    className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent disabled:opacity-60"
-                  />
-                  <p className="text-app-muted text-xs text-center pt-1">
-                    Guest accounts are temporary — no email required
-                  </p>
-                </div>
-                <button
-                  type="submit"
-                  disabled={loading || switching}
-                  className="mt-auto w-full py-3 rounded-lg bg-app-accent hover:bg-app-accent-hover text-white font-semibold transition-colors disabled:opacity-50"
-                >
-                  {loading ? 'Joining...' : 'Continue as Guest'}
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={handleEmailSubmit} className="flex h-full flex-col gap-6">
-                <div ref={fieldsRef} className="space-y-6 origin-top">
+              <form onSubmit={handleGuestSubmit} className="h-full">
+                <div ref={fieldsRef} className="flex h-full flex-col gap-6 origin-top">
                   <div className="space-y-3">
-                    <label className="block text-sm text-app-muted">
-                      {mode === 'signup' ? 'Email' : 'Email or username'}
-                    </label>
+                    <label className="block text-sm text-app-muted">Username</label>
                     <input
                       type="text"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder={mode === 'signup' ? 'you@example.com' : 'you@example.com or username'}
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="Enter a username"
                       disabled={loading}
                       className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent disabled:opacity-60"
                     />
+                    <p className="text-app-muted text-xs text-center pt-1">
+                      Guest accounts are temporary — no email required
+                    </p>
                   </div>
-                  <div className="space-y-3">
-                    <label className="block text-sm text-app-muted">Password</label>
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      disabled={loading}
-                      className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent disabled:opacity-60"
-                    />
-                  </div>
+                  <button
+                    type="submit"
+                    disabled={loading || switching}
+                    className="mt-auto w-full py-3 rounded-lg bg-app-accent hover:bg-app-accent-hover text-white font-semibold transition-colors disabled:opacity-50"
+                  >
+                    {loading ? 'Joining...' : 'Continue as Guest'}
+                  </button>
                 </div>
-                <button
-                  type="submit"
-                  disabled={loading || switching}
-                  className="mt-auto w-full py-3 rounded-lg bg-app-accent hover:bg-app-accent-hover text-white font-semibold transition-colors disabled:opacity-50"
-                >
-                  {loading ? 'Please wait...' : mode === 'signup' ? 'Create Account' : 'Sign In'}
-                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleEmailSubmit} className="h-full">
+                <div ref={fieldsRef} className="flex h-full flex-col gap-6 origin-top">
+                  <div className="space-y-6">
+                    <div className="space-y-3">
+                      <label className="block text-sm text-app-muted">
+                        {mode === 'signup' ? 'Email' : 'Email or username'}
+                      </label>
+                      <input
+                        type="text"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder={mode === 'signup' ? 'you@example.com' : 'you@example.com or username'}
+                        disabled={loading}
+                        className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent disabled:opacity-60"
+                      />
+                    </div>
+                    <div className="space-y-3">
+                      <label className="block text-sm text-app-muted">Password</label>
+                      <input
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        disabled={loading}
+                        className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent disabled:opacity-60"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={loading || switching}
+                    className="mt-auto w-full py-3 rounded-lg bg-app-accent hover:bg-app-accent-hover text-white font-semibold transition-colors disabled:opacity-50"
+                  >
+                    {loading ? 'Please wait...' : mode === 'signup' ? 'Create Account' : 'Sign In'}
+                  </button>
+                </div>
               </form>
             )}
           </div>
