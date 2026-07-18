@@ -112,7 +112,6 @@ interface UserSettingsModalProps {
 
 export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: UserSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<TabId>('account')
-  const [displayedTab, setDisplayedTab] = useState<TabId>('account')
   const [switching, setSwitching] = useState(false)
   const [username, setUsername] = useState(user.username)
   const [displayName, setDisplayName] = useState(user.display_name ?? '')
@@ -129,11 +128,11 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
   const bannerInputRef = useRef<HTMLInputElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
-  const contentRef = useRef<HTMLDivElement>(null)
-  const contentTweenRef = useRef<gsap.core.Tween | null>(null)
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const stripRef = useRef<HTMLDivElement>(null)
+  const stripTweenRef = useRef<gsap.core.Tween | null>(null)
   const closingRef = useRef(false)
-  const tabReadyRef = useRef(false)
-  const slideDirRef = useRef(1)
+  const activeTabRef = useRef<TabId>('account')
 
   const isGuest = user.is_guest ?? true
 
@@ -158,61 +157,76 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
     )
   }, [])
 
-  const switchTab = (next: TabId) => {
-    if (next === activeTab || switching) return
-    const el = contentRef.current
-    if (!el) {
-      setActiveTab(next)
-      setDisplayedTab(next)
+  const panelWidth = () => viewportRef.current?.offsetWidth ?? 0
+
+  const syncStripToIndex = (index: number, animate: boolean) => {
+    const strip = stripRef.current
+    const width = panelWidth()
+    if (!strip || !width) return
+    stripTweenRef.current?.kill()
+    const x = -index * width
+    if (!animate) {
+      gsap.set(strip, { x })
       return
     }
-
-    const fromIdx = TAB_ORDER.indexOf(displayedTab)
-    const toIdx = TAB_ORDER.indexOf(next)
-    const dir = toIdx >= fromIdx ? 1 : -1
-    slideDirRef.current = dir
-
-    setActiveTab(next)
-    setSwitching(true)
-    contentTweenRef.current?.kill()
-    contentTweenRef.current = gsap.to(el, {
-      opacity: 0,
-      x: -28 * dir,
-      duration: 0.16,
-      ease: 'power2.in',
+    stripTweenRef.current = gsap.to(strip, {
+      x,
+      duration: 0.28,
+      ease: 'power2.out',
       force3D: false,
-      onComplete: () => {
-        setDisplayedTab(next)
-        setSwitching(false)
-      },
     })
   }
 
   useLayoutEffect(() => {
-    const content = contentRef.current
-    if (!content) return
-    if (!tabReadyRef.current) {
-      tabReadyRef.current = true
+    syncStripToIndex(TAB_ORDER.indexOf(activeTabRef.current), false)
+    const onResize = () => syncStripToIndex(TAB_ORDER.indexOf(activeTabRef.current), false)
+    window.addEventListener('resize', onResize)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      stripTweenRef.current?.kill()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount/resize only
+  }, [])
+
+  const switchTab = (next: TabId) => {
+    const strip = stripRef.current
+    const width = panelWidth()
+    if (!strip || !width) {
+      activeTabRef.current = next
+      setActiveTab(next)
       return
     }
-    const dir = slideDirRef.current
-    contentTweenRef.current?.kill()
-    contentTweenRef.current = gsap.fromTo(
-      content,
-      { opacity: 0, x: 28 * dir },
-      {
-        opacity: 1,
-        x: 0,
-        duration: 0.22,
-        ease: 'power2.out',
-        force3D: false,
-        clearProps: 'transform',
-      }
-    )
-    return () => {
-      contentTweenRef.current?.kill()
-    }
-  }, [displayedTab])
+
+    const currentX = Number(gsap.getProperty(strip, 'x')) || 0
+    const fromIdx = Math.max(0, Math.min(TAB_ORDER.length - 1, Math.round(-currentX / width)))
+    const toIdx = TAB_ORDER.indexOf(next)
+    if (toIdx < 0 || (fromIdx === toIdx && !switching && activeTab === next)) return
+
+    const distance = Math.abs(toIdx - fromIdx)
+    let lastIdx = fromIdx
+    setSwitching(true)
+    stripTweenRef.current?.kill()
+    stripTweenRef.current = gsap.to(strip, {
+      x: -toIdx * width,
+      duration: Math.min(0.9, 0.18 + 0.14 * Math.max(1, distance)),
+      ease: 'power2.inOut',
+      force3D: false,
+      onUpdate() {
+        const prog = this.progress()
+        const idx = Math.round(fromIdx + (toIdx - fromIdx) * prog)
+        if (idx !== lastIdx && TAB_ORDER[idx]) {
+          lastIdx = idx
+          activeTabRef.current = TAB_ORDER[idx]
+          setActiveTab(TAB_ORDER[idx])
+        }
+      },
+      onComplete() {
+        activeTabRef.current = next
+        setActiveTab(next)
+        setSwitching(false)
+      },
+    })
+  }
 
   const requestClose = () => {
     if (closingRef.current) return
@@ -387,8 +401,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
                 key={tab.id}
                 type="button"
                 onClick={() => switchTab(tab.id)}
-                disabled={switching}
-                className={`w-full px-3 py-2 rounded text-sm text-left transition-colors disabled:cursor-wait ${
+                className={`w-full px-3 py-2 rounded text-sm text-left transition-colors ${
                   activeTab === tab.id ? 'bg-app-accent/30 text-white' : 'text-app-muted hover:text-app-text hover:bg-app-hover/40'
                 }`}
               >
@@ -408,187 +421,181 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
           </div>
         </div>
 
-        {/* Main content — fixed panel size; clip horizontal slide, scroll vertically */}
-        <div className="flex-1 min-w-0 min-h-0 overflow-x-hidden overflow-y-auto p-6">
-          <div ref={contentRef} className="will-change-transform">
-          {displayedTab === 'account' && (
-            <div>
-              <h3 className="text-xl font-bold text-white mb-4">My Account</h3>
-              <div className="bg-[#111214] rounded-lg overflow-hidden">
-                <div className="relative h-24">
-                  {bannerUrl ? (
-                    <img key={bannerUrl} src={bannerUrl} alt="Banner" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full bg-app-accent" />
-                  )}
-                  <input
-                    ref={bannerInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleBannerUpload}
-                  />
-                  <button
-                    onClick={() => bannerInputRef.current?.click()}
-                    disabled={saving}
-                    className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity text-white text-sm font-medium"
-                  >
-                    Change Banner
-                  </button>
-                </div>
-                <div className="px-4 pb-4">
-                  <div className="flex items-end gap-4 -mt-10">
-                    <div className="relative">
-                      {avatarUrl ? (
-                        <img key={avatarUrl} src={avatarUrl} alt={(user.display_name || user.username)} className="w-20 h-20 rounded-full object-cover border-4 border-[#111214]" />
+        {/* Main content — horizontal strip; longer jumps slide through intermediate pages */}
+        <div ref={viewportRef} className="flex-1 min-w-0 min-h-0 overflow-hidden">
+          <div ref={stripRef} className="flex h-full will-change-transform">
+            <div className="w-full min-w-full h-full overflow-y-auto p-6 flex-shrink-0">
+              <div>
+                <h3 className="text-xl font-bold text-white mb-4">My Account</h3>
+                <div className="bg-[#111214] rounded-lg overflow-hidden">
+                  <div className="relative h-24">
+                    {bannerUrl ? (
+                      <img key={bannerUrl} src={bannerUrl} alt="Banner" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-app-accent" />
+                    )}
+                    <input
+                      ref={bannerInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleBannerUpload}
+                    />
+                    <button
+                      onClick={() => bannerInputRef.current?.click()}
+                      disabled={saving}
+                      className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity text-white text-sm font-medium"
+                    >
+                      Change Banner
+                    </button>
+                  </div>
+                  <div className="px-4 pb-4">
+                    <div className="flex items-end gap-4 -mt-10">
+                      <div className="relative">
+                        {avatarUrl ? (
+                          <img key={avatarUrl} src={avatarUrl} alt={(user.display_name || user.username)} className="w-20 h-20 rounded-full object-cover border-4 border-[#111214]" />
+                        ) : (
+                          <div className="w-20 h-20 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-2xl border-4 border-[#111214]">
+                            {(user.display_name || user.username).charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <input
+                          ref={avatarInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleAvatarUpload}
+                        />
+                        <button
+                          onClick={() => avatarInputRef.current?.click()}
+                          disabled={saving}
+                          className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 hover:opacity-100 transition-opacity text-white text-xs"
+                        >
+                          Change
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-4 space-y-4">
+                      {isGuest ? (
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex-1">
+                            <label className="text-xs font-bold text-app-muted uppercase">Display name</label>
+                            <p className="text-xs text-app-muted mt-0.5 mb-1">How others see you as a guest.</p>
+                            <input
+                              type="text"
+                              value={displayName}
+                              onChange={(e) => setDisplayName(e.target.value)}
+                              placeholder={user.username}
+                              className="w-full mt-1 px-3 py-2 bg-[#2b2d31] rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none placeholder:text-app-muted/60"
+                            />
+                          </div>
+                          <button
+                            onClick={handleSaveDisplayName}
+                            disabled={saving || (displayName.trim() || '') === (user.display_name ?? '')}
+                            className="px-4 py-2 bg-app-accent hover:bg-app-accent-hover rounded text-sm text-white font-medium disabled:opacity-50 self-end"
+                          >
+                            Save
+                          </button>
+                        </div>
                       ) : (
-                        <div className="w-20 h-20 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-2xl border-4 border-[#111214]">
-                          {(user.display_name || user.username).charAt(0).toUpperCase()}
+                        <div>
+                          <label className="text-xs font-bold text-app-muted uppercase">Default profile for new servers</label>
+                          <p className="text-xs text-app-muted mt-0.5 mb-2">
+                            Choose which public identity is used the first time you join a server.
+                            Edit names, bios, and photos under Profiles. Login username stays private.
+                          </p>
+                          <div className="flex gap-2 flex-wrap">
+                            {(['personal', 'work'] as ProfileType[]).map((type) => (
+                              <button
+                                key={type}
+                                type="button"
+                                onClick={() => handleSetDefaultProfile(type)}
+                                disabled={saving}
+                                className={`px-3 py-2 rounded text-sm font-medium ${
+                                  defaultProfile === type
+                                    ? 'bg-app-accent text-white'
+                                    : 'bg-[#2b2d31] text-app-muted hover:text-app-text'
+                                }`}
+                              >
+                                {type === 'personal' ? 'Personal' : 'Work'}
+                                {profileLabels[type] ? ` · ${profileLabels[type]}` : ' · set in Profiles'}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       )}
-                      <input
-                        ref={avatarInputRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleAvatarUpload}
-                      />
-                      <button
-                        onClick={() => avatarInputRef.current?.click()}
-                        disabled={saving}
-                        className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 hover:opacity-100 transition-opacity text-white text-xs"
-                      >
-                        Change
-                      </button>
-                    </div>
-                  </div>
-                  <div className="mt-4 space-y-4">
-                    {isGuest ? (
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex-1">
-                          <label className="text-xs font-bold text-app-muted uppercase">Display name</label>
-                          <p className="text-xs text-app-muted mt-0.5 mb-1">How others see you as a guest.</p>
+                          <label className="text-xs font-bold text-app-muted uppercase">Login username</label>
+                          <p className="text-xs text-app-muted mt-0.5 mb-1">
+                            Private — used only to sign in. Others never see this.
+                          </p>
                           <input
                             type="text"
-                            value={displayName}
-                            onChange={(e) => setDisplayName(e.target.value)}
-                            placeholder={user.username}
-                            className="w-full mt-1 px-3 py-2 bg-[#2b2d31] rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none placeholder:text-app-muted/60"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            disabled={isGuest}
+                            className="w-full mt-1 px-3 py-2 bg-[#2b2d31] rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                           />
                         </div>
-                        <button
-                          onClick={handleSaveDisplayName}
-                          disabled={saving || (displayName.trim() || '') === (user.display_name ?? '')}
-                          className="px-4 py-2 bg-app-accent hover:bg-app-accent-hover rounded text-sm text-white font-medium disabled:opacity-50 self-end"
-                        >
-                          Save
-                        </button>
+                        {!isGuest && (
+                          <button
+                            onClick={handleSaveUsername}
+                            disabled={saving || username.trim() === user.username}
+                            className="px-4 py-2 bg-app-accent hover:bg-app-accent-hover rounded text-sm text-white font-medium disabled:opacity-50 self-end"
+                          >
+                            Save
+                          </button>
+                        )}
                       </div>
-                    ) : (
                       <div>
-                        <label className="text-xs font-bold text-app-muted uppercase">Default profile for new servers</label>
-                        <p className="text-xs text-app-muted mt-0.5 mb-2">
-                          Choose which public identity is used the first time you join a server.
-                          Edit names, bios, and photos under Profiles. Login username stays private.
-                        </p>
-                        <div className="flex gap-2 flex-wrap">
-                          {(['personal', 'work'] as ProfileType[]).map((type) => (
-                            <button
-                              key={type}
-                              type="button"
-                              onClick={() => handleSetDefaultProfile(type)}
-                              disabled={saving}
-                              className={`px-3 py-2 rounded text-sm font-medium ${
-                                defaultProfile === type
-                                  ? 'bg-app-accent text-white'
-                                  : 'bg-[#2b2d31] text-app-muted hover:text-app-text'
-                              }`}
-                            >
-                              {type === 'personal' ? 'Personal' : 'Work'}
-                              {profileLabels[type] ? ` · ${profileLabels[type]}` : ' · set in Profiles'}
-                            </button>
-                          ))}
-                        </div>
+                        <div className="text-xs font-bold text-app-muted uppercase">User ID</div>
+                        <div className="text-sm text-app-muted font-mono mt-0.5">{user.id}</div>
                       </div>
-                    )}
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex-1">
-                        <label className="text-xs font-bold text-app-muted uppercase">Login username</label>
-                        <p className="text-xs text-app-muted mt-0.5 mb-1">
-                          Private — used only to sign in. Others never see this.
-                        </p>
-                        <input
-                          type="text"
-                          value={username}
-                          onChange={(e) => setUsername(e.target.value)}
-                          disabled={isGuest}
-                          className="w-full mt-1 px-3 py-2 bg-[#2b2d31] rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
-                        />
-                      </div>
-                      {!isGuest && (
-                        <button
-                          onClick={handleSaveUsername}
-                          disabled={saving || username.trim() === user.username}
-                          className="px-4 py-2 bg-app-accent hover:bg-app-accent-hover rounded text-sm text-white font-medium disabled:opacity-50 self-end"
-                        >
-                          Save
-                        </button>
-                      )}
                     </div>
-                    <div>
-                      <div className="text-xs font-bold text-app-muted uppercase">User ID</div>
-                      <div className="text-sm text-app-muted font-mono mt-0.5">{user.id}</div>
-                    </div>
+                    {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
                   </div>
-                  {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
                 </div>
               </div>
             </div>
-          )}
 
-          {displayedTab === 'profiles' && (
-            <ProfilesSettingsTab
-              user={user}
-              onUserUpdate={onUserUpdate}
-              defaultProfile={defaultProfile}
-              onDefaultProfileChange={setDefaultProfile}
-            />
-          )}
+            <div className="w-full min-w-full h-full overflow-y-auto p-6 flex-shrink-0">
+              <ProfilesSettingsTab
+                user={user}
+                onUserUpdate={onUserUpdate}
+                defaultProfile={defaultProfile}
+                onDefaultProfileChange={setDefaultProfile}
+              />
+            </div>
 
-          {displayedTab === 'privacy' && (
-            <PrivacySettingsTab userId={user.id} />
-          )}
+            <div className="w-full min-w-full h-full overflow-y-auto p-6 flex-shrink-0">
+              <PrivacySettingsTab userId={user.id} />
+            </div>
 
-          {displayedTab === 'appearance' && (
-            <div>
+            <div className="w-full min-w-full h-full overflow-y-auto p-6 flex-shrink-0">
               <h3 className="text-xl font-bold text-white mb-4">Appearance</h3>
               <div className="bg-[#2b2d31] rounded-lg p-4">
                 <p className="text-app-muted text-sm">Theme and display preferences.</p>
               </div>
             </div>
-          )}
 
-          {displayedTab === 'voice' && (
-            <div>
+            <div className="w-full min-w-full h-full overflow-y-auto p-6 flex-shrink-0">
               <h3 className="text-xl font-bold text-white mb-4">Voice & Video</h3>
               <div className="bg-[#2b2d31] rounded-lg p-4">
                 <p className="text-app-muted text-sm">Microphone, speaker, and camera settings.</p>
               </div>
             </div>
-          )}
 
-          {displayedTab === 'notifications' && (
-            <div>
+            <div className="w-full min-w-full h-full overflow-y-auto p-6 flex-shrink-0">
               <h3 className="text-xl font-bold text-white mb-4">Notifications</h3>
               <div className="bg-[#2b2d31] rounded-lg p-4">
                 <p className="text-app-muted text-sm">Manage notification preferences.</p>
               </div>
             </div>
-          )}
 
-          {displayedTab === 'help' && (
-            <HelpTab user={user} />
-          )}
+            <div className="w-full min-w-full h-full overflow-y-auto p-6 flex-shrink-0">
+              <HelpTab user={user} />
+            </div>
           </div>
         </div>
 
