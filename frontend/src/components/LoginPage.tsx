@@ -35,7 +35,7 @@ function NepsisCoin({ coinRef }: { coinRef: RefObject<HTMLDivElement | null> }) 
       }}
     >
       {Array.from({ length: COIN_LAYERS }, (_, i) => {
-        const t = COIN_LAYERS === 1 ? 0 : i / (COIN_LAYERS - 1)
+        const t = i / (COIN_LAYERS - 1)
         const z = (t - 0.5) * COIN_THICKNESS
         const isFront = i === COIN_LAYERS - 1
         const isBack = i === 0
