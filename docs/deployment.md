@@ -49,6 +49,8 @@ You should get something like `https://nepsis-chat-production-xxxx.up.railway.ap
 
 ### 2. Environment variables (Railway → Variables)
 
+**Required** — without these the old build exited immediately and Railway showed **502**:
+
 | Variable | Value |
 |----------|-------|
 | `SUPABASE_URL` | `https://qeopqyquskszzgprghiy.supabase.co` |
@@ -57,15 +59,16 @@ You should get something like `https://nepsis-chat-production-xxxx.up.railway.ap
 | `CORS_ORIGINS` | `https://nepsischat.vercel.app` (or `*` while testing) |
 | `PORT` | Leave unset — Railway injects `PORT` |
 
-Redeploy after saving variables.
+Redeploy after saving variables. `backend/railway.toml` uses **Nixpacks** + `npm start` (not Docker) so `PORT` wiring stays simple.
 
 ### 3. Smoke-test the API
 
 Open in a browser:
 
-`https://YOUR_RAILWAY_DOMAIN/api/version`
+1. `https://YOUR_RAILWAY_DOMAIN/api/health` → `{"ok":true,"supabaseConfigured":true,…}`
+2. `https://YOUR_RAILWAY_DOMAIN/api/version` → `{"version":"…"}`
 
-You should see JSON like `{"version":"…"}`.
+If you get **502 Application failed to respond**, the Node process is not listening (crash/wrong port). Check **Deploy Logs** for `Server running on port` or `[supabase] Missing…`.
 
 ### 4. Point Vercel at Railway
 

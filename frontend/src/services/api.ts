@@ -10,8 +10,14 @@ export function toApiError(err: unknown, fallback = 'Request failed'): Error {
     lower.includes('networkerror') ||
     lower.includes('network request failed')
   ) {
+    const host = API_BASE.replace(/\/api\/?$/, '')
+    if (/railway\.app/i.test(API_BASE)) {
+      return new Error(
+        `Cannot reach the API (${API_BASE}). Railway is returning errors — open ${host}/api/health in a browser. Set SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY on Railway, confirm the public domain port matches deploy logs, then redeploy.`
+      )
+    }
     return new Error(
-      `Cannot reach the API (${API_BASE}). Set Vercel VITE_API_URL to your live backend (Fly was removed).`
+      `Cannot reach the API (${API_BASE}). Set Vercel VITE_API_URL to your live backend URL ending in /api, then redeploy.`
     )
   }
   return err instanceof Error ? err : new Error(msg || fallback)

@@ -1,0 +1,11 @@
+# Railway: set service Root Directory to `backend`
+# Prefer Nixpacks over Dockerfile so Node starts with `npm start` + Railway PORT.
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "npm start"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
