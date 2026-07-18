@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import gsap from 'gsap'
 import {
   DndContext,
   closestCenter,
@@ -94,13 +95,35 @@ function SortableServerIcon({ server, isActive, onClick }: { server: Server; isA
   )
 }
 
+function punchBubble(el: HTMLElement | null) {
+  if (!el) return
+  gsap.killTweensOf(el)
+  gsap.fromTo(
+    el,
+    { scale: 0.82 },
+    { scale: 1, duration: 0.34, ease: 'back.out(2.6)', overwrite: true }
+  )
+}
+
 export function ServerBar({ servers, currentServerId, onSelectServer, onCreateServer, onReorderServers, canCreateServer = true, onOpenCommunity, onOpenFriends, isFriendsActive = false }: ServerBarProps) {
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const friendsBtnRef = useRef<HTMLButtonElement>(null)
+  const communityBtnRef = useRef<HTMLButtonElement>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
+
+  const handleOpenFriends = () => {
+    punchBubble(friendsBtnRef.current)
+    onOpenFriends?.()
+  }
+
+  const handleOpenCommunity = () => {
+    punchBubble(communityBtnRef.current)
+    onOpenCommunity?.()
+  }
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
@@ -156,7 +179,9 @@ export function ServerBar({ servers, currentServerId, onSelectServer, onCreateSe
             isFriendsActive ? 'h-10' : 'h-0 group-hover:h-5'
           }`} />
           <button
-            onClick={() => onOpenFriends?.()}
+            ref={friendsBtnRef}
+            type="button"
+            onClick={handleOpenFriends}
             className={`w-12 h-12 flex items-center justify-center cursor-pointer transition-all duration-200 ${
               isFriendsActive
                 ? 'bg-app-accent rounded-[16px]'
@@ -194,7 +219,9 @@ export function ServerBar({ servers, currentServerId, onSelectServer, onCreateSe
         {/* Discover / Community servers */}
         <div className="relative group">
           <button
-            onClick={onOpenCommunity}
+            ref={communityBtnRef}
+            type="button"
+            onClick={handleOpenCommunity}
             className="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-app-channel hover:bg-[#23a559] flex items-center justify-center cursor-pointer transition-all duration-200 group"
             title="Community servers"
           >
