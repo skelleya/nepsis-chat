@@ -180,10 +180,8 @@ export function UserPanel({
               />
             </div>
             <div className="min-w-0">
-              <div className="text-sm font-semibold text-white truncate leading-tight flex items-center gap-1.5">
-                <span className="truncate">{displayName}</span>
-                {isMuted && <MicOffIcon size={12} className="text-red-400 flex-shrink-0" />}
-                {isDeafened && <HeadphonesOffIcon size={12} className="text-red-400 flex-shrink-0" />}
+              <div className="text-sm font-semibold text-white truncate leading-tight">
+                {displayName}
               </div>
               <div className="text-[11px] text-app-muted truncate leading-tight">{displayStatus}</div>
             </div>
