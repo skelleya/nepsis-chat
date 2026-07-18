@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import * as api from '../../services/api'
 import type { PrivacySettings } from '../../services/api'
+import { SettingsDropdown } from './SettingsDropdown'
+import { SettingsToggle } from './SettingsToggle'
 
 type Audience = 'everyone' | 'friends' | 'nobody'
 type AddFriendAudience = 'everyone' | 'server_members' | 'nobody'
@@ -36,15 +38,13 @@ function SelectRow({
         <div className="text-sm font-medium text-white">{label}</div>
         <p className="text-xs text-app-muted mt-0.5">{description}</p>
       </div>
-      <select
+      <SettingsDropdown
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="flex-shrink-0 bg-[#1e1f22] text-app-text text-sm rounded px-2 py-1.5 border border-app-hover/40 focus:border-app-accent focus:outline-none max-w-[160px]"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
-      </select>
+        options={options}
+        onChange={onChange}
+        aria-label={label}
+        className="flex-shrink-0"
+      />
     </div>
   )
 }
@@ -167,21 +167,11 @@ export function PrivacySettingsTab({ userId }: { userId: string }) {
               Show the green speaking glow when your mic is active in voice
             </p>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={settings.allow_voice_activity_indicator}
-            onClick={() => update('allow_voice_activity_indicator', !settings.allow_voice_activity_indicator)}
-            className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
-              settings.allow_voice_activity_indicator ? 'bg-app-accent' : 'bg-[#1e1f22]'
-            }`}
-          >
-            <span
-              className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
-                settings.allow_voice_activity_indicator ? 'translate-x-5' : ''
-              }`}
-            />
-          </button>
+          <SettingsToggle
+            checked={settings.allow_voice_activity_indicator}
+            onChange={(v) => update('allow_voice_activity_indicator', v)}
+            aria-label="Speaking indicator"
+          />
         </div>
       </div>
 

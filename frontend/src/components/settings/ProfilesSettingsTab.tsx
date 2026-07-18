@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as api from '../../services/api'
 import type { FriendListItem, ProfileType, VisibleProfiles } from '../../services/api'
+import { SettingsDropdown } from './SettingsDropdown'
+import { SettingsToggle } from './SettingsToggle'
 
 interface ProfileRow {
   id: string
@@ -350,21 +352,11 @@ export function ProfilesSettingsTab({
                 Work is off by default.
               </p>
             </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={!!current.discoverable}
-              onClick={() => patchCurrent({ discoverable: !current.discoverable })}
-              className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
-                current.discoverable ? 'bg-app-accent' : 'bg-[#1e1f22]'
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
-                  current.discoverable ? 'translate-x-5' : ''
-                }`}
-              />
-            </button>
+            <SettingsToggle
+              checked={!!current.discoverable}
+              onChange={(v) => patchCurrent({ discoverable: v })}
+              aria-label="Discoverable in search"
+            />
           </div>
 
           <button
@@ -432,25 +424,27 @@ export function ProfilesSettingsTab({
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <label className="text-[10px] uppercase text-app-muted">Under</label>
-                  <select
+                  <SettingsDropdown
                     value={friend.friendship_profile || 'personal'}
-                    onChange={(e) => handleFriendshipProfileChange(friend.id, e.target.value as ProfileType)}
-                    className="bg-[#1e1f22] text-app-text text-xs rounded px-2 py-1 border border-app-hover/40 focus:border-app-accent focus:outline-none"
-                  >
-                    <option value="personal">Personal</option>
-                    <option value="work">Work</option>
-                  </select>
+                    onChange={(v) => handleFriendshipProfileChange(friend.id, v as ProfileType)}
+                    aria-label={`Friendship list for ${friend.display_name || friend.username}`}
+                    options={[
+                      { value: 'personal', label: 'Personal' },
+                      { value: 'work', label: 'Work' },
+                    ]}
+                  />
                   <label className="text-[10px] uppercase text-app-muted">Can see</label>
-                  <select
+                  <SettingsDropdown
                     value={hasBothProfiles ? (friend.visible_profiles || 'personal') : 'personal'}
-                    onChange={(e) => handleVisibilityChange(friend.id, e.target.value as VisibleProfiles)}
+                    onChange={(v) => handleVisibilityChange(friend.id, v as VisibleProfiles)}
                     disabled={!hasBothProfiles}
-                    className="bg-[#1e1f22] text-app-text text-xs rounded px-2 py-1 border border-app-hover/40 focus:border-app-accent focus:outline-none disabled:opacity-50"
-                  >
-                    <option value="personal">Personal only</option>
-                    <option value="work">Work only</option>
-                    <option value="both">Both profiles</option>
-                  </select>
+                    aria-label={`Visible profiles for ${friend.display_name || friend.username}`}
+                    options={[
+                      { value: 'personal', label: 'Personal only' },
+                      { value: 'work', label: 'Work only' },
+                      { value: 'both', label: 'Both profiles' },
+                    ]}
+                  />
                 </div>
               </li>
             ))}

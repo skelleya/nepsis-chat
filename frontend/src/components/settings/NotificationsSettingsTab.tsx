@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { loadPrefs, updatePrefs, type NotificationPrefs } from '../../services/userPrefs'
+import { SettingsToggle } from './SettingsToggle'
 
 function Toggle({
   label,
@@ -18,21 +19,7 @@ function Toggle({
         <div className="text-sm font-medium text-white">{label}</div>
         <p className="text-xs text-app-muted mt-0.5">{description}</p>
       </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
-          checked ? 'bg-app-accent' : 'bg-[#1e1f22]'
-        }`}
-      >
-        <span
-          className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
-            checked ? 'translate-x-5' : ''
-          }`}
-        />
-      </button>
+      <SettingsToggle checked={checked} onChange={onChange} aria-label={label} />
     </div>
   )
 }

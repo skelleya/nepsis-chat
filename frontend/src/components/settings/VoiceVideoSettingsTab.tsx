@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { loadPrefs, updatePrefs, type VoicePrefs } from '../../services/userPrefs'
+import { SettingsDropdown } from './SettingsDropdown'
+import { SettingsToggle } from './SettingsToggle'
 
 type DeviceOption = { deviceId: string; label: string }
 
@@ -124,16 +126,17 @@ export function VoiceVideoSettingsTab() {
   }) => (
     <div className="space-y-1.5">
       <label className="block text-xs font-bold uppercase text-app-muted">{label}</label>
-      <select
+      <SettingsDropdown
+        fullWidth
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-[#1e1f22] text-app-text text-sm rounded px-3 py-2 border border-app-hover/40 focus:border-app-accent focus:outline-none"
-      >
-        <option value="">{emptyLabel}</option>
-        {options.map((o) => (
-          <option key={o.deviceId} value={o.deviceId}>{o.label}</option>
-        ))}
-      </select>
+        onChange={onChange}
+        aria-label={label}
+        placeholder={emptyLabel}
+        options={[
+          { value: '', label: emptyLabel },
+          ...options.map((o) => ({ value: o.deviceId, label: o.label })),
+        ]}
+      />
     </div>
   )
 
@@ -190,24 +193,14 @@ export function VoiceVideoSettingsTab() {
           ['noiseSuppression', 'Noise suppression'],
           ['autoGainControl', 'Auto gain control'],
         ] as const).map(([key, label]) => (
-          <label key={key} className="flex items-center justify-between gap-3 cursor-pointer">
+          <div key={key} className="flex items-center justify-between gap-3">
             <span className="text-sm text-white">{label}</span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={prefs[key]}
-              onClick={() => persist({ [key]: !prefs[key] })}
-              className={`relative w-11 h-6 rounded-full transition-colors ${
-                prefs[key] ? 'bg-app-accent' : 'bg-[#1e1f22]'
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
-                  prefs[key] ? 'translate-x-5' : ''
-                }`}
-              />
-            </button>
-          </label>
+            <SettingsToggle
+              checked={prefs[key]}
+              onChange={(v) => persist({ [key]: v })}
+              aria-label={label}
+            />
+          </div>
         ))}
       </div>
 
