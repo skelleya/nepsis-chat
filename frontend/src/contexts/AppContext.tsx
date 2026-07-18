@@ -16,6 +16,7 @@ import {
   unsubscribe,
 } from '../services/realtime'
 import { sounds } from '../services/sounds'
+import { clearSettingsProfilesCache } from '../services/settingsCache'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 interface User {
@@ -325,6 +326,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('nepsis_user')
     localStorage.removeItem(LAST_CHANNEL_KEY)
     localStorage.removeItem('nepsis_last_view')
+    clearSettingsProfilesCache(guestId || undefined)
     clearLayoutCache()
     setServers([])
     setChannels([])

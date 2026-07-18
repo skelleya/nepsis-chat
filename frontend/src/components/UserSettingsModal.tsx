@@ -2,11 +2,21 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react
 import gsap from 'gsap'
 import * as api from '../services/api'
 import type { ProfileType } from '../services/api'
+import {
+  loadSettingsProfilesCache,
+  saveSettingsProfilesCache,
+} from '../services/settingsCache'
 import { PrivacySettingsTab } from './settings/PrivacySettingsTab'
 import { ProfilesSettingsTab } from './settings/ProfilesSettingsTab'
 import { AppearanceSettingsTab } from './settings/AppearanceSettingsTab'
 import { VoiceVideoSettingsTab } from './settings/VoiceVideoSettingsTab'
 import { NotificationsSettingsTab } from './settings/NotificationsSettingsTab'
+
+type ProfilePreview = {
+  display_name: string
+  avatar_url?: string | null
+  banner_url?: string | null
+}
 
 type TabId = 'account' | 'profiles' | 'privacy' | 'appearance' | 'voice' | 'notifications' | 'help'
 
@@ -117,6 +127,9 @@ interface UserSettingsModalProps {
 }
 
 export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: UserSettingsModalProps) {
+  const isGuest = user.is_guest ?? true
+  const cachedProfiles = !isGuest ? loadSettingsProfilesCache(user.id) : null
+
   const [activeTab, setActiveTab] = useState<TabId>('account')
   const [displayedTab, setDisplayedTab] = useState<TabId>('account')
   const [switching, setSwitching] = useState(false)
@@ -126,23 +139,50 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
   const [bannerUrl, setBannerUrl] = useState(user.banner_url || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [defaultProfile, setDefaultProfile] = useState<ProfileType>('personal')
-  const [profilePreviews, setProfilePreviews] = useState<Record<ProfileType, {
-    display_name: string
-    avatar_url?: string | null
-    banner_url?: string | null
-  }>>({
-    personal: { display_name: '' },
-    work: { display_name: '' },
+  const [profilesReady, setProfilesReady] = useState(() => Boolean(cachedProfiles))
+  const [defaultProfile, setDefaultProfile] = useState<ProfileType>(() => {
+    if (!cachedProfiles) return 'personal'
+    const workOk = Boolean(cachedProfiles.work.display_name?.trim())
+    if (cachedProfiles.activeProfile === 'work' && workOk) return 'work'
+    return 'personal'
+  })
+  const [profilePreviews, setProfilePreviews] = useState<Record<ProfileType, ProfilePreview>>(() => {
+    if (cachedProfiles) {
+      return {
+        personal: {
+          display_name: cachedProfiles.personal.display_name || user.username,
+          avatar_url: cachedProfiles.personal.avatar_url,
+          banner_url: cachedProfiles.personal.banner_url,
+        },
+        work: { ...cachedProfiles.work },
+      }
+    }
+    return {
+      personal: { display_name: user.username, avatar_url: user.avatar_url || null, banner_url: user.banner_url || null },
+      work: { display_name: '' },
+    }
   })
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const bannerInputRef = useRef<HTMLInputElement>(null)
-  const seededPersonalRef = useRef(false)
+  const seededPersonalRef = useRef(Boolean(cachedProfiles?.personal.display_name?.trim()))
 
   const personalLabel = profilePreviews.personal.display_name.trim() || user.username
   const workLabel = profilePreviews.work.display_name.trim()
   const workReady = Boolean(workLabel)
+  /** Avoid flashing "locked" before cache/network resolves */
+  const workLocked = profilesReady && !workReady
   const profileLabels = { personal: personalLabel, work: workLabel }
+
+  const persistProfilesCache = useCallback((
+    next: Record<ProfileType, ProfilePreview>,
+    active: ProfileType,
+  ) => {
+    saveSettingsProfilesCache(user.id, {
+      activeProfile: active,
+      personal: next.personal,
+      work: next.work,
+    })
+  }, [user.id])
   const overlayRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -153,8 +193,6 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
   const closingRef = useRef(false)
   const contentReadyRef = useRef(false)
   const navIndicatorReadyRef = useRef(false)
-
-  const isGuest = user.is_guest ?? true
 
   useLayoutEffect(() => {
     const overlay = overlayRef.current
@@ -305,23 +343,24 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
     })
   }, [onUserUpdate, user.username])
 
-  const handleProfilesSynced = useCallback((next: Record<ProfileType, {
-    display_name: string
-    avatar_url?: string | null
-    banner_url?: string | null
-  }>, active?: ProfileType) => {
+  const handleProfilesSynced = useCallback((next: Record<ProfileType, ProfilePreview>, active?: ProfileType) => {
     setProfilePreviews(next)
+    setProfilesReady(true)
     setDefaultProfile((prev) => {
       const activeType = active || prev
       const workHasName = Boolean(next.work.display_name?.trim())
       const resolved: ProfileType = activeType === 'work' && !workHasName ? 'personal' : activeType
       pushPresentation(resolved, next[resolved])
+      persistProfilesCache(next, resolved)
       return resolved
     })
-  }, [pushPresentation])
+  }, [pushPresentation, persistProfilesCache])
 
   useEffect(() => {
-    if (isGuest) return
+    if (isGuest) {
+      setProfilesReady(true)
+      return
+    }
     let cancelled = false
     ;(async () => {
       const [account, profiles] = await Promise.all([
@@ -330,9 +369,9 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
       ])
       if (cancelled) return
 
-      const next = {
-        personal: { display_name: '', avatar_url: null as string | null, banner_url: null as string | null },
-        work: { display_name: '', avatar_url: null as string | null, banner_url: null as string | null },
+      const next: Record<ProfileType, ProfilePreview> = {
+        personal: { display_name: '', avatar_url: null, banner_url: null },
+        work: { display_name: '', avatar_url: null, banner_url: null },
       }
       for (const p of profiles as {
         profile_type: string
@@ -369,6 +408,8 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
         } catch {
           next.personal.display_name = user.username
         }
+      } else if (!next.personal.display_name.trim()) {
+        next.personal.display_name = user.username
       }
 
       if (cancelled) return
@@ -381,7 +422,16 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
           : 'personal'
       if (active === 'work' && !workHasName) active = 'personal'
       setDefaultProfile(active)
-      pushPresentation(active, next[active])
+      setProfilesReady(true)
+      persistProfilesCache(next, active)
+      // Only push presentation if cache was missing / differs — avoid flicker when cache already shown
+      const cached = loadSettingsProfilesCache(user.id)
+      const sameActive = cached?.activeProfile === active
+      const samePersonal = (cached?.personal.display_name || '') === (next.personal.display_name || '')
+      const sameWork = (cached?.work.display_name || '') === (next.work.display_name || '')
+      if (!cached || !sameActive || !samePersonal || !sameWork) {
+        pushPresentation(active, next[active])
+      }
     })()
     return () => { cancelled = true }
     // Only re-run when account identity changes — not on every presentation push
@@ -389,12 +439,13 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
   }, [user.id, user.username, isGuest])
 
   const handleSetDefaultProfile = async (type: ProfileType) => {
-    if (type === 'work' && !workReady) {
+    if (type === 'work' && workLocked) {
       setError('Set up a Work profile under Profiles first.')
       return
     }
     setDefaultProfile(type)
     pushPresentation(type, profilePreviews[type])
+    persistProfilesCache(profilePreviews, type)
     setSaving(true)
     setError('')
     try {
@@ -408,6 +459,17 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
           avatar_url: updated.avatar_url || undefined,
           banner_url: updated.banner_url || undefined,
         })
+        persistProfilesCache(
+          {
+            ...profilePreviews,
+            [type]: {
+              display_name: updated.display_name || profilePreviews[type].display_name,
+              avatar_url: updated.avatar_url ?? profilePreviews[type].avatar_url,
+              banner_url: updated.banner_url ?? profilePreviews[type].banner_url,
+            },
+          },
+          type,
+        )
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to set default profile')
@@ -644,13 +706,13 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
                           </p>
                           <div className="flex gap-2 flex-wrap">
                             {(['personal', 'work'] as ProfileType[]).map((type) => {
-                              const locked = type === 'work' && !workReady
+                              const locked = type === 'work' && workLocked
                               return (
                                 <button
                                   key={type}
                                   type="button"
                                   onClick={() => handleSetDefaultProfile(type)}
-                                  disabled={saving || locked}
+                                  disabled={saving || locked || !profilesReady}
                                   title={locked ? 'Save a Work profile under Profiles to unlock' : undefined}
                                   className={`px-3 py-2 rounded text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed ${
                                     defaultProfile === type
@@ -663,12 +725,14 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
                                     ? ' · locked'
                                     : profileLabels[type]
                                       ? ` · ${profileLabels[type]}`
-                                      : ' · set in Profiles'}
+                                      : profilesReady
+                                        ? ' · set in Profiles'
+                                        : ''}
                                 </button>
                               )
                             })}
                           </div>
-                          {!workReady && (
+                          {workLocked && (
                             <p className="text-xs text-app-muted mt-2">
                               Work stays locked until you save a Work display name in Profiles. Personal uses your username until then.
                             </p>

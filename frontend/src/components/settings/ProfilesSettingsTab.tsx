@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as api from '../../services/api'
 import type { FriendListItem, ProfileType, VisibleProfiles } from '../../services/api'
+import { loadSettingsProfilesCache } from '../../services/settingsCache'
 import { SettingsDropdown } from './SettingsDropdown'
 import { SettingsToggle } from './SettingsToggle'
 
@@ -65,14 +66,38 @@ export function ProfilesSettingsTab({
   onProfilesChange,
 }: ProfilesSettingsTabProps) {
   const isGuest = user.is_guest ?? true
+  const cached = !isGuest ? loadSettingsProfilesCache(user.id) : null
   const [editing, setEditing] = useState<ProfileType>('personal')
-  const [activeServerProfile, setActiveServerProfile] = useState<ProfileType>(defaultProfile || 'personal')
-  const [profiles, setProfiles] = useState<Record<ProfileType, ProfileRow>>({
-    personal: emptyProfile('personal', user),
-    work: emptyProfile('work', user),
+  const [activeServerProfile, setActiveServerProfile] = useState<ProfileType>(() => {
+    if (defaultProfile) return defaultProfile
+    if (!cached) return 'personal'
+    const workOk = Boolean(cached.work.display_name?.trim())
+    return cached.activeProfile === 'work' && workOk ? 'work' : 'personal'
+  })
+  const [profiles, setProfiles] = useState<Record<ProfileType, ProfileRow>>(() => {
+    const base = {
+      personal: emptyProfile('personal', user),
+      work: emptyProfile('work', user),
+    }
+    if (!cached) return base
+    return {
+      personal: {
+        ...base.personal,
+        display_name: cached.personal.display_name || user.username,
+        avatar_url: cached.personal.avatar_url ?? base.personal.avatar_url,
+        banner_url: cached.personal.banner_url ?? base.personal.banner_url,
+      },
+      work: {
+        ...base.work,
+        display_name: cached.work.display_name || '',
+        avatar_url: cached.work.avatar_url ?? null,
+        banner_url: cached.work.banner_url ?? null,
+      },
+    }
   })
   const [friends, setFriends] = useState<FriendListItem[]>([])
-  const [loading, setLoading] = useState(true)
+  // Cached profiles paint immediately; network refresh runs in background
+  const [loading, setLoading] = useState(() => !cached)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -87,7 +112,8 @@ export function ProfilesSettingsTab({
   )
 
   const load = useCallback(async () => {
-    setLoading(true)
+    const hadCache = Boolean(loadSettingsProfilesCache(user.id))
+    if (!hadCache) setLoading(true)
     setError(null)
     try {
       const [rows, friendRows, account] = await Promise.all([
