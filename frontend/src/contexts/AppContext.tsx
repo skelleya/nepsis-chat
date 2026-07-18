@@ -299,21 +299,46 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [loadServers])
 
-  // Email login
+  // Email login — must finish authCallback via API or the UI stays stuck on the login screen
   const loginWithEmail = useCallback(async (email: string, password: string) => {
     if (!supabase) throw new Error('Email auth not configured')
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
-    if (!data.session?.user) throw new Error('No session returned')
-  }, [])
+    const sessionUser = data.session?.user
+    if (!sessionUser) throw new Error('No session returned')
+    try {
+      const u = await api.authCallback(sessionUser.id, sessionUser.email || email)
+      setUser(u)
+      localStorage.setItem('nepsis_user', JSON.stringify(u))
+      await loadServers(u.id)
+    } catch (err) {
+      await supabase.auth.signOut().catch(() => {})
+      throw err instanceof Error
+        ? err
+        : new Error('Signed in with Supabase, but the Nepsis API is unreachable. Check Railway.')
+    }
+  }, [loadServers])
 
   // Username + password login (backend looks up email, returns session; we set it locally)
   const loginWithUsername = useCallback(async (username: string, password: string) => {
     if (!supabase) throw new Error('Email auth not configured')
     const { access_token, refresh_token } = await api.loginWithUsername(username, password)
-    const { error } = await supabase.auth.setSession({ access_token, refresh_token })
+    const { data, error } = await supabase.auth.setSession({ access_token, refresh_token })
     if (error) throw error
-  }, [])
+    const sessionUser = data.session?.user
+    if (!sessionUser) throw new Error('No session returned')
+    try {
+      const u = await api.authCallback(sessionUser.id, sessionUser.email || '')
+      setUser(u)
+      localStorage.setItem('nepsis_user', JSON.stringify(u))
+      await loadServers(u.id)
+    } catch (err) {
+      await supabase.auth.signOut().catch(() => {})
+      throw err instanceof Error
+        ? err
+        : new Error('Signed in, but the Nepsis API is unreachable. Check Railway.')
+    }
+  }, [loadServers])
 
   const logout = useCallback(async () => {
     const wasGuest = user?.is_guest

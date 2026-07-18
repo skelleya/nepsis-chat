@@ -402,12 +402,15 @@ export function LoginPage() {
         setLoading(false)
         await openCredentialFields()
       } else {
-        // Support sign-in with email or username
+        // Support sign-in with email or username (same field)
         if (email.includes('@')) {
           await loginWithEmail(email, password)
         } else {
           await loginWithUsername(email.trim(), password)
         }
+        // Success: AppContent will unmount login when `user` is set.
+        // If we're somehow still here, stop the spinner.
+        setLoading(false)
       }
     } catch (err: unknown) {
       setError(toApiError(err, 'Authentication failed').message)
