@@ -78,7 +78,10 @@ Node.js + Express + Socket.io + SQLite.
 | dm_conversations | id, created_at |
 | dm_participants | conversation_id, user_id |
 | dm_messages | id, conversation_id, user_id, content, created_at |
-| friend_requests | requester_id, addressee_id, status (pending/accepted/rejected), created_at — see migration `20250211000002_friend_requests.sql` |
+| friend_requests | requester_id, addressee_id, status (pending/accepted/rejected), requester_profile (personal\|work), created_at — see migrations `20250211000002_friend_requests.sql`, `20250211000015_privacy_profiles_friends.sql` |
+| user_privacy_settings | user_id, who_can_dm, who_can_call, who_can_add_friend, show_voice_channel, show_online_status, allow_voice_activity_indicator — migration `20250211000015_privacy_profiles_friends.sql` |
+| friend_profile_settings | user_id, friend_id, friendship_profile, visible_profiles (personal\|work\|both) — migration `20250211000015` |
+| users | + active_profile (personal\|work) — which profile is used when joining/appearing in servers |
 | server_invites | code, server_id, created_by, expires_at, max_uses, use_count, created_at — see migration `20250211000004_server_invites_audit.sql` |
 | server_audit_log | id, server_id, user_id, action, details (JSONB), created_at — see migration `20250211000004_server_invites_audit.sql` |
 | bug_reports | id, user_id, username, email, title, description, url, user_agent, status (pending/reviewed/resolved/wontfix), created_at — see migration `20250211000008_bug_reports.sql` |

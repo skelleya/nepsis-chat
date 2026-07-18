@@ -189,6 +189,8 @@ supabase db push # apply migrations
 
 Migrations are in `supabase/migrations/`. Also run `backend/supabase-migration.sql` in Supabase SQL Editor for full schema.
 
+**Privacy / dual profiles:** run `supabase/migrations/20250211000015_privacy_profiles_friends.sql` in the Supabase SQL Editor (adds `user_privacy_settings`, `friend_profile_settings`, `users.active_profile`, `friend_requests.requester_profile`).
+
 ---
 
 ## Roles & Server Members
