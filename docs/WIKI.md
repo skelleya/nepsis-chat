@@ -78,7 +78,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Dual profiles (Personal/Work) — Customize presentation; choose active profile for servers; add/accept friends under a profile; per-friend visibility (one or both) |
 | + | Profile identities — Public Personal/Work personas (bio, discoverable); search by display name not login; per-server appear-as preset; My Account default profile selector |
 | + | Supabase project — Active project `qeopqyquskszzgprghiy` (`https://qeopqyquskszzgprghiy.supabase.co`); MCP connected; 19 migrations applied + public `attachments` bucket; frontend anon key wired; backend still needs `SUPABASE_SERVICE_ROLE_KEY` pasted locally / on the VPS |
-| + | Login logo coin spin — Nepsis logo on LoginPage spins left/right with cursor movement via GSAP `rotationY` (`quickSetter` must pass `'deg'` or non-zero spins are ignored) |
+| + | Login logo coin spin — Nepsis logo on LoginPage spins left/right with cursor movement via GSAP `rotationY` (`quickSetter` must pass `'deg'` or non-zero spins are ignored); after swipe it coasts with friction and eases back to the front-facing position |
 | + | Login logo coin thickness — 3D coin with front/back faces + rim segments so the edge shows when viewed on its side |
 | + | Login tab pill — Shared accent indicator slides between Guest / Sign In / Sign Up via GSAP (no per-button background flash) |
 | + | Login credentials close — Username / email+password fields collapse with GSAP when Continue / Sign In is clicked; reopen if auth fails |
