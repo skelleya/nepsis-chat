@@ -168,7 +168,6 @@ export function LoginPage() {
     let velocity = 0 // deg per tick-unit (scaled by deltaRatio)
     let lastX: number | null = null
     let hovering = false
-    const FACE = 180
     const MAX_VEL = 80
 
     const onEnter = (e: PointerEvent) => {
@@ -205,39 +204,26 @@ export function LoginPage() {
         return
       }
 
-      if (Math.abs(velocity) < 0.02) {
-        const target = Math.round(rotation / FACE) * FACE
-        const err = target - rotation
-        if (Math.abs(err) < 0.2) {
-          if (rotation !== target) {
-            rotation = target
-            setRot(rotation)
-          }
-          velocity = 0
-          return
-        }
-        // Soft settle onto face
-        rotation += err * (1 - Math.pow(0.85, d))
+      // Coast with friction until nearly stopped (do not keep seeking the next face)
+      if (Math.abs(velocity) > 0.08) {
+        rotation += velocity * d
+        velocity *= Math.pow(0.915, d)
         setRot(rotation)
         return
       }
 
-      // Free coast
-      rotation += velocity * d
-      velocity *= Math.pow(0.965, d)
-
-      // As it slows, ease toward a face in the travel direction
-      if (Math.abs(velocity) < 8) {
-        const dir = velocity >= 0 ? 1 : -1
-        let target = dir > 0
-          ? Math.ceil(rotation / FACE) * FACE
-          : Math.floor(rotation / FACE) * FACE
-        if (Math.abs(target - rotation) < 0.5) target += dir * FACE
-        const err = target - rotation
-        velocity += err * 0.04 * d
-        velocity *= Math.pow(0.92, d)
+      velocity = 0
+      // Ease back to original front-facing orientation (0°, ±360°, …)
+      const target = Math.round(rotation / 360) * 360
+      const err = target - rotation
+      if (Math.abs(err) < 0.15) {
+        if (rotation !== target) {
+          rotation = target
+          setRot(rotation)
+        }
+        return
       }
-
+      rotation += err * (1 - Math.pow(0.88, d))
       setRot(rotation)
     }
 
