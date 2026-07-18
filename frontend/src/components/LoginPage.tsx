@@ -168,7 +168,7 @@ export function LoginPage() {
     let velocity = 0 // deg per tick-unit (scaled by deltaRatio)
     let lastX: number | null = null
     let hovering = false
-    const MAX_VEL = 80
+    const MAX_VEL = 170
 
     const onEnter = (e: PointerEvent) => {
       hovering = true
@@ -183,11 +183,12 @@ export function LoginPage() {
       if (!delta) return
 
       // Instant spin with the cursor
-      rotation += delta * 1.6
+      rotation += delta * 1.65
       setRot(rotation)
 
-      // Momentum: same direction speeds up; opposite direction brakes then reverses
-      velocity += delta * 0.95
+      // Fast swipes add extra momentum; opposite direction still brakes/reverses
+      const speedBoost = Math.min(2.4, 1 + Math.abs(delta) / 22)
+      velocity += delta * 1.2 * speedBoost
       velocity = Math.max(-MAX_VEL, Math.min(MAX_VEL, velocity))
     }
 
@@ -207,7 +208,9 @@ export function LoginPage() {
       // Coast with friction until nearly stopped (do not keep seeking the next face)
       if (Math.abs(velocity) > 0.08) {
         rotation += velocity * d
-        velocity *= Math.pow(0.915, d)
+        // High speed coasts a bit longer after a fast swipe
+        const friction = Math.abs(velocity) > 50 ? 0.945 : 0.915
+        velocity *= Math.pow(friction, d)
         setRot(rotation)
         return
       }
