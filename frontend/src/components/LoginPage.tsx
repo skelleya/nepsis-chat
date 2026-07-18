@@ -12,6 +12,12 @@ const TABS: { id: AuthMode; label: string }[] = [
   { id: 'signup', label: 'Sign Up' },
 ]
 
+const MODE_ORDER: Record<AuthMode, number> = {
+  guest: 0,
+  login: 1,
+  signup: 2,
+}
+
 export function LoginPage() {
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
@@ -30,6 +36,8 @@ export function LoginPage() {
   const indicatorRef = useRef<HTMLDivElement>(null)
   const tabBtnRefs = useRef<Partial<Record<AuthMode, HTMLButtonElement | null>>>({})
   const pendingEnterRef = useRef(false)
+  const slideDirectionRef = useRef(1)
+  const targetModeRef = useRef<AuthMode>('guest')
   const tabIndicatorReadyRef = useRef(false)
 
   const moveTabIndicator = useCallback((animate: boolean) => {
@@ -94,18 +102,16 @@ export function LoginPage() {
     if (!panel || !pendingEnterRef.current) return
     pendingEnterRef.current = false
 
-    const fields = panel.querySelectorAll<HTMLElement>('label, input, button[type="submit"], p')
-    gsap.set(panel, { opacity: 1, x: 0, y: 0 })
+    const direction = slideDirectionRef.current
+    gsap.killTweensOf(panel)
     gsap.fromTo(
-      fields,
-      { y: -22, opacity: 0 },
+      panel,
+      { x: 56 * direction, opacity: 0 },
       {
-        y: 0,
+        x: 0,
         opacity: 1,
-        duration: 0.55,
-        stagger: 0.07,
+        duration: 0.5,
         ease: 'power3.out',
-        clearProps: 'transform',
         onComplete: () => setSwitching(false),
       }
     )
@@ -113,6 +119,8 @@ export function LoginPage() {
 
   const switchMode = (next: AuthMode) => {
     if (next === tab) return
+    const direction = MODE_ORDER[next] > MODE_ORDER[mode] ? 1 : -1
+    slideDirectionRef.current = direction
     setTab(next)
     setError('')
     setMessage('')
@@ -125,14 +133,12 @@ export function LoginPage() {
     }
 
     setSwitching(true)
-    const fields = panel.querySelectorAll<HTMLElement>('label, input, button[type="submit"], p')
-    gsap.killTweensOf([panel, ...Array.from(fields)])
-    gsap.to(fields, {
-      y: 18,
+    gsap.killTweensOf(panel)
+    gsap.to(panel, {
+      x: -56 * direction,
       opacity: 0,
-      duration: 0.4,
-      stagger: 0.05,
-      ease: 'sine.inOut',
+      duration: 0.35,
+      ease: 'power3.in',
       overwrite: true,
       onComplete: () => {
         pendingEnterRef.current = true
