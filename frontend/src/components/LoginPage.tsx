@@ -88,60 +88,70 @@ export function LoginPage() {
   const coinRef = useRef<HTMLDivElement>(null)
   const coinRotationRef = useRef(0)
   const coinVelocityRef = useRef(0)
+  const coinLastXRef = useRef<number | null>(null)
   const pendingEnterRef = useRef(false)
   const slideDirectionRef = useRef(1)
   const targetModeRef = useRef<AuthMode>('guest')
   const tabIndicatorReadyRef = useRef(false)
 
-  // Logo coin: spin left/right with horizontal cursor movement (GSAP)
-  useEffect(() => {
-    const wrap = coinWrapRef.current
+  useLayoutEffect(() => {
     const coin = coinRef.current
-    if (!wrap || !coin) return
-
+    if (!coin) return
     gsap.set(coin, {
       transformOrigin: '50% 50%',
       transformStyle: 'preserve-3d',
+      rotationY: 0,
     })
-    gsap.set(wrap, {
-      perspective: 900,
+  }, [])
+
+  const spinCoinBy = (deltaX: number) => {
+    const coin = coinRef.current
+    if (!coin || !deltaX) return
+    coinVelocityRef.current = deltaX
+    coinRotationRef.current += deltaX * 1.6
+    gsap.to(coin, {
+      rotationY: coinRotationRef.current,
+      duration: 0.25,
+      ease: 'power2.out',
+      overwrite: 'auto',
       transformStyle: 'preserve-3d',
     })
+  }
 
-    const quickRotate = gsap.quickTo(coin, 'rotationY', {
-      duration: 0.35,
-      ease: 'power2.out',
+  const handleCoinPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (coinLastXRef.current == null) {
+      coinLastXRef.current = e.clientX
+      return
+    }
+    const delta = e.clientX - coinLastXRef.current
+    coinLastXRef.current = e.clientX
+    spinCoinBy(delta)
+  }
+
+  const handleCoinPointerEnter = (e: React.PointerEvent<HTMLDivElement>) => {
+    coinLastXRef.current = e.clientX
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const handleCoinPointerLeave = () => {
+    coinLastXRef.current = null
+    const coin = coinRef.current
+    const coast = coinVelocityRef.current * 8
+    coinVelocityRef.current = 0
+    if (!coin || Math.abs(coast) < 1) return
+    coinRotationRef.current += coast
+    gsap.to(coin, {
+      rotationY: coinRotationRef.current,
+      duration: 0.65,
+      ease: 'power3.out',
+      overwrite: 'auto',
+      transformStyle: 'preserve-3d',
     })
-
-    const onMove = (e: MouseEvent) => {
-      const delta = e.movementX
-      if (!delta) return
-      coinVelocityRef.current = delta
-      coinRotationRef.current += delta * 1.35
-      quickRotate(coinRotationRef.current)
-    }
-
-    const onLeave = () => {
-      const coast = coinVelocityRef.current * 10
-      coinVelocityRef.current = 0
-      if (Math.abs(coast) < 1) return
-      const target = coinRotationRef.current + coast
-      coinRotationRef.current = target
-      gsap.to(coin, {
-        rotationY: target,
-        duration: 0.7,
-        ease: 'power3.out',
-      })
-    }
-
-    wrap.addEventListener('mousemove', onMove)
-    wrap.addEventListener('mouseleave', onLeave)
-    return () => {
-      wrap.removeEventListener('mousemove', onMove)
-      wrap.removeEventListener('mouseleave', onLeave)
-      gsap.killTweensOf(coin)
-    }
-  }, [])
+  }
 
   const moveTabIndicator = useCallback((animate: boolean) => {
     const track = tabsRef.current
@@ -318,16 +328,20 @@ export function LoginPage() {
       <div ref={cardRef} className="w-full max-w-md p-10 rounded-xl bg-app-dark">
         <div
           ref={coinWrapRef}
-          className="mx-auto mb-6 flex items-center justify-center cursor-grab active:cursor-grabbing"
+          className="mx-auto mb-6 flex items-center justify-center cursor-grab active:cursor-grabbing touch-none"
           style={{
-            width: 72,
-            height: 72,
+            width: 80,
+            height: 80,
             perspective: 900,
             transformStyle: 'preserve-3d',
             overflow: 'visible',
           }}
           role="img"
           aria-label="Nepsis"
+          onPointerEnter={handleCoinPointerEnter}
+          onPointerMove={handleCoinPointerMove}
+          onPointerLeave={handleCoinPointerLeave}
+          onPointerUp={handleCoinPointerLeave}
         >
           <NepsisCoin coinRef={coinRef} />
         </div>
