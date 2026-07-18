@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, type RefObject } from 'react'
 import { Link } from 'react-router-dom'
 import gsap from 'gsap'
 import { useApp } from '../contexts/AppContext'
@@ -16,6 +16,75 @@ const MODE_ORDER: Record<AuthMode, number> = {
   guest: 0,
   login: 1,
   signup: 2,
+}
+
+const COIN_SIZE = 48
+const COIN_THICKNESS = 10
+const COIN_EDGE_COUNT = 32
+const COIN_RADIUS = COIN_SIZE / 2
+
+function NepsisCoin({ coinRef }: { coinRef: RefObject<HTMLDivElement | null> }) {
+  return (
+    <div
+      ref={coinRef}
+      className="relative will-change-transform"
+      style={{
+        width: COIN_SIZE,
+        height: COIN_SIZE,
+        transformStyle: 'preserve-3d',
+      }}
+    >
+      {/* Front face */}
+      <div
+        className="absolute inset-0 rounded-full bg-white overflow-hidden shadow-sm"
+        style={{
+          transform: `translateZ(${COIN_THICKNESS / 2}px)`,
+          backfaceVisibility: 'hidden',
+        }}
+      >
+        <img
+          src="./logo.png"
+          alt=""
+          className="h-full w-full object-contain p-1 select-none"
+          draggable={false}
+        />
+      </div>
+
+      {/* Back face */}
+      <div
+        className="absolute inset-0 rounded-full bg-white overflow-hidden shadow-sm"
+        style={{
+          transform: `rotateY(180deg) translateZ(${COIN_THICKNESS / 2}px)`,
+          backfaceVisibility: 'hidden',
+        }}
+      >
+        <img
+          src="./logo.png"
+          alt=""
+          className="h-full w-full object-contain p-1 select-none scale-x-[-1]"
+          draggable={false}
+        />
+      </div>
+
+      {/* Edge / thickness rim (cylinder strips) */}
+      {Array.from({ length: COIN_EDGE_COUNT }, (_, i) => {
+        const angle = (i / COIN_EDGE_COUNT) * 360
+        return (
+          <div
+            key={i}
+            className="absolute top-0"
+            style={{
+              left: (COIN_SIZE - COIN_THICKNESS) / 2,
+              width: COIN_THICKNESS,
+              height: COIN_SIZE,
+              background: 'linear-gradient(90deg, #bdbdbd 0%, #f7f7f7 40%, #e0e0e0 70%, #b8b8b8 100%)',
+              transform: `rotateY(${angle}deg) translateZ(${COIN_RADIUS}px)`,
+            }}
+          />
+        )
+      })}
+    </div>
+  )
 }
 
 export function LoginPage() {
@@ -36,7 +105,7 @@ export function LoginPage() {
   const indicatorRef = useRef<HTMLDivElement>(null)
   const tabBtnRefs = useRef<Partial<Record<AuthMode, HTMLButtonElement | null>>>({})
   const coinWrapRef = useRef<HTMLDivElement>(null)
-  const coinRef = useRef<HTMLImageElement>(null)
+  const coinRef = useRef<HTMLDivElement>(null)
   const coinRotationRef = useRef(0)
   const coinVelocityRef = useRef(0)
   const pendingEnterRef = useRef(false)
@@ -51,8 +120,9 @@ export function LoginPage() {
     if (!wrap || !coin) return
 
     gsap.set(coin, {
-      transformPerspective: 600,
+      transformPerspective: 800,
       transformOrigin: '50% 50%',
+      transformStyle: 'preserve-3d',
       force3D: true,
     })
 
@@ -267,15 +337,11 @@ export function LoginPage() {
         <div
           ref={coinWrapRef}
           className="mx-auto mb-6 w-16 h-16 flex items-center justify-center cursor-grab active:cursor-grabbing"
-          style={{ perspective: 600 }}
+          style={{ perspective: 800 }}
+          role="img"
+          aria-label="Nepsis"
         >
-          <img
-            ref={coinRef}
-            src="./logo.png"
-            alt="Nepsis"
-            className="h-12 w-12 object-contain bg-white rounded-full p-1 select-none pointer-events-none will-change-transform"
-            draggable={false}
-          />
+          <NepsisCoin coinRef={coinRef} />
         </div>
         <h1 className="text-2xl font-bold text-white text-center mb-8">Nepsis Chat</h1>
 

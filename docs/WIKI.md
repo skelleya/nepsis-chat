@@ -72,6 +72,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | App height fill fix — html/body/#root 100% height; main shell uses `fixed inset-0` to remove black bottom gap |
 | + | User Settings GSAP — Modal opens/closes with GSAP; fixed panel height so switching settings pages doesn’t move/resize the box |
 | + | Login logo coin spin — Nepsis logo on LoginPage spins left/right with cursor movement via GSAP `rotationY` |
+| + | Login logo coin thickness — 3D coin with front/back faces + rim segments so the edge shows when viewed on its side |
 | + | Login tab pill — Shared accent indicator slides between Guest / Sign In / Sign Up via GSAP (no per-button background flash) |
 | + | Download banner balance — Short prompt + clear Download button + subtle dismiss (not full marketing sentence, not link-only) |
 | + | Last channel per server — When switching servers, auto-restore the last selected channel for that server; persisted in localStorage (nepsis_last_channel); cleared on logout |
