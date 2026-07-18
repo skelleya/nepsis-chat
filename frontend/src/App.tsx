@@ -24,6 +24,7 @@ import { InvitePage } from './pages/InvitePage'
 import { CommunityPage } from './pages/CommunityPage'
 import { FriendsPage } from './pages/FriendsPage'
 import { OnboardingPage, ONBOARDING_COMPLETED_KEY } from './pages/OnboardingPage'
+import { ErrorBoundary } from './components/ErrorBoundary'
 
 function AppContent() {
   const {
@@ -78,9 +79,12 @@ function AppContent() {
     }
 
     if (prev && !user) {
+      // Kill in-flight login fade so onComplete cannot hide login after logout
+      if (loginShellRef.current) gsap.killTweensOf(loginShellRef.current)
       transitioningRef.current = false
       setShowApp(false)
       setShowLogin(true)
+      if (loginShellRef.current) gsap.set(loginShellRef.current, { opacity: 1, y: 0, scale: 1 })
     }
   }, [user])
 
@@ -94,19 +98,26 @@ function AppContent() {
       return
     }
     gsap.set(el, { opacity: 1, y: 0, scale: 1 })
-    gsap.to(el, {
+    const tween = gsap.to(el, {
       opacity: 0,
       duration: 0.35,
       ease: 'power2.inOut',
       force3D: false,
       onComplete: () => {
-        setShowLogin(false)
+        // Only hide login if still signed in — avoids blank screen after quick logout
+        if (prevUserRef.current) setShowLogin(false)
         transitioningRef.current = false
       },
     })
+    return () => {
+      tween.kill()
+      transitioningRef.current = false
+    }
   }, [user, showApp, showLogin])
 
   const displayName = user ? ((user.display_name && user.display_name.trim()) || user.username) : ''
+  // Never render an empty shell (stale GSAP onComplete used to leave both flags false)
+  const showLoginLayer = showLogin || !user
 
   return (
     <>
@@ -152,7 +163,7 @@ function AppContent() {
           </VoiceProvider>
         </div>
       )}
-      {showLogin && (
+      {showLoginLayer && (
         <div ref={loginShellRef} className="fixed inset-0 z-20">
           <LoginPage />
         </div>
@@ -917,15 +928,17 @@ function MainLayout({
 
 export default function App() {
   return (
-    <AppProvider>
-      <DownloadBanner />
-      <UpdateButton />
-      <Routes>
-        <Route path="/" element={<AppContent />} />
-        <Route path="/invite/:code" element={<InvitePage />} />
-        <Route path="/download" element={<DownloadPage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </AppProvider>
+    <ErrorBoundary>
+      <AppProvider>
+        <DownloadBanner />
+        <UpdateButton />
+        <Routes>
+          <Route path="/" element={<AppContent />} />
+          <Route path="/invite/:code" element={<InvitePage />} />
+          <Route path="/download" element={<DownloadPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AppProvider>
+    </ErrorBoundary>
   )
 }
