@@ -421,7 +421,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
               User Settings
             </h2>
           </div>
-          <div ref={navRef} className="relative flex-1 min-h-0 overflow-y-auto px-2 pb-2">
+          <div ref={navRef} className="relative flex-1 min-h-0 overflow-y-auto px-2 pb-2 settings-scroll">
             <div
               ref={indicatorRef}
               className="absolute left-2 right-2 rounded-md bg-app-accent/30 pointer-events-none opacity-0 will-change-transform"
