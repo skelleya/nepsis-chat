@@ -129,7 +129,7 @@ function AppContent() {
 
   if (showLogin || !user) {
     return (
-      <div ref={loginShellRef} className="min-h-full">
+      <div ref={loginShellRef} className="fixed inset-0">
         <LoginPage />
       </div>
     )

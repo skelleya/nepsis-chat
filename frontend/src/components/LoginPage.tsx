@@ -80,7 +80,15 @@ export function LoginPage() {
       gsap.fromTo(
         card,
         { opacity: 0, y: 20 },
-        { opacity: 1, y: 0, duration: 0.65, ease: 'power3.out', delay: 0.04 }
+        {
+          opacity: 1,
+          y: 0,
+          duration: 0.65,
+          ease: 'power3.out',
+          delay: 0.04,
+          force3D: false,
+          clearProps: 'transform',
+        }
       )
     }, page)
 
@@ -202,8 +210,7 @@ export function LoginPage() {
   return (
     <div
       ref={pageRef}
-      className="min-h-full flex items-center justify-center bg-app-darker"
-      style={{ paddingTop: 'var(--download-banner-height, 0px)' }}
+      className="fixed inset-0 flex items-center justify-center bg-app-darker"
     >
       <div ref={cardRef} className="w-full max-w-md p-10 rounded-xl bg-app-dark will-change-transform">
         <img src="./logo.png" alt="Nepsis" className="h-12 mx-auto mb-6 object-contain bg-white rounded-full p-1" />
