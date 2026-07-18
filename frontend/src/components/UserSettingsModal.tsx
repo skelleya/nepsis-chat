@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import gsap from 'gsap'
 import * as api from '../services/api'
 import type { ProfileType } from '../services/api'
@@ -6,16 +6,6 @@ import { PrivacySettingsTab } from './settings/PrivacySettingsTab'
 import { ProfilesSettingsTab } from './settings/ProfilesSettingsTab'
 
 type TabId = 'account' | 'profiles' | 'privacy' | 'appearance' | 'voice' | 'notifications' | 'help'
-
-const TAB_ORDER: TabId[] = [
-  'account',
-  'profiles',
-  'privacy',
-  'appearance',
-  'voice',
-  'notifications',
-  'help',
-]
 
 function HelpTab({ user }: { user: { id: string; username: string } }) {
   const [title, setTitle] = useState('')
@@ -112,6 +102,7 @@ interface UserSettingsModalProps {
 
 export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: UserSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<TabId>('account')
+  const [displayedTab, setDisplayedTab] = useState<TabId>('account')
   const [switching, setSwitching] = useState(false)
   const [username, setUsername] = useState(user.username)
   const [displayName, setDisplayName] = useState(user.display_name ?? '')
@@ -128,11 +119,14 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
   const bannerInputRef = useRef<HTMLInputElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
-  const viewportRef = useRef<HTMLDivElement>(null)
-  const stripRef = useRef<HTMLDivElement>(null)
-  const stripTweenRef = useRef<gsap.core.Tween | null>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const contentTweenRef = useRef<gsap.core.Tween | null>(null)
+  const navRef = useRef<HTMLDivElement>(null)
+  const indicatorRef = useRef<HTMLDivElement>(null)
+  const tabBtnRefs = useRef<Partial<Record<TabId, HTMLButtonElement | null>>>({})
   const closingRef = useRef(false)
-  const activeTabRef = useRef<TabId>('account')
+  const contentReadyRef = useRef(false)
+  const navIndicatorReadyRef = useRef(false)
 
   const isGuest = user.is_guest ?? true
 
@@ -157,67 +151,90 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
     )
   }, [])
 
-  const panelWidth = () => viewportRef.current?.offsetWidth ?? 0
+  const moveNavIndicator = useCallback((animate: boolean) => {
+    const track = navRef.current
+    const indicator = indicatorRef.current
+    const btn = tabBtnRefs.current[activeTab]
+    if (!track || !indicator || !btn) return
 
-  const syncStripToIndex = (index: number, animate: boolean) => {
-    const strip = stripRef.current
-    const width = panelWidth()
-    if (!strip || !width) return
-    stripTweenRef.current?.kill()
-    const x = -index * width
-    if (!animate) {
-      gsap.set(strip, { x })
+    const y = btn.offsetTop
+    const height = btn.offsetHeight
+
+    gsap.killTweensOf(indicator)
+    if (!animate || !navIndicatorReadyRef.current) {
+      gsap.set(indicator, { y, height, opacity: 1 })
+      navIndicatorReadyRef.current = true
       return
     }
-    stripTweenRef.current = gsap.to(strip, {
-      x,
-      duration: 0.28,
-      ease: 'power2.out',
+
+    gsap.to(indicator, {
+      y,
+      height,
+      duration: 0.4,
+      ease: 'power3.inOut',
       force3D: false,
+    })
+  }, [activeTab])
+
+  useLayoutEffect(() => {
+    moveNavIndicator(true)
+  }, [moveNavIndicator])
+
+  useLayoutEffect(() => {
+    const onResize = () => moveNavIndicator(false)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [moveNavIndicator])
+
+  const switchTab = (next: TabId) => {
+    if (next === activeTab || switching) return
+    setActiveTab(next)
+
+    const el = contentRef.current
+    if (!el || next === displayedTab) {
+      setDisplayedTab(next)
+      return
+    }
+
+    setSwitching(true)
+    contentTweenRef.current?.kill()
+    contentTweenRef.current = gsap.to(el, {
+      opacity: 0,
+      y: -18,
+      duration: 0.18,
+      ease: 'power2.in',
+      force3D: false,
+      onComplete: () => {
+        setDisplayedTab(next)
+      },
     })
   }
 
   useLayoutEffect(() => {
-    syncStripToIndex(TAB_ORDER.indexOf(activeTabRef.current), false)
-    const onResize = () => syncStripToIndex(TAB_ORDER.indexOf(activeTabRef.current), false)
-    window.addEventListener('resize', onResize)
-    return () => {
-      window.removeEventListener('resize', onResize)
-      stripTweenRef.current?.kill()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount/resize only
-  }, [])
-
-  const switchTab = (next: TabId) => {
-    const strip = stripRef.current
-    const width = panelWidth()
-    if (!strip || !width) {
-      activeTabRef.current = next
-      setActiveTab(next)
+    const el = contentRef.current
+    if (!el) return
+    if (!contentReadyRef.current) {
+      contentReadyRef.current = true
       return
     }
-
-    const currentX = Number(gsap.getProperty(strip, 'x')) || 0
-    const fromIdx = Math.max(0, Math.min(TAB_ORDER.length - 1, Math.round(-currentX / width)))
-    const toIdx = TAB_ORDER.indexOf(next)
-    if (toIdx < 0 || (fromIdx === toIdx && !switching && activeTab === next)) return
-
-    // Sidebar jumps to the destination; content glides past intermediates in one motion
-    const distance = Math.abs(toIdx - fromIdx)
-    activeTabRef.current = next
-    setActiveTab(next)
-    setSwitching(true)
-    stripTweenRef.current?.kill()
-    stripTweenRef.current = gsap.to(strip, {
-      x: -toIdx * width,
-      duration: Math.min(0.55, 0.22 + 0.08 * Math.max(1, distance)),
-      ease: 'power3.inOut',
-      force3D: false,
-      onComplete() {
-        setSwitching(false)
-      },
-    })
-  }
+    contentTweenRef.current?.kill()
+    contentTweenRef.current = gsap.fromTo(
+      el,
+      { opacity: 0, y: 22 },
+      {
+        opacity: 1,
+        y: 0,
+        duration: 0.28,
+        ease: 'power2.out',
+        force3D: false,
+        clearProps: 'transform',
+        onComplete: () => setSwitching(false),
+      }
+    )
+    return () => {
+      contentTweenRef.current?.kill()
+    }
+  }, [displayedTab])
 
   const requestClose = () => {
     if (closingRef.current) return
@@ -386,14 +403,20 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
           <div className="p-4 border-b border-app-hover/40 flex-shrink-0">
             <h2 className="text-lg font-bold text-white">User Settings</h2>
           </div>
-          <div className="p-2 overflow-y-auto flex-1 min-h-0">
+          <div ref={navRef} className="relative p-2 overflow-y-auto flex-1 min-h-0">
+            <div
+              ref={indicatorRef}
+              className="absolute left-2 right-2 rounded bg-app-accent/30 pointer-events-none opacity-0 will-change-transform"
+              aria-hidden
+            />
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
+                ref={(el) => { tabBtnRefs.current[tab.id] = el }}
                 onClick={() => switchTab(tab.id)}
-                className={`w-full px-3 py-2 rounded text-sm text-left transition-colors ${
-                  activeTab === tab.id ? 'bg-app-accent/30 text-white' : 'text-app-muted hover:text-app-text hover:bg-app-hover/40'
+                className={`relative z-10 w-full px-3 py-2 rounded text-sm text-left transition-colors ${
+                  activeTab === tab.id ? 'text-white' : 'text-app-muted hover:text-app-text'
                 }`}
               >
                 {tab.label}
@@ -402,7 +425,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
             <div className="h-px bg-app-hover/50 my-2" />
             <button
               onClick={onLogout}
-              className="w-full px-3 py-2 rounded text-sm text-red-400 hover:text-red-300 hover:bg-app-hover/40 text-left flex items-center gap-2"
+              className="relative z-10 w-full px-3 py-2 rounded text-sm text-red-400 hover:text-red-300 hover:bg-app-hover/40 text-left flex items-center gap-2"
             >
               Log Out
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="ml-auto">
@@ -412,10 +435,10 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
           </div>
         </div>
 
-        {/* Main content — horizontal strip; longer jumps slide through intermediate pages */}
-        <div ref={viewportRef} className="flex-1 min-w-0 min-h-0 overflow-hidden">
-          <div ref={stripRef} className="flex h-full will-change-transform">
-            <div className="w-full min-w-full h-full overflow-y-auto p-6 flex-shrink-0">
+        {/* Main content — slide/fade up between pages */}
+        <div className="flex-1 min-w-0 min-h-0 overflow-hidden">
+          <div ref={contentRef} className="h-full overflow-y-auto p-6 will-change-transform">
+              {displayedTab === 'account' && (
               <div>
                 <h3 className="text-xl font-bold text-white mb-4">My Account</h3>
                 <div className="bg-[#111214] rounded-lg overflow-hidden">
@@ -548,45 +571,51 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
                   </div>
                 </div>
               </div>
-            </div>
+              )}
 
-            <div className="w-full min-w-full h-full overflow-y-auto p-6 flex-shrink-0">
-              <ProfilesSettingsTab
-                user={user}
-                onUserUpdate={onUserUpdate}
-                defaultProfile={defaultProfile}
-                onDefaultProfileChange={setDefaultProfile}
-              />
-            </div>
+              {displayedTab === 'profiles' && (
+                <ProfilesSettingsTab
+                  user={user}
+                  onUserUpdate={onUserUpdate}
+                  defaultProfile={defaultProfile}
+                  onDefaultProfileChange={setDefaultProfile}
+                />
+              )}
 
-            <div className="w-full min-w-full h-full overflow-y-auto p-6 flex-shrink-0">
-              <PrivacySettingsTab userId={user.id} />
-            </div>
+              {displayedTab === 'privacy' && (
+                <PrivacySettingsTab userId={user.id} />
+              )}
 
-            <div className="w-full min-w-full h-full overflow-y-auto p-6 flex-shrink-0">
-              <h3 className="text-xl font-bold text-white mb-4">Appearance</h3>
-              <div className="bg-[#2b2d31] rounded-lg p-4">
-                <p className="text-app-muted text-sm">Theme and display preferences.</p>
-              </div>
-            </div>
+              {displayedTab === 'appearance' && (
+                <div>
+                  <h3 className="text-xl font-bold text-white mb-4">Appearance</h3>
+                  <div className="bg-[#2b2d31] rounded-lg p-4">
+                    <p className="text-app-muted text-sm">Theme and display preferences.</p>
+                  </div>
+                </div>
+              )}
 
-            <div className="w-full min-w-full h-full overflow-y-auto p-6 flex-shrink-0">
-              <h3 className="text-xl font-bold text-white mb-4">Voice & Video</h3>
-              <div className="bg-[#2b2d31] rounded-lg p-4">
-                <p className="text-app-muted text-sm">Microphone, speaker, and camera settings.</p>
-              </div>
-            </div>
+              {displayedTab === 'voice' && (
+                <div>
+                  <h3 className="text-xl font-bold text-white mb-4">Voice & Video</h3>
+                  <div className="bg-[#2b2d31] rounded-lg p-4">
+                    <p className="text-app-muted text-sm">Microphone, speaker, and camera settings.</p>
+                  </div>
+                </div>
+              )}
 
-            <div className="w-full min-w-full h-full overflow-y-auto p-6 flex-shrink-0">
-              <h3 className="text-xl font-bold text-white mb-4">Notifications</h3>
-              <div className="bg-[#2b2d31] rounded-lg p-4">
-                <p className="text-app-muted text-sm">Manage notification preferences.</p>
-              </div>
-            </div>
+              {displayedTab === 'notifications' && (
+                <div>
+                  <h3 className="text-xl font-bold text-white mb-4">Notifications</h3>
+                  <div className="bg-[#2b2d31] rounded-lg p-4">
+                    <p className="text-app-muted text-sm">Manage notification preferences.</p>
+                  </div>
+                </div>
+              )}
 
-            <div className="w-full min-w-full h-full overflow-y-auto p-6 flex-shrink-0">
-              <HelpTab user={user} />
-            </div>
+              {displayedTab === 'help' && (
+                <HelpTab user={user} />
+              )}
           </div>
         </div>
 
