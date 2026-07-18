@@ -767,8 +767,18 @@ export async function updateFriendVisibility(
 }
 
 export async function getPrivacySettings(userId: string): Promise<PrivacySettings> {
-  const res = await fetch(`${API_BASE}/users/${userId}/privacy`)
-  if (!res.ok) throw new Error('Failed to fetch privacy settings')
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE}/users/${userId}/privacy`)
+  } catch {
+    throw new Error(
+      'Cannot reach the API. Start the backend (npm run dev in /backend) and check VITE_API_URL.'
+    )
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => null)
+    throw new Error(err?.error || 'Failed to fetch privacy settings')
+  }
   return res.json()
 }
 
