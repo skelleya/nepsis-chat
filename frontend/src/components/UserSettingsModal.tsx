@@ -627,19 +627,17 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
           </div>
         </div>
 
-        {/* Close button */}
-        <div className="p-4 flex-shrink-0">
-          <button
-            type="button"
-            onClick={requestClose}
-            aria-label="Close settings"
-            className="w-10 h-10 rounded-full border-[3px] border-[#ed4245]/70 flex items-center justify-center text-[#ed4245] hover:text-[#ff5c5f] hover:border-[#ed4245] transition-colors"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.25" strokeLinecap="round" aria-hidden>
-              <path d="M6 6l12 12M18 6L6 18" />
-            </svg>
-          </button>
-        </div>
+        {/* Close — red X pinned to modal top-right corner */}
+        <button
+          type="button"
+          onClick={requestClose}
+          aria-label="Close settings"
+          className="absolute top-3 right-3 z-20 w-8 h-8 flex items-center justify-center text-[#ed4245] hover:text-[#ff5c5f] transition-colors"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.25" strokeLinecap="round" aria-hidden>
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
       </div>
     </div>
   )
