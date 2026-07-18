@@ -630,11 +630,13 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
         {/* Close button */}
         <div className="p-4 flex-shrink-0">
           <button
+            type="button"
             onClick={requestClose}
-            className="w-9 h-9 rounded-full border-2 border-app-muted/60 flex items-center justify-center text-app-muted hover:text-white hover:border-white transition-colors"
+            aria-label="Close settings"
+            className="w-10 h-10 rounded-full border-[3px] border-[#ed4245]/70 flex items-center justify-center text-[#ed4245] hover:text-[#ff5c5f] hover:border-[#ed4245] transition-colors"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M18.4 4L12 10.4L5.6 4L4 5.6L10.4 12L4 18.4L5.6 20L12 13.6L18.4 20L20 18.4L13.6 12L20 5.6L18.4 4Z"/>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.25" strokeLinecap="round" aria-hidden>
+              <path d="M6 6l12 12M18 6L6 18" />
             </svg>
           </button>
         </div>
