@@ -64,7 +64,10 @@ export function LoginPage() {
   const isElectron = !!(window as any).electronAPI?.isElectron
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-app-darker">
+    <div
+      className="min-h-screen flex items-center justify-center bg-app-darker"
+      style={{ paddingTop: 'var(--download-banner-height, 0px)' }}
+    >
       <div className="w-full max-w-md p-10 rounded-xl bg-app-dark">
         <img src="./logo.png" alt="Nepsis" className="h-12 mx-auto mb-6 object-contain bg-white rounded-full p-1" />
         <h1 className="text-2xl font-bold text-white text-center mb-8">Nepsis Chat</h1>
