@@ -830,7 +830,8 @@ function MainLayout({
         }}
         onAddFriend={async (userId, username) => {
           try {
-            await api.sendFriendRequest(user.id, userId)
+            // From a server member card: add their Personal identity from your default profile
+            await api.sendFriendRequest(user.id, userId, 'personal', 'personal')
             showNotification(`Friend request sent to ${username}`)
           } catch (e) {
             showNotification((e as Error).message, 'error')

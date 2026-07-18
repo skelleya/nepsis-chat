@@ -92,9 +92,26 @@ invitesRouter.post('/:code/join', async (req, res) => {
       return res.status(404).json({ error: 'Invite has reached max uses' })
     }
 
-    const { error: joinErr } = await supabase
+    const { data: joiner } = await supabase
+      .from('users')
+      .select('active_profile')
+      .eq('id', userId)
+      .maybeSingle()
+    const joinProfile = joiner?.active_profile === 'work' ? 'work' : 'personal'
+
+    let joinErr
+    ;({ error: joinErr } = await supabase
       .from('server_members')
-      .upsert({ server_id: invite.server_id, user_id: userId, role: 'member' }, { onConflict: 'server_id,user_id' })
+      .upsert(
+        { server_id: invite.server_id, user_id: userId, role: 'member', profile_type: joinProfile },
+        { onConflict: 'server_id,user_id' }
+      ))
+
+    if (joinErr && /profile_type/i.test(joinErr.message || '')) {
+      ;({ error: joinErr } = await supabase
+        .from('server_members')
+        .upsert({ server_id: invite.server_id, user_id: userId, role: 'member' }, { onConflict: 'server_id,user_id' }))
+    }
 
     if (joinErr) throw joinErr
 

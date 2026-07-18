@@ -189,7 +189,11 @@ supabase db push # apply migrations
 
 Migrations are in `supabase/migrations/`. Also run `backend/supabase-migration.sql` in Supabase SQL Editor for full schema.
 
-**Privacy / dual profiles:** run `supabase/migrations/20250211000015_privacy_profiles_friends.sql` in the Supabase SQL Editor (adds `user_privacy_settings`, `friend_profile_settings`, `users.active_profile`, `friend_requests.requester_profile`).
+**Privacy / dual profiles:** run these in the Supabase SQL Editor:
+1. `supabase/migrations/20250211000015_privacy_profiles_friends.sql` — privacy settings, friend visibility, `users.active_profile`
+2. `supabase/migrations/20250211000016_profile_identities.sql` — profile bio/discoverable, `friend_requests.addressee_profile`, `server_members.profile_type`
+
+**Identity model:** Login username is private. Personal and Work are separate public identities (display name, bio, avatar, banner). Friend search finds discoverable **profiles** by display name. Default profile (My Account) is used on first server join; each server can override via ChannelList → “Appear as on this server”.
 
 ---
 

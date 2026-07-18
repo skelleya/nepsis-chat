@@ -586,17 +586,22 @@ export type VisibleProfiles = 'personal' | 'work' | 'both'
 export interface FriendListItem {
   id: string
   username: string
+  display_name?: string
+  bio?: string
   avatar_url?: string
+  banner_url?: string
   status?: 'online' | 'offline' | 'in-voice' | 'away' | 'dnd'
   friendship_profile?: ProfileType
   visible_profiles?: VisibleProfiles
+  their_profile?: ProfileType
 }
 
 export interface FriendRequestItem {
   requester_id: string
   created_at: string
   requester_profile?: ProfileType
-  user: { id: string; username: string; avatar_url?: string }
+  addressee_profile?: ProfileType
+  user: { id: string; username: string; display_name?: string; bio?: string; avatar_url?: string }
 }
 
 export interface PrivacySettings {
@@ -662,7 +667,28 @@ export async function declineFriendRequest(userId: string, requesterId: string):
   return res.json()
 }
 
-export async function lookupUserByUsername(username: string): Promise<{ id: string; username: string; display_name?: string | null; avatar_url?: string } | null> {
+export interface PublicProfileResult {
+  profile_id: string
+  user_id: string
+  profile_type: ProfileType
+  display_name: string
+  bio?: string
+  avatar_url?: string | null
+  banner_url?: string | null
+}
+
+/** Search discoverable public profiles by display name (never login username). */
+export async function searchProfiles(query: string): Promise<PublicProfileResult[]> {
+  const res = await fetch(`${API_BASE}/users/profiles/search?q=${encodeURIComponent(query.trim())}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to search profiles')
+  }
+  return res.json()
+}
+
+/** @deprecated Prefer searchProfiles — lookup no longer returns login username. */
+export async function lookupUserByUsername(username: string): Promise<{ id: string; display_name?: string | null; avatar_url?: string; profile_type?: ProfileType } | null> {
   const res = await fetch(`${API_BASE}/users/lookup?username=${encodeURIComponent(username.trim())}`)
   if (!res.ok) throw new Error('Failed to lookup user')
   const data = await res.json()
@@ -672,18 +698,50 @@ export async function lookupUserByUsername(username: string): Promise<{ id: stri
 export async function sendFriendRequest(
   userId: string,
   targetUserId: string,
-  profile: ProfileType = 'personal'
+  profile: ProfileType = 'personal',
+  targetProfile: ProfileType = 'personal'
 ): Promise<{ success: boolean }> {
   const res = await fetch(`${API_BASE}/friends/request`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, targetUserId, profile }),
+    body: JSON.stringify({ userId, targetUserId, profile, targetProfile }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err?.error || 'Failed to send friend request')
   }
   return res.json()
+}
+
+export async function setServerMemberProfile(
+  serverId: string,
+  userId: string,
+  profileType: ProfileType
+) {
+  const res = await fetch(`${API_BASE}/servers/${serverId}/members/${userId}/profile`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ profileType, actorUserId: userId }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to set server profile')
+  }
+  return res.json()
+}
+
+export async function getAccount(userId: string) {
+  const res = await fetch(`${API_BASE}/users/${userId}/account`)
+  if (!res.ok) throw new Error('Failed to fetch account')
+  return res.json() as Promise<{
+    id: string
+    username: string
+    display_name?: string | null
+    avatar_url?: string
+    banner_url?: string
+    active_profile?: ProfileType
+    is_guest?: boolean
+  }>
 }
 
 export async function updateFriendVisibility(
@@ -770,7 +828,13 @@ export async function getUserProfiles(userId: string) {
 export async function saveUserProfile(
   userId: string,
   profileType: ProfileType,
-  data: { display_name?: string; avatar_url?: string; banner_url?: string }
+  data: {
+    display_name?: string
+    avatar_url?: string
+    banner_url?: string
+    bio?: string
+    discoverable?: boolean
+  }
 ) {
   const res = await fetch(`${API_BASE}/users/${userId}/profiles`, {
     method: 'PUT',

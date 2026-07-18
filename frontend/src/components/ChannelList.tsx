@@ -22,6 +22,9 @@ import { CSS } from '@dnd-kit/utilities'
 import type { Channel, Category } from '../types'
 import { CreateChannelModal } from './CreateChannelModal'
 import { MicOffIcon, HeadphonesOffIcon } from './icons/VoiceIcons'
+import { useApp } from '../contexts/AppContext'
+import * as api from '../services/api'
+import type { ProfileType } from '../services/api'
 
 interface VoiceUserInfo {
   userId: string
@@ -626,9 +629,24 @@ export function ChannelList({
   channelMentionCounts = {},
   onSelectDM,
 }: ChannelListProps) {
+  const { user } = useApp()
   const [showCreateChannel, setShowCreateChannel] = useState(false)
   const [createChannelCategoryId, setCreateChannelCategoryId] = useState<string | undefined>()
   const [showServerMenu, setShowServerMenu] = useState(false)
+  const [serverProfileBusy, setServerProfileBusy] = useState(false)
+
+  const setMyServerProfile = async (profileType: ProfileType) => {
+    if (!serverId || !user?.id) return
+    setServerProfileBusy(true)
+    try {
+      await api.setServerMemberProfile(serverId, user.id, profileType)
+      setShowServerMenu(false)
+    } catch {
+      /* ignore — migration may not be applied yet */
+    } finally {
+      setServerProfileBusy(false)
+    }
+  }
 
   // Group channels by category
   const categorizedChannels = categories.map((cat) => ({
@@ -805,6 +823,30 @@ export function ChannelList({
                     </svg>
                     Server Settings
                   </button>
+                )}
+                {!user?.is_guest && user?.id && serverId && (
+                  <>
+                    <div className="h-px bg-app-hover/50 my-1" />
+                    <div className="px-2 py-1 text-[10px] font-semibold uppercase text-app-muted tracking-wider">
+                      Appear as on this server
+                    </div>
+                    <button
+                      type="button"
+                      disabled={serverProfileBusy}
+                      onClick={() => setMyServerProfile('personal')}
+                      className="w-full px-2 py-1.5 rounded text-sm text-app-text hover:bg-app-accent hover:text-white text-left disabled:opacity-50"
+                    >
+                      Personal profile
+                    </button>
+                    <button
+                      type="button"
+                      disabled={serverProfileBusy}
+                      onClick={() => setMyServerProfile('work')}
+                      className="w-full px-2 py-1.5 rounded text-sm text-app-text hover:bg-app-accent hover:text-white text-left disabled:opacity-50"
+                    >
+                      Work profile
+                    </button>
+                  </>
                 )}
               </div>
             </>

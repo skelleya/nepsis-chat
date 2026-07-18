@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import supabase from '../db/supabase.js'
+import { getProfileRow, presentationFromProfile } from '../utils/profiles.js'
 
 export const friendsRouter = Router()
 
@@ -41,7 +42,21 @@ async function upsertFriendProfileSettings(userId, friendId, friendshipProfile, 
   )
 }
 
-// List friends (status = accepted)
+async function loadProfilesByUsers(userIds) {
+  if (!userIds.length) return {}
+  const { data } = await supabase
+    .from('user_profiles')
+    .select('user_id, profile_type, display_name, bio, avatar_url, banner_url')
+    .in('user_id', userIds)
+  const map = {}
+  for (const p of data || []) {
+    if (!map[p.user_id]) map[p.user_id] = {}
+    map[p.user_id][p.profile_type] = p
+  }
+  return map
+}
+
+// List friends (status = accepted) — public profile names only, never login username
 friendsRouter.get('/list', async (req, res) => {
   const { userId } = req.query
   if (!userId) return res.status(400).json({ error: 'userId required' })
@@ -49,7 +64,7 @@ friendsRouter.get('/list', async (req, res) => {
   try {
     const { data: rows, error } = await supabase
       .from('friend_requests')
-      .select('requester_id, addressee_id, requester_profile')
+      .select('requester_id, addressee_id, requester_profile, addressee_profile')
       .eq('status', 'accepted')
       .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
 
@@ -61,13 +76,27 @@ friendsRouter.get('/list', async (req, res) => {
     }
     if (!rows?.length) return res.json([])
 
-    const friendIds = rows.map((r) => (r.requester_id === userId ? r.addressee_id : r.requester_id))
+    const friendMeta = rows.map((r) => {
+      const isRequester = r.requester_id === userId
+      return {
+        friendId: isRequester ? r.addressee_id : r.requester_id,
+        // Profile of theirs that this friendship is primarily with (from our side settings later)
+        theirProfile: isRequester ? (r.addressee_profile || 'personal') : (r.requester_profile || 'personal'),
+        myProfile: isRequester ? (r.requester_profile || 'personal') : (r.addressee_profile || 'personal'),
+      }
+    })
+    const friendIds = friendMeta.map((m) => m.friendId)
+
     const { data: users, error: usersErr } = await supabase
       .from('users')
-      .select('id, username, display_name, avatar_url')
+      .select('id, display_name, avatar_url, banner_url')
       .in('id', friendIds)
 
     if (usersErr) throw usersErr
+    const userMap = {}
+    for (const u of users || []) userMap[u.id] = u
+
+    const profilesByUser = await loadProfilesByUsers(friendIds)
 
     let settingsByFriend = {}
     try {
@@ -94,17 +123,23 @@ friendsRouter.get('/list', async (req, res) => {
       presenceByUser = {}
     }
 
-    const displayName = (u) => (u?.display_name && u.display_name.trim()) || u?.username || 'Unknown'
     return res.json(
-      (users || []).map((u) => {
-        const s = settingsByFriend[u.id]
+      friendMeta.map((m) => {
+        const s = settingsByFriend[m.friendId]
+        const showType = s?.friendship_profile || m.theirProfile || 'personal'
+        const profile = profilesByUser[m.friendId]?.[showType] || profilesByUser[m.friendId]?.personal
+        const presented = presentationFromProfile(profile, userMap[m.friendId])
         return {
-          id: u.id,
-          username: displayName(u),
-          avatar_url: u.avatar_url,
-          status: presenceByUser[u.id] || 'offline',
-          friendship_profile: s?.friendship_profile || 'personal',
+          id: m.friendId,
+          username: presented.displayName, // legacy field name used by UI = public display name
+          display_name: presented.displayName,
+          bio: presented.bio,
+          avatar_url: presented.avatarUrl,
+          banner_url: presented.bannerUrl,
+          status: presenceByUser[m.friendId] || 'offline',
+          friendship_profile: s?.friendship_profile || m.myProfile || 'personal',
           visible_profiles: s?.visible_profiles || 'personal',
+          their_profile: showType,
         }
       })
     )
@@ -117,7 +152,7 @@ friendsRouter.get('/list', async (req, res) => {
   }
 })
 
-// List pending friend requests (incoming)
+// List pending friend requests (incoming) — show requester's public profile identity
 friendsRouter.get('/requests', async (req, res) => {
   const { userId } = req.query
   if (!userId) return res.status(400).json({ error: 'userId required' })
@@ -125,7 +160,7 @@ friendsRouter.get('/requests', async (req, res) => {
   try {
     const { data: rows, error } = await supabase
       .from('friend_requests')
-      .select('requester_id, created_at, requester_profile')
+      .select('requester_id, created_at, requester_profile, addressee_profile')
       .eq('addressee_id', userId)
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
@@ -141,21 +176,31 @@ friendsRouter.get('/requests', async (req, res) => {
     const requesterIds = rows.map((r) => r.requester_id)
     const { data: users, error: usersErr } = await supabase
       .from('users')
-      .select('id, username, display_name, avatar_url')
+      .select('id, display_name, avatar_url, banner_url')
       .in('id', requesterIds)
 
     if (usersErr) throw usersErr
     const userMap = {}
     for (const u of users || []) userMap[u.id] = u
-    const displayName = (u) => (u?.display_name && u.display_name.trim()) || u?.username || 'Unknown'
+    const profilesByUser = await loadProfilesByUsers(requesterIds)
+
     return res.json(
       rows.map((r) => {
-        const u = userMap[r.requester_id] || { id: r.requester_id, username: 'Unknown', display_name: null, avatar_url: null }
+        const type = r.requester_profile || 'personal'
+        const profile = profilesByUser[r.requester_id]?.[type] || profilesByUser[r.requester_id]?.personal
+        const presented = presentationFromProfile(profile, userMap[r.requester_id])
         return {
           requester_id: r.requester_id,
           created_at: r.created_at,
-          requester_profile: r.requester_profile || 'personal',
-          user: { id: u.id, username: displayName(u), avatar_url: u.avatar_url },
+          requester_profile: type,
+          addressee_profile: r.addressee_profile || 'personal',
+          user: {
+            id: r.requester_id,
+            username: presented.displayName,
+            display_name: presented.displayName,
+            bio: presented.bio,
+            avatar_url: presented.avatarUrl,
+          },
         }
       })
     )
@@ -259,9 +304,11 @@ friendsRouter.post('/decline', async (req, res) => {
   }
 })
 
-// Send friend request (creates pending request under a profile)
+// Send friend request to a specific public profile identity
+// profile = which of MY profiles I'm adding from
+// targetProfile = which of THEIR profiles I found / am adding
 friendsRouter.post('/request', async (req, res) => {
-  const { userId, targetUserId, profile = 'personal' } = req.body
+  const { userId, targetUserId, profile = 'personal', targetProfile = 'personal' } = req.body
   if (!userId || !targetUserId) {
     return res.status(400).json({ error: 'userId and targetUserId required' })
   }
@@ -269,9 +316,15 @@ friendsRouter.post('/request', async (req, res) => {
     return res.status(400).json({ error: 'Cannot add yourself as friend' })
   }
   const requesterProfile = VALID_PROFILES.includes(profile) ? profile : 'personal'
+  const addresseeProfile = VALID_PROFILES.includes(targetProfile) ? targetProfile : 'personal'
 
   try {
-    // Respect target privacy: who_can_add_friend
+    // Target profile must exist and be discoverable (unless already server-mates with server_members rule)
+    const targetProfileRow = await getProfileRow(supabase, targetUserId, addresseeProfile)
+    if (targetProfileRow && targetProfileRow.discoverable === false) {
+      return res.status(403).json({ error: 'That profile is not discoverable' })
+    }
+
     try {
       const { data: privacy } = await supabase
         .from('user_privacy_settings')
@@ -297,6 +350,7 @@ friendsRouter.post('/request', async (req, res) => {
       addressee_id: targetUserId,
       status: 'pending',
       requester_profile: requesterProfile,
+      addressee_profile: addresseeProfile,
     })
 
     if (error) {
@@ -306,8 +360,8 @@ friendsRouter.post('/request', async (req, res) => {
       if (error.code === '23505') {
         return res.json({ success: true }) // Already sent
       }
-      // Column may not exist yet — retry without profile
-      if (/requester_profile/i.test(error.message || '')) {
+      // Older schema without profile columns
+      if (/requester_profile|addressee_profile/i.test(error.message || '')) {
         const { error: retryErr } = await supabase.from('friend_requests').insert({
           requester_id: userId,
           addressee_id: targetUserId,

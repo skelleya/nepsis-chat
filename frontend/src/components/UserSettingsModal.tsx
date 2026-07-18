@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import gsap from 'gsap'
 import * as api from '../services/api'
+import type { ProfileType } from '../services/api'
 import { PrivacySettingsTab } from './settings/PrivacySettingsTab'
 import { ProfilesSettingsTab } from './settings/ProfilesSettingsTab'
 
@@ -107,6 +108,11 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
   const [bannerUrl, setBannerUrl] = useState(user.banner_url || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [defaultProfile, setDefaultProfile] = useState<ProfileType>('personal')
+  const [profileLabels, setProfileLabels] = useState<{ personal: string; work: string }>({
+    personal: '',
+    work: '',
+  })
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const bannerInputRef = useRef<HTMLInputElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -178,6 +184,46 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
     setAvatarUrl(user.avatar_url || '')
     setBannerUrl(user.banner_url || '')
   }, [user])
+
+  useEffect(() => {
+    if (isGuest) return
+    let cancelled = false
+    Promise.all([
+      api.getAccount(user.id).catch(() => null),
+      api.getUserProfiles(user.id).catch(() => []),
+    ]).then(([account, profiles]) => {
+      if (cancelled) return
+      if (account?.active_profile === 'work' || account?.active_profile === 'personal') {
+        setDefaultProfile(account.active_profile)
+      }
+      const labels = { personal: '', work: '' }
+      for (const p of profiles as { profile_type: string; display_name?: string }[]) {
+        if (p.profile_type === 'personal' || p.profile_type === 'work') {
+          labels[p.profile_type] = p.display_name || ''
+        }
+      }
+      setProfileLabels(labels)
+    })
+    return () => { cancelled = true }
+  }, [user.id, isGuest])
+
+  const handleSetDefaultProfile = async (type: ProfileType) => {
+    setDefaultProfile(type)
+    setSaving(true)
+    setError('')
+    try {
+      await api.setActiveProfile(user.id, type)
+      const label = profileLabels[type]
+      if (label) {
+        setDisplayName(label)
+        onUserUpdate?.({ display_name: label })
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to set default profile')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -359,30 +405,60 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
                     </div>
                   </div>
                   <div className="mt-4 space-y-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex-1">
-                        <label className="text-xs font-bold text-app-muted uppercase">Display name</label>
-                        <p className="text-xs text-app-muted mt-0.5 mb-1">This is how others see you. Leave blank to use your username.</p>
-                        <input
-                          type="text"
-                          value={displayName}
-                          onChange={(e) => setDisplayName(e.target.value)}
-                          placeholder={user.username}
-                          className="w-full mt-1 px-3 py-2 bg-[#2b2d31] rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none placeholder:text-app-muted/60"
-                        />
+                    {isGuest ? (
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex-1">
+                          <label className="text-xs font-bold text-app-muted uppercase">Display name</label>
+                          <p className="text-xs text-app-muted mt-0.5 mb-1">How others see you as a guest.</p>
+                          <input
+                            type="text"
+                            value={displayName}
+                            onChange={(e) => setDisplayName(e.target.value)}
+                            placeholder={user.username}
+                            className="w-full mt-1 px-3 py-2 bg-[#2b2d31] rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none placeholder:text-app-muted/60"
+                          />
+                        </div>
+                        <button
+                          onClick={handleSaveDisplayName}
+                          disabled={saving || (displayName.trim() || '') === (user.display_name ?? '')}
+                          className="px-4 py-2 bg-app-accent hover:bg-app-accent-hover rounded text-sm text-white font-medium disabled:opacity-50 self-end"
+                        >
+                          Save
+                        </button>
                       </div>
-                      <button
-                        onClick={handleSaveDisplayName}
-                        disabled={saving || (displayName.trim() || '') === (user.display_name ?? '')}
-                        className="px-4 py-2 bg-app-accent hover:bg-app-accent-hover rounded text-sm text-white font-medium disabled:opacity-50 self-end"
-                      >
-                        Save
-                      </button>
-                    </div>
+                    ) : (
+                      <div>
+                        <label className="text-xs font-bold text-app-muted uppercase">Default profile for new servers</label>
+                        <p className="text-xs text-app-muted mt-0.5 mb-2">
+                          Choose which public identity is used the first time you join a server.
+                          Edit names, bios, and photos under Profiles. Login username stays private.
+                        </p>
+                        <div className="flex gap-2 flex-wrap">
+                          {(['personal', 'work'] as ProfileType[]).map((type) => (
+                            <button
+                              key={type}
+                              type="button"
+                              onClick={() => handleSetDefaultProfile(type)}
+                              disabled={saving}
+                              className={`px-3 py-2 rounded text-sm font-medium ${
+                                defaultProfile === type
+                                  ? 'bg-app-accent text-white'
+                                  : 'bg-[#2b2d31] text-app-muted hover:text-app-text'
+                              }`}
+                            >
+                              {type === 'personal' ? 'Personal' : 'Work'}
+                              {profileLabels[type] ? ` · ${profileLabels[type]}` : ' · set in Profiles'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex-1">
-                        <label className="text-xs font-bold text-app-muted uppercase">Username</label>
-                        <p className="text-xs text-app-muted mt-0.5 mb-1">Used for login. Cannot be changed for guest accounts.</p>
+                        <label className="text-xs font-bold text-app-muted uppercase">Login username</label>
+                        <p className="text-xs text-app-muted mt-0.5 mb-1">
+                          Private — used only to sign in. Others never see this.
+                        </p>
                         <input
                           type="text"
                           value={username}
@@ -413,7 +489,12 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
           )}
 
           {activeTab === 'profiles' && (
-            <ProfilesSettingsTab user={user} onUserUpdate={onUserUpdate} />
+            <ProfilesSettingsTab
+              user={user}
+              onUserUpdate={onUserUpdate}
+              defaultProfile={defaultProfile}
+              onDefaultProfileChange={setDefaultProfile}
+            />
           )}
 
           {activeTab === 'privacy' && (
