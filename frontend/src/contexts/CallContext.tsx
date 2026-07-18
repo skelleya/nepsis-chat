@@ -85,6 +85,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
   const durationIntervalRef = useRef<number | null>(null)
   const iceCandidateQueueRef = useRef<RTCIceCandidateInit[]>([])
   const callNotificationRef = useRef<Notification | null>(null)
+  const mutedBeforeDeafenRef = useRef(false)
 
   // Sync wrappers — update both ref + state
   const setCallState = useCallback((s: CallState) => {

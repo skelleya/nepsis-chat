@@ -60,18 +60,6 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
   const [isMuted, setIsMutedState] = useState(false)
   const [isDeafened, setIsDeafenedState] = useState(false)
-
-  /** Discord-style: unmute also undeafens */
-  const setIsMuted = useCallback((v: boolean) => {
-    setIsMutedState(v)
-    if (!v) setIsDeafenedState(false)
-  }, [])
-
-  /** Discord-style: deafen also mutes */
-  const setIsDeafened = useCallback((v: boolean) => {
-    setIsDeafenedState(v)
-    if (v) setIsMutedState(true)
-  }, [])
   const [isSoundboardMuted, setIsSoundboardMuted] = useState(false)
   const [isCameraOn, setIsCameraOn] = useState(false)
   const [isScreenSharing, setIsScreenSharing] = useState(false)
@@ -84,11 +72,38 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
 
   const webrtcRef = useRef<ReturnType<typeof createWebRTCClient> | null>(null)
   const signalingRef = useRef<ReturnType<typeof createBroadcastSignaling> | ReturnType<typeof createSocketSignaling> | null>(null)
+  const isMutedRef = useRef(false)
   const isDeafenedRef = useRef(false)
+  const mutedBeforeDeafenRef = useRef(false)
   const isSoundboardMutedRef = useRef(false)
   const playingSoundboardRef = useRef<Map<string, HTMLAudioElement>>(new Map())
+  isMutedRef.current = isMuted
   isDeafenedRef.current = isDeafened
   isSoundboardMutedRef.current = isSoundboardMuted
+
+  /** Unmute also undeafens */
+  const setIsMuted = useCallback((v: boolean) => {
+    setIsMutedState(v)
+    if (!v) {
+      setIsDeafenedState(false)
+      mutedBeforeDeafenRef.current = false
+    }
+  }, [])
+
+  /**
+   * Deafen always mutes. Undeafen restores mute to whatever it was
+   * before deafen (so mute→deafen→undeafen stays muted; deafen alone→undeafen unmutes).
+   */
+  const setIsDeafened = useCallback((v: boolean) => {
+    if (v) {
+      mutedBeforeDeafenRef.current = isMutedRef.current
+      setIsDeafenedState(true)
+      setIsMutedState(true)
+    } else {
+      setIsDeafenedState(false)
+      setIsMutedState(mutedBeforeDeafenRef.current)
+    }
+  }, [])
 
   const addOrUpdateParticipant = useCallback((pUserId: string, pUsername: string, stream: MediaStream | null, isSpeaking = false) => {
     setParticipants((prev) => {
@@ -126,6 +141,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     setIsScreenSharing(false)
     setIsMutedState(false)
     setIsDeafenedState(false)
+    mutedBeforeDeafenRef.current = false
     setIsSoundboardMuted(false)
     setIsSpeaking(false)
     setPing(null)
