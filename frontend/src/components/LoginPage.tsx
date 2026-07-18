@@ -255,10 +255,10 @@ export function LoginPage() {
           ))}
         </div>
 
-        <div className="overflow-hidden h-[236px]">
+        <div className="overflow-hidden h-[268px]">
           <div ref={panelRef} className="will-change-transform h-full">
             {mode === 'guest' ? (
-              <form onSubmit={handleGuestSubmit} className="flex h-full flex-col justify-between">
+              <form onSubmit={handleGuestSubmit} className="flex h-full flex-col gap-6">
                 <div className="space-y-3">
                   <label className="block text-sm text-app-muted">Username</label>
                   <input
@@ -275,13 +275,13 @@ export function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading || switching}
-                  className="w-full py-3 rounded-lg bg-app-accent hover:bg-app-accent-hover text-white font-semibold transition-colors disabled:opacity-50"
+                  className="mt-auto w-full py-3 rounded-lg bg-app-accent hover:bg-app-accent-hover text-white font-semibold transition-colors disabled:opacity-50"
                 >
                   {loading ? 'Joining...' : 'Continue as Guest'}
                 </button>
               </form>
             ) : (
-              <form onSubmit={handleEmailSubmit} className="flex h-full flex-col justify-between">
+              <form onSubmit={handleEmailSubmit} className="flex h-full flex-col gap-6">
                 <div className="space-y-6">
                   <div className="space-y-3">
                     <label className="block text-sm text-app-muted">
@@ -309,7 +309,7 @@ export function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading || switching}
-                  className="w-full py-3 rounded-lg bg-app-accent hover:bg-app-accent-hover text-white font-semibold transition-colors disabled:opacity-50"
+                  className="mt-auto w-full py-3 rounded-lg bg-app-accent hover:bg-app-accent-hover text-white font-semibold transition-colors disabled:opacity-50"
                 >
                   {loading ? 'Please wait...' : mode === 'signup' ? 'Create Account' : 'Sign In'}
                 </button>
