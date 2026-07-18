@@ -202,27 +202,18 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
     const toIdx = TAB_ORDER.indexOf(next)
     if (toIdx < 0 || (fromIdx === toIdx && !switching && activeTab === next)) return
 
+    // Sidebar jumps to the destination; content glides past intermediates in one motion
     const distance = Math.abs(toIdx - fromIdx)
-    let lastIdx = fromIdx
+    activeTabRef.current = next
+    setActiveTab(next)
     setSwitching(true)
     stripTweenRef.current?.kill()
     stripTweenRef.current = gsap.to(strip, {
       x: -toIdx * width,
-      duration: Math.min(0.9, 0.18 + 0.14 * Math.max(1, distance)),
-      ease: 'power2.inOut',
+      duration: Math.min(0.55, 0.22 + 0.08 * Math.max(1, distance)),
+      ease: 'power3.inOut',
       force3D: false,
-      onUpdate() {
-        const prog = this.progress()
-        const idx = Math.round(fromIdx + (toIdx - fromIdx) * prog)
-        if (idx !== lastIdx && TAB_ORDER[idx]) {
-          lastIdx = idx
-          activeTabRef.current = TAB_ORDER[idx]
-          setActiveTab(TAB_ORDER[idx])
-        }
-      },
       onComplete() {
-        activeTabRef.current = next
-        setActiveTab(next)
         setSwitching(false)
       },
     })
