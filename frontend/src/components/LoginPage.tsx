@@ -119,8 +119,9 @@ export function LoginPage() {
 
   const switchMode = (next: AuthMode) => {
     if (next === tab) return
-    const direction = MODE_ORDER[next] > MODE_ORDER[mode] ? 1 : -1
+    const direction = MODE_ORDER[next] > MODE_ORDER[tab] ? 1 : -1
     slideDirectionRef.current = direction
+    targetModeRef.current = next
     setTab(next)
     setError('')
     setMessage('')
@@ -142,7 +143,7 @@ export function LoginPage() {
       overwrite: true,
       onComplete: () => {
         pendingEnterRef.current = true
-        setMode(next)
+        setMode(targetModeRef.current)
       },
     })
   }
