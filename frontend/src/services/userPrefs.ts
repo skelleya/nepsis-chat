@@ -68,39 +68,47 @@ export const DEFAULT_PREFS: UserPrefs = {
   },
 }
 
+/** Hex → "R G B" channel string for Tailwind `rgb(var(--x) / <alpha-value>)`. */
+function hexToRgbChannels(hex: string): string {
+  const h = hex.replace('#', '')
+  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h
+  const n = parseInt(full, 16)
+  return `${(n >> 16) & 255} ${(n >> 8) & 255} ${n & 255}`
+}
+
 const THEMES: Record<ThemeId, Record<string, string>> = {
   dark: {
-    '--app-dark': '#1e1f22',
-    '--app-darker': '#111214',
-    '--app-channel': '#2b2d31',
-    '--app-hover': '#35373c',
-    '--app-text': '#dbdee1',
-    '--app-muted': '#b5bac1',
+    '--app-dark': hexToRgbChannels('#1e1f22'),
+    '--app-darker': hexToRgbChannels('#111214'),
+    '--app-channel': hexToRgbChannels('#2b2d31'),
+    '--app-hover': hexToRgbChannels('#35373c'),
+    '--app-text': hexToRgbChannels('#dbdee1'),
+    '--app-muted': hexToRgbChannels('#b5bac1'),
   },
   midnight: {
-    '--app-dark': '#1a1b2e',
-    '--app-darker': '#0f1020',
-    '--app-channel': '#22243a',
-    '--app-hover': '#2e3150',
-    '--app-text': '#e2e4f0',
-    '--app-muted': '#a8adc4',
+    '--app-dark': hexToRgbChannels('#1a1b2e'),
+    '--app-darker': hexToRgbChannels('#0f1020'),
+    '--app-channel': hexToRgbChannels('#22243a'),
+    '--app-hover': hexToRgbChannels('#2e3150'),
+    '--app-text': hexToRgbChannels('#e2e4f0'),
+    '--app-muted': hexToRgbChannels('#a8adc4'),
   },
   amoled: {
-    '--app-dark': '#0a0a0a',
-    '--app-darker': '#000000',
-    '--app-channel': '#121212',
-    '--app-hover': '#1c1c1c',
-    '--app-text': '#e8e8e8',
-    '--app-muted': '#9a9a9a',
+    '--app-dark': hexToRgbChannels('#0a0a0a'),
+    '--app-darker': hexToRgbChannels('#000000'),
+    '--app-channel': hexToRgbChannels('#121212'),
+    '--app-hover': hexToRgbChannels('#1c1c1c'),
+    '--app-text': hexToRgbChannels('#e8e8e8'),
+    '--app-muted': hexToRgbChannels('#9a9a9a'),
   },
 }
 
 const ACCENTS: Record<AccentId, { accent: string; hover: string }> = {
-  blurple: { accent: '#5865f2', hover: '#4752c4' },
-  green: { accent: '#23a559', hover: '#1a7f43' },
-  teal: { accent: '#1abc9c', hover: '#159a80' },
-  rose: { accent: '#eb459e', hover: '#c73b85' },
-  gold: { accent: '#f0b232', hover: '#c9951f' },
+  blurple: { accent: hexToRgbChannels('#5865f2'), hover: hexToRgbChannels('#4752c4') },
+  green: { accent: hexToRgbChannels('#23a559'), hover: hexToRgbChannels('#1a7f43') },
+  teal: { accent: hexToRgbChannels('#1abc9c'), hover: hexToRgbChannels('#159a80') },
+  rose: { accent: hexToRgbChannels('#eb459e'), hover: hexToRgbChannels('#c73b85') },
+  gold: { accent: hexToRgbChannels('#f0b232'), hover: hexToRgbChannels('#c9951f') },
 }
 
 const FONT_SIZES: Record<FontSizeId, string> = {

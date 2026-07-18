@@ -27,9 +27,12 @@ export function SettingsToggle({
     if (!track || !knob) return
 
     const x = checked ? 20 : 0
-    const accent =
-      getComputedStyle(document.documentElement).getPropertyValue('--app-accent').trim() || '#5865f2'
-    const bg = checked ? accent : '#1e1f22'
+    const accentRaw =
+      getComputedStyle(document.documentElement).getPropertyValue('--app-accent').trim() || '88 101 242'
+    const darkRaw =
+      getComputedStyle(document.documentElement).getPropertyValue('--app-dark').trim() || '30 31 34'
+    const toCss = (raw: string) => (raw.includes(' ') ? `rgb(${raw})` : raw)
+    const bg = checked ? toCss(accentRaw) : toCss(darkRaw)
 
     gsap.killTweensOf([track, knob])
 

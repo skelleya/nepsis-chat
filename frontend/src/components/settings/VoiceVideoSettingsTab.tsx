@@ -184,7 +184,7 @@ export function VoiceVideoSettingsTab() {
             step={0.01}
             value={prefs.outputVolume}
             onChange={(e) => persist({ outputVolume: Number(e.target.value) })}
-            className="w-full accent-[var(--app-accent)]"
+            className="w-full accent-[rgb(var(--app-accent))]"
           />
         </div>
 

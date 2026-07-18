@@ -3,14 +3,15 @@
 @tailwind utilities;
 
 :root {
-  --app-dark: #1e1f22;
-  --app-darker: #111214;
-  --app-channel: #2b2d31;
-  --app-hover: #35373c;
-  --app-accent: #5865f2;
-  --app-accent-hover: #4752c4;
-  --app-text: #dbdee1;
-  --app-muted: #b5bac1;
+  /* Space-separated RGB — required for Tailwind opacity modifiers (border-app-dark/50, etc.) */
+  --app-dark: 30 31 34;
+  --app-darker: 17 18 20;
+  --app-channel: 43 45 49;
+  --app-hover: 53 55 60;
+  --app-accent: 88 101 242;
+  --app-accent-hover: 71 82 196;
+  --app-text: 219 222 225;
+  --app-muted: 181 186 193;
   --app-font-size: 16px;
   --chat-msg-py: 0.375rem;
 }
