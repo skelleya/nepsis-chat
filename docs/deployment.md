@@ -40,10 +40,12 @@ Deploy the Express + Socket.io backend so Vercel can reach it (fixes production 
 1. Go to [railway.app](https://railway.app/) → sign up (GitHub is easiest)
 2. **New Project** → **Deploy from GitHub repo** → select `nepsis-chat`
 3. After it appears, open the service → **Settings**:
-   - **Root Directory:** `backend`
-   - If using Docker: Dockerfile path is `Dockerfile` (inside `backend/`). Build context is `backend/` — do **not** use repo-root `COPY backend/...` paths.
-   - **Start Command:** `npm start` (only if not using Dockerfile; Docker image already runs `node src/index.js`)
-4. **Settings → Networking → Generate Domain** — leave Railway’s detected port (it injects `PORT`). Do **not** hardcode `PORT` in the Dockerfile. If you must pick: check deploy logs for `Server running on port …` and use that number.
+   - **Root Directory:** `backend` ← **required** (monorepo)
+   - Builder should be **Nixpacks** (`backend/railway.toml`). There is no `Dockerfile` in `backend/` anymore (`Dockerfile.vps` is for self-host only).
+   - **Start Command:** `npm start`
+4. **Settings → Networking → Generate Domain**:
+   - Target port = the port in Deploy Logs (`Server running on port 8080` → enter **8080**)
+   - Wrong port ⇒ **“Application failed to respond”** even if the app is healthy
 
 You should get something like `https://nepsis-chat-production-xxxx.up.railway.app`.
 
@@ -105,18 +107,19 @@ Default port: 3000. Use `PORT=8080` to override.
 
 ```bash
 # From project root (build context: backend folder)
-docker build -f backend/Dockerfile -t nepsis-backend backend
-docker run -p 3000:8080 \
+docker build -f backend/Dockerfile.vps -t nepsis-backend backend
+docker run -p 3000:3000 \
+  -e PORT=3000 \
   -e SUPABASE_URL=https://YOUR_PROJECT.supabase.co \
   -e SUPABASE_SERVICE_ROLE_KEY=your_service_role_key \
   -e CORS_ORIGINS='*' \
   nepsis-backend
 ```
 
-Or use the root `Dockerfile`:
+Or use the root `Dockerfile.vps`:
 
 ```bash
-docker build -t nepsis-backend .
+docker build -f Dockerfile.vps -t nepsis-backend .
 docker run -p 3000:8080 \
   -e SUPABASE_URL=... \
   -e SUPABASE_SERVICE_ROLE_KEY=... \

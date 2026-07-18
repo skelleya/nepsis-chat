@@ -6,6 +6,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 // Supabase client is imported by each route — no SQLite init needed
 import { authRouter } from './routes/auth.js'
+import { isSupabaseConfigured } from './db/supabase.js'
 import { serversRouter } from './routes/servers.js'
 import { messagesRouter } from './routes/messages.js'
 import { uploadsRouter } from './routes/uploads.js'
@@ -22,6 +23,9 @@ import { webrtcRouter } from './routes/webrtc.js'
 import { registerChatHandlers } from './socket/chat.js'
 import { registerVoiceHandlers } from './socket/voice.js'
 import { registerCallHandlers } from './socket/calls.js'
+
+const PORT = Number(process.env.PORT) || 3000
+console.log(`[boot] starting nepsis backend PORT=${PORT} NODE_ENV=${process.env.NODE_ENV || ''}`)
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
@@ -68,6 +72,15 @@ const io = new Server(httpServer, {
 })
 app.use(express.json())
 
+// Root health (Railway healthcheck) — registered before API routers
+app.get('/health', (_req, res) => {
+  res.json({
+    ok: true,
+    supabaseConfigured: isSupabaseConfigured,
+    port: PORT,
+  })
+})
+
 // API routes
 app.use('/api/auth', authRouter)
 app.use('/api/servers', serversRouter)
@@ -109,8 +122,12 @@ registerChatHandlers(chatNamespace)
 registerVoiceHandlers(voiceNamespace)
 registerCallHandlers(callsNamespace)
 
-const PORT = Number(process.env.PORT) || 3000
 // Bind 0.0.0.0 so Railway/Docker proxies can reach the process
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`)
+})
+
+httpServer.on('error', (err) => {
+  console.error('[boot] listen failed:', err)
+  process.exit(1)
 })
