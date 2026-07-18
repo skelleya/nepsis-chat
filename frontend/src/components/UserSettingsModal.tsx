@@ -20,6 +20,16 @@ type ProfilePreview = {
 
 type TabId = 'account' | 'profiles' | 'privacy' | 'appearance' | 'voice' | 'notifications' | 'help'
 
+const TAB_ORDER: Record<TabId, number> = {
+  account: 0,
+  profiles: 1,
+  privacy: 2,
+  appearance: 3,
+  voice: 4,
+  notifications: 5,
+  help: 6,
+}
+
 function HelpTab({ user }: { user: { id: string; username: string; is_guest?: boolean } }) {
   const isGuest = user.is_guest ?? true
   const [title, setTitle] = useState('')
@@ -191,8 +201,10 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
   const indicatorRef = useRef<HTMLDivElement>(null)
   const tabBtnRefs = useRef<Partial<Record<TabId, HTMLButtonElement | null>>>({})
   const closingRef = useRef(false)
-  const contentReadyRef = useRef(false)
   const navIndicatorReadyRef = useRef(false)
+  const slideDirectionRef = useRef(1)
+  const pendingEnterRef = useRef(false)
+  const targetTabRef = useRef<TabId>('account')
 
   useLayoutEffect(() => {
     const overlay = overlayRef.current
@@ -250,55 +262,55 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
     return () => window.removeEventListener('resize', onResize)
   }, [moveNavIndicator])
 
+  useLayoutEffect(() => {
+    const content = contentRef.current
+    if (!content || !pendingEnterRef.current) return
+    pendingEnterRef.current = false
+
+    const direction = slideDirectionRef.current
+    contentTweenRef.current?.kill()
+    contentTweenRef.current = gsap.fromTo(
+      content,
+      { x: 56 * direction, opacity: 0 },
+      {
+        x: 0,
+        opacity: 1,
+        duration: 0.4,
+        ease: 'power3.out',
+        overwrite: true,
+        onComplete: () => setSwitching(false),
+      }
+    )
+  }, [displayedTab])
+
   const switchTab = (next: TabId) => {
     if (next === activeTab || switching) return
+    const direction = TAB_ORDER[next] > TAB_ORDER[activeTab] ? 1 : -1
+    slideDirectionRef.current = direction
+    targetTabRef.current = next
     setActiveTab(next)
 
-    const el = contentRef.current
-    if (!el || next === displayedTab) {
+    const content = contentRef.current
+    if (!content || next === displayedTab) {
       setDisplayedTab(next)
+      setSwitching(false)
       return
     }
 
     setSwitching(true)
     contentTweenRef.current?.kill()
-    contentTweenRef.current = gsap.to(el, {
+    contentTweenRef.current = gsap.to(content, {
+      x: -56 * direction,
       opacity: 0,
-      y: -18,
-      duration: 0.18,
-      ease: 'power2.in',
-      force3D: false,
+      duration: 0.28,
+      ease: 'power3.in',
+      overwrite: true,
       onComplete: () => {
-        setDisplayedTab(next)
+        pendingEnterRef.current = true
+        setDisplayedTab(targetTabRef.current)
       },
     })
   }
-
-  useLayoutEffect(() => {
-    const el = contentRef.current
-    if (!el) return
-    if (!contentReadyRef.current) {
-      contentReadyRef.current = true
-      return
-    }
-    contentTweenRef.current?.kill()
-    contentTweenRef.current = gsap.fromTo(
-      el,
-      { opacity: 0, y: 22 },
-      {
-        opacity: 1,
-        y: 0,
-        duration: 0.28,
-        ease: 'power2.out',
-        force3D: false,
-        clearProps: 'transform',
-        onComplete: () => setSwitching(false),
-      }
-    )
-    return () => {
-      contentTweenRef.current?.kill()
-    }
-  }, [displayedTab])
 
   const requestClose = () => {
     if (closingRef.current) return
@@ -618,11 +630,12 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
           </div>
         </div>
 
-        {/* Main content — slide/fade up between pages; thin scrollbar runs under the close button */}
+        {/* Main content — directional horizontal slide between pages; thin scrollbar under close */}
         <div className="flex-1 min-w-0 min-h-0 overflow-hidden relative">
+          <div className="h-full overflow-x-hidden overflow-y-auto p-6 pr-5 settings-scroll">
           <div
             ref={contentRef}
-            className="h-full overflow-y-auto p-6 pr-5 settings-scroll will-change-transform"
+            className="will-change-transform"
           >
               {displayedTab === 'account' && (
               <div>
@@ -802,6 +815,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
               {displayedTab === 'help' && (
                 <HelpTab user={user} />
               )}
+          </div>
           </div>
         </div>
 

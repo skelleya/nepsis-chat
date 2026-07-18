@@ -70,7 +70,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Login tab glide — Guest / Sign In / Sign Up form panel slides horizontally in the travel direction (with the pill) |
 | + | Login form height lock — Guest matches Sign In / Sign Up height (fixed panel) so tab switches don’t resize the card |
 | + | App height fill fix — html/body/#root 100% height; main shell uses `fixed inset-0` to remove black bottom gap |
-| + | User Settings GSAP — Modal opens/closes with GSAP; fixed panel height; sidebar accent pill slides between buttons; content pages slide/fade up on change |
+| + | User Settings GSAP — Modal opens/closes with GSAP; fixed panel height; sidebar accent pill slides between buttons; content pages slide horizontally in travel direction (like login tabs) |
 | + | Settings controls GSAP — Shared `SettingsDropdown` (portal list, fade/scale open-close) and `SettingsToggle` (knob slide + track color) on Privacy / Voice / Notifications / Profiles |
 | + | UserPanel GSAP — Status dropdown open/close animates; mute/deafen buttons scale-punch on click; status dot pops when status changes |
 | + | ServerBar bubble GSAP — Friends + Community server bubbles scale-punch on click |
@@ -80,6 +80,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Profile identities — Public Personal/Work personas (bio, discoverable); search by display name not login; per-server appear-as preset; My Account default profile selector |
 | + | My Account profile defaults — Until onboarding: Personal auto-seeds to signup username; Work locked until saved; switching/saving profiles updates My Account name immediately |
 | + | Supabase project — Active project `qeopqyquskszzgprghiy` (`https://qeopqyquskszzgprghiy.supabase.co`); MCP connected; 19 migrations applied + public `attachments` bucket; frontend anon key wired; backend prefers `SUPABASE_SERVICE_ROLE_KEY` and falls back to anon for local/dev if blank |
+| + | User Settings page slide — Sidebar tabs (My Account → Help) animate content with directional GSAP horizontal slide |
 | + | Login logo coin spin — Nepsis logo on LoginPage spins left/right with cursor movement via GSAP `rotationY` (`quickSetter` must pass `'deg'` or non-zero spins are ignored); after swipe it coasts with friction and eases back to the front-facing position |
 | + | Login logo coin thickness — 3D coin with front/back faces + rim segments so the edge shows when viewed on its side |
 | + | Login tab pill — Shared accent indicator slides between Guest / Sign In / Sign Up via GSAP (no per-button background flash) |
