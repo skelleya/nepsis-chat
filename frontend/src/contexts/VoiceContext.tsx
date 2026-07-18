@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useCallback, useRef, useEffect } f
 import { createBroadcastSignaling } from '../services/signaling'
 import { createSocketSignaling } from '../services/socketSignaling'
 import { createWebRTCClient } from '../services/webrtc'
+import { ensureIceServers } from '../services/iceConfig'
 import { sounds } from '../services/sounds'
 import { getAudioConstraints, getVideoConstraints } from '../services/userPrefs'
 
@@ -190,19 +191,25 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         : userId
       sounds.voiceConnected()
 
-      const webrtc = createWebRTCClient(localId, signaling as Parameters<typeof createWebRTCClient>[1], {
-        onRemoteStream: (_, pUserId, pUsername, remoteStream) => {
-          addOrUpdateParticipant(pUserId, pUsername, remoteStream)
+      const iceServers = await ensureIceServers()
+      const webrtc = createWebRTCClient(
+        localId,
+        signaling as Parameters<typeof createWebRTCClient>[1],
+        {
+          onRemoteStream: (_, pUserId, pUsername, remoteStream) => {
+            addOrUpdateParticipant(pUserId, pUsername, remoteStream)
+          },
+          onPeerLeft: (peerId) => {
+            removeParticipant(peerId)
+            sounds.userLeave()
+          },
+          onPeerJoined: (pUserId, pUsername, playSound = true) => {
+            addOrUpdateParticipant(pUserId, pUsername, null)
+            if (playSound) sounds.userJoin()
+          },
         },
-        onPeerLeft: (peerId) => {
-          removeParticipant(peerId)
-          sounds.userLeave()
-        },
-        onPeerJoined: (pUserId, pUsername, playSound = true) => {
-          addOrUpdateParticipant(pUserId, pUsername, null)
-          if (playSound) sounds.userJoin()
-        },
-      })
+        iceServers
+      )
       webrtcRef.current = webrtc
       webrtc.addLocalStream(stream)
     } catch (err) {

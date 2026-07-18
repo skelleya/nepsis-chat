@@ -164,6 +164,9 @@ The `backend/Dockerfile` builds the backend. Use `context = "backend"` or build 
 | `SUPABASE_URL` | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
 | `CORS_ORIGINS` | Allowed origins (default `*`) |
+| `TURN_URLS` | Optional comma-separated TURN URLs for P2P voice/calls |
+| `TURN_USERNAME` | TURN username |
+| `TURN_CREDENTIAL` | TURN password |
 
 ### Frontend (build-time)
 
@@ -172,6 +175,7 @@ The `backend/Dockerfile` builds the backend. Use `context = "backend"` or build 
 | `VITE_API_URL` | `http://localhost:3000/api` | Your backend URL (e.g. `https://your-server.com/api`) |
 | `VITE_SUPABASE_URL` | (from `.env.local`) | `https://qeopqyquskszzgprghiy.supabase.co` |
 | `VITE_SUPABASE_ANON_KEY` | (from `.env.local`) | (paste from new project API settings into `.env.production` / Vercel) |
+| `VITE_TURN_*` | — | Optional TURN fallback; prefer backend `TURN_*` + `/api/webrtc/ice` |
 
 ### Electron
 

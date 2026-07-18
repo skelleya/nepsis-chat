@@ -50,10 +50,45 @@ Voice channels with WebRTC and Opus codec.
 
 ---
 
-## ICE Servers
+## ICE Servers (STUN + TURN)
 
-- `stun:stun.l.google.com:19302`
-- TURN can be added later for NAT traversal
+Voice channels and DM calls stay **P2P**. STUN finds a public address; **TURN** relays media only when a direct path fails (strict NAT/firewall).
+
+| Source | Priority | Config |
+|--------|----------|--------|
+| `GET /api/webrtc/ice` | Preferred | Backend `TURN_URLS`, `TURN_USERNAME`, `TURN_CREDENTIAL` |
+| Vite env | Fallback | `VITE_TURN_URLS`, `VITE_TURN_USERNAME`, `VITE_TURN_CREDENTIAL` |
+| Built-in | Always | Google STUN (`stun.l.google.com`, `stun1.l.google.com`) |
+
+Shared helper: `frontend/src/services/iceConfig.ts` → used by `VoiceContext`, `CallContext`, `useVoiceChannel`, `webrtc.ts`.
+
+### Quick TURN options
+
+1. **Managed** — Metered, Twilio Network Traversal, Cloudflare Calls TURN, etc. Paste URLs + creds into backend `.env`.
+2. **Self-host coturn** (e.g. Hetzner monthly) — example:
+
+```bash
+# docker run example (replace passwords / realm / external IP)
+docker run -d --network=host instrumentisto/coturn \
+  -n --log-file=stdout \
+  --realm=turn.example.com \
+  --external-ip=YOUR_PUBLIC_IP \
+  --listening-port=3478 \
+  --fingerprint --lt-cred-mech \
+  --user=nepsis:CHANGE_ME \
+  --no-multicast-peers
+```
+
+```env
+# backend/.env
+TURN_URLS=turn:YOUR_PUBLIC_IP:3478,turns:YOUR_PUBLIC_IP:5349
+TURN_USERNAME=nepsis
+TURN_CREDENTIAL=CHANGE_ME
+```
+
+Open UDP/TCP **3478** (and **5349** if using TLS). Restart the backend after changing env. Clients pick up TURN on the next voice join / call (ICE list is cached per page load).
+
+Without TURN configured, the app still works via STUN + host candidates (same LAN / easy NAT).
 
 ---
 

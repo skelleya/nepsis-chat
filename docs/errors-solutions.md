@@ -201,7 +201,9 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 |-------|-------|----------|
 | Call button does nothing / no ring | `/calls` namespace not registered on backend | Ensure `registerCallHandlers(callsNamespace)` is in `backend/src/index.js` and backend is restarted |
 | "User is offline" immediately after clicking Call | Target user's browser hasn't connected to the `/calls` namespace yet | The CallProvider must be mounted (user must be logged in). Check that `CallProvider` wraps `MainLayout` in `App.tsx` |
-| No audio after accepting call | WebRTC ICE candidate exchange failed (firewall/NAT) | Add TURN server to ICE_CONFIG in `CallContext.tsx` for strict NAT environments |
+| No audio after accepting call / voice | WebRTC ICE failed (firewall/strict NAT); STUN-only can’t relay | Configure TURN: set backend `TURN_URLS` + `TURN_USERNAME` + `TURN_CREDENTIAL`, restart API. Clients load via `GET /api/webrtc/ice`. Or set `VITE_TURN_*` as fallback. See [webrtc-voice.md](webrtc-voice.md). |
+| **White screen after agent/branch switch** | Workspace moved to another git branch (e.g. TURN work off `master`) while Vite HMR was running; module graph breaks. Not caused by TURN itself (TURN only loads on voice/call). | Hard refresh the browser; restart `frontend` (`npm run dev`). Confirm backend is up (`localhost:3000`). If you still need GSAP/settings work, switch back to that feature branch and merge TURN into it. |
+| **Completely blank white app (no login, no UI)** | Login crossfade GSAP `onComplete` called `setShowLogin(false)` after logout (or mid-transition), leaving `showApp` and `showLogin` both false — `#root` rendered nothing. | **Fix**: Kill login tweens on logout; only hide login if still signed in; always show login layer when `!user`; wrap app in `ErrorBoundary`. File: `App.tsx`, `ErrorBoundary.tsx`. |
 | Call rings forever / doesn't auto-decline | Timeout not firing | Both caller and callee have 30s timeouts. Check browser console for errors in CallContext |
 
 **Files:** `backend/src/socket/calls.js`, `frontend/src/contexts/CallContext.tsx`, `frontend/src/components/CallOverlay.tsx`
