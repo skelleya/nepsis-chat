@@ -206,7 +206,7 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
   return (
     <div ref={pageRef} className="flex-1 flex flex-col overflow-hidden min-w-0">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-app-dark/80 flex-shrink-0">
+      <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0">
         {onClose && (
           <button
             onClick={onClose}
@@ -222,7 +222,7 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 px-4 pt-3 pb-2 border-b border-app-dark/50 flex-shrink-0">
+      <div className="flex gap-1 px-4 pt-1 pb-2 flex-shrink-0">
         {tabs.map((tab) => (
           <button
             key={tab.id}
