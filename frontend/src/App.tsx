@@ -597,7 +597,7 @@ function MainLayout({
       />
 
       {/* Channel list + User panel wrapper */}
-      <div className="w-60 bg-app-channel flex flex-col flex-shrink-0">
+      <div className="w-72 bg-app-channel flex flex-col flex-shrink-0">
         <ChannelList
           channels={displayChannels.map((c) => ({ id: c.id, name: c.name, type: c.type as 'text' | 'voice' | 'rules', serverId: c.server_id, order: c.order, categoryId: c.category_id }))}
           categories={categories.map((cat) => ({ id: cat.id, name: cat.name, serverId: cat.server_id, order: cat.order }))}
