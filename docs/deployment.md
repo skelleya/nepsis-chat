@@ -96,8 +96,10 @@ For Vercel: set `VITE_API_URL` in the Vercel dashboard to your backend URL.
 
 | Item | Value |
 |------|-------|
-| Project URL | `https://opkatioqcmamnwmvqdtq.supabase.co` |
-| Dashboard | `https://supabase.com/dashboard/project/opkatioqcmamnwmvqdtq` |
+| Project URL | `https://qeopqyquskszzgprghiy.supabase.co` |
+| Project ref | `qeopqyquskszzgprghiy` |
+| Dashboard | `https://supabase.com/dashboard/project/qeopqyquskszzgprghiy` |
+| MCP (scoped) | `https://mcp.supabase.com/mcp?project_ref=qeopqyquskszzgprghiy` |
 | Database | Postgres (tables: users, servers, channels, messages, dm_*) |
 | Auth | Email/password sign up + sign in |
 
@@ -168,8 +170,8 @@ The `backend/Dockerfile` builds the backend. Use `context = "backend"` or build 
 | Variable | Dev | Production |
 |----------|-----|------------|
 | `VITE_API_URL` | `http://localhost:3000/api` | Your backend URL (e.g. `https://your-server.com/api`) |
-| `VITE_SUPABASE_URL` | (from `.env.local`) | `https://opkatioqcmamnwmvqdtq.supabase.co` |
-| `VITE_SUPABASE_ANON_KEY` | (from `.env.local`) | (in `.env.production`) |
+| `VITE_SUPABASE_URL` | (from `.env.local`) | `https://qeopqyquskszzgprghiy.supabase.co` |
+| `VITE_SUPABASE_ANON_KEY` | (from `.env.local`) | (paste from new project API settings into `.env.production` / Vercel) |
 
 ### Electron
 
