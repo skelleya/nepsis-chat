@@ -65,6 +65,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Download banner — Web-only banner overlay prompting users to download the desktop app; dismissible with close button; state persisted in localStorage; hidden on /download page |
 | + | Download banner spacing fix — Message wraps instead of overflowing; flat `[text] [Download] [X]` row; CSS var `--download-banner-height` offsets LoginPage so guest username form is not cramped under the banner |
 | + | Download banner centering — Banner message centered on any viewport width; Download / dismiss pinned to the right |
+| + | Download banner compact tab — Small centered top banner (not full-bleed); rounded bottom corners, sharp top edge flush with viewport |
 | + | Last channel per server — When switching servers, auto-restore the last selected channel for that server; persisted in localStorage (nepsis_last_channel); cleared on logout |
 | + | Emoji picker — Click-outside-to-close; improved styling (rounded-xl, shadow-2xl, better spacing, active scale feedback) |
 | + | Chat input — Send button uses up-arrow icon; @mention autocomplete (@everyone, @username); :emoji: shortcode autocomplete (e.g. :smile:) |

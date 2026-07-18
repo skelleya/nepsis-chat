@@ -45,30 +45,31 @@ export function DownloadBanner() {
   if (!visible || pathname === '/download') return null
 
   return (
-    <div ref={bannerRef} className="fixed top-0 left-0 right-0 z-50 bg-app-accent text-white shadow-lg">
-      <div className="relative flex items-center justify-center px-4 py-2.5 min-h-[2.75rem]">
-        <p className="text-sm font-semibold leading-snug text-center px-28 sm:px-36">
+    <div className="fixed top-0 left-0 right-0 z-50 flex justify-center pointer-events-none">
+      <div
+        ref={bannerRef}
+        className="pointer-events-auto flex items-center gap-3 max-w-[min(92vw,36rem)] bg-app-accent text-white px-4 py-2.5 rounded-b-2xl shadow-md"
+      >
+        <p className="min-w-0 text-sm font-semibold leading-snug text-center">
           Using the web app? Download Nepsis for desktop for a better experience.
         </p>
-        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-3">
-          <Link
-            to="/download"
-            className="flex-shrink-0 px-3 py-1.5 rounded-md bg-white/20 hover:bg-white/30 font-medium text-sm transition-colors whitespace-nowrap"
-          >
-            Download
-          </Link>
-          <button
-            onClick={dismiss}
-            className="flex-shrink-0 p-1.5 rounded hover:bg-white/20 transition-colors"
-            title="Dismiss"
-            aria-label="Dismiss banner"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
+        <Link
+          to="/download"
+          className="flex-shrink-0 px-3 py-1 rounded-md bg-white/20 hover:bg-white/30 font-medium text-sm transition-colors whitespace-nowrap"
+        >
+          Download
+        </Link>
+        <button
+          onClick={dismiss}
+          className="flex-shrink-0 p-1 rounded hover:bg-white/20 transition-colors"
+          title="Dismiss"
+          aria-label="Dismiss banner"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
       </div>
     </div>
   )
