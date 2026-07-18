@@ -88,6 +88,7 @@ export function LoginPage() {
   const coinRef = useRef<HTMLDivElement>(null)
   const coinRotationRef = useRef(0)
   const coinVelocityRef = useRef(0)
+  const coinPeakVelocityRef = useRef(0)
   const coinLastXRef = useRef<number | null>(null)
   const pendingEnterRef = useRef(false)
   const slideDirectionRef = useRef(1)
@@ -108,10 +109,16 @@ export function LoginPage() {
     const coin = coinRef.current
     if (!coin || !deltaX) return
     coinVelocityRef.current = deltaX
-    coinRotationRef.current += deltaX * 1.6
+    // Track peak swipe speed (signed) for multi-spin settle
+    if (Math.abs(deltaX) > Math.abs(coinPeakVelocityRef.current)) {
+      coinPeakVelocityRef.current = deltaX
+    }
+    // Faster cursor = stronger immediate spin
+    const boost = 1.5 + Math.min(2.5, Math.abs(deltaX) * 0.08)
+    coinRotationRef.current += deltaX * boost
     gsap.to(coin, {
       rotationY: coinRotationRef.current,
-      duration: 0.25,
+      duration: 0.2,
       ease: 'power2.out',
       overwrite: 'auto',
       transformStyle: 'preserve-3d',
@@ -133,27 +140,36 @@ export function LoginPage() {
     if (!coin) return
 
     const face = 180
+    const turn = 360
     const current = coinRotationRef.current
-    const velocity = coinVelocityRef.current
+    // Prefer latest velocity; fall back to peak swipe speed for quick fly-bys
+    const velocity =
+      Math.abs(coinVelocityRef.current) > 1.2
+        ? coinVelocityRef.current
+        : coinPeakVelocityRef.current
+
     coinVelocityRef.current = 0
+    coinPeakVelocityRef.current = 0
     coinLastXRef.current = null
 
+    const speed = Math.abs(velocity)
+    const dir = velocity >= 0 ? 1 : -1
+
+    // Map swipe speed → extra full rotations (0–5) before landing on a face
+    const extraSpins =
+      speed < 2 ? 0 : Math.min(5, Math.floor((speed - 2) / 5) + 1)
+
     let target: number
-    if (Math.abs(velocity) > 1.5) {
-      // Keep momentum: glide to the next face in the spin direction
-      if (velocity > 0) {
-        target = Math.ceil(current / face) * face
-        if (Math.abs(target - current) < 0.5) target += face
-      } else {
-        target = Math.floor(current / face) * face
-        if (Math.abs(target - current) < 0.5) target -= face
-      }
+    if (speed > 1.2) {
+      target = dir > 0 ? Math.ceil(current / face) * face : Math.floor(current / face) * face
+      if (Math.abs(target - current) < 0.5) target += dir * face
+      target += dir * extraSpins * turn
     } else {
       target = Math.round(current / face) * face
     }
 
     const distance = Math.abs(target - current)
-    const duration = Math.min(1.35, Math.max(0.55, 0.45 + distance / 420))
+    const duration = Math.min(2.2, Math.max(0.6, 0.5 + distance / 380))
 
     coinRotationRef.current = target
     gsap.to(coin, {
@@ -167,6 +183,7 @@ export function LoginPage() {
 
   const handleCoinPointerEnter = (e: React.PointerEvent<HTMLDivElement>) => {
     coinLastXRef.current = e.clientX
+    coinPeakVelocityRef.current = 0
     gsap.killTweensOf(coinRef.current)
     try {
       e.currentTarget.setPointerCapture(e.pointerId)
