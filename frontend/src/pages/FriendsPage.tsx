@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react'
+import gsap from 'gsap'
 import * as api from '../services/api'
 import { useApp } from '../contexts/AppContext'
 import { useCall } from '../contexts/CallContext'
@@ -42,6 +43,7 @@ function StatusDot({ status }: { status?: string }) {
 export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = true }: FriendsPageProps) {
   const { user } = useApp()
   const call = useCall()
+  const pageRef = useRef<HTMLDivElement>(null)
   const [friends, setFriends] = useState<Friend[]>([])
   const [requests, setRequests] = useState<FriendRequest[]>([])
   const [loading, setLoading] = useState(true)
@@ -52,6 +54,23 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
   const [addFriendLoading, setAddFriendLoading] = useState(false)
   const [addFriendError, setAddFriendError] = useState<string | null>(null)
   const [addFriendSuccess, setAddFriendSuccess] = useState<string | null>(null)
+
+  useLayoutEffect(() => {
+    const page = pageRef.current
+    if (!page) return
+    gsap.fromTo(
+      page,
+      { opacity: 0, x: 28 },
+      {
+        opacity: 1,
+        x: 0,
+        duration: 0.4,
+        ease: 'power3.out',
+        force3D: false,
+        clearProps: 'transform',
+      }
+    )
+  }, [])
 
   const load = useCallback(async () => {
     if (!user) return
@@ -164,7 +183,7 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
   ]
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div ref={pageRef} className="flex-1 flex flex-col overflow-hidden min-w-0">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-app-dark/80 flex-shrink-0">
         {onClose && (

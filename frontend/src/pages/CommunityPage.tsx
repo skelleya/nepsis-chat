@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
+import gsap from 'gsap'
 import * as api from '../services/api'
 import { useApp } from '../contexts/AppContext'
 
@@ -16,10 +17,28 @@ interface CommunityPageProps {
 
 export function CommunityPage({ onJoinServer, onClose }: CommunityPageProps) {
   const { user, servers, loadServers, setCurrentServer } = useApp()
+  const pageRef = useRef<HTMLDivElement>(null)
   const [communityServers, setCommunityServers] = useState<ServerItem[]>([])
   const [inviteCode, setInviteCode] = useState('')
   const [joining, setJoining] = useState(false)
   const [joinError, setJoinError] = useState<string | null>(null)
+
+  useLayoutEffect(() => {
+    const page = pageRef.current
+    if (!page) return
+    gsap.fromTo(
+      page,
+      { opacity: 0, x: 28 },
+      {
+        opacity: 1,
+        x: 0,
+        duration: 0.4,
+        ease: 'power3.out',
+        force3D: false,
+        clearProps: 'transform',
+      }
+    )
+  }, [])
 
   useEffect(() => {
     api.getCommunityServers().then(setCommunityServers).catch(() => setCommunityServers([]))
@@ -62,7 +81,7 @@ export function CommunityPage({ onJoinServer, onClose }: CommunityPageProps) {
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-y-auto">
+    <div ref={pageRef} className="flex-1 flex flex-col overflow-y-auto min-w-0">
       <div className="flex-1 p-6 md:p-8 max-w-2xl">
         {onClose && (
           <button
