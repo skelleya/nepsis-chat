@@ -48,9 +48,7 @@ export function DownloadBanner() {
     }
   }, [mounted, pathname])
 
-  const dismiss = (e?: React.MouseEvent) => {
-    e?.preventDefault()
-    e?.stopPropagation()
+  const dismiss = () => {
     if (closing) return
     setClosing(true)
     localStorage.setItem(STORAGE_KEY, '1')
@@ -79,13 +77,16 @@ export function DownloadBanner() {
     <div className="fixed top-0 left-0 right-0 z-50 flex justify-center pointer-events-none">
       <div
         ref={bannerRef}
-        className="pointer-events-auto relative flex items-center gap-2 bg-app-accent text-white pl-4 pr-2 py-2 rounded-b-xl shadow-sm will-change-transform"
+        className="pointer-events-auto flex items-center gap-3 bg-app-accent text-white pl-4 pr-2 py-2 rounded-b-xl shadow-sm will-change-transform"
       >
+        <p className="text-[13px] font-medium leading-snug whitespace-nowrap">
+          Prefer the desktop app?
+        </p>
         <Link
           to="/download"
-          className="text-[13px] font-medium tracking-wide hover:opacity-90 transition-opacity"
+          className="flex-shrink-0 px-3 py-1 rounded-md bg-white/20 hover:bg-white/30 font-medium text-[13px] transition-colors whitespace-nowrap"
         >
-          Download Nepsis for desktop
+          Download
         </Link>
         <button
           onClick={dismiss}
