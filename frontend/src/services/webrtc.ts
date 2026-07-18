@@ -22,14 +22,16 @@ export interface SignalingBridge {
   getSocketId?: () => string | undefined
 }
 
-const ICE_SERVERS: RTCIceServer[] = [
+const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
 ]
 
 export function createWebRTCClient(
   localId: string,
   signaling: SignalingBridge,
-  handlers: WebRTCHandlers
+  handlers: WebRTCHandlers,
+  iceServers: RTCIceServer[] = DEFAULT_ICE_SERVERS
 ) {
   const peers = new Map<string, { pc: RTCPeerConnection; userId?: string; username?: string; remoteStream: MediaStream }>()
   // Reverse map: userId → socketId, so we can look up peers by either key
@@ -38,9 +40,10 @@ export function createWebRTCClient(
   const pendingCandidates = new Map<string, RTCIceCandidateInit[]>()
   let currentLocalStream: MediaStream | null = null
   const isSocketMode = !!signaling.getSocketId
+  const resolvedIceServers = iceServers.length > 0 ? iceServers : DEFAULT_ICE_SERVERS
 
   const createPeerConnection = (remotePeerId: string, userId?: string, username?: string): RTCPeerConnection => {
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
+    const pc = new RTCPeerConnection({ iceServers: resolvedIceServers })
 
     // Create a single combined remote stream per peer so audio + video tracks coexist
     const remoteStream = new MediaStream()

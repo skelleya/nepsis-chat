@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { createBroadcastSignaling } from '../services/signaling'
 import { createSocketSignaling } from '../services/socketSignaling'
 import { createWebRTCClient } from '../services/webrtc'
+import { ensureIceServers } from '../services/iceConfig'
 
 export interface VoiceParticipant {
   userId: string
@@ -50,14 +51,20 @@ export function useVoiceChannel(channelId: string | null, userId: string, userna
       await signaling.join()
 
       const localId = USE_SOCKET ? (signaling as { getSocketId?: () => string }).getSocketId?.() ?? userId : userId
-      const webrtc = createWebRTCClient(localId, signaling as Parameters<typeof createWebRTCClient>[1], {
-        onRemoteStream: (_, pUserId, pUsername, remoteStream) => {
-          addOrUpdateParticipant(pUserId, pUsername, remoteStream)
+      const iceServers = await ensureIceServers()
+      const webrtc = createWebRTCClient(
+        localId,
+        signaling as Parameters<typeof createWebRTCClient>[1],
+        {
+          onRemoteStream: (_, pUserId, pUsername, remoteStream) => {
+            addOrUpdateParticipant(pUserId, pUsername, remoteStream)
+          },
+          onPeerLeft: (peerId) => {
+            removeParticipant(peerId)
+          },
         },
-        onPeerLeft: (peerId) => {
-          removeParticipant(peerId)
-        },
-      })
+        iceServers
+      )
       webrtcRef.current = webrtc
       webrtc.addLocalStream(stream)
     } catch (err) {

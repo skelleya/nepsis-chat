@@ -58,6 +58,7 @@ Node.js + Express + Socket.io + SQLite.
 | PATCH | `/api/soundboard/:id` | Update soundboard sound (JSON: `userId`, `emoji`) — change emoji |
 | DELETE | `/api/soundboard/:id` | Delete soundboard sound (`?userId=`) |
 | GET | `/api/servers/:id/rules-acceptance` | Check if user accepted rules (`?userId=`) — for channel lock |
+| GET | `/api/webrtc/ice` | Public ICE list (STUN + optional TURN from `TURN_*` env) for voice/calls |
 
 ### Static
 

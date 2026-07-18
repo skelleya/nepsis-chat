@@ -21,15 +21,12 @@ import {
 } from 'react'
 import { io, type Socket } from 'socket.io-client'
 import { sounds } from '../services/sounds'
+import { ensureIceServers } from '../services/iceConfig'
 import { useVoice } from './VoiceContext'
 import { applyAudioOutputDevice, getAudioConstraints, loadPrefs } from '../services/userPrefs'
 
 const SOCKET_URL =
   import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000'
-
-const ICE_CONFIG: RTCConfiguration = {
-  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-}
 
 export type CallState = 'idle' | 'calling' | 'ringing' | 'in-call'
 
@@ -148,7 +145,8 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: getAudioConstraints() })
       localStreamRef.current = stream
 
-      const pc = new RTCPeerConnection(ICE_CONFIG)
+      const iceServers = await ensureIceServers()
+      const pc = new RTCPeerConnection({ iceServers })
       pcRef.current = pc
 
       // Add local audio
@@ -200,6 +198,11 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
     },
     [startDurationTimer]
   )
+
+  // Prefetch STUN/TURN so the first call does not wait on /api/webrtc/ice
+  useEffect(() => {
+    ensureIceServers().catch(() => {})
+  }, [])
 
   // ─── Socket connection (persists for the lifetime of the provider)
   useEffect(() => {
