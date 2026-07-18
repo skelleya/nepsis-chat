@@ -19,8 +19,8 @@ const MODE_ORDER: Record<AuthMode, number> = {
 }
 
 const COIN_SIZE = 48
-const COIN_THICKNESS = 12
-const COIN_LAYERS = 12
+const COIN_THICKNESS = 5
+const COIN_LAYERS = 6
 
 /** Stacked discs along Z — reliable thickness when spun on edge (no fragile cylinder mesh). */
 function NepsisCoin({ coinRef }: { coinRef: RefObject<HTMLDivElement | null> }) {
