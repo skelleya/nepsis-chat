@@ -56,7 +56,7 @@ frontend/src/
 | CommunityPage | Explore page: invite code entry, community servers list; shown when guest has no servers or when user completes onboarding |
 | UpdateButton | Green update (Electron only) |
 | DownloadBanner | Centered top tab: short prompt (“Prefer the desktop app?”) + clear Download button + subtle dismiss; `rounded-b-xl`; dismissible (localStorage); sets `--download-banner-height`; hidden on `/download` and in Electron. **GSAP:** slide/fade in/out |
-| LoginPage | Guest (username only), Sign In (email or username + password), Sign Up (email + password); top padding from `--download-banner-height` when banner is visible. **GSAP:** soft page/card enter; tab switches glide form fields downward with staggered fade (not horizontal flash) |
+| LoginPage | Guest (username only), Sign In (email or username + password), Sign Up (email + password); top padding from `--download-banner-height` when banner is visible. **GSAP:** soft page/card enter; sliding accent pill on Guest/Sign In/Sign Up tabs (`power3.inOut`); form fields float downward with stagger |
 | AppContent (login transition) | Keeps LoginPage mounted until GSAP exit finishes after auth, then fades main app in (`gsap`) |
 
 ---

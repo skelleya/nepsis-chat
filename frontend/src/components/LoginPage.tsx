@@ -1,4 +1,4 @@
-import { useState, useLayoutEffect, useRef } from 'react'
+import { useState, useLayoutEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import gsap from 'gsap'
 import { useApp } from '../contexts/AppContext'
@@ -6,11 +6,18 @@ import { supabase } from '../services/supabase'
 
 type AuthMode = 'guest' | 'login' | 'signup'
 
+const TABS: { id: AuthMode; label: string }[] = [
+  { id: 'guest', label: 'Guest' },
+  { id: 'login', label: 'Sign In' },
+  { id: 'signup', label: 'Sign Up' },
+]
+
 export function LoginPage() {
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [mode, setMode] = useState<AuthMode>('guest')
+  const [tab, setTab] = useState<AuthMode>('guest')
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
@@ -19,7 +26,37 @@ export function LoginPage() {
   const pageRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const tabsRef = useRef<HTMLDivElement>(null)
+  const indicatorRef = useRef<HTMLDivElement>(null)
+  const tabBtnRefs = useRef<Partial<Record<AuthMode, HTMLButtonElement | null>>>({})
   const pendingEnterRef = useRef(false)
+  const tabIndicatorReadyRef = useRef(false)
+
+  const moveTabIndicator = useCallback((animate: boolean) => {
+    const track = tabsRef.current
+    const indicator = indicatorRef.current
+    const btn = tabBtnRefs.current[tab]
+    if (!track || !indicator || !btn) return
+
+    const trackRect = track.getBoundingClientRect()
+    const btnRect = btn.getBoundingClientRect()
+    const x = btnRect.left - trackRect.left
+    const width = btnRect.width
+
+    gsap.killTweensOf(indicator)
+    if (!animate || !tabIndicatorReadyRef.current) {
+      gsap.set(indicator, { x, width, opacity: 1 })
+      tabIndicatorReadyRef.current = true
+      return
+    }
+
+    gsap.to(indicator, {
+      x,
+      width,
+      duration: 0.55,
+      ease: 'power3.inOut',
+    })
+  }, [tab])
 
   useLayoutEffect(() => {
     const page = pageRef.current
@@ -41,6 +78,16 @@ export function LoginPage() {
 
     return () => ctx.revert()
   }, [])
+
+  useLayoutEffect(() => {
+    moveTabIndicator(true)
+  }, [moveTabIndicator])
+
+  useLayoutEffect(() => {
+    const onResize = () => moveTabIndicator(false)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [moveTabIndicator])
 
   useLayoutEffect(() => {
     const panel = panelRef.current
@@ -65,25 +112,28 @@ export function LoginPage() {
   }, [mode])
 
   const switchMode = (next: AuthMode) => {
-    if (next === mode || switching) return
-    const panel = panelRef.current
+    if (next === tab) return
+    setTab(next)
     setError('')
     setMessage('')
 
-    if (!panel) {
+    const panel = panelRef.current
+    if (!panel || next === mode) {
       setMode(next)
+      setSwitching(false)
       return
     }
 
     setSwitching(true)
     const fields = panel.querySelectorAll<HTMLElement>('label, input, button[type="submit"], p')
-    gsap.killTweensOf([panel, fields])
+    gsap.killTweensOf([panel, ...Array.from(fields)])
     gsap.to(fields, {
       y: 18,
       opacity: 0,
       duration: 0.4,
       stagger: 0.05,
       ease: 'sine.inOut',
+      overwrite: true,
       onComplete: () => {
         pendingEnterRef.current = true
         setMode(next)
@@ -169,35 +219,33 @@ export function LoginPage() {
           </div>
         )}
 
-        {/* Mode tabs */}
-        <div className="flex mb-8 rounded-lg overflow-hidden bg-app-channel">
-          <button
-            type="button"
-            onClick={() => switchMode('guest')}
-            className={`flex-1 py-3 text-sm font-medium transition-colors ${
-              mode === 'guest' ? 'bg-app-accent text-white' : 'text-app-muted hover:text-white'
-            }`}
-          >
-            Guest
-          </button>
-          <button
-            type="button"
-            onClick={() => switchMode('login')}
-            className={`flex-1 py-3 text-sm font-medium transition-colors ${
-              mode === 'login' ? 'bg-app-accent text-white' : 'text-app-muted hover:text-white'
-            }`}
-          >
-            Sign In
-          </button>
-          <button
-            type="button"
-            onClick={() => switchMode('signup')}
-            className={`flex-1 py-3 text-sm font-medium transition-colors ${
-              mode === 'signup' ? 'bg-app-accent text-white' : 'text-app-muted hover:text-white'
-            }`}
-          >
-            Sign Up
-          </button>
+        {/* Mode tabs — sliding GSAP indicator */}
+        <div
+          ref={tabsRef}
+          className="relative flex mb-8 rounded-lg bg-app-channel p-1"
+          role="tablist"
+          aria-label="Account type"
+        >
+          <div
+            ref={indicatorRef}
+            className="absolute top-1 bottom-1 left-0 rounded-md bg-app-accent shadow-sm will-change-transform pointer-events-none opacity-0"
+            aria-hidden
+          />
+          {TABS.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={tab === id}
+              ref={(el) => { tabBtnRefs.current[id] = el }}
+              onClick={() => switchMode(id)}
+              className={`relative z-10 flex-1 py-2.5 text-sm font-medium rounded-md transition-colors duration-300 ${
+                tab === id ? 'text-white' : 'text-app-muted hover:text-white'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         <div className="overflow-hidden min-h-[220px]">
