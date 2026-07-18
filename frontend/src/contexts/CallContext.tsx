@@ -22,6 +22,7 @@ import {
 import { io, type Socket } from 'socket.io-client'
 import { sounds } from '../services/sounds'
 import { useVoice } from './VoiceContext'
+import { applyAudioOutputDevice, getAudioConstraints, loadPrefs } from '../services/userPrefs'
 
 const SOCKET_URL =
   import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000'
@@ -84,6 +85,11 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
   const durationIntervalRef = useRef<number | null>(null)
   const iceCandidateQueueRef = useRef<RTCIceCandidateInit[]>([])
   const callNotificationRef = useRef<Notification | null>(null)
+  const mutedBeforeDeafenRef = useRef(false)
+  const isMutedRef = useRef(false)
+  const isDeafenedRef = useRef(false)
+  isMutedRef.current = isMuted
+  isDeafenedRef.current = isDeafened
 
   // Sync wrappers — update both ref + state
   const setCallState = useCallback((s: CallState) => {
@@ -124,6 +130,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
     setRemoteAvatarUrl(null)
     setIsMuted(false)
     setIsDeafened(false)
+    mutedBeforeDeafenRef.current = false
     setCallDuration(0)
   }, [setCallState, setCallId])
 
@@ -138,7 +145,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
   // ─── Setup WebRTC peer connection ───────────────────────────────
   const setupWebRTC = useCallback(
     async (isCaller: boolean) => {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: getAudioConstraints() })
       localStreamRef.current = stream
 
       const pc = new RTCPeerConnection(ICE_CONFIG)
@@ -153,6 +160,9 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
           remoteAudioRef.current = new Audio()
           remoteAudioRef.current.autoplay = true
         }
+        const voice = loadPrefs().voice
+        remoteAudioRef.current.volume = voice.outputVolume
+        applyAudioOutputDevice(remoteAudioRef.current, voice.audioOutputId)
         remoteAudioRef.current.srcObject = e.streams[0]
       }
 
@@ -237,7 +247,12 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
         stopRingRef.current = sounds.callRinging()
 
         // Browser notification when app is in background (another tab or minimized)
-        if (typeof document !== 'undefined' && document.hidden && 'Notification' in window) {
+        if (
+          loadPrefs().notifications.browserCallNotifications &&
+          typeof document !== 'undefined' &&
+          document.hidden &&
+          'Notification' in window
+        ) {
           const showNotif = () => {
             const n = new Notification('Incoming call', {
               body: `${callerUsername} is calling you`,
@@ -433,8 +448,34 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
     cleanup()
   }, [cleanup])
 
-  const toggleMute = useCallback(() => setIsMuted((v) => !v), [])
-  const toggleDeafen = useCallback(() => setIsDeafened((v) => !v), [])
+  // Unmute undeafens. Deafen mutes; undeafen restores prior mute state.
+  // One cue per action: unmute (covers undeafen), deafen (covers mute-from-deafen).
+  const toggleMute = useCallback(() => {
+    const wasMuted = isMutedRef.current
+    const wasDeafened = isDeafenedRef.current
+    const next = !wasMuted
+    if (!next) {
+      setIsMuted(false)
+      setIsDeafened(false)
+      mutedBeforeDeafenRef.current = false
+      if (wasMuted || wasDeafened) sounds.unmute()
+    } else {
+      setIsMuted(true)
+      sounds.mute()
+    }
+  }, [])
+  const toggleDeafen = useCallback(() => {
+    if (!isDeafenedRef.current) {
+      mutedBeforeDeafenRef.current = isMutedRef.current
+      setIsDeafened(true)
+      setIsMuted(true)
+      sounds.deafen()
+    } else {
+      setIsDeafened(false)
+      setIsMuted(mutedBeforeDeafenRef.current)
+      sounds.undeafen()
+    }
+  }, [])
 
   return (
     <CallContext.Provider

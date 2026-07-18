@@ -1,20 +1,12 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react'
+import gsap from 'gsap'
 import * as api from '../services/api'
+import type { FriendListItem, FriendRequestItem, ProfileType, PublicProfileResult } from '../services/api'
 import { useApp } from '../contexts/AppContext'
 import { useCall } from '../contexts/CallContext'
 
-interface Friend {
-  id: string
-  username: string
-  avatar_url?: string
-  status?: 'online' | 'offline' | 'in-voice' | 'away' | 'dnd'
-}
-
-interface FriendRequest {
-  requester_id: string
-  created_at: string
-  user: { id: string; username: string; avatar_url?: string }
-}
+type Friend = FriendListItem
+type FriendRequest = FriendRequestItem
 
 type FriendsTab = 'all' | 'pending' | 'online' | 'add'
 
@@ -42,6 +34,7 @@ function StatusDot({ status }: { status?: string }) {
 export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = true }: FriendsPageProps) {
   const { user } = useApp()
   const call = useCall()
+  const pageRef = useRef<HTMLDivElement>(null)
   const [friends, setFriends] = useState<Friend[]>([])
   const [requests, setRequests] = useState<FriendRequest[]>([])
   const [loading, setLoading] = useState(true)
@@ -49,9 +42,30 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
   const [actioning, setActioning] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<FriendsTab>('all')
   const [addFriendInput, setAddFriendInput] = useState('')
+  const [addAsProfile, setAddAsProfile] = useState<ProfileType>('personal')
+  const [acceptAsProfile, setAcceptAsProfile] = useState<ProfileType>('personal')
+  const [searchResults, setSearchResults] = useState<PublicProfileResult[]>([])
   const [addFriendLoading, setAddFriendLoading] = useState(false)
   const [addFriendError, setAddFriendError] = useState<string | null>(null)
   const [addFriendSuccess, setAddFriendSuccess] = useState<string | null>(null)
+  const isGuest = user?.is_guest ?? true
+
+  useLayoutEffect(() => {
+    const page = pageRef.current
+    if (!page) return
+    gsap.fromTo(
+      page,
+      { opacity: 0, x: 28 },
+      {
+        opacity: 1,
+        x: 0,
+        duration: 0.4,
+        ease: 'power3.out',
+        force3D: false,
+        clearProps: 'transform',
+      }
+    )
+  }, [])
 
   const load = useCallback(async () => {
     if (!user) return
@@ -81,7 +95,10 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
     if (!user) return
     setActioning(requesterId)
     try {
-      await api.acceptFriendRequest(user.id, requesterId)
+      await api.acceptFriendRequest(user.id, requesterId, {
+        profile: isGuest ? 'personal' : acceptAsProfile,
+        visibleProfiles: isGuest ? 'personal' : acceptAsProfile,
+      })
       await load()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to accept')
@@ -117,35 +134,58 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
     if (onClose) onClose()
   }
 
-  const handleAddFriend = async () => {
-    const username = addFriendInput.trim()
-    if (!username || !user) return
+  const handleSearchProfiles = async () => {
+    const q = addFriendInput.trim()
+    if (!q || q.length < 2) {
+      setAddFriendError('Enter at least 2 characters of a display name')
+      return
+    }
+    setAddFriendLoading(true)
+    setAddFriendError(null)
+    setAddFriendSuccess(null)
+    setSearchResults([])
+    try {
+      const results = await api.searchProfiles(q)
+      setSearchResults(results.filter((r) => r.user_id !== user?.id))
+      if (!results.length) setAddFriendError('No discoverable profiles found')
+    } catch (e) {
+      setAddFriendError(e instanceof Error ? e.message : 'Search failed')
+    } finally {
+      setAddFriendLoading(false)
+    }
+  }
+
+  const handleAddProfile = async (target: PublicProfileResult) => {
+    if (!user) return
     setAddFriendLoading(true)
     setAddFriendError(null)
     setAddFriendSuccess(null)
     try {
-      const found = await api.lookupUserByUsername(username)
-      if (!found) {
-        setAddFriendError('User not found')
-        return
-      }
-      if (found.id === user.id) {
+      if (target.user_id === user.id) {
         setAddFriendError("You can't add yourself as a friend")
         return
       }
-      const alreadyFriends = friends.some((f) => f.id === found.id)
+      const alreadyFriends = friends.some((f) => f.id === target.user_id)
       if (alreadyFriends) {
-        setAddFriendError('You are already friends with this user')
+        setAddFriendError('You are already friends with this person')
         return
       }
-      const alreadyPending = requests.some((r) => r.requester_id === found.id)
+      const alreadyPending = requests.some((r) => r.requester_id === target.user_id)
       if (alreadyPending) {
-        setAddFriendError('You already have a pending request from this user')
+        setAddFriendError('You already have a pending request from this person')
         return
       }
-      await api.sendFriendRequest(user.id, found.id)
-      setAddFriendSuccess(`Friend request sent to ${found.username}`)
-      setAddFriendInput('')
+      await api.sendFriendRequest(
+        user.id,
+        target.user_id,
+        isGuest ? 'personal' : addAsProfile,
+        target.profile_type
+      )
+      setAddFriendSuccess(
+        `Request sent to ${target.display_name} (${target.profile_type === 'work' ? 'Work' : 'Personal'})` +
+          (!isGuest ? ` from your ${addAsProfile === 'personal' ? 'Personal' : 'Work'} profile` : '')
+      )
+      setSearchResults((prev) => prev.filter((r) => r.profile_id !== target.profile_id))
       await load()
     } catch (e) {
       setAddFriendError(e instanceof Error ? e.message : 'Failed to send friend request')
@@ -164,7 +204,7 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
   ]
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div ref={pageRef} className="flex-1 flex flex-col overflow-hidden min-w-0">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-app-dark/80 flex-shrink-0">
         {onClose && (
@@ -212,24 +252,48 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
         {loading ? (
           <div className="flex justify-center py-12 text-app-muted">Loading...</div>
         ) : activeTab === 'add' ? (
-          /* Add Friend tab */
+          /* Add Friend tab — search public profile display names */
           <div>
-            <h3 className="text-sm font-semibold text-app-text mb-3">Add by username</h3>
+            <h3 className="text-sm font-semibold text-app-text mb-3">Find by display name</h3>
+            <p className="text-xs text-app-muted mb-3">
+              Search public identities — not login usernames. Personal and Work can appear as separate people.
+            </p>
+            {!isGuest && (
+              <div className="mb-3">
+                <p className="text-xs text-app-muted mb-2">Add them from which of your profiles?</p>
+                <div className="flex gap-2">
+                  {(['personal', 'work'] as ProfileType[]).map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setAddAsProfile(type)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                        addAsProfile === type
+                          ? 'bg-app-accent text-white'
+                          : 'bg-[#2b2d31] text-app-muted hover:text-app-text'
+                      }`}
+                    >
+                      {type === 'personal' ? 'Personal' : 'Work'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="flex gap-2 mb-4">
               <input
                 type="text"
                 value={addFriendInput}
                 onChange={(e) => setAddFriendInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAddFriend()}
-                placeholder="Enter username"
+                onKeyDown={(e) => e.key === 'Enter' && handleSearchProfiles()}
+                placeholder="Search display name…"
                 className="flex-1 px-3 py-2 rounded-lg bg-[#2b2d31] text-app-text placeholder-app-muted border border-app-hover/30 focus:border-app-accent focus:outline-none"
               />
               <button
-                onClick={handleAddFriend}
-                disabled={addFriendLoading || !addFriendInput.trim()}
+                onClick={handleSearchProfiles}
+                disabled={addFriendLoading || addFriendInput.trim().length < 2}
                 className="px-4 py-2 bg-app-accent hover:bg-app-accent-hover text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {addFriendLoading ? 'Sending...' : 'Send Request'}
+                {addFriendLoading ? 'Searching…' : 'Search'}
               </button>
             </div>
             {addFriendError && (
@@ -238,14 +302,67 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
             {addFriendSuccess && (
               <p className="text-sm text-[#23a559] mb-2">{addFriendSuccess}</p>
             )}
-            <p className="text-xs text-app-muted">
-              You can add friends by their username. They must accept your request before you can message them.
-            </p>
+            {searchResults.length > 0 && (
+              <div className="space-y-2 mb-3">
+                {searchResults.map((result) => (
+                  <div
+                    key={result.profile_id}
+                    className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-[#2b2d31]"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      {result.avatar_url ? (
+                        <img src={result.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-sm">
+                          {result.display_name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="font-medium text-app-text truncate">{result.display_name}</div>
+                        <div className="text-xs text-app-muted">
+                          {result.profile_type === 'work' ? 'Work' : 'Personal'}
+                          {result.bio ? ` · ${result.bio}` : ''}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleAddProfile(result)}
+                      disabled={addFriendLoading}
+                      className="px-3 py-1.5 text-sm bg-app-accent hover:bg-app-accent-hover text-white rounded-lg font-medium disabled:opacity-50 flex-shrink-0"
+                    >
+                      Add
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : activeTab === 'pending' ? (
           /* Pending requests */
           <div>
             <h3 className="text-sm font-semibold text-app-text mb-3">Friend requests</h3>
+            {!isGuest && requests.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs text-app-muted mb-2">Accept incoming requests under:</p>
+                <div className="flex gap-2">
+                  {(['personal', 'work'] as ProfileType[]).map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setAcceptAsProfile(type)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                        acceptAsProfile === type
+                          ? 'bg-app-accent text-white'
+                          : 'bg-[#2b2d31] text-app-muted hover:text-app-text'
+                      }`}
+                    >
+                      {type === 'personal' ? 'Personal' : 'Work'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {requests.length === 0 ? (
               <p className="text-sm text-app-muted">No pending requests.</p>
             ) : (
@@ -265,7 +382,10 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
                       </div>
                       <div>
                         <span className="font-medium text-app-text">{req.user.username}</span>
-                        <p className="text-xs text-app-muted">Wants to be your friend</p>
+                        <p className="text-xs text-app-muted">
+                          Wants to be your friend
+                          {req.requester_profile === 'work' ? ' · via Work' : req.requester_profile === 'personal' ? ' · via Personal' : ''}
+                        </p>
                       </div>
                     </div>
                     <div className="flex gap-2">

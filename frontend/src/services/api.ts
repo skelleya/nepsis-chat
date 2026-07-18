@@ -580,7 +580,41 @@ export async function createOrGetDMConversation(userId: string, targetUserId: st
 
 // ─── Friends ───────────────────────────────────────────
 
-export async function getFriendsList(userId: string): Promise<{ id: string; username: string; avatar_url?: string; status?: 'online' | 'offline' | 'in-voice' | 'away' | 'dnd' }[]> {
+export type ProfileType = 'personal' | 'work'
+export type VisibleProfiles = 'personal' | 'work' | 'both'
+
+export interface FriendListItem {
+  id: string
+  username: string
+  display_name?: string
+  bio?: string
+  avatar_url?: string
+  banner_url?: string
+  status?: 'online' | 'offline' | 'in-voice' | 'away' | 'dnd'
+  friendship_profile?: ProfileType
+  visible_profiles?: VisibleProfiles
+  their_profile?: ProfileType
+}
+
+export interface FriendRequestItem {
+  requester_id: string
+  created_at: string
+  requester_profile?: ProfileType
+  addressee_profile?: ProfileType
+  user: { id: string; username: string; display_name?: string; bio?: string; avatar_url?: string }
+}
+
+export interface PrivacySettings {
+  user_id?: string
+  who_can_dm: 'everyone' | 'friends' | 'nobody'
+  who_can_call: 'everyone' | 'friends' | 'nobody'
+  who_can_add_friend: 'everyone' | 'server_members' | 'nobody'
+  show_voice_channel: 'everyone' | 'friends' | 'nobody'
+  show_online_status: 'everyone' | 'friends' | 'nobody'
+  allow_voice_activity_indicator: boolean
+}
+
+export async function getFriendsList(userId: string): Promise<FriendListItem[]> {
   const res = await fetch(`${API_BASE}/friends/list?userId=${encodeURIComponent(userId)}`)
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
@@ -589,7 +623,7 @@ export async function getFriendsList(userId: string): Promise<{ id: string; user
   return res.json()
 }
 
-export async function getFriendRequests(userId: string): Promise<{ requester_id: string; created_at: string; user: { id: string; username: string; avatar_url?: string } }[]> {
+export async function getFriendRequests(userId: string): Promise<FriendRequestItem[]> {
   const res = await fetch(`${API_BASE}/friends/requests?userId=${encodeURIComponent(userId)}`)
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
@@ -598,11 +632,20 @@ export async function getFriendRequests(userId: string): Promise<{ requester_id:
   return res.json()
 }
 
-export async function acceptFriendRequest(userId: string, requesterId: string): Promise<{ success: boolean }> {
+export async function acceptFriendRequest(
+  userId: string,
+  requesterId: string,
+  opts?: { profile?: ProfileType; visibleProfiles?: VisibleProfiles }
+): Promise<{ success: boolean }> {
   const res = await fetch(`${API_BASE}/friends/accept`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, requesterId }),
+    body: JSON.stringify({
+      userId,
+      requesterId,
+      profile: opts?.profile || 'personal',
+      visibleProfiles: opts?.visibleProfiles,
+    }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
@@ -624,22 +667,130 @@ export async function declineFriendRequest(userId: string, requesterId: string):
   return res.json()
 }
 
-export async function lookupUserByUsername(username: string): Promise<{ id: string; username: string; display_name?: string | null; avatar_url?: string } | null> {
+export interface PublicProfileResult {
+  profile_id: string
+  user_id: string
+  profile_type: ProfileType
+  display_name: string
+  bio?: string
+  avatar_url?: string | null
+  banner_url?: string | null
+}
+
+/** Search discoverable public profiles by display name (never login username). */
+export async function searchProfiles(query: string): Promise<PublicProfileResult[]> {
+  const res = await fetch(`${API_BASE}/users/profiles/search?q=${encodeURIComponent(query.trim())}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to search profiles')
+  }
+  return res.json()
+}
+
+/** @deprecated Prefer searchProfiles — lookup no longer returns login username. */
+export async function lookupUserByUsername(username: string): Promise<{ id: string; display_name?: string | null; avatar_url?: string; profile_type?: ProfileType } | null> {
   const res = await fetch(`${API_BASE}/users/lookup?username=${encodeURIComponent(username.trim())}`)
   if (!res.ok) throw new Error('Failed to lookup user')
   const data = await res.json()
   return data
 }
 
-export async function sendFriendRequest(userId: string, targetUserId: string): Promise<{ success: boolean }> {
+export async function sendFriendRequest(
+  userId: string,
+  targetUserId: string,
+  profile: ProfileType = 'personal',
+  targetProfile: ProfileType = 'personal'
+): Promise<{ success: boolean }> {
   const res = await fetch(`${API_BASE}/friends/request`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, targetUserId }),
+    body: JSON.stringify({ userId, targetUserId, profile, targetProfile }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err?.error || 'Failed to send friend request')
+  }
+  return res.json()
+}
+
+export async function setServerMemberProfile(
+  serverId: string,
+  userId: string,
+  profileType: ProfileType
+) {
+  const res = await fetch(`${API_BASE}/servers/${serverId}/members/${userId}/profile`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ profileType, actorUserId: userId }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to set server profile')
+  }
+  return res.json()
+}
+
+export async function getAccount(userId: string) {
+  const res = await fetch(`${API_BASE}/users/${userId}/account`)
+  if (!res.ok) throw new Error('Failed to fetch account')
+  return res.json() as Promise<{
+    id: string
+    username: string
+    display_name?: string | null
+    avatar_url?: string
+    banner_url?: string
+    active_profile?: ProfileType
+    is_guest?: boolean
+  }>
+}
+
+export async function updateFriendVisibility(
+  userId: string,
+  friendId: string,
+  data: { visibleProfiles?: VisibleProfiles; friendshipProfile?: ProfileType }
+) {
+  const res = await fetch(`${API_BASE}/friends/visibility`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      userId,
+      friendId,
+      visibleProfiles: data.visibleProfiles,
+      friendshipProfile: data.friendshipProfile,
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to update friend visibility')
+  }
+  return res.json()
+}
+
+export async function getPrivacySettings(userId: string): Promise<PrivacySettings> {
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE}/users/${userId}/privacy`)
+  } catch {
+    throw new Error(
+      'Cannot reach the API. Start the backend (npm run dev in /backend) and check VITE_API_URL.'
+    )
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => null)
+    throw new Error(err?.error || 'Failed to fetch privacy settings')
+  }
+  return res.json()
+}
+
+export async function savePrivacySettings(userId: string, settings: Partial<PrivacySettings>): Promise<PrivacySettings> {
+  const res = await fetch(`${API_BASE}/users/${userId}/privacy`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to save privacy settings')
   }
   return res.json()
 }
@@ -686,8 +837,14 @@ export async function getUserProfiles(userId: string) {
 
 export async function saveUserProfile(
   userId: string,
-  profileType: 'personal' | 'work',
-  data: { display_name?: string; avatar_url?: string; banner_url?: string }
+  profileType: ProfileType,
+  data: {
+    display_name?: string
+    avatar_url?: string
+    banner_url?: string
+    bio?: string
+    discoverable?: boolean
+  }
 ) {
   const res = await fetch(`${API_BASE}/users/${userId}/profiles`, {
     method: 'PUT',
@@ -696,6 +853,26 @@ export async function saveUserProfile(
   })
   if (!res.ok) throw new Error('Failed to save profile')
   return res.json()
+}
+
+export async function setActiveProfile(userId: string, activeProfile: ProfileType) {
+  const res = await fetch(`${API_BASE}/users/${userId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ active_profile: activeProfile }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to set active profile')
+  }
+  return res.json() as Promise<{
+    id: string
+    username: string
+    display_name?: string | null
+    avatar_url?: string | null
+    banner_url?: string | null
+    active_profile?: ProfileType
+  }>
 }
 
 // ─── Soundboard ──────────────────────────────────────────

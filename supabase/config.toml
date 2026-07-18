@@ -1,6 +1,8 @@
 # Supabase local project config
 # Run: supabase init (already done), supabase link, supabase db push
 # See: https://supabase.com/docs/guides/cli
+# Linked remote project: qeopqyquskszzgprghiy
+# URL: https://qeopqyquskszzgprghiy.supabase.co
 
 [api]
 enabled = true

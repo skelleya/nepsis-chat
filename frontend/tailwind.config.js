@@ -8,14 +8,16 @@ export default {
     extend: {
       colors: {
         app: {
-          dark: '#1e1f22',
-          darker: '#111214',
-          channel: '#2b2d31',
-          hover: '#35373c',
-          accent: '#5865f2',
-          'accent-hover': '#4752c4',
-          text: '#dbdee1',
-          muted: '#b5bac1',
+          // Space-separated RGB channels so opacity modifiers (/50, /80) work.
+          // Set in :root / userPrefs as e.g. --app-dark: 30 31 34;
+          dark: 'rgb(var(--app-dark) / <alpha-value>)',
+          darker: 'rgb(var(--app-darker) / <alpha-value>)',
+          channel: 'rgb(var(--app-channel) / <alpha-value>)',
+          hover: 'rgb(var(--app-hover) / <alpha-value>)',
+          accent: 'rgb(var(--app-accent) / <alpha-value>)',
+          'accent-hover': 'rgb(var(--app-accent-hover) / <alpha-value>)',
+          text: 'rgb(var(--app-text) / <alpha-value>)',
+          muted: 'rgb(var(--app-muted) / <alpha-value>)',
           online: '#23a559',
           offline: '#80848e',
         }

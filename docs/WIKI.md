@@ -70,16 +70,27 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Login tab glide — Guest / Sign In / Sign Up form panel slides horizontally in the travel direction (with the pill) |
 | + | Login form height lock — Guest matches Sign In / Sign Up height (fixed panel) so tab switches don’t resize the card |
 | + | App height fill fix — html/body/#root 100% height; main shell uses `fixed inset-0` to remove black bottom gap |
-| + | User Settings GSAP — Modal opens/closes with GSAP; fixed panel height so switching settings pages doesn’t move/resize the box |
+| + | User Settings GSAP — Modal opens/closes with GSAP; fixed panel height; sidebar accent pill slides between buttons; content pages slide horizontally in travel direction (like login tabs) |
+| + | Settings controls GSAP — Shared `SettingsDropdown` (portal list, fade/scale open-close) and `SettingsToggle` (knob slide + track color) on Privacy / Voice / Notifications / Profiles |
+| + | UserPanel GSAP — Status dropdown open/close animates; mute/deafen buttons scale-punch on click; status dot pops when status changes |
+| + | ServerBar bubble GSAP — Friends + Community server bubbles scale-punch on click |
+| + | Friends / Community page GSAP — Main content fades and slides in when opening via Nepsis or compass bubbles |
+| + | Privacy & Safety settings — Voice-focused controls: who can DM/call/add you; voice channel + online visibility; speaking indicator |
+| + | Dual profiles (Personal/Work) — Customize presentation; choose active profile for servers; add/accept friends under a profile; per-friend visibility (one or both) |
+| + | Profile identities — Public Personal/Work personas (bio, discoverable); search by display name not login; per-server appear-as preset; My Account default profile selector |
+| + | My Account profile defaults — Until onboarding: Personal auto-seeds to signup username; Work locked until saved; switching/saving profiles updates My Account name immediately |
+| + | Supabase project — Active project `qeopqyquskszzgprghiy` (`https://qeopqyquskszzgprghiy.supabase.co`); MCP connected; 19 migrations applied + public `attachments` bucket; frontend anon key wired; backend prefers `SUPABASE_SERVICE_ROLE_KEY` and falls back to anon for local/dev if blank |
 | + | User Settings page slide — Sidebar tabs (My Account → Help) animate content with directional GSAP horizontal slide |
-| + | Login logo coin spin — Nepsis logo on LoginPage spins left/right with cursor movement via GSAP `rotationY` (`quickSetter` must pass `'deg'` or non-zero spins are ignored) |
+| + | Login logo coin spin — Nepsis logo on LoginPage spins left/right with cursor movement via GSAP `rotationY` (`quickSetter` must pass `'deg'` or non-zero spins are ignored); after swipe it coasts with friction and eases back to the front-facing position |
 | + | Login logo coin thickness — 3D coin with front/back faces + rim segments so the edge shows when viewed on its side |
 | + | Login tab pill — Shared accent indicator slides between Guest / Sign In / Sign Up via GSAP (no per-button background flash) |
+| + | Login credentials close — Username / email+password fields collapse with GSAP when Continue / Sign In is clicked; reopen if auth fails |
 | + | Download banner balance — Short prompt + clear Download button + subtle dismiss (not full marketing sentence, not link-only) |
 | + | Last channel per server — When switching servers, auto-restore the last selected channel for that server; persisted in localStorage (nepsis_last_channel); cleared on logout |
 | + | Emoji picker — Click-outside-to-close; improved styling (rounded-xl, shadow-2xl, better spacing, active scale feedback) |
 | + | Chat input — Send button uses up-arrow icon; @mention autocomplete (@everyone, @username); :emoji: shortcode autocomplete (e.g. :smile:) |
 | + | User settings — Full settings modal with tabs (My Account, Profiles, Privacy & Safety, Appearance, Voice & Video, Notifications); avatar + banner upload; username change; Personal/Work profile switch (non-guest); status dropdown (Online, Away, DND, Offline) in UserPanel |
+| + | Appearance / Voice / Notifications prefs — Workable local settings (`nepsis_user_prefs`): themes + accent + density; device selection + mic processing + volume; sound and desktop notification toggles |
 | + | Server invites — Discord-style invite links; create invite from server dropdown or voice channel; public `/invite/:code` page with Join Server; audit log for server actions (invite created/revoked, member joined/kicked) |
 | + | Server settings — Members tab (list, kick); Invites tab (create, copy link, revoke); Audit Log tab; modernized Custom Emojis tab (drag-drop upload, grid layout) |
 | + | Invite-only join — No auto-join on login; new and temp accounts start with no servers; join via invite link or code; Community page (compass icon) for discoverable servers |
@@ -89,6 +100,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Speaking indicator fix — Green ring around avatar when talking was missing because AudioContext starts suspended in browsers; added `audioCtx.resume()` when suspended; lowered threshold to 8; smoothing for less flicker |
 | + | Voice & invite fixes — Main screen shows all participants (room-peers + peer-joined add before stream); sidebar polls every 2s when in voice; invite creation shows actual error (e.g. missing server_invites table) |
 | + | Sound effects — Web Audio API notification sounds: message ding, voice join/leave chimes, voice connected/disconnected tones; no external audio files needed |
+| + | Mute/deafen SFX — Soft Web Audio ticks on mute, unmute, deafen, undeafen (UserPanel + call overlay); one cue when both states change; respects Voice sounds pref |
 | + | Private DM calling — 1-on-1 voice calls via WebRTC; new `/calls` socket namespace; incoming/outgoing call overlays with ringing; in-call bar with mute/deafen/end; auto-decline after 30s timeout; busy/offline detection; Call button in member profile and right-click context menu |
 | + | Call notifications — Browser Notification when incoming call received while app is in another tab; permission requested on socket connect |
 | + | Friends page — Click Nepsis logo to open Friends page; list friends and pending friend requests; accept/decline requests; Message and Call buttons for friends |
@@ -184,6 +196,12 @@ supabase db push # apply migrations
 ```
 
 Migrations are in `supabase/migrations/`. Also run `backend/supabase-migration.sql` in Supabase SQL Editor for full schema.
+
+**Privacy / dual profiles:** run these in the Supabase SQL Editor:
+1. `supabase/migrations/20250211000015_privacy_profiles_friends.sql` — privacy settings, friend visibility, `users.active_profile`
+2. `supabase/migrations/20250211000016_profile_identities.sql` — profile bio/discoverable, `friend_requests.addressee_profile`, `server_members.profile_type`
+
+**Identity model:** Login username is private. Personal and Work are separate public identities (display name, bio, avatar, banner). Friend search finds discoverable **profiles** by display name. Default profile (My Account) is used on first server join; each server can override via ChannelList → “Appear as on this server”.
 
 ---
 

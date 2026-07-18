@@ -1,42 +1,76 @@
 /**
  * Voice icons: mic, mic-off, headphones, headphones-off
- * Clean SVGs with viewBox 0 0 24 24 to prevent clipping/snipping
- * Mic = microphone (not speaker). Mic-off = microphone with diagonal slash.
+ * Shared 24×24 viewBox and similar glyph weight so UserPanel controls look even.
  */
 
-export function MicIcon({ className, size = 20 }: { className?: string; size?: number }) {
+type IconProps = { className?: string; size?: number }
+
+const base = 'block shrink-0'
+
+export function MicIcon({ className, size = 20 }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
-      <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z" />
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={`${base} ${className || ''}`}
+      aria-hidden
+    >
+      <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zm5 9a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z" />
     </svg>
   )
 }
 
-/** Microphone with diagonal slash. viewBox with padding to prevent clipping/snipping. */
-export function MicOffIcon({ className, size = 20 }: { className?: string; size?: number }) {
+export function MicOffIcon({ className, size = 20 }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="-1 -1 26 26" fill="currentColor" className={className} aria-hidden>
-      <path d="M12 2a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z" />
-      <path d="M19 10v2a7 7 0 0 1-14 0v-2" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" />
-      <path d="M12 19v4M8 23h8" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" />
-      <line x1="1" y1="1" x2="23" y2="23" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      className={`${base} ${className || ''}`}
+      aria-hidden
+    >
+      <path
+        d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zm5 9a5 5 0 0 1-.4 1.95L18.1 14.45A7 7 0 0 0 19 11h-2zm-2.08 4.52A7 7 0 0 1 13 17.92V21h-2v-3.08a7 7 0 0 1-5.45-4.37l1.55-1.55A5 5 0 0 0 14.92 15.52zM5 11c0 .34.03.67.08 1L3.55 13.53A7.05 7.05 0 0 1 5 11H5z"
+        fill="currentColor"
+      />
+      <path d="M3.5 3.5l17 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   )
 }
 
-export function HeadphonesIcon({ className, size = 20 }: { className?: string; size?: number }) {
+export function HeadphonesIcon({ className, size = 20 }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M12 1a9 9 0 0 0-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h3c1.66 0 3-1.34 3-3v-7a9 9 0 0 0-9-9z" />
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={`${base} ${className || ''}`}
+      aria-hidden
+    >
+      <path d="M12 3a8 8 0 0 0-8 8v6a3 3 0 0 0 3 3h2v-7H6v-2a6 6 0 0 1 12 0v2h-3v7h2a3 3 0 0 0 3-3v-6a8 8 0 0 0-8-8z" />
     </svg>
   )
 }
 
-export function HeadphonesOffIcon({ className, size = 20 }: { className?: string; size?: number }) {
+export function HeadphonesOffIcon({ className, size = 20 }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M12 1a9 9 0 0 0-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h3c1.66 0 3-1.34 3-3v-7a9 9 0 0 0-9-9z" />
-      <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      className={`${base} ${className || ''}`}
+      aria-hidden
+    >
+      <path
+        d="M12 3a8 8 0 0 0-8 8v6a3 3 0 0 0 3 3h2v-7H6v-2a6 6 0 0 1 12 0v2h-3v7h2a3 3 0 0 0 3-3v-6a8 8 0 0 0-8-8z"
+        fill="currentColor"
+      />
+      <path d="M3.5 3.5l17 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   )
 }

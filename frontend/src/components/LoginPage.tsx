@@ -81,6 +81,7 @@ export function LoginPage() {
   const pageRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const fieldsRef = useRef<HTMLDivElement>(null)
   const tabsRef = useRef<HTMLDivElement>(null)
   const indicatorRef = useRef<HTMLDivElement>(null)
   const tabBtnRefs = useRef<Partial<Record<AuthMode, HTMLButtonElement | null>>>({})
@@ -90,6 +91,63 @@ export function LoginPage() {
   const slideDirectionRef = useRef(1)
   const targetModeRef = useRef<AuthMode>('guest')
   const tabIndicatorReadyRef = useRef(false)
+  const fieldsClosedRef = useRef(false)
+
+  const closeCredentialFields = () =>
+    new Promise<void>((resolve) => {
+      const el = fieldsRef.current
+      if (!el || fieldsClosedRef.current) {
+        resolve()
+        return
+      }
+      fieldsClosedRef.current = true
+      gsap.killTweensOf(el)
+      gsap.set(el, { height: el.scrollHeight, overflow: 'hidden' })
+      gsap.to(el, {
+        height: 0,
+        opacity: 0,
+        y: -10,
+        duration: 0.32,
+        ease: 'power2.in',
+        force3D: false,
+        onComplete: () => resolve(),
+      })
+    })
+
+  const openCredentialFields = () =>
+    new Promise<void>((resolve) => {
+      const el = fieldsRef.current
+      if (!el) {
+        fieldsClosedRef.current = false
+        resolve()
+        return
+      }
+      if (!fieldsClosedRef.current) {
+        resolve()
+        return
+      }
+      fieldsClosedRef.current = false
+      gsap.killTweensOf(el)
+      // Measure natural height, then animate open from collapsed
+      gsap.set(el, { height: 'auto', opacity: 0, y: -8, overflow: 'hidden' })
+      const target = el.offsetHeight
+      gsap.fromTo(
+        el,
+        { height: 0, opacity: 0, y: -8 },
+        {
+          height: target,
+          opacity: 1,
+          y: 0,
+          duration: 0.34,
+          ease: 'power2.out',
+          force3D: false,
+          onComplete: () => {
+            gsap.set(el, { height: 'auto', clearProps: 'overflow,y' })
+            resolve()
+          },
+        }
+      )
+    })
 
   // Coin spin: native listeners + inertia ticker (instant drag, free coast, reverse brakes)
   useLayoutEffect(() => {
@@ -110,8 +168,7 @@ export function LoginPage() {
     let velocity = 0 // deg per tick-unit (scaled by deltaRatio)
     let lastX: number | null = null
     let hovering = false
-    const FACE = 180
-    const MAX_VEL = 80
+    const MAX_VEL = 170
 
     const onEnter = (e: PointerEvent) => {
       hovering = true
@@ -126,11 +183,12 @@ export function LoginPage() {
       if (!delta) return
 
       // Instant spin with the cursor
-      rotation += delta * 1.6
+      rotation += delta * 1.65
       setRot(rotation)
 
-      // Momentum: same direction speeds up; opposite direction brakes then reverses
-      velocity += delta * 0.95
+      // Fast swipes add extra momentum; opposite direction still brakes/reverses
+      const speedBoost = Math.min(2.4, 1 + Math.abs(delta) / 22)
+      velocity += delta * 1.2 * speedBoost
       velocity = Math.max(-MAX_VEL, Math.min(MAX_VEL, velocity))
     }
 
@@ -147,39 +205,28 @@ export function LoginPage() {
         return
       }
 
-      if (Math.abs(velocity) < 0.02) {
-        const target = Math.round(rotation / FACE) * FACE
-        const err = target - rotation
-        if (Math.abs(err) < 0.2) {
-          if (rotation !== target) {
-            rotation = target
-            setRot(rotation)
-          }
-          velocity = 0
-          return
-        }
-        // Soft settle onto face
-        rotation += err * (1 - Math.pow(0.85, d))
+      // Coast with friction until nearly stopped (do not keep seeking the next face)
+      if (Math.abs(velocity) > 0.08) {
+        rotation += velocity * d
+        // High speed coasts a bit longer after a fast swipe
+        const friction = Math.abs(velocity) > 50 ? 0.945 : 0.915
+        velocity *= Math.pow(friction, d)
         setRot(rotation)
         return
       }
 
-      // Free coast
-      rotation += velocity * d
-      velocity *= Math.pow(0.965, d)
-
-      // As it slows, ease toward a face in the travel direction
-      if (Math.abs(velocity) < 8) {
-        const dir = velocity >= 0 ? 1 : -1
-        let target = dir > 0
-          ? Math.ceil(rotation / FACE) * FACE
-          : Math.floor(rotation / FACE) * FACE
-        if (Math.abs(target - rotation) < 0.5) target += dir * FACE
-        const err = target - rotation
-        velocity += err * 0.04 * d
-        velocity *= Math.pow(0.92, d)
+      velocity = 0
+      // Ease back to original front-facing orientation (0°, ±360°, …)
+      const target = Math.round(rotation / 360) * 360
+      const err = target - rotation
+      if (Math.abs(err) < 0.15) {
+        if (rotation !== target) {
+          rotation = target
+          setRot(rotation)
+        }
+        return
       }
-
+      rotation += err * (1 - Math.pow(0.88, d))
       setRot(rotation)
     }
 
@@ -282,13 +329,14 @@ export function LoginPage() {
   }, [mode])
 
   const switchMode = (next: AuthMode) => {
-    if (next === tab) return
+    if (next === tab || loading) return
     const direction = MODE_ORDER[next] > MODE_ORDER[tab] ? 1 : -1
     slideDirectionRef.current = direction
     targetModeRef.current = next
     setTab(next)
     setError('')
     setMessage('')
+    fieldsClosedRef.current = false
 
     const panel = panelRef.current
     if (!panel || next === mode) {
@@ -314,31 +362,35 @@ export function LoginPage() {
 
   const handleGuestSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!username.trim()) return
+    if (!username.trim() || loading) return
     setError('')
     setLoading(true)
+    await closeCredentialFields()
     try {
       await login(username.trim())
     } catch {
       setError('Login failed. Try again.')
       setLoading(false)
+      await openCredentialFields()
     }
   }
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email.trim() || !password.trim()) return
+    if (!email.trim() || !password.trim() || loading) return
     setError('')
     setMessage('')
+
+    if (mode === 'signup' && !email.includes('@')) {
+      setError('Please enter a valid email to create an account')
+      return
+    }
+
     setLoading(true)
+    await closeCredentialFields()
 
     try {
       if (mode === 'signup') {
-        if (!email.includes('@')) {
-          setError('Please enter a valid email to create an account')
-          setLoading(false)
-          return
-        }
         if (!supabase) throw new Error('Email auth not configured')
         const { error: signUpError } = await supabase.auth.signUp({
           email,
@@ -347,6 +399,7 @@ export function LoginPage() {
         if (signUpError) throw signUpError
         setMessage('Check your email for a confirmation link!')
         setLoading(false)
+        await openCredentialFields()
       } else {
         // Support sign-in with email or username
         if (email.includes('@')) {
@@ -358,6 +411,7 @@ export function LoginPage() {
     } catch (err: any) {
       setError(err?.message || 'Authentication failed')
       setLoading(false)
+      await openCredentialFields()
     }
   }
 
@@ -437,61 +491,68 @@ export function LoginPage() {
         <div className="overflow-hidden h-[268px] -mx-1 px-1">
           <div ref={panelRef} className="will-change-transform h-full">
             {mode === 'guest' ? (
-              <form onSubmit={handleGuestSubmit} className="flex h-full flex-col gap-6">
-                <div className="space-y-3">
-                  <label className="block text-sm text-app-muted">Username</label>
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Enter a username"
-                    className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent"
-                  />
-                  <p className="text-app-muted text-xs text-center pt-1">
-                    Guest accounts are temporary — no email required
-                  </p>
-                </div>
-                <button
-                  type="submit"
-                  disabled={loading || switching}
-                  className="mt-auto w-full py-3 rounded-lg bg-app-accent hover:bg-app-accent-hover text-white font-semibold transition-colors disabled:opacity-50"
-                >
-                  {loading ? 'Joining...' : 'Continue as Guest'}
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={handleEmailSubmit} className="flex h-full flex-col gap-6">
-                <div className="space-y-6">
+              <form onSubmit={handleGuestSubmit} className="h-full">
+                <div ref={fieldsRef} className="flex h-full flex-col gap-6 origin-top">
                   <div className="space-y-3">
-                    <label className="block text-sm text-app-muted">
-                      {mode === 'signup' ? 'Email' : 'Email or username'}
-                    </label>
+                    <label className="block text-sm text-app-muted">Username</label>
                     <input
                       type="text"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder={mode === 'signup' ? 'you@example.com' : 'you@example.com or username'}
-                      className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="Enter a username"
+                      disabled={loading}
+                      className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent disabled:opacity-60"
                     />
+                    <p className="text-app-muted text-xs text-center pt-1">
+                      Guest accounts are temporary — no email required
+                    </p>
                   </div>
-                  <div className="space-y-3">
-                    <label className="block text-sm text-app-muted">Password</label>
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent"
-                    />
-                  </div>
+                  <button
+                    type="submit"
+                    disabled={loading || switching}
+                    className="mt-auto w-full py-3 rounded-lg bg-app-accent hover:bg-app-accent-hover text-white font-semibold transition-colors disabled:opacity-50"
+                  >
+                    {loading ? 'Joining...' : 'Continue as Guest'}
+                  </button>
                 </div>
-                <button
-                  type="submit"
-                  disabled={loading || switching}
-                  className="mt-auto w-full py-3 rounded-lg bg-app-accent hover:bg-app-accent-hover text-white font-semibold transition-colors disabled:opacity-50"
-                >
-                  {loading ? 'Please wait...' : mode === 'signup' ? 'Create Account' : 'Sign In'}
-                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleEmailSubmit} className="h-full">
+                <div ref={fieldsRef} className="flex h-full flex-col gap-6 origin-top">
+                  <div className="space-y-6">
+                    <div className="space-y-3">
+                      <label className="block text-sm text-app-muted">
+                        {mode === 'signup' ? 'Email' : 'Email or username'}
+                      </label>
+                      <input
+                        type="text"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder={mode === 'signup' ? 'you@example.com' : 'you@example.com or username'}
+                        disabled={loading}
+                        className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent disabled:opacity-60"
+                      />
+                    </div>
+                    <div className="space-y-3">
+                      <label className="block text-sm text-app-muted">Password</label>
+                      <input
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        disabled={loading}
+                        className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent disabled:opacity-60"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={loading || switching}
+                    className="mt-auto w-full py-3 rounded-lg bg-app-accent hover:bg-app-accent-hover text-white font-semibold transition-colors disabled:opacity-50"
+                  >
+                    {loading ? 'Please wait...' : mode === 'signup' ? 'Create Account' : 'Sign In'}
+                  </button>
+                </div>
               </form>
             )}
           </div>

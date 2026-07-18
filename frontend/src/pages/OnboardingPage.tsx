@@ -19,7 +19,7 @@ export function OnboardingPage({ onExplore }: OnboardingPageProps) {
       try {
         localStorage.setItem(ONBOARDING_COMPLETED_KEY, 'true')
       } catch { /* ignore */ }
-      setShowCreateModal(false)
+      // Modal closes itself with GSAP after create succeeds
     } catch (e) {
       console.error('Create server failed:', e)
       throw e
