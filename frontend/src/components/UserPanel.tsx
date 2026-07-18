@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect } from 'react'
+import gsap from 'gsap'
 import { UserSettingsModal } from './UserSettingsModal'
 import { MicIcon, MicOffIcon, HeadphonesIcon, HeadphonesOffIcon } from './icons/VoiceIcons'
 import type { UserStatus } from '../contexts/AppContext'
@@ -45,16 +46,108 @@ export function UserPanel({
   const [showSettings, setShowSettings] = useState(false)
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const statusMenuRef = useRef<HTMLDivElement>(null)
+  const statusDropdownRef = useRef<HTMLDivElement>(null)
+  const muteBtnRef = useRef<HTMLButtonElement>(null)
+  const deafenBtnRef = useRef<HTMLButtonElement>(null)
+  const statusDotRef = useRef<HTMLDivElement>(null)
+  const closingMenuRef = useRef(false)
+
+  const openStatusMenu = () => {
+    if (closingMenuRef.current) return
+    setShowStatusMenu(true)
+  }
+
+  const closeStatusMenu = () => {
+    if (closingMenuRef.current || !showStatusMenu) return
+    const menu = statusDropdownRef.current
+    if (!menu) {
+      setShowStatusMenu(false)
+      return
+    }
+    closingMenuRef.current = true
+    gsap.killTweensOf(menu)
+    gsap.to(menu, {
+      opacity: 0,
+      y: 8,
+      scale: 0.96,
+      duration: 0.16,
+      ease: 'power2.in',
+      onComplete: () => {
+        closingMenuRef.current = false
+        setShowStatusMenu(false)
+      },
+    })
+  }
+
+  const toggleStatusMenu = () => {
+    if (showStatusMenu) closeStatusMenu()
+    else openStatusMenu()
+  }
+
+  useLayoutEffect(() => {
+    if (!showStatusMenu) return
+    const menu = statusDropdownRef.current
+    if (!menu) return
+    closingMenuRef.current = false
+    gsap.killTweensOf(menu)
+    gsap.fromTo(
+      menu,
+      { opacity: 0, y: 10, scale: 0.96 },
+      {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        duration: 0.28,
+        ease: 'power3.out',
+        force3D: false,
+      }
+    )
+  }, [showStatusMenu])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (statusMenuRef.current && !statusMenuRef.current.contains(e.target as Node)) {
-        setShowStatusMenu(false)
+        closeStatusMenu()
       }
     }
     if (showStatusMenu) document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [showStatusMenu])
+
+  useEffect(() => {
+    const dot = statusDotRef.current
+    if (!dot) return
+    gsap.fromTo(
+      dot,
+      { scale: 0.7 },
+      { scale: 1, duration: 0.28, ease: 'back.out(2.2)', overwrite: true }
+    )
+  }, [userStatus, isSpeaking])
+
+  const punchControl = (el: HTMLElement | null) => {
+    if (!el) return
+    gsap.killTweensOf(el)
+    gsap.fromTo(
+      el,
+      { scale: 0.82 },
+      { scale: 1, duration: 0.32, ease: 'back.out(2.4)', overwrite: true }
+    )
+  }
+
+  const handleToggleMute = () => {
+    punchControl(muteBtnRef.current)
+    onToggleMute()
+  }
+
+  const handleToggleDeafen = () => {
+    punchControl(deafenBtnRef.current)
+    onToggleDeafen()
+  }
+
+  const handleSelectStatus = (s: UserStatus) => {
+    onSetStatus(s)
+    closeStatusMenu()
+  }
 
   const displayStatus = userStatus === 'online' && isSpeaking ? 'Speaking' : STATUS_LABELS[userStatus]
   const statusColor = userStatus === 'online' && isSpeaking ? 'bg-[#23a559]' : STATUS_COLORS[userStatus]
@@ -66,7 +159,7 @@ export function UserPanel({
         {/* User avatar + name — clickable for status */}
         <div className="relative flex-1 min-w-0" ref={statusMenuRef}>
           <div
-            onClick={() => setShowStatusMenu(!showStatusMenu)}
+            onClick={toggleStatusMenu}
             className="flex items-center gap-2 px-1 py-1 rounded hover:bg-app-hover/40 cursor-pointer transition-colors"
           >
             <div className={`relative flex-shrink-0 rounded-full transition-all duration-150 ${
@@ -80,7 +173,8 @@ export function UserPanel({
                 </div>
               )}
               <div
-                className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-[#232428] transition-all duration-150 ${statusColor} ${
+                ref={statusDotRef}
+                className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-[#232428] ${statusColor} ${
                   isSpeaking ? 'shadow-[0_0_6px_#23a559] ring-1 ring-[#23a559] animate-pulse' : ''
                 }`}
               />
@@ -97,15 +191,16 @@ export function UserPanel({
 
           {/* Status dropdown */}
           {showStatusMenu && (
-            <div className="absolute left-0 bottom-full mb-1 w-48 bg-[#2b2d31] rounded-lg shadow-xl border border-app-hover/50 overflow-hidden z-[100]">
+            <div
+              ref={statusDropdownRef}
+              className="absolute left-0 bottom-full mb-1 w-48 bg-[#2b2d31] rounded-lg shadow-xl border border-app-hover/50 overflow-hidden z-[100] origin-bottom-left"
+            >
               <div className="p-1">
                 {(['online', 'away', 'dnd', 'offline'] as UserStatus[]).map((s) => (
                   <button
                     key={s}
-                    onClick={() => {
-                      onSetStatus(s)
-                      setShowStatusMenu(false)
-                    }}
+                    type="button"
+                    onClick={() => handleSelectStatus(s)}
                     className={`w-full flex items-center gap-2 px-3 py-2 rounded text-left text-sm transition-colors ${
                       userStatus === s ? 'bg-app-accent/30 text-white' : 'text-app-text hover:bg-app-hover/60'
                     }`}
@@ -122,7 +217,9 @@ export function UserPanel({
         {/* Control buttons */}
         <div className="flex items-center">
           <button
-            onClick={onToggleMute}
+            ref={muteBtnRef}
+            type="button"
+            onClick={handleToggleMute}
             className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${
               isMuted ? 'text-red-400 hover:bg-app-hover/60' : 'text-app-muted hover:bg-app-hover/60 hover:text-app-text'
             }`}
@@ -131,7 +228,9 @@ export function UserPanel({
             {isMuted ? <MicOffIcon size={18} /> : <MicIcon size={18} />}
           </button>
           <button
-            onClick={onToggleDeafen}
+            ref={deafenBtnRef}
+            type="button"
+            onClick={handleToggleDeafen}
             className={`w-8 h-8 rounded flex items-center justify-center transition-colors ${
               isDeafened ? 'text-red-400 hover:bg-app-hover/60' : 'text-app-muted hover:bg-app-hover/60 hover:text-app-text'
             }`}
@@ -140,6 +239,7 @@ export function UserPanel({
             {isDeafened ? <HeadphonesOffIcon size={18} /> : <HeadphonesIcon size={18} />}
           </button>
           <button
+            type="button"
             onClick={() => setShowSettings(true)}
             className="w-8 h-8 rounded flex items-center justify-center text-app-muted hover:bg-app-hover/60 hover:text-app-text transition-colors"
             title="User Settings"
