@@ -43,7 +43,7 @@ Deploy the Express + Socket.io backend so Vercel can reach it (fixes production 
    - **Root Directory:** `backend`
    - If using Docker: Dockerfile path is `Dockerfile` (inside `backend/`). Build context is `backend/` — do **not** use repo-root `COPY backend/...` paths.
    - **Start Command:** `npm start` (only if not using Dockerfile; Docker image already runs `node src/index.js`)
-4. **Settings → Networking → Generate Domain** — set port to whatever the app listens on (`8080` in the Dockerfile default, or `3000` if you set `PORT=3000`).
+4. **Settings → Networking → Generate Domain** — leave Railway’s detected port (it injects `PORT`). Do **not** hardcode `PORT` in the Dockerfile. If you must pick: check deploy logs for `Server running on port …` and use that number.
 
 You should get something like `https://nepsis-chat-production-xxxx.up.railway.app`.
 

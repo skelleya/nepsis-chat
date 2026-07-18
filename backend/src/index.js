@@ -107,7 +107,8 @@ registerChatHandlers(chatNamespace)
 registerVoiceHandlers(voiceNamespace)
 registerCallHandlers(callsNamespace)
 
-const PORT = process.env.PORT || 3000
-httpServer.listen(PORT, () => {
+const PORT = Number(process.env.PORT) || 3000
+// Bind 0.0.0.0 so Railway/Docker proxies can reach the process
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`)
 })
