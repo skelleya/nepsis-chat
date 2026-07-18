@@ -62,121 +62,102 @@ function AppContent() {
   } = useApp()
 
   const [showLogin, setShowLogin] = useState(true)
+  const [showApp, setShowApp] = useState(false)
   const prevUserRef = useRef(user)
   const loginShellRef = useRef<HTMLDivElement>(null)
-  const appShellRef = useRef<HTMLDivElement>(null)
   const transitioningRef = useRef(false)
 
+  // When auth succeeds: mount app underneath first, then fade login out (no scale — avoids black edge flash).
   useLayoutEffect(() => {
     const prev = prevUserRef.current
     prevUserRef.current = user
 
-    if (!prev && user && showLogin) {
-      if (transitioningRef.current) return
-      transitioningRef.current = true
-      const el = loginShellRef.current
-      if (!el) {
-        setShowLogin(false)
-        transitioningRef.current = false
-        return
-      }
-      gsap.to(el, {
-        opacity: 0,
-        y: -28,
-        scale: 0.98,
-        duration: 0.45,
-        ease: 'power2.inOut',
-        onComplete: () => {
-          setShowLogin(false)
-          transitioningRef.current = false
-        },
-      })
+    if (!prev && user) {
+      setShowApp(true)
       return
     }
 
     if (prev && !user) {
       transitioningRef.current = false
+      setShowApp(false)
       setShowLogin(true)
     }
-  }, [user, showLogin])
+  }, [user])
 
   useLayoutEffect(() => {
-    if (!showLogin) return
+    if (!user || !showApp || !showLogin || transitioningRef.current) return
+    transitioningRef.current = true
     const el = loginShellRef.current
-    if (!el) return
-    gsap.set(el, { opacity: 1, y: 0, scale: 1 })
-  }, [showLogin])
-
-  useLayoutEffect(() => {
-    if (showLogin || !user) return
-    const el = appShellRef.current
-    if (!el) return
-    gsap.fromTo(
-      el,
-      { opacity: 0 },
-      {
-        opacity: 1,
-        duration: 0.4,
-        ease: 'power2.out',
-        force3D: false,
-        clearProps: 'transform',
-      }
-    )
-    return () => {
-      gsap.killTweensOf(el)
+    if (!el) {
+      setShowLogin(false)
+      transitioningRef.current = false
+      return
     }
-  }, [showLogin, user])
+    gsap.set(el, { opacity: 1, y: 0, scale: 1 })
+    gsap.to(el, {
+      opacity: 0,
+      duration: 0.35,
+      ease: 'power2.inOut',
+      force3D: false,
+      onComplete: () => {
+        setShowLogin(false)
+        transitioningRef.current = false
+      },
+    })
+  }, [user, showApp, showLogin])
 
-  if (showLogin || !user) {
-    return (
-      <div ref={loginShellRef} className="fixed inset-0">
-        <LoginPage />
-      </div>
-    )
-  }
+  const displayName = user ? ((user.display_name && user.display_name.trim()) || user.username) : ''
 
-  const displayName = (user.display_name && user.display_name.trim()) || user.username
   return (
-    <div ref={appShellRef} className="fixed inset-0 overflow-hidden">
-      <VoiceProvider userId={user.id} username={displayName}>
-        <CallProvider userId={user.id} username={displayName}>
-        <MainLayout
-          user={user}
-          servers={servers}
-          channels={channels}
-          categories={categories}
-          messages={messages}
-          currentServerId={currentServerId}
-          currentChannelId={currentChannelId}
-          dmConversations={dmConversations}
-          dmMessages={dmMessages}
-          currentDMId={currentDMId}
-          setCurrentDM={setCurrentDM}
-          dmUnreadCounts={dmUnreadCounts}
-          channelUnreadCounts={channelUnreadCounts}
-          channelMentionCounts={channelMentionCounts}
-          openDM={openDM}
-          sendDMMessage={sendDMMessage}
-          setCurrentServer={setCurrentServer}
-          setCurrentChannel={setCurrentChannel}
-          sendMessage={sendMessage}
-          createServer={createServer}
-          updateServer={updateServer}
-          deleteServer={deleteServer}
-          reorderServers={reorderServers}
-          createChannel={createChannel}
-          createCategory={createCategory}
-          reorderChannels={reorderChannels}
-          updateChannel={updateChannel}
-          updateCategory={updateCategory}
-          reorderCategories={reorderCategories}
-          deleteChannel={deleteChannel}
-          deleteCategory={deleteCategory}
-          logout={logout}
-        />
-        </CallProvider>
-      </VoiceProvider>
-    </div>
+    <>
+      {showApp && user && (
+        <div className="fixed inset-0 overflow-hidden bg-app-darker">
+          <VoiceProvider userId={user.id} username={displayName}>
+            <CallProvider userId={user.id} username={displayName}>
+            <MainLayout
+              user={user}
+              servers={servers}
+              channels={channels}
+              categories={categories}
+              messages={messages}
+              currentServerId={currentServerId}
+              currentChannelId={currentChannelId}
+              dmConversations={dmConversations}
+              dmMessages={dmMessages}
+              currentDMId={currentDMId}
+              setCurrentDM={setCurrentDM}
+              dmUnreadCounts={dmUnreadCounts}
+              channelUnreadCounts={channelUnreadCounts}
+              channelMentionCounts={channelMentionCounts}
+              openDM={openDM}
+              sendDMMessage={sendDMMessage}
+              setCurrentServer={setCurrentServer}
+              setCurrentChannel={setCurrentChannel}
+              sendMessage={sendMessage}
+              createServer={createServer}
+              updateServer={updateServer}
+              deleteServer={deleteServer}
+              reorderServers={reorderServers}
+              createChannel={createChannel}
+              createCategory={createCategory}
+              reorderChannels={reorderChannels}
+              updateChannel={updateChannel}
+              updateCategory={updateCategory}
+              reorderCategories={reorderCategories}
+              deleteChannel={deleteChannel}
+              deleteCategory={deleteCategory}
+              logout={logout}
+            />
+            </CallProvider>
+          </VoiceProvider>
+        </div>
+      )}
+      {showLogin && (
+        <div ref={loginShellRef} className="fixed inset-0 z-20">
+          <LoginPage />
+        </div>
+      )}
+    </>
   )
 }
 
@@ -589,7 +570,7 @@ function MainLayout({
   }, [showServerSettings])
 
   return (
-    <div className="h-full min-h-0 flex bg-app-darker overflow-x-hidden">
+    <div className="h-full w-full min-h-0 flex bg-app-darker overflow-hidden">
       <ServerBar
         servers={servers.map((s) => ({ id: s.id, name: s.name, iconUrl: s.icon_url, bannerUrl: s.banner_url, ownerId: s.owner_id }))}
         currentServerId={currentServerId}
