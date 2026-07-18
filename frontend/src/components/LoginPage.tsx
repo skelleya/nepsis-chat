@@ -1,4 +1,4 @@
-import { useState, useLayoutEffect, useRef, useCallback } from 'react'
+import { useState, useLayoutEffect, useRef, useCallback, type RefObject } from 'react'
 import { Link } from 'react-router-dom'
 import gsap from 'gsap'
 import { useApp } from '../contexts/AppContext'
@@ -18,6 +18,55 @@ const MODE_ORDER: Record<AuthMode, number> = {
   signup: 2,
 }
 
+const COIN_SIZE = 48
+const COIN_THICKNESS = 5
+const COIN_LAYERS = 6
+
+/** Stacked discs along Z — reliable thickness when spun on edge (no fragile cylinder mesh). */
+function NepsisCoin({ coinRef }: { coinRef: RefObject<HTMLDivElement | null> }) {
+  return (
+    <div
+      ref={coinRef}
+      className="relative"
+      style={{
+        width: COIN_SIZE,
+        height: COIN_SIZE,
+        transformStyle: 'preserve-3d',
+      }}
+    >
+      {Array.from({ length: COIN_LAYERS }, (_, i) => {
+        const t = i / (COIN_LAYERS - 1)
+        const z = (t - 0.5) * COIN_THICKNESS
+        const isFront = i === COIN_LAYERS - 1
+        const isBack = i === 0
+        const isFace = isFront || isBack
+        return (
+          <div
+            key={i}
+            className="absolute inset-0 rounded-full overflow-hidden"
+            style={{
+              transform: `translateZ(${z}px)`,
+              background: isFace
+                ? '#ffffff'
+                : 'linear-gradient(180deg, #d0d0d0 0%, #f3f3f3 45%, #c4c4c4 100%)',
+              boxShadow: isFace ? 'inset 0 0 0 1px rgba(0,0,0,0.08)' : undefined,
+            }}
+          >
+            {isFace && (
+              <img
+                src="./logo.png"
+                alt=""
+                className={`h-full w-full object-contain p-1 select-none ${isBack ? 'scale-x-[-1]' : ''}`}
+                draggable={false}
+              />
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export function LoginPage() {
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
@@ -35,10 +84,117 @@ export function LoginPage() {
   const tabsRef = useRef<HTMLDivElement>(null)
   const indicatorRef = useRef<HTMLDivElement>(null)
   const tabBtnRefs = useRef<Partial<Record<AuthMode, HTMLButtonElement | null>>>({})
+  const coinWrapRef = useRef<HTMLDivElement>(null)
+  const coinRef = useRef<HTMLDivElement>(null)
   const pendingEnterRef = useRef(false)
   const slideDirectionRef = useRef(1)
   const targetModeRef = useRef<AuthMode>('guest')
   const tabIndicatorReadyRef = useRef(false)
+
+  // Coin spin: native listeners + inertia ticker (instant drag, free coast, reverse brakes)
+  useLayoutEffect(() => {
+    const wrap = coinWrapRef.current
+    const coin = coinRef.current
+    if (!wrap || !coin) return
+
+    gsap.set(coin, {
+      transformOrigin: '50% 50%',
+      transformStyle: 'preserve-3d',
+      force3D: true,
+      rotationY: 0,
+    })
+
+    // Unit is required — without 'deg', non-zero quickSetter values are ignored
+    const setRot = gsap.quickSetter(coin, 'rotationY', 'deg') as (value: number) => void
+    let rotation = 0
+    let velocity = 0 // deg per tick-unit (scaled by deltaRatio)
+    let lastX: number | null = null
+    let hovering = false
+    const FACE = 180
+    const MAX_VEL = 80
+
+    const onEnter = (e: PointerEvent) => {
+      hovering = true
+      lastX = e.clientX
+    }
+
+    const onMove = (e: PointerEvent) => {
+      hovering = true
+      const x = e.clientX
+      const delta = lastX == null ? (e.movementX || 0) : x - lastX
+      lastX = x
+      if (!delta) return
+
+      // Instant spin with the cursor
+      rotation += delta * 1.6
+      setRot(rotation)
+
+      // Momentum: same direction speeds up; opposite direction brakes then reverses
+      velocity += delta * 0.95
+      velocity = Math.max(-MAX_VEL, Math.min(MAX_VEL, velocity))
+    }
+
+    const onLeave = () => {
+      hovering = false
+      lastX = null
+    }
+
+    const tick = () => {
+      const d = gsap.ticker.deltaRatio()
+      if (hovering) {
+        // Light damping only — pointer owns the live spin
+        velocity *= Math.pow(0.9, d)
+        return
+      }
+
+      if (Math.abs(velocity) < 0.02) {
+        const target = Math.round(rotation / FACE) * FACE
+        const err = target - rotation
+        if (Math.abs(err) < 0.2) {
+          if (rotation !== target) {
+            rotation = target
+            setRot(rotation)
+          }
+          velocity = 0
+          return
+        }
+        // Soft settle onto face
+        rotation += err * (1 - Math.pow(0.85, d))
+        setRot(rotation)
+        return
+      }
+
+      // Free coast
+      rotation += velocity * d
+      velocity *= Math.pow(0.965, d)
+
+      // As it slows, ease toward a face in the travel direction
+      if (Math.abs(velocity) < 8) {
+        const dir = velocity >= 0 ? 1 : -1
+        let target = dir > 0
+          ? Math.ceil(rotation / FACE) * FACE
+          : Math.floor(rotation / FACE) * FACE
+        if (Math.abs(target - rotation) < 0.5) target += dir * FACE
+        const err = target - rotation
+        velocity += err * 0.04 * d
+        velocity *= Math.pow(0.92, d)
+      }
+
+      setRot(rotation)
+    }
+
+    wrap.addEventListener('pointerenter', onEnter)
+    wrap.addEventListener('pointermove', onMove)
+    wrap.addEventListener('pointerleave', onLeave)
+    gsap.ticker.add(tick)
+
+    return () => {
+      wrap.removeEventListener('pointerenter', onEnter)
+      wrap.removeEventListener('pointermove', onMove)
+      wrap.removeEventListener('pointerleave', onLeave)
+      gsap.ticker.remove(tick)
+    }
+  }, [])
 
   const moveTabIndicator = useCallback((animate: boolean) => {
     const track = tabsRef.current
@@ -212,8 +368,24 @@ export function LoginPage() {
       ref={pageRef}
       className="fixed inset-0 flex items-center justify-center bg-app-darker"
     >
-      <div ref={cardRef} className="w-full max-w-md p-10 rounded-xl bg-app-dark will-change-transform">
-        <img src="./logo.png" alt="Nepsis" className="h-12 mx-auto mb-6 object-contain bg-white rounded-full p-1" />
+      <div ref={cardRef} className="w-full max-w-md p-10 rounded-xl bg-app-dark">
+        <div
+          ref={coinWrapRef}
+          className="mx-auto mb-6 flex items-center justify-center cursor-grab active:cursor-grabbing"
+          style={{
+            width: 80,
+            height: 80,
+            perspective: 900,
+            transformStyle: 'preserve-3d',
+            overflow: 'visible',
+          }}
+          role="img"
+          aria-label="Nepsis"
+        >
+          <div className="pointer-events-none">
+            <NepsisCoin coinRef={coinRef} />
+          </div>
+        </div>
         <h1 className="text-2xl font-bold text-white text-center mb-8">Nepsis Chat</h1>
 
         {!isElectron && (
