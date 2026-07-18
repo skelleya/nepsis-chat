@@ -1,8 +1,33 @@
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
 
+/** Safari often surfaces network failures as "Load failed"; map those to a clear API message. */
+export function toApiError(err: unknown, fallback = 'Request failed'): Error {
+  const msg = err instanceof Error ? err.message : String(err ?? '')
+  const lower = msg.toLowerCase()
+  if (
+    lower === 'load failed' ||
+    lower === 'failed to fetch' ||
+    lower.includes('networkerror') ||
+    lower.includes('network request failed')
+  ) {
+    return new Error(
+      `Cannot reach the API (${API_BASE}). Set Vercel VITE_API_URL to your live backend (Fly was removed).`
+    )
+  }
+  return err instanceof Error ? err : new Error(msg || fallback)
+}
+
+async function apiFetch(input: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init)
+  } catch (err) {
+    throw toApiError(err)
+  }
+}
+
 // Guest login (username only)
 export async function login(username: string) {
-  const res = await fetch(`${API_BASE}/auth/login`, {
+  const res = await apiFetch(`${API_BASE}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username }),
@@ -13,7 +38,7 @@ export async function login(username: string) {
 
 // Sign in with username + password (backend looks up email, returns session tokens)
 export async function loginWithUsername(username: string, password: string): Promise<{ access_token: string; refresh_token: string }> {
-  const res = await fetch(`${API_BASE}/auth/signin-username`, {
+  const res = await apiFetch(`${API_BASE}/auth/signin-username`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username: username.trim(), password }),

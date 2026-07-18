@@ -1,16 +1,16 @@
-# Backend only — frontend is on Vercel
-# Build with context: backend folder (docker build -f backend/Dockerfile backend)
+# Backend only — frontend is on Vercel.
+# Build context must be the backend/ folder:
+#   docker build -f backend/Dockerfile backend
+# Railway: set Root Directory to `backend` (this file is used as the Dockerfile).
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Install deps
-COPY backend/package*.json ./
+COPY package*.json ./
 RUN npm ci --omit=dev
 
-# Copy backend source
-COPY backend/src/ ./src/
-COPY backend/supabase-migration.sql ./supabase-migration.sql
+COPY src/ ./src/
+COPY supabase-migration.sql ./supabase-migration.sql
 
 ENV NODE_ENV=production
 ENV PORT=8080

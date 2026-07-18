@@ -31,6 +31,58 @@ git push   # Vercel auto-deploys from GitHub — ~1 min
 
 ---
 
+## Railway (recommended for production API)
+
+Deploy the Express + Socket.io backend so Vercel can reach it (fixes production “Load failed”).
+
+### 1. Create the service
+
+1. Go to [railway.app](https://railway.app/) → sign up (GitHub is easiest)
+2. **New Project** → **Deploy from GitHub repo** → select `nepsis-chat`
+3. After it appears, open the service → **Settings**:
+   - **Root Directory:** `backend`
+   - If using Docker: Dockerfile path is `Dockerfile` (inside `backend/`). Build context is `backend/` — do **not** use repo-root `COPY backend/...` paths.
+   - **Start Command:** `npm start` (only if not using Dockerfile; Docker image already runs `node src/index.js`)
+4. **Settings → Networking → Generate Domain** — set port to whatever the app listens on (`8080` in the Dockerfile default, or `3000` if you set `PORT=3000`).
+
+You should get something like `https://nepsis-chat-production-xxxx.up.railway.app`.
+
+### 2. Environment variables (Railway → Variables)
+
+| Variable | Value |
+|----------|-------|
+| `SUPABASE_URL` | `https://qeopqyquskszzgprghiy.supabase.co` |
+| `SUPABASE_ANON_KEY` | Supabase anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase **service_role** key (Dashboard → Settings → API) |
+| `CORS_ORIGINS` | `https://nepsischat.vercel.app` (or `*` while testing) |
+| `PORT` | Leave unset — Railway injects `PORT` |
+
+Redeploy after saving variables.
+
+### 3. Smoke-test the API
+
+Open in a browser:
+
+`https://YOUR_RAILWAY_DOMAIN/api/version`
+
+You should see JSON like `{"version":"…"}`.
+
+### 4. Point Vercel at Railway
+
+Vercel → Project → **Settings → Environment Variables**:
+
+| Variable | Value |
+|----------|-------|
+| `VITE_API_URL` | `https://YOUR_RAILWAY_DOMAIN/api` |
+| `VITE_SUPABASE_URL` | `https://qeopqyquskszzgprghiy.supabase.co` |
+| `VITE_SUPABASE_ANON_KEY` | same anon key |
+
+Then **Deployments → … → Redeploy** (required — `VITE_*` is baked at build time).
+
+Sign-in on the live site should work after that.
+
+---
+
 ## Self-hosted backend
 
 Run the backend on your own server (VPS, home server, etc.).
@@ -138,9 +190,13 @@ Base schema: `backend/supabase-migration.sql`. Incrementals: `supabase/migration
 
 | Variable | Value |
 |----------|-------|
-| `VITE_API_URL` | Your backend API URL (e.g. `https://your-server.com/api`) |
-| `VITE_SUPABASE_URL` | (from Supabase) |
-| `VITE_SUPABASE_ANON_KEY` | (from Supabase) |
+| `VITE_API_URL` | Your **public** backend API URL (e.g. `https://api.yourdomain.com/api`). **Not** `localhost`. **Not** `nepsis-chat.fly.dev` (Fly removed). |
+| `VITE_SUPABASE_URL` | `https://qeopqyquskszzgprghiy.supabase.co` |
+| `VITE_SUPABASE_ANON_KEY` | Anon key from that Supabase project |
+
+After changing env vars, trigger a **Redeploy** (Vercel bakes `VITE_*` at build time).
+
+If sign-in shows **“Load failed”**, the site cannot reach the API — almost always a stale/wrong `VITE_API_URL`.
 
 ### Deploy
 

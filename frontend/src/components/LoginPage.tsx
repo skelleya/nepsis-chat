@@ -2,6 +2,7 @@ import { useState, useLayoutEffect, useRef, useCallback, type RefObject } from '
 import { Link } from 'react-router-dom'
 import gsap from 'gsap'
 import { useApp } from '../contexts/AppContext'
+import { toApiError } from '../services/api'
 import { supabase } from '../services/supabase'
 
 type AuthMode = 'guest' | 'login' | 'signup'
@@ -368,8 +369,8 @@ export function LoginPage() {
     await closeCredentialFields()
     try {
       await login(username.trim())
-    } catch {
-      setError('Login failed. Try again.')
+    } catch (err) {
+      setError(toApiError(err, 'Login failed. Try again.').message)
       setLoading(false)
       await openCredentialFields()
     }
@@ -408,8 +409,8 @@ export function LoginPage() {
           await loginWithUsername(email.trim(), password)
         }
       }
-    } catch (err: any) {
-      setError(err?.message || 'Authentication failed')
+    } catch (err: unknown) {
+      setError(toApiError(err, 'Authentication failed').message)
       setLoading(false)
       await openCredentialFields()
     }
