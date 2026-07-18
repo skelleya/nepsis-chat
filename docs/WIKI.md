@@ -70,7 +70,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Login tab glide — Guest / Sign In / Sign Up form panel slides horizontally in the travel direction (with the pill) |
 | + | Login form height lock — Guest matches Sign In / Sign Up height (fixed panel) so tab switches don’t resize the card |
 | + | App height fill fix — html/body/#root 100% height; main shell uses `fixed inset-0` to remove black bottom gap |
-| + | User Settings GSAP — Modal opens/closes with GSAP; fixed panel height; content glides across a page strip (past intermediates) while sidebar selection jumps to the target |
+| + | User Settings GSAP — Modal opens/closes with GSAP; fixed panel height; sidebar accent pill slides between buttons; content pages slide/fade up on change |
 | + | UserPanel GSAP — Status dropdown open/close animates; mute/deafen buttons scale-punch on click; status dot pops when status changes |
 | + | ServerBar bubble GSAP — Friends + Community server bubbles scale-punch on click |
 | + | Friends / Community page GSAP — Main content fades and slides in when opening via Nepsis or compass bubbles |
