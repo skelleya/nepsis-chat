@@ -86,129 +86,112 @@ export function LoginPage() {
   const tabBtnRefs = useRef<Partial<Record<AuthMode, HTMLButtonElement | null>>>({})
   const coinWrapRef = useRef<HTMLDivElement>(null)
   const coinRef = useRef<HTMLDivElement>(null)
-  const coinRotationRef = useRef(0)
-  /** Angular velocity in degrees/second */
-  const coinAngularVelRef = useRef(0)
-  const coinLastXRef = useRef<number | null>(null)
-  const coinDraggingRef = useRef(false)
-  const coinSetRotationRef = useRef<((value: number) => void) | null>(null)
   const pendingEnterRef = useRef(false)
   const slideDirectionRef = useRef(1)
   const targetModeRef = useRef<AuthMode>('guest')
   const tabIndicatorReadyRef = useRef(false)
 
-  // Free-spin physics: instant drag response + inertia; reverse swipe slows then flips direction
+  // Coin spin: native listeners + inertia ticker (instant drag, free coast, reverse brakes)
   useLayoutEffect(() => {
+    const wrap = coinWrapRef.current
     const coin = coinRef.current
-    if (!coin) return
+    if (!wrap || !coin) return
 
     gsap.set(coin, {
       transformOrigin: '50% 50%',
       transformStyle: 'preserve-3d',
+      force3D: true,
       rotationY: 0,
     })
-    const setRot = gsap.quickSetter(coin, 'rotationY') as (value: number) => void
-    coinSetRotationRef.current = setRot
 
-    const MAX_VEL = 3200
-    const FRICTION = 1.65
-    const SETTLE_START = 90
+    const setRot = gsap.quickSetter(coin, 'rotationY') as (value: number) => void
+    let rotation = 0
+    let velocity = 0 // deg per tick-unit (scaled by deltaRatio)
+    let lastX: number | null = null
+    let hovering = false
     const FACE = 180
+    const MAX_VEL = 80
+
+    const onEnter = (e: PointerEvent) => {
+      hovering = true
+      lastX = e.clientX
+    }
+
+    const onMove = (e: PointerEvent) => {
+      hovering = true
+      const x = e.clientX
+      const delta = lastX == null ? (e.movementX || 0) : x - lastX
+      lastX = x
+      if (!delta) return
+
+      // Instant spin with the cursor
+      rotation += delta * 1.6
+      setRot(rotation)
+
+      // Momentum: same direction speeds up; opposite direction brakes then reverses
+      velocity += delta * 0.95
+      velocity = Math.max(-MAX_VEL, Math.min(MAX_VEL, velocity))
+    }
+
+    const onLeave = () => {
+      hovering = false
+      lastX = null
+    }
 
     const tick = () => {
-      const dt = gsap.ticker.deltaRatio() / 60
-      if (dt <= 0) return
-
-      // While dragging, pointer move owns rotation directly (zero lag)
-      if (coinDraggingRef.current) return
-
-      let vel = coinAngularVelRef.current
-      if (Math.abs(vel) < 0.05) {
-        // Final magnetic snap to face
-        const target = Math.round(coinRotationRef.current / FACE) * FACE
-        const err = target - coinRotationRef.current
-        if (Math.abs(err) < 0.15) {
-          coinRotationRef.current = target
-          coinAngularVelRef.current = 0
-          setRot(target)
-          return
-        }
-        coinAngularVelRef.current = err * 10
-        vel = coinAngularVelRef.current
-      }
-
-      // Friction while free-spinning
-      vel *= Math.exp(-FRICTION * dt)
-
-      // When slow enough, gently pull toward the nearest face in the travel direction
-      if (Math.abs(vel) < SETTLE_START) {
-        const dir = vel >= 0 ? 1 : -1
-        let target =
-          Math.abs(vel) > 12
-            ? dir > 0
-              ? Math.ceil(coinRotationRef.current / FACE) * FACE
-              : Math.floor(coinRotationRef.current / FACE) * FACE
-            : Math.round(coinRotationRef.current / FACE) * FACE
-        if (Math.abs(vel) > 12 && Math.abs(target - coinRotationRef.current) < 0.5) {
-          target += dir * FACE
-        }
-        const err = target - coinRotationRef.current
-        vel += err * 6 * dt
-        vel *= Math.exp(-2.4 * dt)
-      }
-
-      coinAngularVelRef.current = Math.max(-MAX_VEL, Math.min(MAX_VEL, vel))
-      coinRotationRef.current += coinAngularVelRef.current * dt
-      setRot(coinRotationRef.current)
-    }
-
-    gsap.ticker.add(tick)
-    return () => {
-      gsap.ticker.remove(tick)
-      coinSetRotationRef.current = null
-    }
-  }, [])
-
-  const handleCoinPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    let delta = e.movementX
-    if (!delta) {
-      if (coinLastXRef.current == null) {
-        coinLastXRef.current = e.clientX
+      const d = gsap.ticker.deltaRatio()
+      if (hovering) {
+        // Light damping only — pointer owns the live spin
+        velocity *= Math.pow(0.9, d)
         return
       }
-      delta = e.clientX - coinLastXRef.current
+
+      if (Math.abs(velocity) < 0.02) {
+        const target = Math.round(rotation / FACE) * FACE
+        const err = target - rotation
+        if (Math.abs(err) < 0.2) {
+          rotation = target
+          velocity = 0
+          setRot(rotation)
+          return
+        }
+        // Soft settle onto face
+        rotation += err * (1 - Math.pow(0.85, d))
+        setRot(rotation)
+        return
+      }
+
+      // Free coast
+      rotation += velocity * d
+      velocity *= Math.pow(0.965, d)
+
+      // As it slows, ease toward a face in the travel direction
+      if (Math.abs(velocity) < 8) {
+        const dir = velocity >= 0 ? 1 : -1
+        let target = dir > 0
+          ? Math.ceil(rotation / FACE) * FACE
+          : Math.floor(rotation / FACE) * FACE
+        if (Math.abs(target - rotation) < 0.5) target += dir * FACE
+        const err = target - rotation
+        velocity += err * 0.04 * d
+        velocity *= Math.pow(0.92, d)
+      }
+
+      setRot(rotation)
     }
-    coinLastXRef.current = e.clientX
-    if (!delta) return
 
-    // Instant visual follow
-    coinRotationRef.current += delta * 1.35
-    coinSetRotationRef.current?.(coinRotationRef.current)
+    wrap.addEventListener('pointerenter', onEnter)
+    wrap.addEventListener('pointermove', onMove)
+    wrap.addEventListener('pointerleave', onLeave)
+    gsap.ticker.add(tick)
 
-    // Impulse into angular velocity — opposite swipes slow a fast spin, then reverse
-    const impulse = delta * 62
-    coinAngularVelRef.current = Math.max(
-      -3200,
-      Math.min(3200, coinAngularVelRef.current + impulse)
-    )
-  }
-
-  const handleCoinPointerEnter = (e: React.PointerEvent<HTMLDivElement>) => {
-    coinDraggingRef.current = true
-    coinLastXRef.current = e.clientX
-    // Keep existing angular velocity so a reverse swipe can brake a fast spin
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId)
-    } catch {
-      /* ignore */
+    return () => {
+      wrap.removeEventListener('pointerenter', onEnter)
+      wrap.removeEventListener('pointermove', onMove)
+      wrap.removeEventListener('pointerleave', onLeave)
+      gsap.ticker.remove(tick)
     }
-  }
-
-  const handleCoinPointerLeave = () => {
-    coinDraggingRef.current = false
-    coinLastXRef.current = null
-    // Free-spin + face settle continue on the ticker from current velocity
-  }
+  }, [])
 
   const moveTabIndicator = useCallback((animate: boolean) => {
     const track = tabsRef.current
@@ -385,7 +368,7 @@ export function LoginPage() {
       <div ref={cardRef} className="w-full max-w-md p-10 rounded-xl bg-app-dark">
         <div
           ref={coinWrapRef}
-          className="mx-auto mb-6 flex items-center justify-center cursor-grab active:cursor-grabbing touch-none"
+          className="mx-auto mb-6 flex items-center justify-center cursor-grab active:cursor-grabbing"
           style={{
             width: 80,
             height: 80,
@@ -395,12 +378,10 @@ export function LoginPage() {
           }}
           role="img"
           aria-label="Nepsis"
-          onPointerEnter={handleCoinPointerEnter}
-          onPointerMove={handleCoinPointerMove}
-          onPointerLeave={handleCoinPointerLeave}
-          onPointerUp={handleCoinPointerLeave}
         >
-          <NepsisCoin coinRef={coinRef} />
+          <div className="pointer-events-none">
+            <NepsisCoin coinRef={coinRef} />
+          </div>
         </div>
         <h1 className="text-2xl font-bold text-white text-center mb-8">Nepsis Chat</h1>
 
