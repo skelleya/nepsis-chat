@@ -45,7 +45,7 @@ export function CreateServerModal({ onClose, onCreate }: CreateServerModalProps)
       { xPercent: 0 },
       {
         xPercent: -50,
-        duration: 2.4,
+        duration: 1.1,
         ease: 'none',
         repeat: -1,
       }
