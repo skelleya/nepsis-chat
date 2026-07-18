@@ -51,7 +51,7 @@ frontend/src/
 | DMView | Direct message chat; modern UI with gradient header, rounded bubbles, relative timestamps; groups consecutive messages from same sender (avatar/name shown only on first in group); spacing: 1.5 between same-sender, 5 between different senders |
 | FriendsPage | Discord-like Friends home: tabs (All, Pending, Online, Add Friend). **Add Friend** searches discoverable **profile display names** (not login usernames); request targets that profile and is sent from your Personal/Work. Accept under a chosen profile. **GSAP:** fade+slide-in on mount |
 | CreateServerModal | Create server: name input, gradient accent bar, loading spinner, error display; used by ServerBar (+ button) and OnboardingPage |
-| UserPanel | Bottom bar: avatar/status, mute, deafen, settings. **GSAP:** status menu open/close (fade+rise+scale); mute/deafen buttons punch-scale on click; status dot pops on change |
+| UserPanel | Bottom bar: avatar/status, mute, deafen, settings. **GSAP:** status menu open/close (fade+rise+scale); mute/deafen buttons punch-scale on click; status dot pops on change. Mute/deafen play Web Audio cues via `VoiceContext` / `CallContext`. |
 | UserSettingsModal | User Settings modal: fixed size (`h-[min(640px,90vh)]`) so tab changes don’t resize; GSAP open/close; **sidebar** uses a shared accent pill that slides between nav buttons (compact 15px labels, Log Out pinned at bottom); **content** exits upward + fades, then the next page fades/slides up; close (X) overlays the top-right over a thin `.settings-scroll` scrollbar. **My Account (non-guest):** Personal defaults to signup username until Profiles are set; Work locked until a Work display name is saved; switching Personal/Work updates name/avatar/banner immediately; Profiles saves sync labels via `onProfilesChange`. **Appearance:** Coming soon. **Voice & Video / Notifications:** local prefs. Shared **SettingsDropdown** / **SettingsToggle**. |
 | SettingsDropdown | Custom select for settings pages — trigger + portal listbox, checkmark on selected option, open/close fade+scale via GSAP; closes on outside click, Escape, or scroll. |
 | SettingsToggle | Shared switch control — GSAP slides the knob and tweens track color with a light scale punch on change. |
@@ -87,7 +87,7 @@ frontend/src/
 | signaling.ts | BroadcastChannel (2-tab test) |
 | socketSignaling.ts | Socket.io (with backend) |
 | webrtc.ts | WebRTC peer connections |
-| sounds.ts | Web Audio API notification/call sounds (no external files) |
+| sounds.ts | Web Audio API notification/call/voice sounds (no external files). Includes mute/unmute/deafen/undeafen cues gated by Notifications → Voice sounds. |
 
 ---
 

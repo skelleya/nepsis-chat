@@ -132,6 +132,42 @@ class SoundManager {
     this.tone(349.23, t + 0.12, 0.25, { volume: 0.08 })
   }
 
+  /** Self mute — soft downward tick */
+  mute() {
+    if (!this.allowVoice()) return
+    const ctx = this.getCtx()
+    const t = ctx.currentTime
+    this.tone(520, t, 0.07, { volume: 0.09, type: 'triangle' })
+    this.tone(360, t + 0.04, 0.09, { volume: 0.07, type: 'triangle' })
+  }
+
+  /** Self unmute — soft upward tick */
+  unmute() {
+    if (!this.allowVoice()) return
+    const ctx = this.getCtx()
+    const t = ctx.currentTime
+    this.tone(360, t, 0.07, { volume: 0.08, type: 'triangle' })
+    this.tone(560, t + 0.04, 0.1, { volume: 0.09, type: 'triangle' })
+  }
+
+  /** Self deafen — deeper closed tick (covers mute-from-deafen too) */
+  deafen() {
+    if (!this.allowVoice()) return
+    const ctx = this.getCtx()
+    const t = ctx.currentTime
+    this.tone(280, t, 0.08, { volume: 0.1, type: 'sine' })
+    this.tone(200, t + 0.05, 0.12, { volume: 0.08, type: 'sine' })
+  }
+
+  /** Self undeafen — open rising tick */
+  undeafen() {
+    if (!this.allowVoice()) return
+    const ctx = this.getCtx()
+    const t = ctx.currentTime
+    this.tone(220, t, 0.08, { volume: 0.08, type: 'sine' })
+    this.tone(340, t + 0.05, 0.12, { volume: 0.1, type: 'sine' })
+  }
+
   // ─── Calls ─────────────────────────────────────────────────────
 
   /** Call connected — success chime */

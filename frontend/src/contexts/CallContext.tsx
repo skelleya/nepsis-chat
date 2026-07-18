@@ -86,6 +86,10 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
   const iceCandidateQueueRef = useRef<RTCIceCandidateInit[]>([])
   const callNotificationRef = useRef<Notification | null>(null)
   const mutedBeforeDeafenRef = useRef(false)
+  const isMutedRef = useRef(false)
+  const isDeafenedRef = useRef(false)
+  isMutedRef.current = isMuted
+  isDeafenedRef.current = isDeafened
 
   // Sync wrappers — update both ref + state
   const setCallState = useCallback((s: CallState) => {
@@ -445,28 +449,32 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
   }, [cleanup])
 
   // Unmute undeafens. Deafen mutes; undeafen restores prior mute state.
+  // One cue per action: unmute (covers undeafen), deafen (covers mute-from-deafen).
   const toggleMute = useCallback(() => {
-    setIsMuted((prev) => {
-      const next = !prev
-      if (!next) {
-        setIsDeafened(false)
-        mutedBeforeDeafenRef.current = false
-      }
-      return next
-    })
+    const wasMuted = isMutedRef.current
+    const wasDeafened = isDeafenedRef.current
+    const next = !wasMuted
+    if (!next) {
+      setIsMuted(false)
+      setIsDeafened(false)
+      mutedBeforeDeafenRef.current = false
+      if (wasMuted || wasDeafened) sounds.unmute()
+    } else {
+      setIsMuted(true)
+      sounds.mute()
+    }
   }, [])
   const toggleDeafen = useCallback(() => {
-    setIsDeafened((prevDeaf) => {
-      if (!prevDeaf) {
-        setIsMuted((prevMute) => {
-          mutedBeforeDeafenRef.current = prevMute
-          return true
-        })
-        return true
-      }
+    if (!isDeafenedRef.current) {
+      mutedBeforeDeafenRef.current = isMutedRef.current
+      setIsDeafened(true)
+      setIsMuted(true)
+      sounds.deafen()
+    } else {
+      setIsDeafened(false)
       setIsMuted(mutedBeforeDeafenRef.current)
-      return false
-    })
+      sounds.undeafen()
+    }
   }, [])
 
   return (

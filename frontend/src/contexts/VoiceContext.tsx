@@ -83,10 +83,18 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
 
   /** Unmute also undeafens */
   const setIsMuted = useCallback((v: boolean) => {
+    const wasMuted = isMutedRef.current
+    const wasDeafened = isDeafenedRef.current
+    if (v === wasMuted && !(wasDeafened && !v)) return
+
     setIsMutedState(v)
     if (!v) {
       setIsDeafenedState(false)
       mutedBeforeDeafenRef.current = false
+      // Unmute (and undeafen if needed) — one unmute cue
+      if (wasMuted || wasDeafened) sounds.unmute()
+    } else if (!wasMuted) {
+      sounds.mute()
     }
   }, [])
 
@@ -96,12 +104,16 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
    */
   const setIsDeafened = useCallback((v: boolean) => {
     if (v) {
+      if (isDeafenedRef.current) return
       mutedBeforeDeafenRef.current = isMutedRef.current
       setIsDeafenedState(true)
       setIsMutedState(true)
+      sounds.deafen()
     } else {
+      if (!isDeafenedRef.current) return
       setIsDeafenedState(false)
       setIsMutedState(mutedBeforeDeafenRef.current)
+      sounds.undeafen()
     }
   }, [])
 
