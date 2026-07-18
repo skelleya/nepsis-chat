@@ -92,6 +92,8 @@ Node.js + Express + Socket.io + SQLite.
 
 **File:** `backend/data.sqlite` (legacy) — Supabase Postgres used in production
 
+**Active Supabase:** `qeopqyquskszzgprghiy` — schema applied (19 migrations). Backend needs `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` in `backend/.env` (see `.env.example`). Storage uploads use public bucket `attachments`.
+
 ---
 
 ## Socket.io Namespaces

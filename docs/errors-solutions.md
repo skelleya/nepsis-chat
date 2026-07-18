@@ -278,7 +278,7 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | Error | Cause | Solution |
 |-------|-------|----------|
 | **`{"message":"Unrecognized client_id"}` when authenticating Supabase MCP** | Cursor cached an old OAuth Dynamic Client Registration. Supabase no longer recognizes that `client_id`, so the browser auth page fails immediately. | **Fix (desktop Cursor):** (1) Settings → Tools & MCP / Plugins → **Disconnect/Logout** Supabase. (2) Remove the Supabase plugin/MCP entry. (3) Fully quit Cursor (all windows). (4) Reinstall/re-add Supabase MCP and authenticate again so a fresh client registers. Scope URL to current project: `https://mcp.supabase.com/mcp?project_ref=qeopqyquskszzgprghiy`. If it still fails, check Output → **Cursor MCP** for `Saving client information` (missing = DCR bug). |
-| **App still pointed at old Supabase project** | Env/docs still used `opkatioqcmamnwmvqdtq` after creating a new project. | **Fix**: Project URL is `https://qeopqyquskszzgprghiy.supabase.co`. Set `SUPABASE_URL` + service role in `backend/.env`, and `VITE_SUPABASE_URL` + anon key in `frontend/.env.local` / `.env.production` / Vercel from Dashboard → API. Run all migrations on the new DB. |
+| **App still pointed at old Supabase project** | Env/docs still used `opkatioqcmamnwmvqdtq` after creating a new project. | **Fix**: Project URL is `https://qeopqyquskszzgprghiy.supabase.co`. Migrations + `attachments` bucket applied via MCP. Frontend anon key is in `.env.production` / `.env.local`. Paste **service_role** into `backend/.env` and update Vercel `VITE_SUPABASE_*`. |
 
 ---
 
