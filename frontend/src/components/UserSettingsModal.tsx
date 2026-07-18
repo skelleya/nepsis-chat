@@ -7,6 +7,16 @@ import { ProfilesSettingsTab } from './settings/ProfilesSettingsTab'
 
 type TabId = 'account' | 'profiles' | 'privacy' | 'appearance' | 'voice' | 'notifications' | 'help'
 
+const TAB_ORDER: TabId[] = [
+  'account',
+  'profiles',
+  'privacy',
+  'appearance',
+  'voice',
+  'notifications',
+  'help',
+]
+
 function HelpTab({ user }: { user: { id: string; username: string } }) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -102,6 +112,8 @@ interface UserSettingsModalProps {
 
 export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: UserSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<TabId>('account')
+  const [displayedTab, setDisplayedTab] = useState<TabId>('account')
+  const [switching, setSwitching] = useState(false)
   const [username, setUsername] = useState(user.username)
   const [displayName, setDisplayName] = useState(user.display_name ?? '')
   const [avatarUrl, setAvatarUrl] = useState(user.avatar_url || '')
@@ -118,8 +130,10 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
   const overlayRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+  const contentTweenRef = useRef<gsap.core.Tween | null>(null)
   const closingRef = useRef(false)
   const tabReadyRef = useRef(false)
+  const slideDirRef = useRef(1)
 
   const isGuest = user.is_guest ?? true
 
@@ -144,6 +158,36 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
     )
   }, [])
 
+  const switchTab = (next: TabId) => {
+    if (next === activeTab || switching) return
+    const el = contentRef.current
+    if (!el) {
+      setActiveTab(next)
+      setDisplayedTab(next)
+      return
+    }
+
+    const fromIdx = TAB_ORDER.indexOf(displayedTab)
+    const toIdx = TAB_ORDER.indexOf(next)
+    const dir = toIdx >= fromIdx ? 1 : -1
+    slideDirRef.current = dir
+
+    setActiveTab(next)
+    setSwitching(true)
+    contentTweenRef.current?.kill()
+    contentTweenRef.current = gsap.to(el, {
+      opacity: 0,
+      x: -28 * dir,
+      duration: 0.16,
+      ease: 'power2.in',
+      force3D: false,
+      onComplete: () => {
+        setDisplayedTab(next)
+        setSwitching(false)
+      },
+    })
+  }
+
   useLayoutEffect(() => {
     const content = contentRef.current
     if (!content) return
@@ -151,12 +195,24 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
       tabReadyRef.current = true
       return
     }
-    gsap.fromTo(
+    const dir = slideDirRef.current
+    contentTweenRef.current?.kill()
+    contentTweenRef.current = gsap.fromTo(
       content,
-      { opacity: 0, y: 10 },
-      { opacity: 1, y: 0, duration: 0.28, ease: 'power2.out', force3D: false, clearProps: 'transform' }
+      { opacity: 0, x: 28 * dir },
+      {
+        opacity: 1,
+        x: 0,
+        duration: 0.22,
+        ease: 'power2.out',
+        force3D: false,
+        clearProps: 'transform',
+      }
     )
-  }, [activeTab])
+    return () => {
+      contentTweenRef.current?.kill()
+    }
+  }, [displayedTab])
 
   const requestClose = () => {
     if (closingRef.current) return
@@ -329,8 +385,10 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
             {tabs.map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`w-full px-3 py-2 rounded text-sm text-left transition-colors ${
+                type="button"
+                onClick={() => switchTab(tab.id)}
+                disabled={switching}
+                className={`w-full px-3 py-2 rounded text-sm text-left transition-colors disabled:cursor-wait ${
                   activeTab === tab.id ? 'bg-app-accent/30 text-white' : 'text-app-muted hover:text-app-text hover:bg-app-hover/40'
                 }`}
               >
@@ -350,10 +408,10 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
           </div>
         </div>
 
-        {/* Main content — fixed panel size; only inner content scrolls */}
-        <div className="flex-1 min-w-0 min-h-0 overflow-y-auto p-6">
-          <div ref={contentRef}>
-          {activeTab === 'account' && (
+        {/* Main content — fixed panel size; clip horizontal slide, scroll vertically */}
+        <div className="flex-1 min-w-0 min-h-0 overflow-x-hidden overflow-y-auto p-6">
+          <div ref={contentRef} className="will-change-transform">
+          {displayedTab === 'account' && (
             <div>
               <h3 className="text-xl font-bold text-white mb-4">My Account</h3>
               <div className="bg-[#111214] rounded-lg overflow-hidden">
@@ -488,7 +546,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
             </div>
           )}
 
-          {activeTab === 'profiles' && (
+          {displayedTab === 'profiles' && (
             <ProfilesSettingsTab
               user={user}
               onUserUpdate={onUserUpdate}
@@ -497,11 +555,11 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
             />
           )}
 
-          {activeTab === 'privacy' && (
+          {displayedTab === 'privacy' && (
             <PrivacySettingsTab userId={user.id} />
           )}
 
-          {activeTab === 'appearance' && (
+          {displayedTab === 'appearance' && (
             <div>
               <h3 className="text-xl font-bold text-white mb-4">Appearance</h3>
               <div className="bg-[#2b2d31] rounded-lg p-4">
@@ -510,7 +568,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
             </div>
           )}
 
-          {activeTab === 'voice' && (
+          {displayedTab === 'voice' && (
             <div>
               <h3 className="text-xl font-bold text-white mb-4">Voice & Video</h3>
               <div className="bg-[#2b2d31] rounded-lg p-4">
@@ -519,7 +577,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
             </div>
           )}
 
-          {activeTab === 'notifications' && (
+          {displayedTab === 'notifications' && (
             <div>
               <h3 className="text-xl font-bold text-white mb-4">Notifications</h3>
               <div className="bg-[#2b2d31] rounded-lg p-4">
@@ -528,7 +586,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
             </div>
           )}
 
-          {activeTab === 'help' && (
+          {displayedTab === 'help' && (
             <HelpTab user={user} />
           )}
           </div>
