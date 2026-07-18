@@ -104,7 +104,8 @@ export function LoginPage() {
       rotationY: 0,
     })
 
-    const setRot = gsap.quickSetter(coin, 'rotationY') as (value: number) => void
+    // Unit is required — without 'deg', non-zero quickSetter values are ignored
+    const setRot = gsap.quickSetter(coin, 'rotationY', 'deg') as (value: number) => void
     let rotation = 0
     let velocity = 0 // deg per tick-unit (scaled by deltaRatio)
     let lastX: number | null = null
@@ -150,9 +151,11 @@ export function LoginPage() {
         const target = Math.round(rotation / FACE) * FACE
         const err = target - rotation
         if (Math.abs(err) < 0.2) {
-          rotation = target
+          if (rotation !== target) {
+            rotation = target
+            setRot(rotation)
+          }
           velocity = 0
-          setRot(rotation)
           return
         }
         // Soft settle onto face
