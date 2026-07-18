@@ -81,6 +81,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Login logo coin spin — Nepsis logo on LoginPage spins left/right with cursor movement via GSAP `rotationY` (`quickSetter` must pass `'deg'` or non-zero spins are ignored) |
 | + | Login logo coin thickness — 3D coin with front/back faces + rim segments so the edge shows when viewed on its side |
 | + | Login tab pill — Shared accent indicator slides between Guest / Sign In / Sign Up via GSAP (no per-button background flash) |
+| + | Login credentials close — Username / email+password fields collapse with GSAP when Continue / Sign In is clicked; reopen if auth fails |
 | + | Download banner balance — Short prompt + clear Download button + subtle dismiss (not full marketing sentence, not link-only) |
 | + | Last channel per server — When switching servers, auto-restore the last selected channel for that server; persisted in localStorage (nepsis_last_channel); cleared on logout |
 | + | Emoji picker — Click-outside-to-close; improved styling (rounded-xl, shadow-2xl, better spacing, active scale feedback) |
