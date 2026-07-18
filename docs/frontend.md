@@ -51,12 +51,13 @@ frontend/src/
 | DMView | Direct message chat; modern UI with gradient header, rounded bubbles, relative timestamps; groups consecutive messages from same sender (avatar/name shown only on first in group); spacing: 1.5 between same-sender, 5 between different senders |
 | FriendsPage | Discord-like Friends home: tabs (All, Pending, Online, Add Friend). Add Friend by username; Online shows friends with presence. Opened by clicking Nepsis logo. When viewing a DM, stays in Friends view—sidebar shows DMs + servers |
 | CreateServerModal | Create server: name input, gradient accent bar, loading spinner, error display; used by ServerBar (+ button) and OnboardingPage |
-| UserSettingsModal | User Settings > My Account: Display name (optional, shown to others), Username (login identifier). Display name shown in UserPanel, voice, chat, DMs. |
+| UserSettingsModal | User Settings modal: fixed size (`h-[min(640px,90vh)]`) so tab changes don’t resize; GSAP open/close + soft content fade on tab switch. My Account: display name, username, avatar/banner. |
 | OnboardingPage | Shown when new (non-guest) user has no servers; CTAs: Create first server (opens CreateServerModal), Explore community; persisted via `nepsis_onboarding_completed` |
 | CommunityPage | Explore page: invite code entry, community servers list; shown when guest has no servers or when user completes onboarding |
 | UpdateButton | Green update (Electron only) |
-| DownloadBanner | Web-only top banner: "Using the web app? Download Nepsis…"; dismissible (localStorage); sets `--download-banner-height` for page offset; hidden on `/download` and in Electron |
-| LoginPage | Guest (username only), Sign In (email or username + password), Sign Up (email + password); top padding from `--download-banner-height` when banner is visible |
+| DownloadBanner | Centered top tab: short prompt (“Prefer the desktop app?”) + clear Download button + subtle dismiss; `rounded-b-xl`; dismissible (localStorage); sets `--download-banner-height`; hidden on `/download` and in Electron. **GSAP:** slide/fade in/out |
+| LoginPage | Guest (username only), Sign In (email or username + password), Sign Up (email + password); top padding from `--download-banner-height` when banner is visible. **GSAP:** soft page/card enter; sliding accent pill on tabs; form panel slides in the same direction as the tab change |
+| AppContent (login transition) | Keeps LoginPage mounted until GSAP exit finishes after auth, then fades main app in (`gsap`) |
 
 ---
 
