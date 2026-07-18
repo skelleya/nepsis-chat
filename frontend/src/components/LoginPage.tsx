@@ -4,17 +4,28 @@ import gsap from 'gsap'
 import { useApp } from '../contexts/AppContext'
 import { supabase } from '../services/supabase'
 
+type AuthMode = 'guest' | 'login' | 'signup'
+
+const MODE_ORDER: Record<AuthMode, number> = {
+  guest: 0,
+  login: 1,
+  signup: 2,
+}
+
 export function LoginPage() {
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [mode, setMode] = useState<'guest' | 'login' | 'signup'>('guest')
+  const [mode, setMode] = useState<AuthMode>('guest')
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
+  const [switching, setSwitching] = useState(false)
   const { login, loginWithEmail, loginWithUsername } = useApp()
   const pageRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const slideDirectionRef = useRef(0)
 
   useLayoutEffect(() => {
     const page = pageRef.current
@@ -36,6 +47,48 @@ export function LoginPage() {
 
     return () => ctx.revert()
   }, [])
+
+  useLayoutEffect(() => {
+    const panel = panelRef.current
+    const direction = slideDirectionRef.current
+    if (!panel || direction === 0) return
+
+    gsap.fromTo(
+      panel,
+      { x: 40 * direction, opacity: 0 },
+      {
+        x: 0,
+        opacity: 1,
+        duration: 0.28,
+        ease: 'power2.out',
+        onComplete: () => setSwitching(false),
+      }
+    )
+    slideDirectionRef.current = 0
+  }, [mode])
+
+  const switchMode = (next: AuthMode) => {
+    if (next === mode || switching) return
+    const direction = MODE_ORDER[next] > MODE_ORDER[mode] ? 1 : -1
+    const panel = panelRef.current
+    setError('')
+    setMessage('')
+
+    if (!panel) {
+      setMode(next)
+      return
+    }
+
+    setSwitching(true)
+    slideDirectionRef.current = direction
+    gsap.to(panel, {
+      x: -40 * direction,
+      opacity: 0,
+      duration: 0.18,
+      ease: 'power2.in',
+      onComplete: () => setMode(next),
+    })
+  }
 
   const handleGuestSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -118,7 +171,8 @@ export function LoginPage() {
         {/* Mode tabs */}
         <div className="flex mb-8 rounded-lg overflow-hidden bg-app-channel">
           <button
-            onClick={() => { setMode('guest'); setError(''); setMessage('') }}
+            type="button"
+            onClick={() => switchMode('guest')}
             className={`flex-1 py-3 text-sm font-medium transition-colors ${
               mode === 'guest' ? 'bg-app-accent text-white' : 'text-app-muted hover:text-white'
             }`}
@@ -126,7 +180,8 @@ export function LoginPage() {
             Guest
           </button>
           <button
-            onClick={() => { setMode('login'); setError(''); setMessage('') }}
+            type="button"
+            onClick={() => switchMode('login')}
             className={`flex-1 py-3 text-sm font-medium transition-colors ${
               mode === 'login' ? 'bg-app-accent text-white' : 'text-app-muted hover:text-white'
             }`}
@@ -134,7 +189,8 @@ export function LoginPage() {
             Sign In
           </button>
           <button
-            onClick={() => { setMode('signup'); setError(''); setMessage('') }}
+            type="button"
+            onClick={() => switchMode('signup')}
             className={`flex-1 py-3 text-sm font-medium transition-colors ${
               mode === 'signup' ? 'bg-app-accent text-white' : 'text-app-muted hover:text-white'
             }`}
@@ -143,60 +199,66 @@ export function LoginPage() {
           </button>
         </div>
 
-        {mode === 'guest' ? (
-          <form onSubmit={handleGuestSubmit} className="space-y-6">
-            <div className="space-y-3">
-              <label className="block text-sm text-app-muted">Username</label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter a username"
-                className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 rounded-lg bg-app-accent hover:bg-app-accent-hover text-white font-semibold transition-colors disabled:opacity-50"
-            >
-              {loading ? 'Joining...' : 'Continue as Guest'}
-            </button>
-            <p className="text-app-muted text-xs text-center pt-1">
-              Guest accounts are temporary — no email required
-            </p>
-          </form>
-        ) : (
-          <form onSubmit={handleEmailSubmit} className="space-y-6">
-            <div className="space-y-3">
-              <label className="block text-sm text-app-muted">Email or username</label>
-              <input
-                type="text"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com or username"
-                className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent"
-              />
-            </div>
-            <div className="space-y-3">
-              <label className="block text-sm text-app-muted">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 rounded-lg bg-app-accent hover:bg-app-accent-hover text-white font-semibold transition-colors disabled:opacity-50"
-            >
-              {loading ? 'Please wait...' : mode === 'signup' ? 'Create Account' : 'Sign In'}
-            </button>
-          </form>
-        )}
+        <div className="overflow-hidden">
+          <div ref={panelRef} className="will-change-transform">
+            {mode === 'guest' ? (
+              <form onSubmit={handleGuestSubmit} className="space-y-6">
+                <div className="space-y-3">
+                  <label className="block text-sm text-app-muted">Username</label>
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Enter a username"
+                    className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading || switching}
+                  className="w-full py-3 rounded-lg bg-app-accent hover:bg-app-accent-hover text-white font-semibold transition-colors disabled:opacity-50"
+                >
+                  {loading ? 'Joining...' : 'Continue as Guest'}
+                </button>
+                <p className="text-app-muted text-xs text-center pt-1">
+                  Guest accounts are temporary — no email required
+                </p>
+              </form>
+            ) : (
+              <form onSubmit={handleEmailSubmit} className="space-y-6">
+                <div className="space-y-3">
+                  <label className="block text-sm text-app-muted">
+                    {mode === 'signup' ? 'Email' : 'Email or username'}
+                  </label>
+                  <input
+                    type="text"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder={mode === 'signup' ? 'you@example.com' : 'you@example.com or username'}
+                    className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <label className="block text-sm text-app-muted">Password</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading || switching}
+                  className="w-full py-3 rounded-lg bg-app-accent hover:bg-app-accent-hover text-white font-semibold transition-colors disabled:opacity-50"
+                >
+                  {loading ? 'Please wait...' : mode === 'signup' ? 'Create Account' : 'Sign In'}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )
