@@ -1,10 +1,12 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import gsap from 'gsap'
 
 const STORAGE_KEY = 'nepsis-download-banner-dismissed'
 
 export function DownloadBanner() {
-  const [visible, setVisible] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const [closing, setClosing] = useState(false)
   const bannerRef = useRef<HTMLDivElement>(null)
   const { pathname } = useLocation()
 
@@ -12,17 +14,25 @@ export function DownloadBanner() {
     const isElectron = !!(window as any).electronAPI?.isElectron
     if (isElectron) return
     const dismissed = localStorage.getItem(STORAGE_KEY)
-    if (!dismissed) setVisible(true)
+    if (!dismissed) setMounted(true)
   }, [])
 
-  useEffect(() => {
-    if (!visible || pathname === '/download') {
+  useLayoutEffect(() => {
+    if (!mounted || pathname === '/download') {
       document.documentElement.style.removeProperty('--download-banner-height')
       return
     }
 
     const el = bannerRef.current
     if (!el) return
+
+    gsap.set(el, { y: -48, opacity: 0 })
+    gsap.to(el, {
+      y: 0,
+      opacity: 1,
+      duration: 0.5,
+      ease: 'power3.out',
+    })
 
     const updateHeight = () => {
       document.documentElement.style.setProperty('--download-banner-height', `${el.offsetHeight}px`)
@@ -33,22 +43,41 @@ export function DownloadBanner() {
     observer.observe(el)
     return () => {
       observer.disconnect()
+      gsap.killTweensOf(el)
       document.documentElement.style.removeProperty('--download-banner-height')
     }
-  }, [visible, pathname])
+  }, [mounted, pathname])
 
   const dismiss = () => {
-    setVisible(false)
+    if (closing) return
+    setClosing(true)
     localStorage.setItem(STORAGE_KEY, '1')
+
+    const el = bannerRef.current
+    if (!el) {
+      setMounted(false)
+      return
+    }
+
+    gsap.to(el, {
+      y: -48,
+      opacity: 0,
+      duration: 0.35,
+      ease: 'power2.in',
+      onComplete: () => {
+        document.documentElement.style.removeProperty('--download-banner-height')
+        setMounted(false)
+      },
+    })
   }
 
-  if (!visible || pathname === '/download') return null
+  if (!mounted || pathname === '/download') return null
 
   return (
     <div className="fixed top-0 left-0 right-0 z-50 flex justify-center pointer-events-none">
       <div
         ref={bannerRef}
-        className="pointer-events-auto flex items-center gap-3 max-w-[min(92vw,36rem)] bg-app-accent text-white px-4 py-2.5 rounded-b-2xl shadow-md"
+        className="pointer-events-auto flex items-center gap-3 max-w-[min(92vw,36rem)] bg-app-accent text-white px-4 py-2.5 rounded-b-2xl shadow-md will-change-transform"
       >
         <p className="min-w-0 text-sm font-semibold leading-snug text-center">
           Using the web app? Download Nepsis for desktop for a better experience.

@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useLayoutEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
+import gsap from 'gsap'
 import { useApp } from '../contexts/AppContext'
 import { supabase } from '../services/supabase'
 
@@ -12,6 +13,29 @@ export function LoginPage() {
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const { login, loginWithEmail, loginWithUsername } = useApp()
+  const pageRef = useRef<HTMLDivElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    const page = pageRef.current
+    const card = cardRef.current
+    if (!page || !card) return
+
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        page,
+        { opacity: 0 },
+        { opacity: 1, duration: 0.35, ease: 'power2.out' }
+      )
+      gsap.fromTo(
+        card,
+        { opacity: 0, y: 28, scale: 0.96 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.55, ease: 'power3.out', delay: 0.05 }
+      )
+    }, page)
+
+    return () => ctx.revert()
+  }, [])
 
   const handleGuestSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -22,8 +46,8 @@ export function LoginPage() {
       await login(username.trim())
     } catch {
       setError('Login failed. Try again.')
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -47,6 +71,7 @@ export function LoginPage() {
         })
         if (signUpError) throw signUpError
         setMessage('Check your email for a confirmation link!')
+        setLoading(false)
       } else {
         // Support sign-in with email or username
         if (email.includes('@')) {
@@ -57,18 +82,19 @@ export function LoginPage() {
       }
     } catch (err: any) {
       setError(err?.message || 'Authentication failed')
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const isElectron = !!(window as any).electronAPI?.isElectron
 
   return (
     <div
+      ref={pageRef}
       className="min-h-screen flex items-center justify-center bg-app-darker"
       style={{ paddingTop: 'var(--download-banner-height, 0px)' }}
     >
-      <div className="w-full max-w-md p-10 rounded-xl bg-app-dark">
+      <div ref={cardRef} className="w-full max-w-md p-10 rounded-xl bg-app-dark will-change-transform">
         <img src="./logo.png" alt="Nepsis" className="h-12 mx-auto mb-6 object-contain bg-white rounded-full p-1" />
         <h1 className="text-2xl font-bold text-white text-center mb-8">Nepsis Chat</h1>
 

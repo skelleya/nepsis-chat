@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react'
+import gsap from 'gsap'
 import * as api from './services/api'
 import { subscribeToServerMembers, unsubscribe } from './services/realtime'
 import { AppProvider, useApp } from './contexts/AppContext'
@@ -60,48 +61,116 @@ function AppContent() {
     logout,
   } = useApp()
 
-  if (!user) return <LoginPage />
+  const [showLogin, setShowLogin] = useState(true)
+  const prevUserRef = useRef(user)
+  const loginShellRef = useRef<HTMLDivElement>(null)
+  const appShellRef = useRef<HTMLDivElement>(null)
+  const transitioningRef = useRef(false)
+
+  useLayoutEffect(() => {
+    const prev = prevUserRef.current
+    prevUserRef.current = user
+
+    if (!prev && user && showLogin) {
+      if (transitioningRef.current) return
+      transitioningRef.current = true
+      const el = loginShellRef.current
+      if (!el) {
+        setShowLogin(false)
+        transitioningRef.current = false
+        return
+      }
+      gsap.to(el, {
+        opacity: 0,
+        y: -28,
+        scale: 0.98,
+        duration: 0.45,
+        ease: 'power2.inOut',
+        onComplete: () => {
+          setShowLogin(false)
+          transitioningRef.current = false
+        },
+      })
+      return
+    }
+
+    if (prev && !user) {
+      transitioningRef.current = false
+      setShowLogin(true)
+    }
+  }, [user, showLogin])
+
+  useLayoutEffect(() => {
+    if (!showLogin) return
+    const el = loginShellRef.current
+    if (!el) return
+    gsap.set(el, { opacity: 1, y: 0, scale: 1 })
+  }, [showLogin])
+
+  useLayoutEffect(() => {
+    if (showLogin || !user) return
+    const el = appShellRef.current
+    if (!el) return
+    gsap.fromTo(
+      el,
+      { opacity: 0 },
+      { opacity: 1, duration: 0.4, ease: 'power2.out' }
+    )
+    return () => {
+      gsap.killTweensOf(el)
+    }
+  }, [showLogin, user])
+
+  if (showLogin || !user) {
+    return (
+      <div ref={loginShellRef} className="min-h-screen will-change-transform">
+        <LoginPage />
+      </div>
+    )
+  }
 
   const displayName = (user.display_name && user.display_name.trim()) || user.username
   return (
-    <VoiceProvider userId={user.id} username={displayName}>
-      <CallProvider userId={user.id} username={displayName}>
-      <MainLayout
-        user={user}
-        servers={servers}
-        channels={channels}
-        categories={categories}
-        messages={messages}
-        currentServerId={currentServerId}
-        currentChannelId={currentChannelId}
-        dmConversations={dmConversations}
-        dmMessages={dmMessages}
-        currentDMId={currentDMId}
-        setCurrentDM={setCurrentDM}
-        dmUnreadCounts={dmUnreadCounts}
-        channelUnreadCounts={channelUnreadCounts}
-        channelMentionCounts={channelMentionCounts}
-        openDM={openDM}
-        sendDMMessage={sendDMMessage}
-        setCurrentServer={setCurrentServer}
-        setCurrentChannel={setCurrentChannel}
-        sendMessage={sendMessage}
-        createServer={createServer}
-        updateServer={updateServer}
-        deleteServer={deleteServer}
-        reorderServers={reorderServers}
-        createChannel={createChannel}
-        createCategory={createCategory}
-        reorderChannels={reorderChannels}
-        updateChannel={updateChannel}
-        updateCategory={updateCategory}
-        reorderCategories={reorderCategories}
-        deleteChannel={deleteChannel}
-        deleteCategory={deleteCategory}
-        logout={logout}
-      />
-      </CallProvider>
-    </VoiceProvider>
+    <div ref={appShellRef} className="h-screen will-change-transform">
+      <VoiceProvider userId={user.id} username={displayName}>
+        <CallProvider userId={user.id} username={displayName}>
+        <MainLayout
+          user={user}
+          servers={servers}
+          channels={channels}
+          categories={categories}
+          messages={messages}
+          currentServerId={currentServerId}
+          currentChannelId={currentChannelId}
+          dmConversations={dmConversations}
+          dmMessages={dmMessages}
+          currentDMId={currentDMId}
+          setCurrentDM={setCurrentDM}
+          dmUnreadCounts={dmUnreadCounts}
+          channelUnreadCounts={channelUnreadCounts}
+          channelMentionCounts={channelMentionCounts}
+          openDM={openDM}
+          sendDMMessage={sendDMMessage}
+          setCurrentServer={setCurrentServer}
+          setCurrentChannel={setCurrentChannel}
+          sendMessage={sendMessage}
+          createServer={createServer}
+          updateServer={updateServer}
+          deleteServer={deleteServer}
+          reorderServers={reorderServers}
+          createChannel={createChannel}
+          createCategory={createCategory}
+          reorderChannels={reorderChannels}
+          updateChannel={updateChannel}
+          updateCategory={updateCategory}
+          reorderCategories={reorderCategories}
+          deleteChannel={deleteChannel}
+          deleteCategory={deleteCategory}
+          logout={logout}
+        />
+        </CallProvider>
+      </VoiceProvider>
+    </div>
   )
 }
 
