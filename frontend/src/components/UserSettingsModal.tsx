@@ -400,35 +400,43 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
       >
         {/* Left sidebar */}
         <div className="w-[218px] bg-[#2b2d31] flex-shrink-0 flex flex-col min-h-0">
-          <div className="p-4 border-b border-app-hover/40 flex-shrink-0">
-            <h2 className="text-lg font-bold text-white">User Settings</h2>
+          <div className="px-4 pt-4 pb-3 flex-shrink-0">
+            <h2 className="text-xs font-bold uppercase tracking-wide text-[#949ba4]">
+              User Settings
+            </h2>
           </div>
-          <div ref={navRef} className="relative p-2 overflow-y-auto flex-1 min-h-0">
+          <div ref={navRef} className="relative flex-1 min-h-0 overflow-y-auto px-2 pb-2">
             <div
               ref={indicatorRef}
-              className="absolute left-2 right-2 rounded bg-app-accent/30 pointer-events-none opacity-0 will-change-transform"
+              className="absolute left-2 right-2 rounded-md bg-app-accent/30 pointer-events-none opacity-0 will-change-transform"
               aria-hidden
             />
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                ref={(el) => { tabBtnRefs.current[tab.id] = el }}
-                onClick={() => switchTab(tab.id)}
-                className={`relative z-10 w-full px-3 py-2 rounded text-sm text-left transition-colors ${
-                  activeTab === tab.id ? 'text-white' : 'text-app-muted hover:text-app-text'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-            <div className="h-px bg-app-hover/50 my-2" />
+            <div className="flex flex-col gap-0.5">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  ref={(el) => { tabBtnRefs.current[tab.id] = el }}
+                  onClick={() => switchTab(tab.id)}
+                  className={`relative z-10 w-full px-2.5 py-1.5 rounded-md text-[15px] font-medium leading-6 text-left transition-colors ${
+                    activeTab === tab.id
+                      ? 'text-white'
+                      : 'text-[#b5bac1] hover:text-[#dbdee1]'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex-shrink-0 px-2 pb-3 pt-2 mt-auto border-t border-[#3f4147]">
             <button
+              type="button"
               onClick={onLogout}
-              className="relative z-10 w-full px-3 py-2 rounded text-sm text-red-400 hover:text-red-300 hover:bg-app-hover/40 text-left flex items-center gap-2"
+              className="w-full px-2.5 py-1.5 rounded-md text-[15px] font-medium leading-6 text-red-400 hover:text-red-300 hover:bg-white/5 text-left flex items-center justify-between gap-2"
             >
-              Log Out
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="ml-auto">
+              <span>Log Out</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden className="shrink-0 opacity-90">
                 <path d="M17 7L15.59 8.41L18.17 11H8V13H18.17L15.59 15.58L17 17L22 12L17 7ZM4 5H12V3H4C2.9 3 2 3.9 2 5V19C2 20.1 2.9 21 4 21H12V19H4V5Z" fill="currentColor"/>
               </svg>
             </button>
