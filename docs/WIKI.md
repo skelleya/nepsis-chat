@@ -74,6 +74,8 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | UserPanel GSAP — Status dropdown open/close animates; mute/deafen buttons scale-punch on click; status dot pops when status changes |
 | + | ServerBar bubble GSAP — Friends + Community server bubbles scale-punch on click |
 | + | Friends / Community page GSAP — Main content fades and slides in when opening via Nepsis or compass bubbles |
+| + | Privacy & Safety settings — Voice-focused controls: who can DM/call/add you; voice channel + online visibility; speaking indicator |
+| + | Dual profiles (Personal/Work) — Customize presentation; choose active profile for servers; add/accept friends under a profile; per-friend visibility (one or both) |
 | + | Login logo coin spin — Nepsis logo on LoginPage spins left/right with cursor movement via GSAP `rotationY` (`quickSetter` must pass `'deg'` or non-zero spins are ignored) |
 | + | Login logo coin thickness — 3D coin with front/back faces + rim segments so the edge shows when viewed on its side |
 | + | Login tab pill — Shared accent indicator slides between Guest / Sign In / Sign Up via GSAP (no per-button background flash) |

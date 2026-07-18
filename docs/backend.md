@@ -30,15 +30,18 @@ Node.js + Express + Socket.io + SQLite.
 | PUT | `/api/servers/:id/channels/reorder` | Bulk reorder channels (`updates: [{ id, order }]`) |
 | GET | `/api/users/lookup` | Lookup user by username (`?username=`) — for Add Friend; case-insensitive |
 | PUT | `/api/users/:id/presence` | Update presence (`status`: online, away, dnd, offline, in-voice; `voiceChannelId`) |
-| PATCH | `/api/users/:id` | Update profile (`username`, `display_name`, `avatar_url`, `banner_url`) |
+| PATCH | `/api/users/:id` | Update profile (`username`, `display_name`, `avatar_url`, `banner_url`, `active_profile`) |
 | GET | `/api/users/:id/profiles` | List user profiles (personal, work) |
 | PUT | `/api/users/:id/profiles` | Upsert profile (`profile_type`, `display_name`, `avatar_url`, `banner_url`) |
+| GET | `/api/users/:id/privacy` | Get privacy settings (defaults if unset) |
+| PUT | `/api/users/:id/privacy` | Upsert privacy settings (DMs, calls, friend requests, voice/online visibility, speaking indicator) |
 | POST | `/api/dm/conversations` | Create or get DM between two users (`userId`, `targetUserId`) |
-| GET | `/api/friends/list` | List friends (`?userId=`) — includes `status` (online/in-voice/away/dnd/offline) from user_presence |
-| GET | `/api/friends/requests` | List pending friend requests (`?userId=`) |
-| POST | `/api/friends/accept` | Accept friend request (`userId`, `requesterId`) |
+| GET | `/api/friends/list` | List friends (`?userId=`) — includes `status`, `friendship_profile`, `visible_profiles` |
+| GET | `/api/friends/requests` | List pending friend requests (`?userId=`) — includes `requester_profile` |
+| POST | `/api/friends/accept` | Accept friend request (`userId`, `requesterId`, `profile?`, `visibleProfiles?`) |
 | POST | `/api/friends/decline` | Decline friend request (`userId`, `requesterId`) |
-| POST | `/api/friends/request` | Send friend request (`userId`, `targetUserId`) — requires `friend_requests` migration |
+| POST | `/api/friends/request` | Send friend request (`userId`, `targetUserId`, `profile?` personal\|work) — respects target `who_can_add_friend` |
+| PATCH | `/api/friends/visibility` | Update per-friend profile visibility (`userId`, `friendId`, `visibleProfiles?`, `friendshipProfile?`) |
 | GET | `/api/invites/:code` | Public invite details (server name, icon, inviter) — for join page |
 | POST | `/api/invites/:code/join` | Join server via invite (`userId`) |
 | POST | `/api/servers/:id/invites` | Create invite (`createdBy`) — any member |

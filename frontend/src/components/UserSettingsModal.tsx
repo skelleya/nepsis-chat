@@ -1,6 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import gsap from 'gsap'
 import * as api from '../services/api'
+import { PrivacySettingsTab } from './settings/PrivacySettingsTab'
+import { ProfilesSettingsTab } from './settings/ProfilesSettingsTab'
 
 type TabId = 'account' | 'profiles' | 'privacy' | 'appearance' | 'voice' | 'notifications' | 'help'
 
@@ -105,8 +107,6 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
   const [bannerUrl, setBannerUrl] = useState(user.banner_url || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [activeProfile, setActiveProfile] = useState<'personal' | 'work'>('personal')
-  const [, setProfiles] = useState<{ id: string; profile_type: string; display_name: string; avatar_url?: string; banner_url?: string }[]>([])
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const bannerInputRef = useRef<HTMLInputElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -178,12 +178,6 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
     setAvatarUrl(user.avatar_url || '')
     setBannerUrl(user.banner_url || '')
   }, [user])
-
-  useEffect(() => {
-    if (!isGuest) {
-      api.getUserProfiles(user.id).then(setProfiles).catch(() => setProfiles([]))
-    }
-  }, [user.id, isGuest])
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -419,53 +413,11 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
           )}
 
           {activeTab === 'profiles' && (
-            <div>
-              <h3 className="text-xl font-bold text-white mb-4">Profiles</h3>
-              {isGuest ? (
-                <p className="text-app-muted">Create an account to use Personal and Work profiles.</p>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setActiveProfile('personal')}
-                      className={`px-4 py-2 rounded text-sm font-medium ${
-                        activeProfile === 'personal' ? 'bg-app-accent text-white' : 'bg-app-hover/40 text-app-muted hover:text-app-text'
-                      }`}
-                    >
-                      Personal
-                    </button>
-                    <button
-                      onClick={() => setActiveProfile('work')}
-                      className={`px-4 py-2 rounded text-sm font-medium ${
-                        activeProfile === 'work' ? 'bg-app-accent text-white' : 'bg-app-hover/40 text-app-muted hover:text-app-text'
-                      }`}
-                    >
-                      Work
-                    </button>
-                  </div>
-                  <p className="text-app-muted text-sm">
-                    Switch between Personal and Work profiles. Each profile can have its own display name, avatar, and banner.
-                  </p>
-                  <p className="text-app-muted text-xs">Profile customization coming soon.</p>
-                </div>
-              )}
-            </div>
+            <ProfilesSettingsTab user={user} onUserUpdate={onUserUpdate} />
           )}
 
           {activeTab === 'privacy' && (
-            <div>
-              <h3 className="text-xl font-bold text-white mb-4">Privacy & Safety</h3>
-              <div className="space-y-4">
-                <div className="bg-[#2b2d31] rounded-lg p-4">
-                  <h4 className="font-semibold text-white mb-2">Data & Privacy</h4>
-                  <p className="text-app-muted text-sm">Manage how your data is used and stored.</p>
-                </div>
-                <div className="bg-[#2b2d31] rounded-lg p-4">
-                  <h4 className="font-semibold text-white mb-2">Safety</h4>
-                  <p className="text-app-muted text-sm">Control who can message you and filter content.</p>
-                </div>
-              </div>
-            </div>
+            <PrivacySettingsTab userId={user.id} />
           )}
 
           {activeTab === 'appearance' && (

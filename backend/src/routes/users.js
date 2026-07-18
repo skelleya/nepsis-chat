@@ -57,10 +57,27 @@ usersRouter.put('/:id/presence', async (req, res) => {
   }
 })
 
-// Update user profile (username, display_name, avatar_url, banner_url) — own account only
+const DEFAULT_PRIVACY = {
+  who_can_dm: 'friends',
+  who_can_call: 'friends',
+  who_can_add_friend: 'everyone',
+  show_voice_channel: 'everyone',
+  show_online_status: 'everyone',
+  allow_voice_activity_indicator: true,
+}
+
+const PRIVACY_ENUMS = {
+  who_can_dm: ['everyone', 'friends', 'nobody'],
+  who_can_call: ['everyone', 'friends', 'nobody'],
+  who_can_add_friend: ['everyone', 'server_members', 'nobody'],
+  show_voice_channel: ['everyone', 'friends', 'nobody'],
+  show_online_status: ['everyone', 'friends', 'nobody'],
+}
+
+// Update user profile (username, display_name, avatar_url, banner_url, active_profile)
 usersRouter.patch('/:id', async (req, res) => {
   const { id } = req.params
-  const { username, display_name, avatar_url, banner_url } = req.body
+  const { username, display_name, avatar_url, banner_url, active_profile } = req.body
 
   try {
     const updates = {}
@@ -68,6 +85,12 @@ usersRouter.patch('/:id', async (req, res) => {
     if (display_name !== undefined) updates.display_name = typeof display_name === 'string' ? (display_name.trim() || null) : null
     if (typeof avatar_url === 'string') updates.avatar_url = avatar_url || null
     if (typeof banner_url === 'string') updates.banner_url = banner_url || null
+    if (active_profile !== undefined) {
+      if (!['personal', 'work'].includes(active_profile)) {
+        return res.status(400).json({ error: 'active_profile must be personal or work' })
+      }
+      updates.active_profile = active_profile
+    }
 
     if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No valid fields to update' })
 
@@ -77,6 +100,68 @@ usersRouter.patch('/:id', async (req, res) => {
   } catch (err) {
     console.error('Profile update error:', err)
     res.status(500).json({ error: 'Failed to update profile' })
+  }
+})
+
+// Get privacy settings (defaults if none saved)
+usersRouter.get('/:id/privacy', async (req, res) => {
+  const { id } = req.params
+  try {
+    const { data, error } = await supabase
+      .from('user_privacy_settings')
+      .select('*')
+      .eq('user_id', id)
+      .maybeSingle()
+    if (error) {
+      if (error.code === '42P01' || /does not exist/i.test(error.message || '')) {
+        return res.json({ user_id: id, ...DEFAULT_PRIVACY })
+      }
+      throw error
+    }
+    res.json(data ? { ...DEFAULT_PRIVACY, ...data } : { user_id: id, ...DEFAULT_PRIVACY })
+  } catch (err) {
+    console.error('Privacy fetch error:', err)
+    res.status(500).json({ error: 'Failed to fetch privacy settings' })
+  }
+})
+
+// Upsert privacy settings
+usersRouter.put('/:id/privacy', async (req, res) => {
+  const { id } = req.params
+  const body = req.body || {}
+  const updates = { user_id: id, updated_at: new Date().toISOString() }
+
+  for (const [key, allowed] of Object.entries(PRIVACY_ENUMS)) {
+    if (body[key] !== undefined) {
+      if (!allowed.includes(body[key])) {
+        return res.status(400).json({ error: `${key} must be one of: ${allowed.join(', ')}` })
+      }
+      updates[key] = body[key]
+    }
+  }
+  if (body.allow_voice_activity_indicator !== undefined) {
+    updates.allow_voice_activity_indicator = !!body.allow_voice_activity_indicator
+  }
+
+  try {
+    const { data: existing } = await supabase
+      .from('user_privacy_settings')
+      .select('*')
+      .eq('user_id', id)
+      .maybeSingle()
+
+    const row = { ...DEFAULT_PRIVACY, ...(existing || {}), ...updates, user_id: id }
+    const { data, error } = await supabase
+      .from('user_privacy_settings')
+      .upsert(row, { onConflict: 'user_id' })
+      .select()
+      .single()
+
+    if (error) throw error
+    res.json(data)
+  } catch (err) {
+    console.error('Privacy update error:', err)
+    res.status(500).json({ error: 'Failed to save privacy settings' })
   }
 })
 

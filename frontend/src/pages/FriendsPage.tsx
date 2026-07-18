@@ -1,21 +1,12 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react'
 import gsap from 'gsap'
 import * as api from '../services/api'
+import type { FriendListItem, FriendRequestItem, ProfileType } from '../services/api'
 import { useApp } from '../contexts/AppContext'
 import { useCall } from '../contexts/CallContext'
 
-interface Friend {
-  id: string
-  username: string
-  avatar_url?: string
-  status?: 'online' | 'offline' | 'in-voice' | 'away' | 'dnd'
-}
-
-interface FriendRequest {
-  requester_id: string
-  created_at: string
-  user: { id: string; username: string; avatar_url?: string }
-}
+type Friend = FriendListItem
+type FriendRequest = FriendRequestItem
 
 type FriendsTab = 'all' | 'pending' | 'online' | 'add'
 
@@ -51,9 +42,12 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
   const [actioning, setActioning] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<FriendsTab>('all')
   const [addFriendInput, setAddFriendInput] = useState('')
+  const [addAsProfile, setAddAsProfile] = useState<ProfileType>('personal')
+  const [acceptAsProfile, setAcceptAsProfile] = useState<ProfileType>('personal')
   const [addFriendLoading, setAddFriendLoading] = useState(false)
   const [addFriendError, setAddFriendError] = useState<string | null>(null)
   const [addFriendSuccess, setAddFriendSuccess] = useState<string | null>(null)
+  const isGuest = user?.is_guest ?? true
 
   useLayoutEffect(() => {
     const page = pageRef.current
@@ -100,7 +94,10 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
     if (!user) return
     setActioning(requesterId)
     try {
-      await api.acceptFriendRequest(user.id, requesterId)
+      await api.acceptFriendRequest(user.id, requesterId, {
+        profile: isGuest ? 'personal' : acceptAsProfile,
+        visibleProfiles: isGuest ? 'personal' : acceptAsProfile,
+      })
       await load()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to accept')
@@ -162,8 +159,10 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
         setAddFriendError('You already have a pending request from this user')
         return
       }
-      await api.sendFriendRequest(user.id, found.id)
-      setAddFriendSuccess(`Friend request sent to ${found.username}`)
+      await api.sendFriendRequest(user.id, found.id, isGuest ? 'personal' : addAsProfile)
+      setAddFriendSuccess(
+        `Friend request sent to ${found.username}${!isGuest ? ` (as ${addAsProfile === 'personal' ? 'Personal' : 'Work'})` : ''}`
+      )
       setAddFriendInput('')
       await load()
     } catch (e) {
@@ -234,6 +233,27 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
           /* Add Friend tab */
           <div>
             <h3 className="text-sm font-semibold text-app-text mb-3">Add by username</h3>
+            {!isGuest && (
+              <div className="mb-3">
+                <p className="text-xs text-app-muted mb-2">Add them under which profile?</p>
+                <div className="flex gap-2">
+                  {(['personal', 'work'] as ProfileType[]).map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setAddAsProfile(type)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                        addAsProfile === type
+                          ? 'bg-app-accent text-white'
+                          : 'bg-[#2b2d31] text-app-muted hover:text-app-text'
+                      }`}
+                    >
+                      {type === 'personal' ? 'Personal' : 'Work'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="flex gap-2 mb-4">
               <input
                 type="text"
@@ -258,13 +278,36 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
               <p className="text-sm text-[#23a559] mb-2">{addFriendSuccess}</p>
             )}
             <p className="text-xs text-app-muted">
-              You can add friends by their username. They must accept your request before you can message them.
+              {isGuest
+                ? 'You can add friends by their username. They must accept your request before you can message them.'
+                : 'Friends added under Work stay on your Work list. You can later let them see Personal, Work, or both in User Settings → Profiles.'}
             </p>
           </div>
         ) : activeTab === 'pending' ? (
           /* Pending requests */
           <div>
             <h3 className="text-sm font-semibold text-app-text mb-3">Friend requests</h3>
+            {!isGuest && requests.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs text-app-muted mb-2">Accept incoming requests under:</p>
+                <div className="flex gap-2">
+                  {(['personal', 'work'] as ProfileType[]).map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setAcceptAsProfile(type)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+                        acceptAsProfile === type
+                          ? 'bg-app-accent text-white'
+                          : 'bg-[#2b2d31] text-app-muted hover:text-app-text'
+                      }`}
+                    >
+                      {type === 'personal' ? 'Personal' : 'Work'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {requests.length === 0 ? (
               <p className="text-sm text-app-muted">No pending requests.</p>
             ) : (
@@ -284,7 +327,10 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
                       </div>
                       <div>
                         <span className="font-medium text-app-text">{req.user.username}</span>
-                        <p className="text-xs text-app-muted">Wants to be your friend</p>
+                        <p className="text-xs text-app-muted">
+                          Wants to be your friend
+                          {req.requester_profile === 'work' ? ' · via Work' : req.requester_profile === 'personal' ? ' · via Personal' : ''}
+                        </p>
                       </div>
                     </div>
                     <div className="flex gap-2">

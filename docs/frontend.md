@@ -49,10 +49,12 @@ frontend/src/
 | RemoteAudio | Plays remote WebRTC stream |
 | CallOverlay | DM call UI: outgoing/incoming/in-call states |
 | DMView | Direct message chat; modern UI with gradient header, rounded bubbles, relative timestamps; groups consecutive messages from same sender (avatar/name shown only on first in group); spacing: 1.5 between same-sender, 5 between different senders |
-| FriendsPage | Discord-like Friends home: tabs (All, Pending, Online, Add Friend). Add Friend by username; Online shows friends with presence. Opened by clicking Nepsis logo. When viewing a DM, stays in Friends view—sidebar shows DMs + servers. **GSAP:** fade+slide-in on mount (Nepsis bubble) |
+| FriendsPage | Discord-like Friends home: tabs (All, Pending, Online, Add Friend). Add Friend by username **as Personal or Work**; accept under a chosen profile. Online shows friends with presence. Opened by clicking Nepsis logo. When viewing a DM, stays in Friends view—sidebar shows DMs + servers. **GSAP:** fade+slide-in on mount (Nepsis bubble) |
 | CreateServerModal | Create server: name input, gradient accent bar, loading spinner, error display; used by ServerBar (+ button) and OnboardingPage |
 | UserPanel | Bottom bar: avatar/status, mute, deafen, settings. **GSAP:** status menu open/close (fade+rise+scale); mute/deafen buttons punch-scale on click; status dot pops on change |
-| UserSettingsModal | User Settings modal: fixed size (`h-[min(640px,90vh)]`) so tab changes don’t resize; GSAP open/close + soft content fade on tab switch. My Account: display name, username, avatar/banner. |
+| UserSettingsModal | User Settings modal: fixed size (`h-[min(640px,90vh)]`) so tab changes don’t resize; GSAP open/close + soft content fade on tab switch. My Account: display name, username, avatar/banner. **Profiles:** Personal/Work identity (name/avatar/banner), active server profile, per-friend visibility (Personal / Work / Both). **Privacy & Safety:** DMs, calls, friend requests, voice-channel visibility, online status, speaking indicator. |
+| PrivacySettingsTab | Voice-focused privacy toggles/selects; persists via `GET/PUT /api/users/:id/privacy` |
+| ProfilesSettingsTab | Edit Personal/Work profiles; set server presentation; manage which friends see which profiles |
 | OnboardingPage | Shown when new (non-guest) user has no servers; CTAs: Create first server (opens CreateServerModal), Explore community; persisted via `nepsis_onboarding_completed` |
 | CommunityPage | Explore page: invite code entry, community servers list; shown when guest has no servers or when user completes onboarding. **GSAP:** fade+slide-in on mount (compass bubble) |
 | UpdateButton | Green update (Electron only) |

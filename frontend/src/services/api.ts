@@ -580,7 +580,36 @@ export async function createOrGetDMConversation(userId: string, targetUserId: st
 
 // ─── Friends ───────────────────────────────────────────
 
-export async function getFriendsList(userId: string): Promise<{ id: string; username: string; avatar_url?: string; status?: 'online' | 'offline' | 'in-voice' | 'away' | 'dnd' }[]> {
+export type ProfileType = 'personal' | 'work'
+export type VisibleProfiles = 'personal' | 'work' | 'both'
+
+export interface FriendListItem {
+  id: string
+  username: string
+  avatar_url?: string
+  status?: 'online' | 'offline' | 'in-voice' | 'away' | 'dnd'
+  friendship_profile?: ProfileType
+  visible_profiles?: VisibleProfiles
+}
+
+export interface FriendRequestItem {
+  requester_id: string
+  created_at: string
+  requester_profile?: ProfileType
+  user: { id: string; username: string; avatar_url?: string }
+}
+
+export interface PrivacySettings {
+  user_id?: string
+  who_can_dm: 'everyone' | 'friends' | 'nobody'
+  who_can_call: 'everyone' | 'friends' | 'nobody'
+  who_can_add_friend: 'everyone' | 'server_members' | 'nobody'
+  show_voice_channel: 'everyone' | 'friends' | 'nobody'
+  show_online_status: 'everyone' | 'friends' | 'nobody'
+  allow_voice_activity_indicator: boolean
+}
+
+export async function getFriendsList(userId: string): Promise<FriendListItem[]> {
   const res = await fetch(`${API_BASE}/friends/list?userId=${encodeURIComponent(userId)}`)
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
@@ -589,7 +618,7 @@ export async function getFriendsList(userId: string): Promise<{ id: string; user
   return res.json()
 }
 
-export async function getFriendRequests(userId: string): Promise<{ requester_id: string; created_at: string; user: { id: string; username: string; avatar_url?: string } }[]> {
+export async function getFriendRequests(userId: string): Promise<FriendRequestItem[]> {
   const res = await fetch(`${API_BASE}/friends/requests?userId=${encodeURIComponent(userId)}`)
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
@@ -598,11 +627,20 @@ export async function getFriendRequests(userId: string): Promise<{ requester_id:
   return res.json()
 }
 
-export async function acceptFriendRequest(userId: string, requesterId: string): Promise<{ success: boolean }> {
+export async function acceptFriendRequest(
+  userId: string,
+  requesterId: string,
+  opts?: { profile?: ProfileType; visibleProfiles?: VisibleProfiles }
+): Promise<{ success: boolean }> {
   const res = await fetch(`${API_BASE}/friends/accept`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, requesterId }),
+    body: JSON.stringify({
+      userId,
+      requesterId,
+      profile: opts?.profile || 'personal',
+      visibleProfiles: opts?.visibleProfiles,
+    }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
@@ -631,15 +669,60 @@ export async function lookupUserByUsername(username: string): Promise<{ id: stri
   return data
 }
 
-export async function sendFriendRequest(userId: string, targetUserId: string): Promise<{ success: boolean }> {
+export async function sendFriendRequest(
+  userId: string,
+  targetUserId: string,
+  profile: ProfileType = 'personal'
+): Promise<{ success: boolean }> {
   const res = await fetch(`${API_BASE}/friends/request`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, targetUserId }),
+    body: JSON.stringify({ userId, targetUserId, profile }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err?.error || 'Failed to send friend request')
+  }
+  return res.json()
+}
+
+export async function updateFriendVisibility(
+  userId: string,
+  friendId: string,
+  data: { visibleProfiles?: VisibleProfiles; friendshipProfile?: ProfileType }
+) {
+  const res = await fetch(`${API_BASE}/friends/visibility`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      userId,
+      friendId,
+      visibleProfiles: data.visibleProfiles,
+      friendshipProfile: data.friendshipProfile,
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to update friend visibility')
+  }
+  return res.json()
+}
+
+export async function getPrivacySettings(userId: string): Promise<PrivacySettings> {
+  const res = await fetch(`${API_BASE}/users/${userId}/privacy`)
+  if (!res.ok) throw new Error('Failed to fetch privacy settings')
+  return res.json()
+}
+
+export async function savePrivacySettings(userId: string, settings: Partial<PrivacySettings>): Promise<PrivacySettings> {
+  const res = await fetch(`${API_BASE}/users/${userId}/privacy`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to save privacy settings')
   }
   return res.json()
 }
@@ -686,7 +769,7 @@ export async function getUserProfiles(userId: string) {
 
 export async function saveUserProfile(
   userId: string,
-  profileType: 'personal' | 'work',
+  profileType: ProfileType,
   data: { display_name?: string; avatar_url?: string; banner_url?: string }
 ) {
   const res = await fetch(`${API_BASE}/users/${userId}/profiles`, {
@@ -695,6 +778,19 @@ export async function saveUserProfile(
     body: JSON.stringify({ profile_type: profileType, ...data }),
   })
   if (!res.ok) throw new Error('Failed to save profile')
+  return res.json()
+}
+
+export async function setActiveProfile(userId: string, activeProfile: ProfileType) {
+  const res = await fetch(`${API_BASE}/users/${userId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ active_profile: activeProfile }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to set active profile')
+  }
   return res.json()
 }
 
