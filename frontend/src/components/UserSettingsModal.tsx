@@ -459,9 +459,9 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
           </div>
         </div>
 
-        {/* Main content — slide/fade up between pages */}
-        <div className="flex-1 min-w-0 min-h-0 overflow-hidden">
-          <div ref={contentRef} className="h-full overflow-y-auto p-6 will-change-transform">
+        {/* Main content — slide/fade up between pages; right rail keeps scrollbar clear of the X */}
+        <div className="flex-1 min-w-0 min-h-0 flex overflow-hidden">
+          <div ref={contentRef} className="flex-1 min-w-0 h-full overflow-y-auto p-6 will-change-transform">
               {displayedTab === 'account' && (
               <div>
                 <h3 className="text-xl font-bold text-white mb-4">My Account</h3>
@@ -620,19 +620,21 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
                 <HelpTab user={user} />
               )}
           </div>
-        </div>
 
-        {/* Close — red X in a boxy corner stroke hugging the modal edge */}
-        <button
-          type="button"
-          onClick={requestClose}
-          aria-label="Close settings"
-          className="absolute top-0 right-0 z-20 w-12 h-12 flex items-center justify-center text-[#ed4245] hover:text-[#ff5c5f] border-l border-b border-[#4e5058] rounded-tr-lg transition-colors hover:bg-white/[0.04]"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.25" strokeLinecap="round" aria-hidden>
-            <path d="M6 6l12 12M18 6L6 18" />
-          </svg>
-        </button>
+          {/* Close rail — own column so content scrollbar never overlaps the X */}
+          <div className="w-12 flex-shrink-0 relative self-stretch">
+            <button
+              type="button"
+              onClick={requestClose}
+              aria-label="Close settings"
+              className="absolute top-0 right-0 z-20 w-12 h-12 flex items-center justify-center text-[#ed4245] hover:text-[#ff5c5f] border-l border-b border-[#4e5058] rounded-tr-lg transition-colors hover:bg-white/[0.04]"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.25" strokeLinecap="round" aria-hidden>
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )
