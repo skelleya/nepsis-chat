@@ -126,6 +126,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
     setRemoteAvatarUrl(null)
     setIsMuted(false)
     setIsDeafened(false)
+    mutedBeforeDeafenRef.current = false
     setCallDuration(0)
   }, [setCallState, setCallId])
 
@@ -443,19 +444,28 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
     cleanup()
   }, [cleanup])
 
-  // Discord-style: unmute undeafens; deafen mutes
+  // Unmute undeafens. Deafen mutes; undeafen restores prior mute state.
   const toggleMute = useCallback(() => {
     setIsMuted((prev) => {
       const next = !prev
-      if (!next) setIsDeafened(false)
+      if (!next) {
+        setIsDeafened(false)
+        mutedBeforeDeafenRef.current = false
+      }
       return next
     })
   }, [])
   const toggleDeafen = useCallback(() => {
-    setIsDeafened((prev) => {
-      const next = !prev
-      if (next) setIsMuted(true)
-      return next
+    setIsDeafened((prevDeaf) => {
+      if (!prevDeaf) {
+        setIsMuted((prevMute) => {
+          mutedBeforeDeafenRef.current = prevMute
+          return true
+        })
+        return true
+      }
+      setIsMuted(mutedBeforeDeafenRef.current)
+      return false
     })
   }, [])
 
