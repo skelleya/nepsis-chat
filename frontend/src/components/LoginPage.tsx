@@ -259,27 +259,18 @@ export function LoginPage() {
           <div ref={panelRef} className="will-change-transform h-full">
             {mode === 'guest' ? (
               <form onSubmit={handleGuestSubmit} className="flex h-full flex-col justify-between">
-                <div className="space-y-6">
-                  <div className="space-y-3">
-                    <label className="block text-sm text-app-muted">Username</label>
-                    <input
-                      type="text"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      placeholder="Enter a username"
-                      className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent"
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <span className="block text-sm text-transparent select-none" aria-hidden="true">
-                      Password
-                    </span>
-                    <div className="w-full min-h-[48px] px-1 flex items-center justify-center">
-                      <p className="text-app-muted text-xs text-center">
-                        Guest accounts are temporary — no email required
-                      </p>
-                    </div>
-                  </div>
+                <div className="space-y-3">
+                  <label className="block text-sm text-app-muted">Username</label>
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Enter a username"
+                    className="w-full px-4 py-3 rounded-lg bg-app-channel text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent"
+                  />
+                  <p className="text-app-muted text-xs text-center pt-1">
+                    Guest accounts are temporary — no email required
+                  </p>
                 </div>
                 <button
                   type="submit"
