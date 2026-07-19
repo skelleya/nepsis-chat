@@ -105,6 +105,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Blank-screen fix — Login GSAP fade could leave `showLogin`/`showApp` both false after logout; always show login when logged out; ErrorBoundary for render crashes |
 | + | Prod “Load failed” — Vercel still pointed at removed Fly.io API; login now maps Safari “Load failed” to a clear API unreachable message; fix is set live `VITE_API_URL` + redeploy |
 | + | Railway deploy guide — Backend root `backend`, `npm start`, generate domain, set Supabase + CORS; point Vercel `VITE_API_URL` at `https://…railway.app/api` |
+| + | Voice single-session — Joining voice from another device kicks the old socket (`voice-session-replaced`); fixes duplicate “Connecting…” ghosts (listen before join, no socketId userIds) |
 | + | Private DM calling — 1-on-1 voice calls via WebRTC; new `/calls` socket namespace; incoming/outgoing call overlays with ringing; in-call bar with mute/deafen/end; auto-decline after 30s timeout; busy/offline detection; Call button in member profile and right-click context menu |
 | + | Call notifications — Browser Notification when incoming call received while app is in another tab; permission requested on socket connect |
 | + | Friends page — Click Nepsis logo to open Friends page; list friends and pending friend requests; accept/decline requests; Message and Call buttons for friends |
@@ -118,7 +119,11 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Bug reports — User Settings > Help & Support: Report a Bug form. Submits to `bug_reports` table (Supabase); sends title, description, user info, URL, user-agent to devs. Migration `20250211000008_bug_reports.sql`. |
 | + | Soundboard — Voice channel soundboard: play custom audio clips to all peers. Users can upload sounds (max 10 seconds). UI in VoiceView bottom bar (music-note button). Backend: `soundboard_sounds` table, API routes, Socket.io `soundboard-play` event. Migration `20250211000009_soundboard_sounds.sql`. **Revamp:** Emoji per sound (picker when adding/editing); spam-click restarts playback; everyone hears sounds. Soundboard mute control removed from voice bar (deafen still silences soundboard). Migration `20250211000014_soundboard_emoji.sql`. |
 | + | Profile media sync — My Account avatar/banner uploads also update the active `user_profiles` row so members list shows the new photo; Profiles tab auto-saves photo/banner on upload; server icon upload shows errors like banner; member profile panel shows banner. |
+<<<<<<< HEAD
 | + | Pre-login landing — White split screen before auth: large Nepsis logo (left) + Use Web App / Download App (right). Syne + Figtree; GSAP entrance. `WelcomeLanding.tsx`; Use Web App opens existing login form. |
+=======
+| + | Presence + ping — Optimistic self-presence + Realtime on `user_presence` so you show Online/In voice immediately; voice session kick + Connecting ghost fixes; ping bars are 3 green / 2 yellow / 1 red with hover tooltip (ms); socket RTT when alone in voice. Migration `20250211000017_user_presence_realtime.sql`. |
+>>>>>>> origin/master
 | + | Voice UI v6 — Resizable panels: screen share vs participant cameras (drag divider to resize); single participant centered in middle; remote screen shares shown in main area; participant cards (2–4) resizable horizontally; `react-resizable-panels` with `autoSaveId` for layout persistence. |
 | + | Rules channel — Owner/admin can create a Rules channel (read-only; members react only). Server Settings > Rules Channel: set rules channel, lock all channels until members accept, choose accept emoji (any emoji). Migration `20250211000010_rules_channel.sql`. |
 | + | Server list reorder — Click-hold-and-drag server icons in the left sidebar to reorder; order persisted in `server_members.display_order`. Migration `20250211000011_server_members_display_order.sql`. |

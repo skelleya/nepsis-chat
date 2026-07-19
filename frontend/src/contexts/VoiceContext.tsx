@@ -119,16 +119,37 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   }, [])
 
   const addOrUpdateParticipant = useCallback((pUserId: string, pUsername: string, stream: MediaStream | null, isSpeaking = false) => {
+    // Never list ourselves as a remote peer; never invent socket-id phantoms
+    if (!pUserId || pUserId === userId) return
+    if (pUsername === 'Connecting...' && !stream) {
+      // Allow placeholder only when we already know this userId from a prior update
+    }
     setParticipants((prev) => {
       const existing = prev.find((p) => p.userId === pUserId)
       if (existing) {
-        // Bump streamVersion when stream is provided (even same ref) to force re-render for new tracks
         const newVersion = stream ? (existing.streamVersion ?? 0) + 1 : (existing.streamVersion ?? 0)
-        return prev.map((p) => (p.userId === pUserId ? { ...p, stream: stream ?? p.stream, username: pUsername || p.username, isSpeaking, streamVersion: newVersion } : p))
+        return prev.map((p) =>
+          p.userId === pUserId
+            ? {
+                ...p,
+                stream: stream ?? p.stream,
+                username: pUsername && pUsername !== 'Connecting...' ? pUsername : p.username,
+                isSpeaking,
+                streamVersion: newVersion,
+              }
+            : p
+        )
       }
-      return [...prev, { userId: pUserId, username: pUsername, stream, isSpeaking, streamVersion: 0 }]
+      return [...prev, { userId: pUserId, username: pUsername || 'User', stream, isSpeaking, streamVersion: 0 }]
     })
-  }, [])
+    // Re-joining clears left-set so presence can show them again
+    setLeftUserIds((prev) => {
+      if (!prev.has(pUserId)) return prev
+      const next = new Set(prev)
+      next.delete(pUserId)
+      return next
+    })
+  }, [userId])
 
   const removeParticipant = useCallback((peerId: string) => {
     setLeftUserIds((prev) => new Set(prev).add(peerId))
@@ -171,6 +192,8 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
 
     setError(null)
     try {
+      // Prefetch ICE before joining so we don't miss room-peers while waiting
+      const iceServers = await ensureIceServers()
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: getAudioConstraints(),
         video: false,
@@ -178,32 +201,37 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
       setLocalStream(stream)
       setVoiceChannelId(channelId)
       setVoiceChannelName(channelName)
+      setParticipants([])
+      setLeftUserIds(new Set())
 
       const signaling = USE_SOCKET
         ? createSocketSignaling(channelId, userId, username)
         : createBroadcastSignaling(channelId, userId)
       signalingRef.current = signaling
 
-      await signaling.join()
+      // Connect socket + register WebRTC handlers BEFORE join-voice (so room-peers is not dropped)
+      const sock = signaling as {
+        ready?: () => Promise<void>
+        getSocketId?: () => string | undefined
+      }
+      await sock.ready?.()
+      const localId = USE_SOCKET ? sock.getSocketId?.() ?? userId : userId
 
-      const localId = USE_SOCKET
-        ? (signaling as { getSocketId?: () => string }).getSocketId?.() ?? userId
-        : userId
-      sounds.voiceConnected()
-
-      const iceServers = await ensureIceServers()
       const webrtc = createWebRTCClient(
         localId,
         signaling as Parameters<typeof createWebRTCClient>[1],
         {
           onRemoteStream: (_, pUserId, pUsername, remoteStream) => {
+            if (pUserId === userId) return
             addOrUpdateParticipant(pUserId, pUsername, remoteStream)
           },
           onPeerLeft: (peerId) => {
+            if (peerId === userId) return
             removeParticipant(peerId)
             sounds.userLeave()
           },
           onPeerJoined: (pUserId, pUsername, playSound = true) => {
+            if (pUserId === userId) return
             addOrUpdateParticipant(pUserId, pUsername, null)
             if (playSound) sounds.userJoin()
           },
@@ -212,10 +240,14 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
       )
       webrtcRef.current = webrtc
       webrtc.addLocalStream(stream)
+
+      await signaling.join()
+      sounds.voiceConnected()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to access microphone')
       setVoiceChannelId(null)
       setVoiceChannelName(null)
+      setLocalStream(null)
     }
   }, [voiceChannelId, userId, username, leaveVoice, addOrUpdateParticipant, removeParticipant])
 
@@ -302,6 +334,22 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     return () => unsub?.()
   }, [voiceChannelId, leaveVoice])
 
+  // ─── Session replaced (same account joined voice from another device/tab) ─
+  useEffect(() => {
+    const signaling = signalingRef.current
+    if (!signaling || !voiceChannelId) return
+    const unsub = (
+      signaling as {
+        onVoiceSessionReplaced?: (cb: (d: { reason?: string }) => void) => () => void
+      }
+    ).onVoiceSessionReplaced?.(() => {
+      leaveVoice()
+      // Set after leaveVoice() — leaveVoice clears error
+      setError('Connected in voice on another device')
+    })
+    return () => unsub?.()
+  }, [voiceChannelId, leaveVoice])
+
   // ─── Soundboard play listener (receive and play sounds from peers) ─
   useEffect(() => {
     const signaling = signalingRef.current
@@ -316,21 +364,33 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     return () => unsub?.()
   }, [voiceChannelId])
 
-  // ─── Ping measurement ─────────────────────────────────────────────
+  // ─── Ping measurement (WebRTC RTT, else socket RTT) ───────────────
   useEffect(() => {
     const connected = !!localStream && !!voiceChannelId
-    if (!connected || !webrtcRef.current) {
+    if (!connected) {
       setPing(null)
       return
     }
-    const webrtc = webrtcRef.current
-    const interval = setInterval(async () => {
+    let cancelled = false
+    const sample = async () => {
       try {
-        const rtt = await webrtc.getPing()
-        setPing(rtt)
+        const webrtcRtt = await webrtcRef.current?.getPing()
+        if (cancelled) return
+        if (webrtcRtt != null) {
+          setPing(webrtcRtt)
+          return
+        }
+        const sig = signalingRef.current as { measureLatency?: () => Promise<number | null> } | null
+        const sockRtt = await sig?.measureLatency?.()
+        if (!cancelled && sockRtt != null) setPing(sockRtt)
       } catch { /* ignore */ }
-    }, 3000)
-    return () => clearInterval(interval)
+    }
+    sample()
+    const interval = setInterval(sample, 2000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
   }, [localStream, voiceChannelId])
 
   // ─── Camera toggle (sends video over WebRTC) ─────────────────────

@@ -40,6 +40,7 @@ export function useVoiceChannel(channelId: string | null, userId: string, userna
     if (!channelId) return
     setError(null)
     try {
+      const iceServers = await ensureIceServers()
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
       setLocalStream(stream)
 
@@ -48,18 +49,19 @@ export function useVoiceChannel(channelId: string | null, userId: string, userna
         : createBroadcastSignaling(channelId, userId)
       signalingRef.current = signaling
 
-      await signaling.join()
-
-      const localId = USE_SOCKET ? (signaling as { getSocketId?: () => string }).getSocketId?.() ?? userId : userId
-      const iceServers = await ensureIceServers()
+      const sock = signaling as { ready?: () => Promise<void>; getSocketId?: () => string | undefined }
+      await sock.ready?.()
+      const localId = USE_SOCKET ? sock.getSocketId?.() ?? userId : userId
       const webrtc = createWebRTCClient(
         localId,
         signaling as Parameters<typeof createWebRTCClient>[1],
         {
           onRemoteStream: (_, pUserId, pUsername, remoteStream) => {
+            if (pUserId === userId) return
             addOrUpdateParticipant(pUserId, pUsername, remoteStream)
           },
           onPeerLeft: (peerId) => {
+            if (peerId === userId) return
             removeParticipant(peerId)
           },
         },
@@ -67,6 +69,7 @@ export function useVoiceChannel(channelId: string | null, userId: string, userna
       )
       webrtcRef.current = webrtc
       webrtc.addLocalStream(stream)
+      await signaling.join()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to access microphone')
     }

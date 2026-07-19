@@ -344,6 +344,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const wasGuest = user?.is_guest
     const guestId = user?.id
 
+    // Mark offline before clearing so others don't see a ghost Online status
+    if (guestId) {
+      try {
+        await api.updatePresence(guestId, 'offline', null)
+      } catch { /* ignore */ }
+    }
+
     // Clear state FIRST so polling/realtime stops before the backend delete runs.
     // This prevents race conditions where loadServers auto-re-joins community servers
     // between server_members deletion and users deletion.

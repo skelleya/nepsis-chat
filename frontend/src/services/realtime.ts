@@ -228,6 +228,48 @@ export function subscribeToServerMembers(
   return channel
 }
 
+export type UserPresencePayload = {
+  user_id: string
+  status: string
+  voice_channel_id?: string | null
+  updated_at?: string
+}
+
+/**
+ * Subscribe to user_presence changes (online / in-voice / etc.).
+ * Requires user_presence in supabase_realtime + SELECT policy.
+ */
+export function subscribeToUserPresence(
+  onPresence: (payload: {
+    eventType: 'INSERT' | 'UPDATE' | 'DELETE'
+    new: UserPresencePayload
+    old?: UserPresencePayload
+  }) => void
+): RealtimeChannel | null {
+  if (!supabase) return null
+
+  const channel = supabase
+    .channel('user_presence:all')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'user_presence',
+      },
+      (payload) => {
+        onPresence({
+          eventType: payload.eventType as 'INSERT' | 'UPDATE' | 'DELETE',
+          new: payload.new as UserPresencePayload,
+          old: payload.old as UserPresencePayload,
+        })
+      }
+    )
+    .subscribe()
+
+  return channel
+}
+
 export function unsubscribe(channel: RealtimeChannel | null) {
   if (channel && supabase) {
     supabase.removeChannel(channel)
