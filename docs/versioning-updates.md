@@ -7,7 +7,7 @@ Desktop updates use **electron-updater** with **GitHub Releases** as the feed (W
 ## How users get updates
 
 1. App launches (and every 30 minutes) → checks GitHub Releases for a newer version.
-2. If found → a **Nepsis update badge** appears at the **top center** of the window (logo + “Update available”).
+2. If a **newer** release is found (`isUpdateAvailable` and feed version &gt; installed) → a **Nepsis update badge** appears at the **top center** of the window (logo + “Update available”). Already-on-latest does **not** show the badge after restart.
 3. User clicks → download starts; badge shows **progress %**.
 4. When ready → badge becomes **Restart to update** → `quitAndInstall`.
 
