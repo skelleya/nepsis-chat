@@ -216,6 +216,7 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | **Server icon upload fails silently** | Icon handler only `console.error`; banner had UI errors. | **Fix**: `iconError` / `iconLoading` in Server Settings Overview (same pattern as banner). |
 | **I look Offline in the members list while I'm in the server** | Presence was poll-only (up to 15s); no optimistic self status; `user_presence` not in Realtime. | **Fix**: Patch self in `serverMembers` immediately on presence change; subscribe to `user_presence` Realtime; overlay live voice/status when loading members. Migration `20250211000017_user_presence_realtime.sql`. |
 | **Ping bars look wrong / always gray / no ms** | Bars lit from the tall side; alone in voice had no WebRTC RTT so stayed muted gray; only native `title`. | **Fix**: 1 short bar = red (high), 2 = yellow, 3 = green; socket `latency-ping` fallback; hover tooltip shows `Nms`. |
+| **Guest tab not highlighted after Use Web App** | Tab-indicator `useLayoutEffect` ran on first LoginPage mount while WelcomeLanding was showing — auth DOM/refs missing, so the accent pill never positioned. | **Fix**: Run indicator + auth enter animation when `phase === 'auth'`; rAF remeasure Guest button. |
 
 **Files:** `backend/src/socket/calls.js`, `frontend/src/contexts/CallContext.tsx`, `frontend/src/components/CallOverlay.tsx`
 
