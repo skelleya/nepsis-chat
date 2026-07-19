@@ -38,7 +38,7 @@ export function registerCallHandlers(io) {
     })
 
     // ─── Initiate a call ──────────────────────────────────────────
-    socket.on('call:initiate', async ({ targetUserId, callId }) => {
+    socket.on('call:initiate', async ({ targetUserId, callId, withVideo }) => {
       const targetSids = userSockets.get(targetUserId)
       if (!targetSids || targetSids.size === 0) {
         socket.emit('call:unavailable', { callId, reason: 'User is offline' })
@@ -62,6 +62,7 @@ export function registerCallHandlers(io) {
         callerSocketId: socket.id,
         calleeSocketId: null,
         status: 'ringing',
+        withVideo: !!withVideo,
       })
 
       // Fetch caller avatar for incoming call display
@@ -78,6 +79,7 @@ export function registerCallHandlers(io) {
           callerId: socket.userId,
           callerUsername: socket.username,
           callerAvatarUrl,
+          withVideo: !!withVideo,
         })
       }
     })

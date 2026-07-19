@@ -470,11 +470,11 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
           <div>
             <h3 className="text-sm font-semibold text-app-text mb-3">All friends — {friends.length}</h3>
             {friends.length === 0 && requests.length === 0 ? (
-              <p className="text-sm text-app-muted">No friends yet. Add friends by username or accept friend requests.</p>
+              <p className="text-sm text-app-muted mb-4">No friends yet. Add friends by display name or accept friend requests.</p>
             ) : friends.length === 0 ? (
-              <p className="text-sm text-app-muted">No friends yet.</p>
+              <p className="text-sm text-app-muted mb-4">No friends yet.</p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2 mb-4">
                 {friends.map((friend) => (
                   <div
                     key={friend.id}
@@ -517,6 +517,13 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
                 ))}
               </div>
             )}
+            <button
+              type="button"
+              onClick={() => setActiveTab('add')}
+              className="w-full px-4 py-3 rounded-xl border border-dashed border-app-accent/40 text-app-accent hover:bg-app-accent/10 hover:border-app-accent/60 text-sm font-medium transition-colors"
+            >
+              + Add a Friend
+            </button>
           </div>
         )}
       </div>

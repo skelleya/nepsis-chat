@@ -635,6 +635,9 @@ export interface DMMessage {
   content: string
   created_at: string
   username: string
+  reply_to_id?: string | null
+  reply_to?: { id: string; content: string; username: string } | null
+  reactions?: { user_id: string; emoji: string }[]
 }
 
 export async function listDMConversations(userId: string): Promise<DMConversation[]> {
@@ -655,16 +658,45 @@ export async function getDMMessage(messageId: string): Promise<DMMessage> {
   return res.json()
 }
 
-export async function sendDMMessage(conversationId: string, userId: string, content: string): Promise<DMMessage> {
+export async function sendDMMessage(
+  conversationId: string,
+  userId: string,
+  content: string,
+  options?: { replyToId?: string }
+): Promise<DMMessage> {
   const res = await fetch(`${API_BASE}/dm/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ conversationId, userId, content }),
+    body: JSON.stringify({
+      conversationId,
+      userId,
+      content,
+      replyToId: options?.replyToId,
+    }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err?.error || 'Failed to send DM')
   }
+  return res.json()
+}
+
+export async function addDMReaction(messageId: string, userId: string, emoji: string) {
+  const res = await fetch(`${API_BASE}/dm/messages/${messageId}/reactions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, emoji }),
+  })
+  if (!res.ok) throw new Error('Failed to add reaction')
+  return res.json()
+}
+
+export async function removeDMReaction(messageId: string, userId: string, emoji: string) {
+  const res = await fetch(
+    `${API_BASE}/dm/messages/${messageId}/reactions?userId=${encodeURIComponent(userId)}&emoji=${encodeURIComponent(emoji)}`,
+    { method: 'DELETE' }
+  )
+  if (!res.ok) throw new Error('Failed to remove reaction')
   return res.json()
 }
 

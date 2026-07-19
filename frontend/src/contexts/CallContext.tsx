@@ -40,9 +40,20 @@ interface CallContextValue {
   isDeafened: boolean
   callDuration: number
   unavailableReason: string | null
+  isVideoCall: boolean
+  callExpanded: boolean
+  localVideoStream: MediaStream | null
+  remoteVideoStream: MediaStream | null
   toggleMute: () => void
   toggleDeafen: () => void
-  initiateCall: (targetUserId: string, targetUsername: string, targetAvatarUrl?: string) => void
+  expandCall: () => void
+  minimizeCall: () => void
+  initiateCall: (
+    targetUserId: string,
+    targetUsername: string,
+    targetAvatarUrl?: string,
+    options?: { video?: boolean }
+  ) => void
   acceptCall: () => void
   declineCall: () => void
   endCall: () => void
@@ -69,10 +80,15 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
   const [isDeafened, setIsDeafened] = useState(false)
   const [callDuration, setCallDuration] = useState(0)
   const [unavailableReason, setUnavailableReason] = useState<string | null>(null)
+  const [isVideoCall, setIsVideoCall] = useState(false)
+  const [callExpanded, setCallExpanded] = useState(false)
+  const [localVideoStream, setLocalVideoStream] = useState<MediaStream | null>(null)
+  const [remoteVideoStream, setRemoteVideoStream] = useState<MediaStream | null>(null)
 
   // ─── Refs (safe for socket-handler closures) ────────────────────
   const callStateRef = useRef<CallState>('idle')
   const callIdRef = useRef<string | null>(null)
+  const isVideoCallRef = useRef(false)
   const socketRef = useRef<Socket | null>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
@@ -95,12 +111,18 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
   } | null>(null)
   const reconnectTimerRef = useRef<number | null>(null)
   const initiateCallRef = useRef<
-    (targetUserId: string, targetUsername: string, targetAvatarUrl?: string) => void
+    (
+      targetUserId: string,
+      targetUsername: string,
+      targetAvatarUrl?: string,
+      options?: { video?: boolean }
+    ) => void
   >(() => {})
   const acceptCallRef = useRef<() => void>(() => {})
   const endCallRef = useRef<() => void>(() => {})
   isMutedRef.current = isMuted
   isDeafenedRef.current = isDeafened
+  isVideoCallRef.current = isVideoCall
   remoteUserIdRef.current = remoteUserId
   remoteUsernameRef.current = remoteUsername
   remoteAvatarUrlRef.current = remoteAvatarUrl
@@ -150,6 +172,11 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
     setIsDeafened(false)
     mutedBeforeDeafenRef.current = false
     setCallDuration(0)
+    setIsVideoCall(false)
+    isVideoCallRef.current = false
+    setCallExpanded(false)
+    setLocalVideoStream(null)
+    setRemoteVideoStream(null)
   }, [setCallState, setCallId])
 
   // ─── Start call duration timer ──────────────────────────────────
@@ -163,17 +190,24 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
   // ─── Setup WebRTC peer connection ───────────────────────────────
   const setupWebRTC = useCallback(
     async (isCaller: boolean) => {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: getAudioConstraints() })
+      const withVideo = isVideoCallRef.current
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: getAudioConstraints(),
+        video: withVideo
+          ? { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+          : false,
+      })
       localStreamRef.current = stream
+      setLocalVideoStream(withVideo ? stream : null)
 
       const iceServers = await ensureIceServers()
       const pc = new RTCPeerConnection({ iceServers })
       pcRef.current = pc
 
-      // Add local audio
+      // Add local media
       stream.getTracks().forEach((track) => pc.addTrack(track, stream))
 
-      // Handle remote audio
+      // Handle remote audio (+ video for video calls)
       pc.ontrack = (e) => {
         if (!remoteAudioRef.current) {
           remoteAudioRef.current = new Audio()
@@ -183,6 +217,9 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
         remoteAudioRef.current.volume = voice.outputVolume
         applyAudioOutputDevice(remoteAudioRef.current, voice.audioOutputId)
         remoteAudioRef.current.srcObject = e.streams[0]
+        if (e.streams[0]?.getVideoTracks().length) {
+          setRemoteVideoStream(e.streams[0])
+        }
       }
 
       // ICE candidates
@@ -253,11 +290,13 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
         callerId,
         callerUsername,
         callerAvatarUrl,
+        withVideo,
       }: {
         callId: string
         callerId: string
         callerUsername: string
         callerAvatarUrl?: string
+        withVideo?: boolean
       }) => {
         // Peer refreshed mid-call and is calling us back — auto-accept
         const awaiting = reconnectPeerRef.current
@@ -275,6 +314,8 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
           setRemoteUserId(callerId)
           setRemoteUsername(callerUsername)
           setRemoteAvatarUrl(callerAvatarUrl ?? awaiting.avatarUrl ?? null)
+          setIsVideoCall(!!withVideo)
+          isVideoCallRef.current = !!withVideo
           setCallState('ringing')
           // Accept on next tick so state is set
           window.setTimeout(() => acceptCallRef.current(), 50)
@@ -289,6 +330,8 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
         setRemoteUserId(callerId)
         setRemoteUsername(callerUsername)
         setRemoteAvatarUrl(callerAvatarUrl ?? null)
+        setIsVideoCall(!!withVideo)
+        isVideoCallRef.current = !!withVideo
         setCallState('ringing')
         stopRingRef.current = sounds.callRinging()
 
@@ -338,6 +381,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
         callTimeoutRef.current = null
       }
       sounds.callConnected()
+      setCallExpanded(true)
       setCallState('in-call')
       await setupWebRTC(true) // caller creates offer
     })
@@ -516,7 +560,12 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
   // ─── Actions ────────────────────────────────────────────────────
 
   const initiateCall = useCallback(
-    (targetUserId: string, targetUsername: string, targetAvatarUrl?: string) => {
+    (
+      targetUserId: string,
+      targetUsername: string,
+      targetAvatarUrl?: string,
+      options?: { video?: boolean }
+    ) => {
       if (callStateRef.current !== 'idle') return
       // Leave any active server voice channel before starting a DM call
       voice.leaveVoice()
@@ -525,13 +574,17 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
         clearTimeout(reconnectTimerRef.current)
         reconnectTimerRef.current = null
       }
+      const withVideo = !!options?.video
       const id = `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
       setCallId(id)
       setRemoteUserId(targetUserId)
       setRemoteUsername(targetUsername)
       setRemoteAvatarUrl(targetAvatarUrl ?? null)
+      setIsVideoCall(withVideo)
+      isVideoCallRef.current = withVideo
+      setCallExpanded(true)
       setCallState('calling')
-      socketRef.current?.emit('call:initiate', { targetUserId, callId: id })
+      socketRef.current?.emit('call:initiate', { targetUserId, callId: id, withVideo })
       stopRingRef.current = sounds.callOutgoing()
 
       // Auto-cancel after 30 seconds
@@ -558,9 +611,18 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
     }
     socketRef.current?.emit('call:accept', { callId: callIdRef.current })
     sounds.callConnected()
+    setCallExpanded(true)
     setCallState('in-call')
     // WebRTC will be set up when the caller's offer arrives
   }, [setCallState, voice.leaveVoice])
+
+  const expandCall = useCallback(() => {
+    if (callStateRef.current === 'in-call') setCallExpanded(true)
+  }, [])
+
+  const minimizeCall = useCallback(() => {
+    setCallExpanded(false)
+  }, [])
 
   const declineCall = useCallback(() => {
     if (callStateRef.current !== 'ringing') return
@@ -627,8 +689,14 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
         isDeafened,
         callDuration,
         unavailableReason,
+        isVideoCall,
+        callExpanded,
+        localVideoStream,
+        remoteVideoStream,
         toggleMute,
         toggleDeafen,
+        expandCall,
+        minimizeCall,
         initiateCall,
         acceptCall,
         declineCall,

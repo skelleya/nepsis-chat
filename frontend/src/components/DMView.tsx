@@ -5,6 +5,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { DMConversation, DMMessage } from '../services/api'
 import * as api from '../services/api'
+import { useCall } from '../contexts/CallContext'
 import { ChatInput } from './ChatInput'
 import { EmojiPicker } from './EmojiPicker'
 
@@ -13,7 +14,8 @@ interface DMViewProps {
   messages: DMMessage[]
   currentUserId: string
   currentUserAvatarUrl?: string
-  onSendMessage: (content: string) => Promise<void>
+  onSendMessage: (content: string, options?: { replyToId?: string }) => Promise<void>
+  onToggleReaction: (messageId: string, emoji: string) => Promise<void>
   onClose?: () => void
   onBlockUser?: (userId: string) => void
   onReportUser?: (userId: string) => void
@@ -66,10 +68,12 @@ export function DMView({
   currentUserId,
   currentUserAvatarUrl,
   onSendMessage,
+  onToggleReaction,
   onClose,
   onBlockUser,
   onReportUser,
 }: DMViewProps) {
+  const call = useCall()
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<{ url: string; type: string; filename?: string }[]>([])
   const [uploading, setUploading] = useState(false)
@@ -78,7 +82,7 @@ export function DMView({
   const [emojiAnchorRect, setEmojiAnchorRect] = useState<DOMRect | null>(null)
   const [showInputEmoji, setShowInputEmoji] = useState(false)
   const [inputEmojiRect, setInputEmojiRect] = useState<DOMRect | null>(null)
-  const [dmReactions, setDmReactions] = useState<Record<string, { emoji: string; userId: string }[]>>({})
+  const [replyTo, setReplyTo] = useState<DMMessage | null>(null)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -87,14 +91,25 @@ export function DMView({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  useEffect(() => {
+    setReplyTo(null)
+  }, [conversation.id])
+
+  const username = conversation.other_user?.username ?? 'Unknown'
+  const otherUserId = conversation.other_user?.id
+  const otherAvatarUrl = conversation.other_user?.avatar_url
+  const inCallWithThem =
+    call.callState === 'in-call' && call.remoteUserId === otherUserId
+
   const doSend = async () => {
     const text = input.trim()
     const urls = attachments.map((a) => a.url).filter(Boolean)
     const content = urls.length > 0 ? (text ? `${text}\n\n${urls.join('\n')}` : urls.join('\n')) : text
     if (!content) return
-    await onSendMessage(content)
+    await onSendMessage(content, replyTo ? { replyToId: replyTo.id } : undefined)
     setInput('')
     setAttachments([])
+    setReplyTo(null)
   }
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -116,21 +131,22 @@ export function DMView({
     }
   }
 
-  const toggleReaction = (messageId: string, emoji: string) => {
-    setDmReactions((prev) => {
-      const list = prev[messageId] || []
-      const exists = list.some((r) => r.userId === currentUserId && r.emoji === emoji)
-      const next = { ...prev }
-      next[messageId] = exists
-        ? list.filter((r) => !(r.userId === currentUserId && r.emoji === emoji))
-        : [...list, { emoji, userId: currentUserId }]
-      return next
+  const selectReply = (msg: DMMessage) => {
+    setReplyTo(msg)
+    requestAnimationFrame(() => {
+      document.getElementById('dm-chat-input')?.focus()
     })
   }
 
-  const username = conversation.other_user?.username ?? 'Unknown'
-  const otherUserId = conversation.other_user?.id
-  const otherAvatarUrl = conversation.other_user?.avatar_url
+  const startCall = (video = false) => {
+    if (!otherUserId) return
+    if (inCallWithThem) {
+      call.expandCall()
+      return
+    }
+    if (call.callState !== 'idle') return
+    call.initiateCall(otherUserId, username, otherAvatarUrl, { video })
+  }
 
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-[#313338]">
@@ -147,45 +163,83 @@ export function DMView({
           )}
         </div>
         <h2 className="font-semibold text-[#f2f3f5] text-[16px] truncate flex-1">{username}</h2>
-        <div className="relative">
-          <button
-            onClick={() => setShowUserMenu(!showUserMenu)}
-            className="p-1.5 rounded text-[#b5bac1] hover:text-[#dbdee1] hover:bg-white/5"
-            title="More"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <circle cx="12" cy="6" r="1.5" />
-              <circle cx="12" cy="12" r="1.5" />
-              <circle cx="12" cy="18" r="1.5" />
-            </svg>
-          </button>
-          {showUserMenu && (
+
+        <div className="flex items-center gap-1">
+          {inCallWithThem ? (
+            <button
+              type="button"
+              onClick={() => call.expandCall()}
+              className="px-2.5 py-1.5 rounded text-sm font-medium text-white bg-green-600 hover:bg-green-500"
+              title="Expand call"
+            >
+              In call — Expand
+            </button>
+          ) : (
             <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
-              <div className="absolute right-0 top-full mt-1 py-1 z-50 bg-[#111214] rounded-md shadow-xl border border-white/10 min-w-[150px]">
-                {onClose && (
-                  <button
-                    onClick={() => { onClose(); setShowUserMenu(false) }}
-                    className="w-full px-3 py-2 text-left text-sm text-[#dbdee1] hover:bg-[#5865f2] hover:text-white"
-                  >
-                    Close DM
-                  </button>
-                )}
-                <button
-                  onClick={() => { onBlockUser?.(otherUserId); setShowUserMenu(false) }}
-                  className="w-full px-3 py-2 text-left text-sm text-[#f23f43] hover:bg-[#f23f43] hover:text-white"
-                >
-                  Block User
-                </button>
-                <button
-                  onClick={() => { onReportUser?.(otherUserId); setShowUserMenu(false) }}
-                  className="w-full px-3 py-2 text-left text-sm text-[#dbdee1] hover:bg-[#5865f2] hover:text-white"
-                >
-                  Report User
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => startCall(false)}
+                disabled={call.callState !== 'idle'}
+                className="p-1.5 rounded text-[#b5bac1] hover:text-[#dbdee1] hover:bg-white/5 disabled:opacity-40"
+                title="Call"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => startCall(true)}
+                disabled={call.callState !== 'idle'}
+                className="p-1.5 rounded text-[#b5bac1] hover:text-[#dbdee1] hover:bg-white/5 disabled:opacity-40"
+                title="Video Call"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
+                </svg>
+              </button>
             </>
           )}
+          <div className="relative">
+            <button
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              className="p-1.5 rounded text-[#b5bac1] hover:text-[#dbdee1] hover:bg-white/5"
+              title="More"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="6" r="1.5" />
+                <circle cx="12" cy="12" r="1.5" />
+                <circle cx="12" cy="18" r="1.5" />
+              </svg>
+            </button>
+            {showUserMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
+                <div className="absolute right-0 top-full mt-1 py-1 z-50 bg-[#111214] rounded-md shadow-xl border border-white/10 min-w-[150px]">
+                  {onClose && (
+                    <button
+                      onClick={() => { onClose(); setShowUserMenu(false) }}
+                      className="w-full px-3 py-2 text-left text-sm text-[#dbdee1] hover:bg-[#5865f2] hover:text-white"
+                    >
+                      Close DM
+                    </button>
+                  )}
+                  <button
+                    onClick={() => { onBlockUser?.(otherUserId); setShowUserMenu(false) }}
+                    className="w-full px-3 py-2 text-left text-sm text-[#f23f43] hover:bg-[#f23f43] hover:text-white"
+                  >
+                    Block User
+                  </button>
+                  <button
+                    onClick={() => { onReportUser?.(otherUserId); setShowUserMenu(false) }}
+                    className="w-full px-3 py-2 text-left text-sm text-[#dbdee1] hover:bg-[#5865f2] hover:text-white"
+                  >
+                    Report User
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -216,21 +270,20 @@ export function DMView({
                 new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime() < 7 * 60 * 1000
               const isMe = msg.user_id === currentUserId
               const avatarUrl = isMe ? currentUserAvatarUrl : otherAvatarUrl
-              const showDateSep =
-                !prev || !sameDay(prev.created_at, msg.created_at)
+              const showDateSep = !prev || !sameDay(prev.created_at, msg.created_at)
 
-              const reactions = dmReactions[msg.id] || []
+              const reactions = msg.reactions || []
               const groupedReactions = reactions.reduce((acc, r) => {
                 if (!acc[r.emoji]) acc[r.emoji] = { count: 0, userIds: [] as string[] }
-                if (!acc[r.emoji].userIds.includes(r.userId)) {
+                if (!acc[r.emoji].userIds.includes(r.user_id)) {
                   acc[r.emoji].count++
-                  acc[r.emoji].userIds.push(r.userId)
+                  acc[r.emoji].userIds.push(r.user_id)
                 }
                 return acc
               }, {} as Record<string, { count: number; userIds: string[] }>)
 
               return (
-                <div key={msg.id}>
+                <div key={msg.id} id={`dm-msg-${msg.id}`}>
                   {showDateSep && (
                     <div className="flex items-center gap-2 mx-4 my-3">
                       <div className="flex-1 h-px bg-[#3f4147]" />
@@ -241,10 +294,24 @@ export function DMView({
                     </div>
                   )}
                   <div
-                    className={`group relative flex gap-4 px-4 hover:bg-[#2e3035]/60 ${
+                    className={`group relative flex gap-4 px-4 hover:bg-[#2e3035]/60 cursor-pointer ${
                       isGrouped ? 'py-0.5 min-h-[1.375rem]' : 'mt-4 py-0.5'
-                    }`}
+                    } ${replyTo?.id === msg.id ? 'bg-[#5865f2]/10' : ''}`}
+                    onClick={() => selectReply(msg)}
                   >
+                    <div className="absolute right-4 -top-3 opacity-0 group-hover:opacity-100 z-10 flex items-center bg-[#313338] border border-[#1e1f22] rounded shadow-lg overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          selectReply(msg)
+                        }}
+                        className="px-2 py-1 text-xs text-[#b5bac1] hover:bg-[#2e3035] hover:text-white"
+                      >
+                        Reply
+                      </button>
+                    </div>
+
                     {isGrouped ? (
                       <div className="w-10 flex-shrink-0 flex justify-center pt-0.5">
                         <span className="text-[10px] text-[#949ba4] opacity-0 group-hover:opacity-100 leading-5">
@@ -271,13 +338,26 @@ export function DMView({
                           </span>
                         </div>
                       )}
+                      {msg.reply_to && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            document.getElementById(`dm-msg-${msg.reply_to!.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                          }}
+                          className="mt-0.5 mb-1 flex items-center gap-1.5 text-xs text-[#b5bac1] hover:text-white border-l-2 border-[#4e5058] pl-2"
+                        >
+                          <span className="font-semibold text-[#c9cdfb]">{msg.reply_to.username}</span>
+                          <span className="truncate max-w-[240px]">{msg.reply_to.content}</span>
+                        </button>
+                      )}
                       <div className={`text-[#dbdee1] text-[16px] leading-[1.375] break-words whitespace-pre-wrap ${isGrouped ? '' : 'mt-0.5'}`}>
                         {(() => {
                           const parts = renderMessageContent(msg.content)
                           if (parts.length === 0) return msg.content
                           return parts.map((part, i) =>
                             part.type === 'image' ? (
-                              <a key={i} href={part.value} target="_blank" rel="noreferrer" className="block mt-1">
+                              <a key={i} href={part.value} target="_blank" rel="noreferrer" className="block mt-1" onClick={(e) => e.stopPropagation()}>
                                 <img src={part.value} alt="" className="max-w-[300px] max-h-[220px] rounded object-contain" />
                               </a>
                             ) : (
@@ -286,11 +366,12 @@ export function DMView({
                           )
                         })()}
                       </div>
-                      <div className="mt-1 flex flex-wrap gap-1 items-center">
+                      <div className="mt-1 flex flex-wrap gap-1 items-center" onClick={(e) => e.stopPropagation()}>
                         {Object.entries(groupedReactions).map(([emoji, { count, userIds }]) => (
                           <button
                             key={emoji}
-                            onClick={() => toggleReaction(msg.id, emoji)}
+                            type="button"
+                            onClick={() => onToggleReaction(msg.id, emoji)}
                             className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-sm border ${
                               userIds.includes(currentUserId)
                                 ? 'bg-[#5865f2]/25 border-[#5865f2]/50 text-[#c9cdfb]'
@@ -302,6 +383,7 @@ export function DMView({
                           </button>
                         ))}
                         <button
+                          type="button"
                           onClick={(e) => {
                             if (showEmojiPicker === msg.id) {
                               setShowEmojiPicker(null)
@@ -319,7 +401,7 @@ export function DMView({
                           <EmojiPicker
                             anchorRect={emojiAnchorRect ?? undefined}
                             onSelect={(emoji) => {
-                              toggleReaction(msg.id, emoji)
+                              onToggleReaction(msg.id, emoji)
                               setShowEmojiPicker(null)
                               setEmojiAnchorRect(null)
                             }}
@@ -339,6 +421,23 @@ export function DMView({
 
       {/* Composer */}
       <div className="px-4 pb-6 pt-2 flex-shrink-0">
+        {replyTo && (
+          <div className="mb-2 flex items-center justify-between gap-2 px-3 py-2 rounded-t-lg bg-[#2b2d31] border-l-4 border-[#5865f2]">
+            <div className="min-w-0 text-sm">
+              <span className="text-[#b5bac1]">Replying to </span>
+              <span className="text-[#c9cdfb] font-semibold">{replyTo.username}</span>
+              <p className="text-[#949ba4] truncate">{replyTo.content}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReplyTo(null)}
+              className="text-[#b5bac1] hover:text-white text-lg leading-none px-1"
+              title="Cancel reply"
+            >
+              ×
+            </button>
+          </div>
+        )}
         {attachments.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-2 px-1">
             {attachments.map((a, i) => (
@@ -371,11 +470,12 @@ export function DMView({
           value={input}
           onChange={setInput}
           onSubmit={doSend}
-          placeholder={`Message @${username}`}
+          placeholder={replyTo ? `Reply to @${replyTo.username}` : `Message @${username}`}
           members={conversation.other_user ? [{ id: conversation.other_user.id, username }] : []}
           uploading={uploading}
           onAttachClick={() => setShowAttachMenu((v) => !v)}
           attachOpen={showAttachMenu}
+          inputId="dm-chat-input"
           attachMenu={
             showAttachMenu ? (
               <>

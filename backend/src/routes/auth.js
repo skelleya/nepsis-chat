@@ -205,6 +205,7 @@ async function purgeUserAccount(userId) {
     { table: 'server_audit_log', column: 'user_id' },
     { table: 'server_emojis', column: 'uploaded_by' },
     { table: 'message_reactions', column: 'user_id' },
+    { table: 'dm_message_reactions', column: 'user_id' },
     { table: 'messages', column: 'user_id' },
     { table: 'server_members', column: 'user_id' },
     { table: 'soundboard_sounds', column: 'user_id' },

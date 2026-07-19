@@ -49,6 +49,7 @@ function AppContent() {
     channelMentionCounts,
     openDM,
     sendDMMessage,
+    toggleDMReaction,
     setCurrentServer,
     setCurrentChannel,
     sendMessage,
@@ -173,6 +174,7 @@ function AppContent() {
               channelMentionCounts={channelMentionCounts}
               openDM={openDM}
               sendDMMessage={sendDMMessage}
+              toggleDMReaction={toggleDMReaction}
               setCurrentServer={setCurrentServer}
               setCurrentChannel={setCurrentChannel}
               sendMessage={sendMessage}
@@ -219,7 +221,12 @@ interface MainLayoutProps {
   channelUnreadCounts: Record<string, number>
   channelMentionCounts: Record<string, number>
   openDM: (targetUserId: string, targetUsername: string) => Promise<string | undefined>
-  sendDMMessage: (conversationId: string, content: string) => Promise<void>
+  sendDMMessage: (
+    conversationId: string,
+    content: string,
+    options?: { replyToId?: string }
+  ) => Promise<void>
+  toggleDMReaction: (messageId: string, emoji: string) => Promise<void>
   setCurrentServer: (id: string) => void
   setCurrentChannel: (id: string) => void
   sendMessage: (channelId: string, content: string, options?: { replyToId?: string; attachments?: { url: string; type: string; filename?: string }[] }) => Promise<void>
@@ -255,6 +262,7 @@ function MainLayout({
   channelMentionCounts,
   openDM,
   sendDMMessage,
+  toggleDMReaction,
   setCurrentServer,
   setCurrentChannel,
   sendMessage,
@@ -975,7 +983,8 @@ function MainLayout({
               messages={dmMsgs}
               currentUserId={user.id}
               currentUserAvatarUrl={user.avatar_url}
-              onSendMessage={(content) => sendDMMessage(currentDMId, content)}
+              onSendMessage={(content, options) => sendDMMessage(currentDMId, content, options)}
+              onToggleReaction={toggleDMReaction}
               onClose={() => {
                 setCurrentDM(null)
                 try {

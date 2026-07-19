@@ -95,11 +95,21 @@ dmRouter.get('/conversations/:id/messages', async (req, res) => {
 
     const { data, error } = await supabase
       .from('dm_messages')
-      .select('id, conversation_id, user_id, content, created_at')
+      .select('id, conversation_id, user_id, content, created_at, reply_to_id')
       .eq('conversation_id', id)
       .order('created_at', { ascending: true })
 
     if (error) throw error
+
+    const msgIds = (data || []).map((m) => m.id)
+    const { data: reactions } = msgIds.length
+      ? await supabase.from('dm_message_reactions').select('message_id, user_id, emoji').in('message_id', msgIds)
+      : { data: [] }
+    const reactionsByMsg = {}
+    for (const r of reactions || []) {
+      if (!reactionsByMsg[r.message_id]) reactionsByMsg[r.message_id] = []
+      reactionsByMsg[r.message_id].push({ user_id: r.user_id, emoji: r.emoji })
+    }
 
     const userIds = [...new Set((data || []).map((m) => m.user_id))]
     const { data: users } = userIds.length
@@ -110,14 +120,29 @@ dmRouter.get('/conversations/:id/messages', async (req, res) => {
       userMap[u.id] = (u.display_name && u.display_name.trim()) || u.username
     }
 
-    const result = (data || []).map((m) => ({
-      id: m.id,
-      conversation_id: m.conversation_id,
-      user_id: m.user_id,
-      content: m.content,
-      created_at: m.created_at,
-      username: userMap[m.user_id] || 'Unknown',
-    }))
+    const byId = {}
+    for (const m of data || []) byId[m.id] = m
+
+    const result = (data || []).map((m) => {
+      const parent = m.reply_to_id ? byId[m.reply_to_id] : null
+      return {
+        id: m.id,
+        conversation_id: m.conversation_id,
+        user_id: m.user_id,
+        content: m.content,
+        created_at: m.created_at,
+        username: userMap[m.user_id] || 'Unknown',
+        reply_to_id: m.reply_to_id || null,
+        reply_to: parent
+          ? {
+              id: parent.id,
+              content: parent.content,
+              username: userMap[parent.user_id] || 'Unknown',
+            }
+          : null,
+        reactions: reactionsByMsg[m.id] || [],
+      }
+    })
 
     res.json(result)
   } catch (err) {
@@ -135,13 +160,34 @@ dmRouter.get('/messages/:id', async (req, res) => {
   try {
     const { data: m, error } = await supabase
       .from('dm_messages')
-      .select('id, conversation_id, user_id, content, created_at')
+      .select('id, conversation_id, user_id, content, created_at, reply_to_id')
       .eq('id', id)
       .single()
 
     if (error || !m) return res.status(404).json({ error: 'Not found' })
 
-    const { data: u } = await supabase.from('users').select('username').eq('id', m.user_id).single()
+    const { data: u } = await supabase.from('users').select('username, display_name').eq('id', m.user_id).single()
+    const { data: reactions } = await supabase
+      .from('dm_message_reactions')
+      .select('user_id, emoji')
+      .eq('message_id', id)
+
+    let reply_to = null
+    if (m.reply_to_id) {
+      const { data: parent } = await supabase
+        .from('dm_messages')
+        .select('id, content, user_id')
+        .eq('id', m.reply_to_id)
+        .maybeSingle()
+      if (parent) {
+        const { data: pu } = await supabase.from('users').select('username, display_name').eq('id', parent.user_id).single()
+        reply_to = {
+          id: parent.id,
+          content: parent.content,
+          username: (pu?.display_name && pu.display_name.trim()) || pu?.username || 'Unknown',
+        }
+      }
+    }
 
     res.json({
       id: m.id,
@@ -149,7 +195,10 @@ dmRouter.get('/messages/:id', async (req, res) => {
       user_id: m.user_id,
       content: m.content,
       created_at: m.created_at,
-      username: u?.username || 'Unknown',
+      username: (u?.display_name && u.display_name.trim()) || u?.username || 'Unknown',
+      reply_to_id: m.reply_to_id || null,
+      reply_to,
+      reactions: (reactions || []).map((r) => ({ user_id: r.user_id, emoji: r.emoji })),
     })
   } catch (err) {
     console.error('DM get message error:', err)
@@ -159,7 +208,7 @@ dmRouter.get('/messages/:id', async (req, res) => {
 
 // Send a DM message
 dmRouter.post('/messages', async (req, res) => {
-  const { conversationId, userId, content } = req.body
+  const { conversationId, userId, content, replyToId } = req.body
   if (!conversationId || !userId || !content?.trim()) {
     return res.status(400).json({ error: 'conversationId, userId, and content required' })
   }
@@ -174,15 +223,40 @@ dmRouter.post('/messages', async (req, res) => {
     if (!isMember) return res.status(403).json({ error: 'Not a participant' })
 
     const id = `dmmsg_${randomUUID()}`
+    const row = {
+      id,
+      conversation_id: conversationId,
+      user_id: userId,
+      content: content.trim(),
+    }
+    if (replyToId) row.reply_to_id = replyToId
+
     const { data: inserted, error } = await supabase
       .from('dm_messages')
-      .insert({ id, conversation_id: conversationId, user_id: userId, content: content.trim() })
-      .select('id, conversation_id, user_id, content, created_at')
+      .insert(row)
+      .select('id, conversation_id, user_id, content, created_at, reply_to_id')
       .single()
 
     if (error) throw error
 
-    const { data: u } = await supabase.from('users').select('username').eq('id', userId).single()
+    const { data: u } = await supabase.from('users').select('username, display_name').eq('id', userId).single()
+
+    let reply_to = null
+    if (inserted.reply_to_id) {
+      const { data: parent } = await supabase
+        .from('dm_messages')
+        .select('id, content, user_id')
+        .eq('id', inserted.reply_to_id)
+        .maybeSingle()
+      if (parent) {
+        const { data: pu } = await supabase.from('users').select('username, display_name').eq('id', parent.user_id).single()
+        reply_to = {
+          id: parent.id,
+          content: parent.content,
+          username: (pu?.display_name && pu.display_name.trim()) || pu?.username || 'Unknown',
+        }
+      }
+    }
 
     res.json({
       id: inserted.id,
@@ -190,7 +264,10 @@ dmRouter.post('/messages', async (req, res) => {
       user_id: inserted.user_id,
       content: inserted.content,
       created_at: inserted.created_at,
-      username: u?.username || 'Unknown',
+      username: (u?.display_name && u.display_name.trim()) || u?.username || 'Unknown',
+      reply_to_id: inserted.reply_to_id || null,
+      reply_to,
+      reactions: [],
     })
   } catch (err) {
     console.error('DM send error:', err)
@@ -198,6 +275,59 @@ dmRouter.post('/messages', async (req, res) => {
       return res.status(501).json({ error: DM_NOT_CONFIGURED })
     }
     res.status(500).json({ error: 'Failed to send DM' })
+  }
+})
+
+// Add DM reaction
+dmRouter.post('/messages/:id/reactions', async (req, res) => {
+  const { id } = req.params
+  const { userId, emoji } = req.body
+  if (!userId || !emoji) return res.status(400).json({ error: 'userId and emoji required' })
+
+  try {
+    const { data: msg } = await supabase.from('dm_messages').select('id, conversation_id').eq('id', id).maybeSingle()
+    if (!msg) return res.status(404).json({ error: 'Message not found' })
+
+    const { data: participants } = await supabase
+      .from('dm_participants')
+      .select('user_id')
+      .eq('conversation_id', msg.conversation_id)
+    if (!participants?.some((p) => p.user_id === userId)) {
+      return res.status(403).json({ error: 'Not a participant' })
+    }
+
+    const { error } = await supabase
+      .from('dm_message_reactions')
+      .upsert(
+        { message_id: id, user_id: userId, emoji: String(emoji).slice(0, 32) },
+        { onConflict: 'message_id,user_id,emoji' }
+      )
+    if (error) throw error
+    res.json({ success: true })
+  } catch (err) {
+    console.error('DM add reaction error:', err)
+    res.status(500).json({ error: 'Failed to add reaction' })
+  }
+})
+
+// Remove DM reaction
+dmRouter.delete('/messages/:id/reactions', async (req, res) => {
+  const { id } = req.params
+  const { userId, emoji } = req.query
+  if (!userId || !emoji) return res.status(400).json({ error: 'userId and emoji required' })
+
+  try {
+    const { error } = await supabase
+      .from('dm_message_reactions')
+      .delete()
+      .eq('message_id', id)
+      .eq('user_id', userId)
+      .eq('emoji', emoji)
+    if (error) throw error
+    res.json({ success: true })
+  } catch (err) {
+    console.error('DM remove reaction error:', err)
+    res.status(500).json({ error: 'Failed to remove reaction' })
   }
 })
 
