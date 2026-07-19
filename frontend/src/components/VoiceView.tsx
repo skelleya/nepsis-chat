@@ -740,7 +740,6 @@ export function VoiceView({
       isAdminOrOwner,
       onMuteMember,
       onDisconnectMember,
-      screenShareUserIds,
       watchingShareUserId,
       maximizedCameraUserId,
       handleWatchShare,
