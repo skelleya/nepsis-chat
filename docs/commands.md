@@ -12,10 +12,13 @@ All npm scripts and CLI commands for Nepsis Chat.
 | `npm run dev:frontend` | Start frontend dev server |
 | `npm run build:frontend` | Build frontend for production |
 | `npm run start:backend` | Start backend (no watch) |
-| `npm run electron` | Run Electron desktop app |
-| `npm run package` | Build Electron installer (from electron/) |
-| `npm run package:full` | Full Electron build (package + publish + copy + bump) |
-| `npm run release` | **All-in-one**: package:full (build + publish to GitHub Releases) |
+| `npm run electron` | Run Electron desktop app (dev) |
+| `npm run package:win` | Build Windows NSIS installer |
+| `npm run package:mac` | Build macOS DMG/ZIP (**run on a Mac**) |
+| `npm run package:all` | Build Win + Mac |
+| `npm run release` | Publish Win+Mac to GitHub Releases (`GH_TOKEN`) |
+| `npm run release:win` | Publish Windows only |
+| `npm run release:mac` | Publish macOS only |
 
 ---
 
@@ -23,8 +26,8 @@ All npm scripts and CLI commands for Nepsis Chat.
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Start with `--watch` (restarts on file change) |
-| `npm start` | Start server (no watch) |
+| `npm run dev` | Start with `--watch` |
+| `npm start` | Start server |
 
 **Default port:** 3000
 
@@ -35,12 +38,8 @@ All npm scripts and CLI commands for Nepsis Chat.
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Vite dev server |
-| `npm run build` | TypeScript check + Vite build |
-| `npm run preview` | Preview production build |
-
-**Default port:** 5173
-
-**Env:** `VITE_API_URL` — API base URL (e.g. `http://localhost:3000/api`)
+| `npm run build` | Production web build |
+| `npm run build -- --mode desktop` | Desktop bundle (uses `.env.desktop`) |
 
 ---
 
@@ -48,90 +47,49 @@ All npm scripts and CLI commands for Nepsis Chat.
 
 | Command | Description |
 |---------|-------------|
-| `npm start` | Run Electron (loads `APP_URL`) |
-| `npm run build:frontend` | Build frontend before packaging |
-| `npm run bump` | Bump patch version (0.1.9 → 0.2.0 when patch hits 10) |
-| `npm run package` | Bump + build frontend + build installer |
-| `npm run package:full` | package + publish-update + copy-exe + bump |
-| `npm run publish-update` | Copy installer + latest.yml to `backend/updates/` |
-| `npm run copy-exe` | Copy installer to `frontend/public/` |
+| `npm start` | Run Electron (loads Vite `APP_URL`) |
+| `npm run build:frontend` | Build frontend with `--mode desktop` |
+| `npm run package:win` | Windows installer → `electron/dist/` |
+| `npm run package:mac` | macOS DMG + ZIP |
+| `npm run publish:github` | Build Win+Mac and upload to GitHub Releases |
+| `npm run bump` | Bump patch version |
+
+**Updates:** GitHub Releases via `electron-updater`. Top Nepsis badge in the app when a new version is available.
 
 **Env:**
-- `APP_URL` — URL the app loads (default: `http://localhost:5173`)
-- `UPDATE_URL` — Update server URL (default: `http://localhost:3000/updates`)
-- `NODE_ENV=development` — Enables dev tools
+- `GH_TOKEN` — required to publish
+- `APP_URL` — dev load URL (default `http://localhost:5173`)
+- Desktop API keys — `frontend/.env.desktop`
 
 ---
 
 ## Typical Workflows
 
 ### Development
-```powershell
-# Terminal 1 (PowerShell: use ; not &&)
-cd backend; npm run dev
+```bash
+# Terminal 1
+cd backend && npm run dev
 
 # Terminal 2
-cd frontend; npm run dev
+cd frontend && npm run dev
 
-# Optional: run as desktop app
-cd electron; npm start
+# Optional desktop shell
+cd electron && npm start
 ```
 
-### Release a new version (one command)
-```powershell
-npm run release
-```
-This runs `package:full` (build frontend, package Electron installer, publish update files to GitHub Releases, copy exe, bump version).
+### Ship a desktop release
+```bash
+# Set GH_TOKEN with repo release permissions
+export GH_TOKEN=ghp_...
 
-### Release steps separately
-```powershell
-npm run package:full    # Build + publish + copy + bump
-# Backend: run on your self-hosted server (see docs/deployment.md)
-```
+# Windows machine (or CI windows-latest):
+npm run release:win
 
-### Manual steps (instead of package:full)
-```powershell
-cd electron
-npm run package          # Build installer
-npm run publish-update   # Copy to backend/updates/
-npm run copy-exe         # Copy to frontend/public/
-# Version auto-bumps at end of package:full
+# Mac machine (or CI macos-latest):
+npm run release:mac
+
+# Or both from a Mac with Wine not required for --mac only:
+npm run release:mac
 ```
 
-### Run the app after building
-
-From project root:
-```powershell
-# Unpacked app (no install)
-& ".\electron\dist\win-unpacked\Nepsis Chat.exe"
-
-# Or run the installer (check electron/dist/ for the version)
-& ".\electron\dist\Nepsis Chat Setup 0.1.0.exe"
-```
-
-From `electron` folder:
-```powershell
-& ".\dist\win-unpacked\Nepsis Chat.exe"
-```
-
----
-
-## Deployment
-
-Backend is self-hosted. See [deployment.md](deployment.md) for:
-- Running with Node.js: `cd backend && npm start`
-- Running with Docker: `docker build -f backend/Dockerfile -t nepsis-backend backend && docker run ...`
-
----
-
-## Supabase CLI
-
-| Command | Description |
-|---------|--------------|
-| `supabase init` | Initialize Supabase in project (creates `supabase/` folder) |
-| `supabase link` | Link to remote Supabase project |
-| `supabase db push` | Apply migrations from `supabase/migrations/` |
-| `supabase db pull` | Pull remote schema to a new migration file |
-
-Migrations live in `supabase/migrations/` as `YYYYMMDDHHMMSS_name.sql`.  
-You can also run `backend/supabase-migration.sql` directly in Supabase Dashboard → SQL Editor.
+After publish, installed apps show the **update badge** at the top when `latest.yml` / `latest-mac.yml` advertise a newer version.
