@@ -63,7 +63,8 @@ frontend/src/
 | CommunityPage | Explore page: invite code entry, community servers list; shown when guest has no servers or when user completes onboarding. **GSAP:** fade+slide-in on mount (compass bubble) |
 | UpdateButton | Green update (Electron only) |
 | DownloadBanner | Centered top tab: short prompt (“Prefer the desktop app?”) + clear Download button + subtle dismiss; `rounded-b-xl`; dismissible (localStorage); sets `--download-banner-height`; hidden on `/download` and in Electron. **GSAP:** slide/fade in/out |
-| LoginPage | Guest (username only), Sign In (email or username + password), Sign Up (email + password). **GSAP:** soft page/card enter; sliding accent pill on tabs; form panel slides with tab direction; credential fields + Continue/Sign In button collapse upward together on submit (reopen on error); logo coin uses `quickSetter(..., 'rotationY', 'deg')` so horizontal cursor swipe spins the 3D coin with inertia + face settle |
+| WelcomeLanding | Pre-auth home (white split): large Nepsis logo left (`mix-blend-multiply` drops black square), **Use Web App** / **Download App** right. Syne + Figtree; GSAP entrance. |
+| LoginPage | After Use Web App: Guest / Sign In / Sign Up. **GSAP:** soft page/card enter; tab glide; fields collapse on submit; logo coin spin. Back returns to WelcomeLanding. |
 | AppContent (login transition) | Keeps LoginPage mounted until GSAP exit finishes after auth, then fades main app in (`gsap`) |
 
 ---

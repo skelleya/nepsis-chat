@@ -37,6 +37,77 @@ html[data-density='compact'] {
   }
 }
 
+/* Pre-login white landing (WelcomeLanding) */
+.landing-root {
+  --landing-bg: #f7f5f2;
+  --landing-ink: #141414;
+  --landing-muted: #5c5a57;
+  --landing-orange: #ff5a1f;
+  --landing-orange-deep: #e24712;
+  background: var(--landing-bg);
+  color: var(--landing-ink);
+  font-family: Figtree, ui-sans-serif, system-ui, sans-serif;
+}
+
+.landing-atmosphere {
+  background:
+    radial-gradient(ellipse 70% 55% at 18% 42%, rgba(255, 90, 31, 0.14), transparent 62%),
+    radial-gradient(ellipse 50% 40% at 78% 30%, rgba(20, 20, 20, 0.04), transparent 55%),
+    linear-gradient(165deg, #ffffff 0%, #f7f5f2 45%, #f0ebe4 100%);
+}
+
+.landing-logo {
+  /* Drop the logo’s black square on the light field; keep orange mark */
+  mix-blend-mode: multiply;
+  filter: contrast(1.05);
+}
+
+.landing-wordmark {
+  color: var(--landing-orange);
+  font-family: Syne, Figtree, sans-serif;
+}
+
+.landing-headline {
+  font-family: Syne, Figtree, sans-serif;
+}
+
+.landing-sub {
+  color: var(--landing-muted);
+}
+
+.landing-cta-primary {
+  background: var(--landing-ink);
+  color: #fff;
+  border-radius: 0.85rem;
+}
+
+.landing-cta-primary:hover {
+  background: #000;
+}
+
+.landing-cta-secondary {
+  background: transparent;
+  color: var(--landing-ink);
+  border-radius: 0.85rem;
+  border: 1.5px solid rgba(20, 20, 20, 0.14);
+}
+
+.landing-cta-secondary:hover {
+  border-color: var(--landing-orange);
+  background: rgba(255, 90, 31, 0.06);
+}
+
+.landing-cta-arrow {
+  font-family: Syne, Figtree, sans-serif;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: var(--landing-orange);
+}
+
+.landing-cta-primary .landing-cta-arrow {
+  color: #fff;
+}
+
 @layer utilities {
   @keyframes dm-glow {
     0%, 100% { box-shadow: 0 0 0 0 rgba(35, 165, 89, 0.4); }

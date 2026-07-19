@@ -28,7 +28,9 @@ e:\Nepsis Chat\
 | `src/hooks/` | React hooks |
 | `src/services/` | API, signaling, WebRTC |
 | `src/contexts/` | AppContext |
-| `src/pages/` | LoginPage, DownloadPage |
+| `src/pages/` | DownloadPage, FriendsPage, CommunityPage, OnboardingPage, InvitePage |
+| `src/components/WelcomeLanding.tsx` | Pre-login white split landing (logo + Use Web App / Download App) |
+| `src/components/LoginPage.tsx` | Auth form after Use Web App |
 | `src/data/` | mockData |
 | `src/types/` | TypeScript interfaces |
 | `public/` | Static assets: logo.png, favicon.png, NepsisChat-Setup.exe |
