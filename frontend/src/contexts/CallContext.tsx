@@ -24,6 +24,7 @@ import { sounds } from '../services/sounds'
 import { ensureIceServers } from '../services/iceConfig'
 import { useVoice } from './VoiceContext'
 import { applyAudioOutputDevice, getAudioConstraints, loadPrefs } from '../services/userPrefs'
+import { setCallBusy } from '../services/mediaSessionGate'
 
 const SOCKET_URL =
   import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000'
@@ -92,6 +93,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
   const socketRef = useRef<Socket | null>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
+  const remoteStreamRef = useRef<MediaStream | null>(null)
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null)
   const stopRingRef = useRef<(() => void) | null>(null)
   const callTimeoutRef = useRef<number | null>(null)
@@ -132,6 +134,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
   // Sync wrappers — update both ref + state
   const setCallState = useCallback((s: CallState) => {
     callStateRef.current = s
+    setCallBusy(s !== 'idle')
     _setCallState(s)
   }, [])
   const setCallId = useCallback((id: string | null) => {
@@ -155,6 +158,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
     }
     pcRef.current?.close()
     pcRef.current = null
+    remoteStreamRef.current = null
     localStreamRef.current?.getTracks().forEach((t) => t.stop())
     localStreamRef.current = null
     if (remoteAudioRef.current) {
@@ -187,16 +191,42 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
     }, 1000)
   }, [])
 
+  const flushIceQueue = useCallback(async () => {
+    const pc = pcRef.current
+    if (!pc?.remoteDescription || iceCandidateQueueRef.current.length === 0) return
+    const queued = iceCandidateQueueRef.current
+    iceCandidateQueueRef.current = []
+    for (const candidate of queued) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate))
+      } catch {
+        /* ignore late or duplicate candidates */
+      }
+    }
+  }, [])
+
   // ─── Setup WebRTC peer connection ───────────────────────────────
   const setupWebRTC = useCallback(
     async (isCaller: boolean) => {
       const withVideo = isVideoCallRef.current
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: getAudioConstraints(),
-        video: withVideo
-          ? { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
-          : false,
-      })
+      let stream: MediaStream
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: getAudioConstraints(),
+          video: withVideo
+            ? { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+            : false,
+        })
+      } catch (err) {
+        setUnavailableReason(
+          withVideo ? 'Failed to access camera or microphone' : 'Failed to access microphone'
+        )
+        window.setTimeout(() => setUnavailableReason(null), 4000)
+        socketRef.current?.emit('call:end', { callId: callIdRef.current })
+        sounds.callDisconnected()
+        cleanup()
+        throw err
+      }
       localStreamRef.current = stream
       setLocalVideoStream(withVideo ? stream : null)
 
@@ -208,7 +238,12 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
       stream.getTracks().forEach((track) => pc.addTrack(track, stream))
 
       // Handle remote audio (+ video for video calls)
+      const remoteStream = new MediaStream()
+      remoteStreamRef.current = remoteStream
       pc.ontrack = (e) => {
+        if (!remoteStream.getTrackById(e.track.id)) {
+          remoteStream.addTrack(e.track)
+        }
         if (!remoteAudioRef.current) {
           remoteAudioRef.current = new Audio()
           remoteAudioRef.current.autoplay = true
@@ -216,9 +251,15 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
         const voice = loadPrefs().voice
         remoteAudioRef.current.volume = voice.outputVolume
         applyAudioOutputDevice(remoteAudioRef.current, voice.audioOutputId)
-        remoteAudioRef.current.srcObject = e.streams[0]
-        if (e.streams[0]?.getVideoTracks().length) {
-          setRemoteVideoStream(e.streams[0])
+        remoteAudioRef.current.srcObject = remoteStream
+        if (remoteStream.getVideoTracks().length) {
+          setRemoteVideoStream(remoteStream)
+        }
+        e.track.onended = () => {
+          if (remoteStream.getTrackById(e.track.id)) {
+            remoteStream.removeTrack(e.track)
+          }
+          setRemoteVideoStream(remoteStream.getVideoTracks().length ? remoteStream : null)
         }
       }
 
@@ -242,19 +283,11 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
         })
       }
 
-      // Flush any ICE candidates that arrived before PC was ready
-      for (const candidate of iceCandidateQueueRef.current) {
-        try {
-          await pc.addIceCandidate(new RTCIceCandidate(candidate))
-        } catch {
-          /* ignore */
-        }
-      }
-      iceCandidateQueueRef.current = []
+      await flushIceQueue()
 
       startDurationTimer()
     },
-    [startDurationTimer]
+    [cleanup, flushIceQueue, startDurationTimer]
   )
 
   // Prefetch STUN/TURN so the first call does not wait on /api/webrtc/ice
@@ -383,7 +416,11 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
       sounds.callConnected()
       setCallExpanded(true)
       setCallState('in-call')
-      await setupWebRTC(true) // caller creates offer
+      try {
+        await setupWebRTC(true) // caller creates offer
+      } catch {
+        /* setupWebRTC already surfaced the error and cleaned up */
+      }
     })
 
     // --- Call declined (caller receives) ---
@@ -436,9 +473,14 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
     socket.on(
       'call:offer',
       async ({ callId: id, sdp }: { callId: string; sdp: RTCSessionDescriptionInit }) => {
-        await setupWebRTC(false)
+        try {
+          await setupWebRTC(false)
+        } catch {
+          return
+        }
         if (!pcRef.current) return
         await pcRef.current.setRemoteDescription(new RTCSessionDescription(sdp))
+        await flushIceQueue()
         const answer = await pcRef.current.createAnswer()
         await pcRef.current.setLocalDescription(answer)
         socket.emit('call:answer', { callId: id, sdp: answer })
@@ -451,6 +493,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
       async ({ sdp }: { callId: string; sdp: RTCSessionDescriptionInit }) => {
         if (pcRef.current) {
           await pcRef.current.setRemoteDescription(new RTCSessionDescription(sdp))
+          await flushIceQueue()
         }
       }
     )
@@ -499,6 +542,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
             peerUserId: peerId,
             peerUsername: peerName,
             peerAvatarUrl: remoteAvatarUrlRef.current,
+            withVideo: isVideoCallRef.current,
           })
         )
       } catch {
@@ -526,12 +570,14 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
           peerUserId?: string
           peerUsername?: string
           peerAvatarUrl?: string | null
+          withVideo?: boolean
         }
         if (!parsed.peerUserId || !parsed.peerUsername) return
         initiateCallRef.current(
           parsed.peerUserId,
           parsed.peerUsername,
-          parsed.peerAvatarUrl ?? undefined
+          parsed.peerAvatarUrl ?? undefined,
+          { video: !!parsed.withVideo }
         )
       } catch {
         /* ignore */
@@ -618,6 +664,10 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
 
   const expandCall = useCallback(() => {
     if (callStateRef.current === 'in-call') setCallExpanded(true)
+  }, [])
+
+  useEffect(() => {
+    return () => setCallBusy(false)
   }, [])
 
   const minimizeCall = useCallback(() => {

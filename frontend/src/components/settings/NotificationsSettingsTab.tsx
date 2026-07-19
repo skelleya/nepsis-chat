@@ -55,7 +55,7 @@ export function NotificationsSettingsTab() {
         Control sounds and desktop alerts on this device.
       </p>
 
-      <div className="bg-[#2b2d31] rounded-lg px-4 mb-4">
+      <div className="bg-app-channel rounded-lg px-4 mb-4">
         <h4 className="font-semibold text-white pt-4 pb-1">Sounds</h4>
         <Toggle
           label="Message sounds"
@@ -83,7 +83,7 @@ export function NotificationsSettingsTab() {
         />
       </div>
 
-      <div className="bg-[#2b2d31] rounded-lg px-4 mb-4">
+      <div className="bg-app-channel rounded-lg px-4 mb-4">
         <h4 className="font-semibold text-white pt-4 pb-1">Desktop notifications</h4>
         <Toggle
           label="Incoming call alerts"

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -25,6 +25,7 @@ import { MicOffIcon, HeadphonesOffIcon } from './icons/VoiceIcons'
 import { useApp } from '../contexts/AppContext'
 import * as api from '../services/api'
 import type { ProfileType } from '../services/api'
+import { useGsapMenu } from '../hooks/useGsapMenu'
 
 interface VoiceUserInfo {
   userId: string
@@ -242,6 +243,12 @@ function SortableChannelItem({
   const [showMenu, setShowMenu] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState(channel.name)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const shouldRenderMenu = useGsapMenu(showMenu, menuRef, {
+    enterY: -6,
+    exitY: -4,
+    transformOrigin: 'top right',
+  })
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `${CHANNEL_PREFIX}${channel.id}`,
@@ -267,7 +274,7 @@ function SortableChannelItem({
         <button
           {...attributes}
           {...listeners}
-          className="p-1 rounded text-app-muted hover:text-app-text hover:bg-app-hover/40 cursor-grab active:cursor-grabbing flex-shrink-0 opacity-0 group-hover/ch:opacity-100 transition-opacity touch-none"
+          className="p-1 rounded text-app-muted hover:text-app-text hover:bg-app-hover/40 cursor-grab active:cursor-grabbing flex-shrink-0 opacity-0 group-hover/ch:opacity-100 group-focus-within/ch:opacity-100 max-lg:opacity-100 transition-opacity touch-none"
           title="Drag to reorder"
           onClick={(e) => e.preventDefault()}
         >
@@ -320,17 +327,17 @@ function SortableChannelItem({
                 <div className="relative">
                   <button
                     onClick={() => setShowMenu(!showMenu)}
-                    className="p-1 rounded text-app-muted hover:text-app-text hover:bg-app-hover/40 opacity-0 group-hover/ch:opacity-100 transition-opacity"
+                    className="p-1 rounded text-app-muted hover:text-app-text hover:bg-app-hover/40 opacity-0 group-hover/ch:opacity-100 group-focus-within/ch:opacity-100 max-lg:opacity-100 transition-opacity"
                     title="Channel options"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
                     </svg>
                   </button>
-                  {showMenu && (
+                  {shouldRenderMenu && (
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-                      <div className="absolute right-0 top-full mt-0.5 z-50 bg-[#111214] rounded-lg shadow-xl p-1 border border-app-hover/30 min-w-[120px]">
+                      <div ref={menuRef} className="absolute right-0 top-full mt-0.5 z-50 bg-[#111214] rounded-lg shadow-xl p-1 border border-app-hover/30 min-w-[120px]">
                         <button
                           onClick={() => { setEditing(true); setShowMenu(false) }}
                           className="w-full px-2 py-1.5 rounded text-sm text-app-text hover:bg-app-accent hover:text-white text-left"
@@ -407,7 +414,7 @@ function UncategorizedHeader({
       </span>
       <button
         onClick={(e) => { e.stopPropagation(); onAddChannel() }}
-        className="opacity-0 group-hover:opacity-100 text-app-muted hover:text-app-text transition-all p-0.5"
+        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 text-app-muted hover:text-app-text transition-all p-0.5"
         title="Create Channel"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
@@ -438,6 +445,12 @@ function SortableCategoryHeader({
   const [showMenu, setShowMenu] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState(category.name)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const shouldRenderMenu = useGsapMenu(showMenu, menuRef, {
+    enterY: -6,
+    exitY: -4,
+    transformOrigin: 'top left',
+  })
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `${CATEGORY_PREFIX}${category.id}`,
@@ -475,7 +488,7 @@ function SortableCategoryHeader({
         {...attributes}
         {...listeners}
         onClick={(e) => e.stopPropagation()}
-        className="p-0.5 rounded text-app-muted hover:text-app-text hover:bg-app-hover/40 cursor-grab active:cursor-grabbing flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity touch-none"
+        className="p-0.5 rounded text-app-muted hover:text-app-text hover:bg-app-hover/40 cursor-grab active:cursor-grabbing flex-shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 transition-opacity touch-none"
         title="Drag to reorder"
       >
         <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
@@ -493,7 +506,7 @@ function SortableCategoryHeader({
       <span className="text-[11px] font-bold text-app-muted uppercase tracking-wider truncate flex-1 hover:text-app-text transition-colors">
         {category.name}
       </span>
-      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 transition-all">
         <button
           onClick={(e) => { e.stopPropagation(); onAddChannel(category.id) }}
           className="p-0.5 text-app-muted hover:text-app-text"
@@ -514,10 +527,10 @@ function SortableCategoryHeader({
                 <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
               </svg>
             </button>
-            {showMenu && (
+            {shouldRenderMenu && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-                <div className="absolute left-0 top-full mt-0.5 z-50 bg-[#111214] rounded-lg shadow-xl p-1 border border-app-hover/30 min-w-[120px]">
+                <div ref={menuRef} className="absolute left-0 top-full mt-0.5 z-50 bg-[#111214] rounded-lg shadow-xl p-1 border border-app-hover/30 min-w-[120px]">
                   <button
                     onClick={() => { setEditing(true); setShowMenu(false) }}
                     className="w-full px-2 py-1.5 rounded text-sm text-app-text hover:bg-app-accent hover:text-white text-left"
@@ -671,6 +684,12 @@ export function ChannelList({
   const [createChannelCategoryId, setCreateChannelCategoryId] = useState<string | undefined>()
   const [showServerMenu, setShowServerMenu] = useState(false)
   const [serverProfileBusy, setServerProfileBusy] = useState(false)
+  const serverMenuRef = useRef<HTMLDivElement>(null)
+  const shouldRenderServerMenu = useGsapMenu(showServerMenu, serverMenuRef, {
+    enterY: -8,
+    exitY: -6,
+    transformOrigin: 'top center',
+  })
 
   const setMyServerProfile = async (profileType: ProfileType) => {
     if (!serverId || !user?.id) return
@@ -799,10 +818,10 @@ export function ChannelList({
           </button>
 
           {/* Server dropdown menu */}
-          {showServerMenu && !hasNoServers && !isFriendsView && (
+          {shouldRenderServerMenu && !hasNoServers && !isFriendsView && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowServerMenu(false)} />
-              <div className="absolute top-12 left-2 right-2 z-50 bg-[#111214] rounded-lg shadow-xl p-1.5 border border-app-hover/30">
+              <div ref={serverMenuRef} className="absolute top-12 left-2 right-2 z-50 bg-[#111214] rounded-lg shadow-xl p-1.5 border border-app-hover/30">
                 <button
                   onClick={() => {
                     setCreateChannelCategoryId(undefined)

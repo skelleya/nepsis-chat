@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 import * as api from '../../services/api'
 import type { PrivacySettings } from '../../services/api'
+import {
+  getBlockedUsers,
+  subscribeBlockedUsers,
+  unblockUser,
+  type BlockedUser,
+} from '../../services/blockedUsers'
 import { SettingsDropdown } from './SettingsDropdown'
 import { SettingsToggle } from './SettingsToggle'
 
@@ -55,6 +61,7 @@ export function PrivacySettingsTab({ userId }: { userId: string }) {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [blocked, setBlocked] = useState<BlockedUser[]>(() => getBlockedUsers())
 
   useEffect(() => {
     let cancelled = false
@@ -65,6 +72,8 @@ export function PrivacySettingsTab({ userId }: { userId: string }) {
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [userId])
+
+  useEffect(() => subscribeBlockedUsers(setBlocked), [])
 
   const update = <K extends keyof PrivacySettings>(key: K, value: PrivacySettings[K]) => {
     setSettings((prev) => (prev ? { ...prev, [key]: value } : prev))
@@ -119,7 +128,7 @@ export function PrivacySettingsTab({ userId }: { userId: string }) {
         Control who can reach you in chat and voice, and what others see about your activity.
       </p>
 
-      <div className="bg-[#2b2d31] rounded-lg px-4 mb-4">
+      <div className="bg-app-channel rounded-lg px-4 mb-4">
         <h4 className="font-semibold text-white pt-4 pb-1">Communication</h4>
         <SelectRow
           label="Direct messages"
@@ -144,7 +153,7 @@ export function PrivacySettingsTab({ userId }: { userId: string }) {
         />
       </div>
 
-      <div className="bg-[#2b2d31] rounded-lg px-4 mb-4">
+      <div className="bg-app-channel rounded-lg px-4 mb-4">
         <h4 className="font-semibold text-white pt-4 pb-1">Voice presence</h4>
         <SelectRow
           label="Show voice channel"
@@ -173,6 +182,34 @@ export function PrivacySettingsTab({ userId }: { userId: string }) {
             aria-label="Speaking indicator"
           />
         </div>
+      </div>
+
+      <div className="bg-app-channel rounded-lg px-4 mb-4">
+        <h4 className="font-semibold text-white pt-4 pb-1">Blocked users</h4>
+        <p className="text-xs text-app-muted pb-2">
+          Blocked people are hidden from your DM list on this device. Unblock anytime below.
+        </p>
+        {blocked.length === 0 ? (
+          <p className="text-sm text-app-muted pb-4">No blocked users.</p>
+        ) : (
+          <ul className="pb-3 space-y-2">
+            {blocked.map((u) => (
+              <li
+                key={u.userId}
+                className="flex items-center justify-between gap-3 py-2 border-t border-app-hover/30"
+              >
+                <span className="text-sm text-app-text truncate">{u.username}</span>
+                <button
+                  type="button"
+                  onClick={() => setBlocked(unblockUser(u.userId))}
+                  className="px-2.5 py-1 rounded text-xs font-medium bg-app-hover text-app-text hover:bg-app-accent hover:text-white transition-colors"
+                >
+                  Unblock
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {error && <p className="text-red-400 text-sm mb-2">{error}</p>}

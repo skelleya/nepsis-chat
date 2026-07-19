@@ -8,7 +8,8 @@
  *  - idle:     Nothing rendered
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react'
+import gsap from 'gsap'
 import { useCall } from '../contexts/CallContext'
 
 function formatDuration(seconds: number): string {
@@ -47,6 +48,34 @@ function CallVideo({
   )
 }
 
+function AnimatedCallPanel({
+  children,
+  className,
+  y = 14,
+}: {
+  children: ReactNode
+  className: string
+  y?: number
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    gsap.killTweensOf(el)
+    gsap.fromTo(
+      el,
+      { opacity: 0, y },
+      { opacity: 1, y: 0, duration: 0.22, ease: 'power3.out', force3D: false }
+    )
+    return () => {
+      gsap.killTweensOf(el)
+    }
+  }, [y])
+
+  return <div ref={ref} className={className}>{children}</div>
+}
+
 export function CallOverlay() {
   const call = useCall()
 
@@ -65,7 +94,7 @@ export function CallOverlay() {
   if (call.callState === 'calling') {
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-        <div className="bg-[#1e1f22] rounded-2xl p-8 w-80 flex flex-col items-center gap-6 shadow-2xl border border-white/5">
+        <AnimatedCallPanel className="bg-app-darker rounded-2xl p-8 w-80 flex flex-col items-center gap-6 shadow-2xl border border-white/5">
           <div className={`w-24 h-24 rounded-full flex items-center justify-center text-white font-bold text-3xl animate-pulse shadow-lg overflow-hidden ${call.remoteAvatarUrl ? 'bg-transparent' : 'bg-app-accent shadow-app-accent/30'}`}>
             {call.remoteAvatarUrl ? (
               <img src={call.remoteAvatarUrl} alt={call.remoteUsername ?? ''} className="w-full h-full object-cover" />
@@ -93,7 +122,7 @@ export function CallOverlay() {
           >
             <PhoneOffIcon />
           </button>
-        </div>
+        </AnimatedCallPanel>
       </div>
     )
   }
@@ -102,7 +131,7 @@ export function CallOverlay() {
   if (call.callState === 'ringing') {
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-        <div className="bg-[#1e1f22] rounded-2xl p-8 w-80 flex flex-col items-center gap-6 shadow-2xl border border-white/5">
+        <AnimatedCallPanel className="bg-app-darker rounded-2xl p-8 w-80 flex flex-col items-center gap-6 shadow-2xl border border-white/5">
           <div className="relative flex items-center justify-center">
             <div className="absolute w-24 h-24 rounded-full bg-app-accent/20 animate-ping" />
             <div className="absolute w-28 h-28 rounded-full border-2 border-app-accent/30 animate-pulse" />
@@ -132,13 +161,13 @@ export function CallOverlay() {
             </button>
             <button
               onClick={call.acceptCall}
-              className="w-14 h-14 rounded-full bg-green-600 hover:bg-green-700 flex items-center justify-center transition-colors shadow-lg"
+              className="w-14 h-14 rounded-full bg-[#23a559] hover:opacity-90 flex items-center justify-center transition-colors shadow-lg"
               title="Accept"
             >
               <PhoneIcon />
             </button>
           </div>
-        </div>
+        </AnimatedCallPanel>
       </div>
     )
   }
@@ -148,7 +177,7 @@ export function CallOverlay() {
     if (call.callExpanded) {
       return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-          <div className="bg-[#1e1f22] rounded-2xl w-full max-w-3xl shadow-2xl border border-white/10 overflow-hidden flex flex-col max-h-[90vh]">
+          <AnimatedCallPanel className="bg-app-darker rounded-2xl w-full max-w-3xl shadow-2xl border border-white/10 overflow-hidden flex flex-col max-h-[90vh]">
             <div className="px-4 py-3 flex items-center justify-between border-b border-white/10">
               <div className="flex items-center gap-3 min-w-0">
                 <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold overflow-hidden shrink-0 ${call.remoteAvatarUrl ? 'bg-transparent' : 'bg-app-accent'}`}>
@@ -205,7 +234,7 @@ export function CallOverlay() {
               )}
             </div>
 
-            <div className="px-4 py-4 flex items-center justify-center gap-3 bg-[#2b2d31]">
+            <div className="px-4 py-4 flex items-center justify-center gap-3 bg-app-channel">
               <button
                 onClick={call.toggleMute}
                 className={`p-3 rounded-full transition-colors ${
@@ -232,7 +261,7 @@ export function CallOverlay() {
                 <PhoneOffSmall />
               </button>
             </div>
-          </div>
+          </AnimatedCallPanel>
         </div>
       )
     }
@@ -240,7 +269,7 @@ export function CallOverlay() {
     // Compact bar — click left side to expand
     return (
       <div className="fixed top-0 left-0 right-0 z-[100] flex justify-center pointer-events-none">
-        <div className="bg-green-600 rounded-b-xl px-4 py-2.5 flex items-center gap-3 shadow-lg pointer-events-auto">
+        <AnimatedCallPanel y={-12} className="bg-[#23a559] rounded-b-xl px-4 py-2.5 flex items-center gap-3 shadow-lg pointer-events-auto">
           <button
             type="button"
             onClick={call.expandCall}
@@ -304,7 +333,7 @@ export function CallOverlay() {
               <PhoneOffSmall />
             </button>
           </div>
-        </div>
+        </AnimatedCallPanel>
       </div>
     )
   }

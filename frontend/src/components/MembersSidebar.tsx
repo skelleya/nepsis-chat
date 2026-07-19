@@ -199,11 +199,11 @@ export function MembersSidebar({
               </div>
               <div
                 className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-app-channel ${
-                  displayStatus === 'online' ? 'bg-green-500'
-                    : displayStatus === 'in-voice' ? 'bg-yellow-500'
-                    : displayStatus === 'away' ? 'bg-amber-400'
+                  displayStatus === 'online' ? 'bg-[#23a559]'
+                    : displayStatus === 'in-voice' ? 'bg-[#23a559]'
+                    : displayStatus === 'away' ? 'bg-[#f0b232]'
                     : displayStatus === 'dnd' ? 'bg-red-500'
-                    : 'bg-gray-500'
+                    : 'bg-[#80848e]'
                 }`}
               />
             </div>
@@ -390,15 +390,12 @@ export function MembersSidebar({
           onClose={closeProfile}
           onMessage={(userId, username) => {
             onMessage?.(userId, username)
-            closeProfile()
           }}
           onAddFriend={(userId, username) => {
             onAddFriend?.(userId, username)
-            closeProfile()
           }}
           onCall={onCall ? (userId, username, avatarUrl) => {
             onCall(userId, username, avatarUrl)
-            closeProfile()
           } : undefined}
           onKick={onKick}
           onBan={onBan}

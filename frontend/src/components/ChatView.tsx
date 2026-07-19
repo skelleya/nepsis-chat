@@ -208,19 +208,19 @@ export function ChatView({
   }
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-[#313338]">
-      <div className="h-12 px-4 flex items-center gap-2 border-b border-[#1f2023] shadow-sm flex-shrink-0 z-10">
+    <div className="flex-1 flex flex-col min-w-0 bg-app-dark">
+      <div className="h-12 px-4 flex items-center gap-2 border-b border-app-darker shadow-sm flex-shrink-0 z-10">
         {channel.type === 'rules' ? (
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-[#80848e]">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-app-offline">
             <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/>
             <path d="M9 15h6v2H9zm0-4h6v2H9zm0-4h3v2H9z"/>
           </svg>
         ) : (
-          <span className="text-2xl font-semibold text-[#80848e] leading-none">#</span>
+          <span className="text-2xl font-semibold text-app-offline leading-none">#</span>
         )}
-        <span className="font-semibold text-[#f2f3f5] text-[16px]">{channel.name}</span>
+        <span className="font-semibold text-app-text text-[16px]">{channel.name}</span>
         {channel.type === 'rules' && (
-          <span className="ml-1 text-xs text-[#949ba4]">(read-only — react to accept)</span>
+          <span className="ml-1 text-xs text-app-muted">(read-only — react to accept)</span>
         )}
       </div>
 
@@ -247,7 +247,7 @@ export function ChatView({
               {showDateSep && (
                 <div className="flex items-center gap-2 mx-4 my-3">
                   <div className="flex-1 h-px bg-[#3f4147]" />
-                  <span className="text-[12px] font-semibold text-[#949ba4] uppercase tracking-wide">
+                  <span className="text-[12px] font-semibold text-app-muted uppercase tracking-wide">
                     {new Date(message.createdAt).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })}
                   </span>
                   <div className="flex-1 h-px bg-[#3f4147]" />
@@ -255,16 +255,16 @@ export function ChatView({
               )}
               <div
                 id={`msg-${message.id}`}
-                className={`group relative flex gap-4 px-4 hover:bg-[#2e3035]/60 ${
+                className={`group relative flex gap-4 px-4 hover:bg-app-channel/60 ${
                   isGrouped ? 'py-0.5 min-h-[1.375rem]' : 'mt-4 py-0.5'
                 }`}
               >
                 {/* Hover action bar */}
-                <div className="absolute right-4 -top-3 opacity-0 group-hover:opacity-100 z-10 flex items-center bg-[#313338] border border-[#1e1f22] rounded shadow-lg overflow-hidden">
+                <div className="absolute right-4 -top-3 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 z-10 flex items-center bg-app-dark border border-app-darker rounded shadow-lg overflow-hidden">
                   <button
                     type="button"
                     onClick={() => setReplyTo(message)}
-                    className="px-2 py-1 text-xs text-[#b5bac1] hover:bg-[#2e3035] hover:text-white"
+                    className="px-2 py-1 text-xs text-app-muted hover:bg-app-hover hover:text-white"
                   >
                     Reply
                   </button>
@@ -273,14 +273,14 @@ export function ChatView({
                       <button
                         type="button"
                         onClick={() => handleEdit(message)}
-                        className="px-2 py-1 text-xs text-[#b5bac1] hover:bg-[#2e3035] hover:text-white"
+                        className="px-2 py-1 text-xs text-app-muted hover:bg-app-hover hover:text-white"
                       >
                         Edit
                       </button>
                       <button
                         type="button"
                         onClick={() => deleteMessage(message.id)}
-                        className="px-2 py-1 text-xs text-[#f23f43] hover:bg-[#2e3035]"
+                        className="px-2 py-1 text-xs text-[#f23f43] hover:bg-app-hover"
                       >
                         Delete
                       </button>
@@ -290,12 +290,12 @@ export function ChatView({
 
                 {isGrouped ? (
                   <div className="w-10 flex-shrink-0 flex justify-center pt-0.5">
-                    <span className="text-[10px] text-[#949ba4] opacity-0 group-hover:opacity-100 leading-5">
+                    <span className="text-[10px] text-app-muted opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 leading-5">
                       {new Date(message.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                     </span>
                   </div>
                 ) : (
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 overflow-hidden mt-0.5 ${getMemberAvatar(message.userId) ? 'bg-transparent' : 'bg-[#5865f2]'}`}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 overflow-hidden mt-0.5 ${getMemberAvatar(message.userId) ? 'bg-transparent' : 'bg-app-accent'}`}>
                     {getMemberAvatar(message.userId) ? (
                       <img src={getMemberAvatar(message.userId)} alt={username} className="w-full h-full object-cover" />
                     ) : (
@@ -306,8 +306,8 @@ export function ChatView({
                 <div className="flex-1 min-w-0">
                   {!isGrouped && (
                     <div className="flex items-baseline gap-2 flex-wrap leading-tight">
-                      <span className="font-medium text-[#f2f3f5] text-[16px]">{username}</span>
-                      <span className="text-[12px] text-[#949ba4]">
+                      <span className="font-medium text-app-text text-[16px]">{username}</span>
+                      <span className="text-[12px] text-app-muted">
                         {formatChatTime(message.createdAt)}
                         {message.editedAt && ' (edited)'}
                       </span>
@@ -316,7 +316,7 @@ export function ChatView({
 
                   {message.replyTo && (
                     <div
-                      className="mt-1 mb-0.5 flex items-center gap-1 text-sm text-[#b5bac1] cursor-pointer hover:text-[#dbdee1] before:content-[''] before:block before:w-0.5 before:h-3 before:bg-[#4e5058] before:rounded before:mr-1"
+                      className="mt-1 mb-0.5 flex items-center gap-1 text-sm text-app-muted cursor-pointer hover:text-app-text before:content-[''] before:block before:w-0.5 before:h-3 before:bg-app-hover before:rounded before:mr-1"
                       onClick={() => {
                         const el = document.getElementById(`msg-${message.replyToId}`)
                         el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -335,7 +335,7 @@ export function ChatView({
                         value={editContent}
                         onChange={(e) => setEditContent(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && saveEdit()}
-                        className="w-full bg-[#383a40] rounded px-2 py-1.5 text-[#dbdee1] outline-none"
+                        className="w-full bg-app-hover rounded px-2 py-1.5 text-app-text outline-none"
                         autoFocus
                       />
                       <div className="mt-1 flex gap-2 text-xs">
@@ -344,7 +344,7 @@ export function ChatView({
                       </div>
                     </div>
                   ) : (
-                    <p className={`text-[#dbdee1] text-[16px] leading-[1.375] whitespace-pre-wrap break-words ${isGrouped ? '' : 'mt-0.5'}`}>
+                    <p className={`text-app-text text-[16px] leading-[1.375] whitespace-pre-wrap break-words ${isGrouped ? '' : 'mt-0.5'}`}>
                       {renderContentWithMentions(message.content, currentUsername)}
                     </p>
                   )}
@@ -376,8 +376,8 @@ export function ChatView({
                           }}
                           className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-sm border ${
                             userIds.includes(currentUserId)
-                              ? 'bg-[#5865f2]/25 border-[#5865f2]/50 text-[#c9cdfb]'
-                              : 'bg-[#2b2d31] border-transparent text-[#b5bac1] hover:border-[#3f4147]'
+                              ? 'bg-app-accent/25 border-app-accent/50 text-app-text'
+                              : 'bg-app-channel border-transparent text-app-muted hover:border-app-hover'
                           }`}
                         >
                           {customEmoji ? (
@@ -399,7 +399,7 @@ export function ChatView({
                           setEmojiAnchorRect(e.currentTarget.getBoundingClientRect())
                         }
                       }}
-                      className="opacity-0 group-hover:opacity-100 text-[#b5bac1] hover:text-white text-sm px-1"
+                      className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 text-app-muted hover:text-white text-sm px-1"
                     >
                       🙂
                     </button>
@@ -426,7 +426,7 @@ export function ChatView({
         {hasNewMessages && (
           <button
             onClick={jumpToNewMessages}
-            className="sticky bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-[#5865f2] text-white text-sm font-medium shadow-lg hover:bg-[#4752c4] transition-colors flex items-center gap-2"
+            className="sticky bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-app-accent text-white text-sm font-medium shadow-lg hover:bg-app-accent-hover transition-colors flex items-center gap-2"
           >
             <span>New messages</span>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -452,29 +452,29 @@ export function ChatView({
         }}
       >
         {replyTo && (
-          <div className="mb-2 flex items-start gap-2 px-3 py-2 rounded-t-lg bg-[#2b2d31] border-l-2 border-[#5865f2] text-sm">
+          <div className="mb-2 flex items-start gap-2 px-3 py-2 rounded-t-lg bg-app-channel border-l-2 border-app-accent text-sm">
             <div className="flex-1 min-w-0">
               <span className="text-[#c9cdfb] font-medium">Replying to {replyTo.username ?? getUser(replyTo.userId).username}</span>
-              <p className="text-[#949ba4] mt-0.5 truncate max-w-md">{replyTo.content || '[no preview]'}</p>
+              <p className="text-app-muted mt-0.5 truncate max-w-md">{replyTo.content || '[no preview]'}</p>
             </div>
-            <button type="button" onClick={() => setReplyTo(null)} className="text-[#b5bac1] hover:text-white p-1">×</button>
+            <button type="button" onClick={() => setReplyTo(null)} className="text-app-muted hover:text-white p-1">×</button>
           </div>
         )}
         {attachments.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-2 px-1">
             {attachments.map((a, i) => (
-              <div key={i} className="relative bg-[#2b2d31] rounded-lg p-2">
+              <div key={i} className="relative bg-app-channel rounded-lg p-2">
                 {a.type === 'image' ? (
                   <img src={a.url} alt="" className="max-w-[80px] max-h-[60px] rounded object-cover" />
                 ) : a.type === 'video' ? (
-                  <span className="text-xs text-[#b5bac1]">🎬 {a.filename}</span>
+                  <span className="text-xs text-app-muted">🎬 {a.filename}</span>
                 ) : (
-                  <span className="text-xs text-[#b5bac1]">📎 {a.filename}</span>
+                  <span className="text-xs text-app-muted">📎 {a.filename}</span>
                 )}
                 <button
                   type="button"
                   onClick={() => removeAttachment(i)}
-                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#1e1f22] border border-[#3f4147] text-[#dbdee1] text-xs"
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-app-darker border border-app-hover text-app-text text-xs"
                 >
                   ×
                 </button>
@@ -514,7 +514,7 @@ export function ChatView({
             showAttachMenu ? (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowAttachMenu(false)} />
-                <div className="absolute left-0 bottom-full mb-2 py-2 z-50 bg-[#111214] rounded-lg shadow-xl border border-white/10 min-w-[180px]">
+                <div className="absolute left-0 bottom-full mb-2 py-2 z-50 bg-app-darker rounded-lg shadow-xl border border-white/10 min-w-[180px]">
                   <button
                     type="button"
                     onClick={() => {
@@ -522,7 +522,7 @@ export function ChatView({
                       setShowAttachMenu(false)
                     }}
                     disabled={uploading}
-                    className="w-full px-3 py-2 text-left text-sm text-[#dbdee1] hover:bg-[#5865f2] hover:text-white"
+                    className="w-full px-3 py-2 text-left text-sm text-app-text hover:bg-app-accent hover:text-white"
                   >
                     Upload a File
                   </button>
@@ -543,7 +543,7 @@ export function ChatView({
                     setInputEmojiAnchorRect(e.currentTarget.getBoundingClientRect())
                   }
                 }}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-[#b5bac1] hover:text-white"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-app-muted hover:text-white"
                 title="Emoji"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -564,7 +564,7 @@ export function ChatView({
       </form>
       )}
       {!canSendMessages && channel.type === 'rules' && messages.length === 0 && (
-        <div className="px-4 pb-6 text-center text-[#949ba4] text-sm">
+        <div className="px-4 pb-6 text-center text-app-muted text-sm">
           No rules have been set up yet. Contact the server owner or admin to add rules.
         </div>
       )}

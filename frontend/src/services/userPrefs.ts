@@ -4,7 +4,7 @@
  */
 
 export type ThemeId = 'dark' | 'midnight' | 'amoled'
-export type AccentId = 'blurple' | 'green' | 'teal' | 'rose' | 'gold'
+export type AccentId = 'orange' | 'blurple' | 'green' | 'teal' | 'rose' | 'gold'
 export type DensityId = 'comfortable' | 'compact'
 export type FontSizeId = 'small' | 'default' | 'large'
 
@@ -45,7 +45,7 @@ const STORAGE_KEY = 'nepsis_user_prefs'
 export const DEFAULT_PREFS: UserPrefs = {
   appearance: {
     theme: 'dark',
-    accent: 'blurple',
+    accent: 'orange',
     density: 'comfortable',
     fontSize: 'default',
   },
@@ -104,6 +104,7 @@ const THEMES: Record<ThemeId, Record<string, string>> = {
 }
 
 const ACCENTS: Record<AccentId, { accent: string; hover: string }> = {
+  orange: { accent: hexToRgbChannels('#FF5A1F'), hover: hexToRgbChannels('#E04E1A') },
   blurple: { accent: hexToRgbChannels('#5865f2'), hover: hexToRgbChannels('#4752c4') },
   green: { accent: hexToRgbChannels('#23a559'), hover: hexToRgbChannels('#1a7f43') },
   teal: { accent: hexToRgbChannels('#1abc9c'), hover: hexToRgbChannels('#159a80') },
@@ -172,7 +173,7 @@ export function applyAppearancePrefs(appearance: AppearancePrefs = loadPrefs().a
   const theme = THEMES[appearance.theme] || THEMES.dark
   Object.entries(theme).forEach(([k, v]) => root.style.setProperty(k, v))
 
-  const accent = ACCENTS[appearance.accent] || ACCENTS.blurple
+  const accent = ACCENTS[appearance.accent] || ACCENTS.orange
   root.style.setProperty('--app-accent', accent.accent)
   root.style.setProperty('--app-accent-hover', accent.hover)
   root.style.setProperty('--app-font-size', FONT_SIZES[appearance.fontSize] || FONT_SIZES.default)

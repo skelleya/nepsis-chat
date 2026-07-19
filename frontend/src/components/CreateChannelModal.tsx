@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import gsap from 'gsap'
 
 interface CreateChannelModalProps {
   onClose: () => void
@@ -14,6 +15,65 @@ export function CreateChannelModal({ onClose, onCreate, defaultType = 'text', ca
   const [type, setType] = useState<'text' | 'voice' | 'rules'>(defaultType)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const closingRef = useRef(false)
+
+  useLayoutEffect(() => {
+    const overlay = overlayRef.current
+    const panel = panelRef.current
+    if (!overlay || !panel) return
+
+    gsap.killTweensOf([overlay, panel])
+    gsap.fromTo(overlay, { opacity: 0 }, { opacity: 1, duration: 0.25, ease: 'sine.out' })
+    gsap.fromTo(
+      panel,
+      { opacity: 0, y: 18, scale: 0.97 },
+      {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        duration: 0.35,
+        ease: 'power3.out',
+        force3D: false,
+        clearProps: 'transform',
+      }
+    )
+
+    return () => {
+      gsap.killTweensOf([overlay, panel])
+    }
+  }, [])
+
+  const requestClose = useCallback(() => {
+    if (closingRef.current) return
+    closingRef.current = true
+    const overlay = overlayRef.current
+    const panel = panelRef.current
+    if (!overlay || !panel) {
+      onClose()
+      return
+    }
+    gsap.killTweensOf([overlay, panel])
+    gsap.to(overlay, { opacity: 0, duration: 0.2, ease: 'sine.in' })
+    gsap.to(panel, {
+      opacity: 0,
+      y: 14,
+      scale: 0.97,
+      duration: 0.2,
+      ease: 'power2.in',
+      force3D: false,
+      onComplete: onClose,
+    })
+  }, [onClose])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !loading) requestClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [requestClose, loading])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -22,30 +82,42 @@ export function CreateChannelModal({ onClose, onCreate, defaultType = 'text', ca
     setError(null)
     try {
       await onCreate(name.trim().toLowerCase().replace(/\s+/g, '-'), type)
-      onClose()
+      requestClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create channel')
+      closingRef.current = false
       setLoading(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={onClose}>
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
+      onClick={(e) => e.target === e.currentTarget && !loading && requestClose()}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="create-channel-title"
+    >
       <div
-        className="bg-[#313338] rounded-xl w-[460px] shadow-2xl overflow-hidden"
+        ref={panelRef}
+        className="bg-app-dark rounded-xl w-[460px] shadow-2xl overflow-hidden will-change-transform"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="p-4 pb-0 flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold text-white">Create Channel</h2>
+            <h2 id="create-channel-title" className="text-xl font-bold text-white">Create Channel</h2>
             {categoryName && (
               <p className="text-app-muted text-xs mt-0.5">in {categoryName}</p>
             )}
           </div>
           <button
-            onClick={onClose}
+            type="button"
+            onClick={requestClose}
+            disabled={loading}
             className="w-8 h-8 flex items-center justify-center text-app-muted hover:text-app-text transition-colors"
+            aria-label="Close create channel dialog"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
               <path d="M18.4 4L12 10.4L5.6 4L4 5.6L10.4 12L4 18.4L5.6 20L12 13.6L18.4 20L20 18.4L13.6 12L20 5.6L18.4 4Z" />
@@ -62,7 +134,7 @@ export function CreateChannelModal({ onClose, onCreate, defaultType = 'text', ca
             {/* Text Channel Option */}
             <label
               className={`flex items-center gap-3 p-2.5 rounded-md cursor-pointer transition-colors ${
-                type === 'text' ? 'bg-app-hover/80' : 'bg-[#2b2d31] hover:bg-app-hover/50'
+                type === 'text' ? 'bg-app-hover/80' : 'bg-app-channel hover:bg-app-hover/50'
               }`}
             >
               <input
@@ -91,7 +163,7 @@ export function CreateChannelModal({ onClose, onCreate, defaultType = 'text', ca
             {/* Voice Channel Option */}
             <label
               className={`flex items-center gap-3 p-2.5 rounded-md cursor-pointer transition-colors ${
-                type === 'voice' ? 'bg-app-hover/80' : 'bg-[#2b2d31] hover:bg-app-hover/50'
+                type === 'voice' ? 'bg-app-hover/80' : 'bg-app-channel hover:bg-app-hover/50'
               }`}
             >
               <input
@@ -121,7 +193,7 @@ export function CreateChannelModal({ onClose, onCreate, defaultType = 'text', ca
             {canCreateRules && (
               <label
                 className={`flex items-center gap-3 p-2.5 rounded-md cursor-pointer transition-colors ${
-                  type === 'rules' ? 'bg-app-hover/80' : 'bg-[#2b2d31] hover:bg-app-hover/50'
+                  type === 'rules' ? 'bg-app-hover/80' : 'bg-app-channel hover:bg-app-hover/50'
                 }`}
               >
                 <input
@@ -159,7 +231,7 @@ export function CreateChannelModal({ onClose, onCreate, defaultType = 'text', ca
           {error && (
             <div className="mb-3 p-2 rounded bg-red-900/50 text-red-200 text-sm">{error}</div>
           )}
-          <div className="flex items-center bg-[#1e1f22] rounded-[3px] px-3">
+          <div className="flex items-center bg-app-darker rounded-[3px] px-3">
             <span className="text-app-muted text-lg mr-1.5">
               {type === 'text' ? '#' : type === 'rules' ? (
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="inline">
@@ -185,7 +257,8 @@ export function CreateChannelModal({ onClose, onCreate, defaultType = 'text', ca
           <div className="flex justify-end items-center gap-3 mt-4">
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
+              disabled={loading}
               className="px-4 py-2 text-app-text hover:underline text-sm"
             >
               Cancel

@@ -46,7 +46,7 @@ export function OnboardingPage({ onExplore }: OnboardingPageProps) {
           </svg>
         </div>
 
-        <h1 className="text-2xl font-bold text-white text-center mb-3">
+        <h1 className="font-display text-2xl font-bold text-white text-center mb-3">
           Welcome to Nepsis{user ? `, ${(user.display_name && user.display_name.trim()) || user.username}` : ''}
         </h1>
         <p className="text-app-muted text-center mb-8 leading-relaxed">
@@ -71,7 +71,7 @@ export function OnboardingPage({ onExplore }: OnboardingPageProps) {
             className={`w-full py-3.5 px-6 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 ${
               isGuest
                 ? 'bg-app-accent hover:bg-app-accent-hover text-white'
-                : 'bg-[#2b2d31] hover:bg-[#36373d] text-app-text border border-app-hover/30'
+                : 'bg-app-channel hover:bg-app-hover text-app-text border border-app-hover/30'
             }`}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

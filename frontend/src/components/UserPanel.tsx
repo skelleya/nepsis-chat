@@ -19,7 +19,7 @@ interface UserPanelProps {
 
 const STATUS_COLORS: Record<UserStatus, string> = {
   online: 'bg-[#23a559]',
-  away: 'bg-yellow-500',
+  away: 'bg-[#f0b232]',
   dnd: 'bg-red-500',
   offline: 'bg-[#80848e]',
 }
@@ -97,11 +97,14 @@ export function UserPanel({
         opacity: 1,
         y: 0,
         scale: 1,
-        duration: 0.28,
+        duration: 0.22,
         ease: 'power3.out',
         force3D: false,
       }
     )
+    return () => {
+      gsap.killTweensOf(menu)
+    }
   }, [showStatusMenu])
 
   useEffect(() => {
@@ -191,7 +194,7 @@ export function UserPanel({
           {showStatusMenu && (
             <div
               ref={statusDropdownRef}
-              className="absolute left-0 bottom-full mb-1 w-48 bg-[#2b2d31] rounded-lg shadow-xl border border-app-hover/50 overflow-hidden z-[100] origin-bottom-left"
+              className="absolute left-0 bottom-full mb-1 w-48 bg-app-channel rounded-lg shadow-xl border border-app-hover/50 overflow-hidden z-[100] origin-bottom-left"
             >
               <div className="p-1">
                 {(['online', 'away', 'dnd', 'offline'] as UserStatus[]).map((s) => (

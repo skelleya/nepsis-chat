@@ -7,6 +7,15 @@ import { io } from 'socket.io-client'
 
 const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000'
 
+interface PeerInfo {
+  socketId: string
+  userId: string
+  username: string
+  screenSharing?: boolean
+  muted?: boolean
+  deafened?: boolean
+}
+
 export function createSocketSignaling(
   channelId: string,
   userId: string,
@@ -19,6 +28,16 @@ export function createSocketSignaling(
     reconnectionDelay: 1000,
     reconnectionDelayMax: 10000,
     transports: ['websocket', 'polling'],
+  })
+  const reconnectCallbacks = new Set<() => void>()
+  let hasConnected = false
+
+  socket.on('connect', () => {
+    if (hasConnected) {
+      reconnectCallbacks.forEach((cb) => cb())
+      return
+    }
+    hasConnected = true
   })
 
   const waitForConnect = () =>
@@ -51,15 +70,26 @@ export function createSocketSignaling(
     candidate?: RTCIceCandidateInit
     userId?: string
     socketId?: string
-    peers?: { socketId: string; userId: string; username: string }[]
+    peers?: PeerInfo[]
+    screenSharing?: boolean
+    muted?: boolean
+    deafened?: boolean
   }) => void) => {
-    socket.on('peer-joined', (data: { socketId: string; userId: string; username: string }) => {
-      handler({ type: 'peer-joined', socketId: data.socketId, userId: data.userId, username: data.username })
+    socket.on('peer-joined', (data: PeerInfo) => {
+      handler({
+        type: 'peer-joined',
+        socketId: data.socketId,
+        userId: data.userId,
+        username: data.username,
+        screenSharing: data.screenSharing,
+        muted: data.muted,
+        deafened: data.deafened,
+      })
     })
     socket.on('peer-left', (data: { userId: string }) => {
       handler({ type: 'peer-left', userId: data.userId })
     })
-    socket.on('room-peers', (data: { peers: { socketId: string; userId: string; username: string }[] }) => {
+    socket.on('room-peers', (data: { peers: PeerInfo[] }) => {
       handler({ type: 'room-peers', peers: data.peers })
     })
     // FIX: Forward fromUsername as 'username' so webrtc.ts can use it for display
@@ -137,6 +167,23 @@ export function createSocketSignaling(
     return () => socket.off('screen-share', callback)
   }
 
+  const emitVoiceState = (state: { muted: boolean; deafened: boolean }) => {
+    socket.emit('voice-state', {
+      muted: !!state.muted,
+      deafened: !!state.deafened,
+    })
+  }
+
+  const onVoiceState = (callback: (data: { userId: string; muted: boolean; deafened: boolean }) => void) => {
+    socket.on('voice-state', callback)
+    return () => socket.off('voice-state', callback)
+  }
+
+  const onReconnect = (callback: () => void) => {
+    reconnectCallbacks.add(callback)
+    return () => reconnectCallbacks.delete(callback)
+  }
+
   /** Round-trip ms to the signaling server (fallback when no WebRTC peers). */
   const measureLatency = () =>
     new Promise<number | null>((resolve) => {
@@ -175,6 +222,9 @@ export function createSocketSignaling(
     onSoundboardPlay,
     emitScreenShare,
     onScreenShare,
+    emitVoiceState,
+    onVoiceState,
+    onReconnect,
     measureLatency,
   }
 }

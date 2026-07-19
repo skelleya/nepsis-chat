@@ -29,6 +29,7 @@ import { CommunityPage } from './pages/CommunityPage'
 import { FriendsPage } from './pages/FriendsPage'
 import { OnboardingPage, ONBOARDING_COMPLETED_KEY } from './pages/OnboardingPage'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { blockUser, isUserBlocked, subscribeBlockedUsers } from './services/blockedUsers'
 
 function AppContent() {
   const navigate = useNavigate()
@@ -284,6 +285,9 @@ function MainLayout({
   const call = useCall()
   const currentDisplayName = (user.display_name && user.display_name.trim()) || user.username
   const [showServerSettings, setShowServerSettings] = useState(false)
+  const [channelNavOpen, setChannelNavOpen] = useState(false)
+  const [membersOpen, setMembersOpen] = useState(false)
+  const [blockedRevision, setBlockedRevision] = useState(0)
   const savedView = (() => {
     try {
       const raw = localStorage.getItem('nepsis_last_view')
@@ -312,6 +316,9 @@ function MainLayout({
   const [serverMembers, setServerMembers] = useState<ServerMember[]>([])
   const [serverEmojis, setServerEmojis] = useState<{ id: string; name: string; image_url: string }[]>([])
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const mainContentRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => subscribeBlockedUsers(() => setBlockedRevision((n) => n + 1)), [])
 
   // Restore last view on mount; re-run when servers finish loading (0 -> >0)
   const prevServersLengthRef = useRef(servers.length)
@@ -713,6 +720,7 @@ function MainLayout({
       setCurrentDM(null)
       setShowFriends(false)
       setCurrentChannel(rulesChannelId)
+      setChannelNavOpen(false)
       showNotification('Accept the rules first to access other channels')
       return
     }
@@ -721,6 +729,7 @@ function MainLayout({
     setShowFriends(false)
     setShowCommunity(false)
     setCurrentChannel(channel.id)
+    setChannelNavOpen(false)
     try {
       localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'server' }))
     } catch { /* ignore */ }
@@ -728,6 +737,67 @@ function MainLayout({
       voice.joinVoice(channel.id, channel.name)
     }
   }, [setCurrentChannel, setCurrentDM, voice, mustAcceptRules, rulesAcceptanceKnown, hasAcceptedRules, rulesChannelId])
+
+  const visibleDmConversations = dmConversations.filter(
+    (c) => !c.other_user?.id || !isUserBlocked(c.other_user.id)
+  )
+  void blockedRevision // re-filter when block list changes
+
+  const handleOpenDM = useCallback(
+    async (targetUserId: string, targetUsername: string) => {
+      if (isUserBlocked(targetUserId)) {
+        showNotification('Unblock this user in Privacy settings to message them', 'error')
+        return undefined
+      }
+      const dmId = await openDM(targetUserId, targetUsername)
+      setChannelNavOpen(false)
+      setMembersOpen(false)
+      return dmId
+    },
+    [openDM]
+  )
+
+  const handleBlockUser = useCallback(
+    (targetUserId: string) => {
+      const conv = dmConversations.find((c) => c.other_user?.id === targetUserId)
+      const name = conv?.other_user?.username || 'User'
+      blockUser(targetUserId, name)
+      if (currentDMId && conv?.id === currentDMId) setCurrentDM(null)
+      showNotification(`Blocked ${name}. Manage blocked users in Privacy settings.`)
+    },
+    [dmConversations, currentDMId, setCurrentDM]
+  )
+
+  const handleReportUser = useCallback(
+    async (targetUserId: string) => {
+      const conv = dmConversations.find((c) => c.other_user?.id === targetUserId)
+      const name = conv?.other_user?.username || 'User'
+      try {
+        await api.submitBugReport({
+          userId: user.id,
+          username: currentDisplayName,
+          title: `User report: ${name}`,
+          description: `Reported userId=${targetUserId} username=${name} from DM. Please review for abuse.`,
+        })
+        showNotification(`Report submitted for ${name}`)
+      } catch (e) {
+        showNotification(e instanceof Error ? e.message : 'Failed to submit report', 'error')
+      }
+    },
+    [dmConversations, user.id, currentDisplayName]
+  )
+
+  const mobileTitle = showFriends && !currentDMId
+    ? 'Friends'
+    : currentDMId
+      ? (dmConversations.find((c) => c.id === currentDMId)?.other_user?.username || 'Direct Message')
+      : showCommunity
+        ? 'Community'
+        : showOnboarding
+          ? 'Welcome'
+          : currentChannel?.name
+            ? `${currentChannel.type === 'text' || currentChannel.type === 'rules' ? '#' : ''}${currentChannel.name}`
+            : currentServer?.name || 'Nepsis'
 
   // Build voice users map from ALL server members' presence — so users see who's in
   // each voice channel BEFORE entering (not just when they're already in one).
@@ -743,10 +813,13 @@ function MainLayout({
       if (!ch || ch.type !== 'voice') continue
       if (ch.server_id && ch.server_id !== currentServerId) continue
       if (!voiceUsers[chId]) voiceUsers[chId] = []
+      const voiceState = voice.remoteVoiceStates[member.userId]
       voiceUsers[chId].push({
         userId: member.userId,
         username: member.username,
         avatar_url: member.avatarUrl,
+        isMuted: voiceState?.muted,
+        isDeafened: voiceState?.deafened,
         isScreenSharing: voice.screenShareUserIds.includes(member.userId),
       })
     }
@@ -784,13 +857,15 @@ function MainLayout({
         const memberByUserId = new Map(serverMembers.map((m) => [m.userId, m]))
         const inList = new Set(voiceUsers[chId].map((u) => u.userId))
         for (const p of voice.participants) {
+          const voiceState = voice.remoteVoiceStates[p.userId]
           if (!inList.has(p.userId)) {
             const m = memberByUserId.get(p.userId)
             voiceUsers[chId].push({
               userId: p.userId,
               username: p.username,
               avatar_url: m?.avatarUrl,
-              isMuted: false,
+              isMuted: voiceState?.muted ?? p.isMuted ?? false,
+              isDeafened: voiceState?.deafened ?? p.isDeafened ?? false,
               isSpeaking: p.isSpeaking,
               isScreenSharing: voice.screenShareUserIds.includes(p.userId),
             })
@@ -799,6 +874,8 @@ function MainLayout({
             if (idx >= 0) {
               voiceUsers[chId][idx] = {
                 ...voiceUsers[chId][idx],
+                isMuted: voiceState?.muted ?? p.isMuted ?? voiceUsers[chId][idx].isMuted,
+                isDeafened: voiceState?.deafened ?? p.isDeafened ?? voiceUsers[chId][idx].isDeafened,
                 isScreenSharing: voice.screenShareUserIds.includes(p.userId),
               }
             }
@@ -831,19 +908,30 @@ function MainLayout({
     if (!conv?.other_user) setCurrentDM(null)
   }, [currentDMId, dmConversations, setCurrentDM])
 
-  // ESC key to close server settings
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && showServerSettings) {
-        setShowServerSettings(false)
-      }
+  const mainViewKey =
+    showFriends && !currentDMId ? 'friends'
+      : currentDMId ? `dm-${currentDMId}`
+        : showOnboarding ? 'onboarding'
+          : showCommunity ? 'community'
+            : currentChannel ? `${currentChannel.type}-${currentChannel.id}`
+              : 'empty'
+
+  useLayoutEffect(() => {
+    const el = mainContentRef.current
+    if (!el) return
+    gsap.killTweensOf(el)
+    gsap.fromTo(
+      el,
+      { opacity: 0 },
+      { opacity: 1, duration: 0.2, ease: 'sine.out', overwrite: true }
+    )
+    return () => {
+      gsap.killTweensOf(el)
     }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [showServerSettings])
+  }, [mainViewKey])
 
   return (
-    <div className="h-full w-full min-h-0 flex bg-app-darker overflow-hidden">
+    <div className="h-full w-full min-h-0 flex bg-app-darker overflow-hidden relative">
       <ServerBar
         servers={servers.map((s) => ({ id: s.id, name: s.name, iconUrl: s.icon_url, bannerUrl: s.banner_url, ownerId: s.owner_id }))}
         currentServerId={currentServerId}
@@ -853,6 +941,7 @@ function MainLayout({
           setShowFriends(false)
           setCurrentDM(null)
           setCurrentServer(id)
+          setChannelNavOpen(false)
           try {
             localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'server' }))
           } catch { /* ignore */ }
@@ -864,14 +953,29 @@ function MainLayout({
         onOpenFriends={() => {
           setShowCommunity(false)
           setShowFriends(true)
+          setChannelNavOpen(true)
           try {
             localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'friends' }))
           } catch { /* ignore */ }
         }}
       />
 
+      {/* Mobile channel-nav backdrop */}
+      {channelNavOpen && (
+        <button
+          type="button"
+          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          aria-label="Close channel list"
+          onClick={() => setChannelNavOpen(false)}
+        />
+      )}
+
       {/* Channel list + User panel wrapper */}
-      <div className="w-72 bg-app-channel flex flex-col flex-shrink-0">
+      <div
+        className={`fixed lg:relative z-40 inset-y-0 left-[72px] lg:left-auto w-72 bg-app-channel flex flex-col flex-shrink-0 transition-transform duration-200 ease-out ${
+          channelNavOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        }`}
+      >
         <ChannelList
           channels={displayChannels.map((c) => ({ id: c.id, name: c.name, type: c.type as 'text' | 'voice' | 'rules', serverId: c.server_id, order: c.order, categoryId: c.category_id }))}
           categories={categories.map((cat) => ({ id: cat.id, name: cat.name, serverId: cat.server_id, order: cat.order }))}
@@ -913,6 +1017,7 @@ function MainLayout({
               setCurrentDM(null)
               setShowFriends(false)
               setCurrentChannel(voice.voiceChannelId)
+              setChannelNavOpen(false)
             }
           }}
           onOpenServerSettings={() => setShowServerSettings(true)}
@@ -923,7 +1028,7 @@ function MainLayout({
           isAdminOrOwner={isAdminOrOwner}
           hasNoServers={servers.length === 0}
           isFriendsView={showFriends}
-          dmConversations={dmConversations}
+          dmConversations={visibleDmConversations}
           currentDMId={currentDMId}
           dmUnreadCounts={dmUnreadCounts}
           channelUnreadCounts={channelUnreadCounts}
@@ -932,6 +1037,7 @@ function MainLayout({
             setCurrentDM(id)
             setShowCommunity(false)
             setShowFriends(true)
+            setChannelNavOpen(false)
             try {
               localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'friends', dmId: id }))
             } catch { /* ignore */ }
@@ -951,7 +1057,39 @@ function MainLayout({
         />
       </div>
 
+      {/* Main column */}
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+      {/* Mobile top bar */}
+      <div className="lg:hidden flex items-center gap-2 px-3 h-12 border-b border-white/5 bg-app-dark flex-shrink-0">
+        <button
+          type="button"
+          onClick={() => setChannelNavOpen(true)}
+          className="p-2 rounded-md text-app-muted hover:text-app-text hover:bg-app-hover/60"
+          aria-label="Open channels and DMs"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z" />
+          </svg>
+        </button>
+        <span className="flex-1 min-w-0 truncate text-sm font-semibold text-app-text font-display">
+          {mobileTitle}
+        </span>
+        {!showCommunity && !showFriends && !showOnboarding && (
+          <button
+            type="button"
+            onClick={() => setMembersOpen(true)}
+            className="p-2 rounded-md text-app-muted hover:text-app-text hover:bg-app-hover/60 xl:hidden"
+            aria-label="Open members"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+            </svg>
+          </button>
+        )}
+      </div>
+
       {/* Main content */}
+      <div ref={mainContentRef} className="flex-1 min-w-0 min-h-0 flex">
       {showFriends && !currentDMId ? (
         <FriendsPage
           onClose={() => {
@@ -963,7 +1101,7 @@ function MainLayout({
             }
           }}
           onOpenDM={async (userId, username) => {
-            const dmId = await openDM(userId, username)
+            const dmId = await handleOpenDM(userId, username)
             if (dmId) {
               try {
                 localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'friends', dmId }))
@@ -974,7 +1112,7 @@ function MainLayout({
         />
       ) : currentDMId ? (
         (() => {
-          const conv = dmConversations.find((c) => c.id === currentDMId)
+          const conv = visibleDmConversations.find((c) => c.id === currentDMId) || dmConversations.find((c) => c.id === currentDMId)
           const dmMsgs = dmMessages[currentDMId] || []
           if (!conv?.other_user) return null
           return (
@@ -991,8 +1129,8 @@ function MainLayout({
                   localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'friends' }))
                 } catch { /* ignore */ }
               }}
-              onBlockUser={() => showNotification('Block feature coming soon')}
-              onReportUser={() => showNotification('Report feature coming soon')}
+              onBlockUser={handleBlockUser}
+              onReportUser={handleReportUser}
             />
           )
         })()
@@ -1084,8 +1222,25 @@ function MainLayout({
           <p className="text-sm">Select a text or voice channel to get started</p>
         </div>
       )}
+      </div>
+      </div>
+
+      {/* Mobile members backdrop */}
+      {membersOpen && !showCommunity && !showFriends && !showOnboarding && (
+        <button
+          type="button"
+          className="fixed inset-0 z-30 bg-black/50 xl:hidden"
+          aria-label="Close members"
+          onClick={() => setMembersOpen(false)}
+        />
+      )}
 
       {!showCommunity && !showFriends && !showOnboarding && (
+      <div
+        className={`fixed xl:relative z-40 inset-y-0 right-0 transition-transform duration-200 ease-out ${
+          membersOpen ? 'translate-x-0' : 'translate-x-full xl:translate-x-0'
+        }`}
+      >
       <MembersSidebar
         members={serverMembers}
         currentUserId={user.id}
@@ -1104,7 +1259,7 @@ function MainLayout({
         onBan={handleBan}
         onMessage={async (userId, username) => {
           try {
-            await openDM(userId, username)
+            await handleOpenDM(userId, username)
           } catch (e) {
             showNotification((e as Error).message, 'error')
           }
@@ -1153,6 +1308,7 @@ function MainLayout({
           }
         }}
       />
+      </div>
       )}
 
       {/* DM Call overlay */}

@@ -374,7 +374,10 @@ export function LoginPage() {
     if (navBusy || phase !== 'auth') return
     setNavBusy(true)
     const page = pageRef.current
+    const card = cardRef.current
+    if (card) gsap.killTweensOf(card)
     if (page) {
+      gsap.killTweensOf(page)
       await new Promise<void>((resolve) => {
         gsap.to(page, {
           opacity: 0,
@@ -547,7 +550,7 @@ export function LoginPage() {
             <NepsisCoin coinRef={coinRef} />
           </div>
         </div>
-        <h1 className="text-2xl font-bold text-white text-center mb-8">Nepsis Chat</h1>
+        <h1 className="font-display text-2xl font-bold text-app-accent text-center mb-8">Nepsis Chat</h1>
 
         {error && (
           <div className="mb-4 p-3 rounded-lg bg-red-500/20 text-red-300 text-sm text-center">

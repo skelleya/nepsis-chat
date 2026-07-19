@@ -64,6 +64,9 @@ export function registerVoiceHandlers(io) {
         }
         old.userId = null
         old.username = null
+        old.screenSharing = false
+        old.muted = false
+        old.deafened = false
         old.disconnect(true)
       }
 
@@ -78,6 +81,9 @@ export function registerVoiceHandlers(io) {
               socketId: sid,
               userId: s.userId,
               username: s.username,
+              screenSharing: !!s.screenSharing,
+              muted: !!s.muted,
+              deafened: !!s.deafened,
             })
           }
         }
@@ -86,6 +92,9 @@ export function registerVoiceHandlers(io) {
       socket.voiceChannel = channelId
       socket.userId = userId
       socket.username = username
+      socket.screenSharing = false
+      socket.muted = false
+      socket.deafened = false
       socket.join(room)
 
       socket.emit('room-peers', { peers: existingPeers })
@@ -93,6 +102,9 @@ export function registerVoiceHandlers(io) {
         socketId: socket.id,
         userId,
         username,
+        screenSharing: false,
+        muted: false,
+        deafened: false,
       })
     })
 
@@ -113,6 +125,9 @@ export function registerVoiceHandlers(io) {
       socket.voiceChannel = null
       socket.userId = null
       socket.username = null
+      socket.screenSharing = false
+      socket.muted = false
+      socket.deafened = false
       emitPeerLeftIfGone(io, room, uid, sid)
     })
 
@@ -160,6 +175,17 @@ export function registerVoiceHandlers(io) {
       socket.to(`voice:${socket.voiceChannel}`).emit('screen-share', {
         userId: socket.userId,
         active: !!active,
+      })
+    })
+
+    socket.on('voice-state', ({ muted, deafened }) => {
+      if (!socket.voiceChannel || !socket.userId) return
+      socket.muted = !!muted
+      socket.deafened = !!deafened
+      socket.to(`voice:${socket.voiceChannel}`).emit('voice-state', {
+        userId: socket.userId,
+        muted: socket.muted,
+        deafened: socket.deafened,
       })
     })
 

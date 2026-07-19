@@ -82,7 +82,7 @@ function DownloadButton({
       }}
       className={
         compact
-          ? 'inline-flex items-center gap-1 px-2 py-1 rounded bg-[#5865f2] hover:bg-[#4752c4] text-white text-xs font-medium disabled:opacity-50'
+          ? 'inline-flex items-center gap-1 px-2 py-1 rounded bg-app-accent hover:bg-app-accent-hover text-white text-xs font-medium disabled:opacity-50'
           : 'absolute top-2 right-2 z-10 inline-flex items-center gap-1 px-2 py-1 rounded-md bg-black/70 hover:bg-black/90 text-white text-xs font-medium opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-50'
       }
       title="Download"
@@ -138,10 +138,10 @@ export function FileAttachment({ url, type, filename, stopPropagation }: FileAtt
 
   return (
     <div
-      className="mt-1 inline-flex items-center gap-2 max-w-full px-3 py-2 rounded-lg bg-[#2b2d31] border border-[#1e1f22]"
+      className="mt-1 inline-flex items-center gap-2 max-w-full px-3 py-2 rounded-lg bg-app-channel border border-app-darker"
       {...wrapProps}
     >
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-[#b5bac1] shrink-0">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-app-muted shrink-0">
         <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z" />
       </svg>
       <a

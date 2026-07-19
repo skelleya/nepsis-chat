@@ -72,6 +72,7 @@ export const WelcomeLanding = forwardRef<WelcomeLandingHandle, WelcomeLandingPro
               y: 0,
               duration: 0.45,
               stagger: 0.1,
+              clearProps: 'transform',
             },
             0.38,
           )
