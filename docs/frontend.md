@@ -55,7 +55,9 @@ frontend/src/
 | VoiceView | Avatar circles when cam off. **Camera/screen:** focus stage (auto-maximize camera) + top filmstrip; dual stage when screen + camera; self PiP when watching others. Tiles show avatar until first video frame (no black squares). Stream subsets cached in `mediaTracks.ts`. |
 | RemoteAudio | Plays remote WebRTC stream |
 | CallOverlay | DM call UI: outgoing/incoming/in-call states |
-| DMView | Direct message chat; modern UI with gradient header, rounded bubbles, relative timestamps; groups consecutive messages from same sender (avatar/name shown only on first in group); spacing: 1.5 between same-sender, 5 between different senders |
+| DMView | Direct message chat; Call + Video Call in header (expand if already in call with them); click a message to reply; reactions persisted + realtime via `dm_message_reactions`; reply preview bar |
+| CallOverlay | Ringing/calling modals; in-call compact green bar (**click to expand** full panel with video stage + local PiP); mute/deafen/end |
+| FriendsPage | All / Pending / Online / Add Friend tabs; **+ Add a Friend** button under the All list opens the Add tab |
 | FriendsPage | Discord-like Friends home: tabs (All, Pending, Online, Add Friend). **Add Friend** searches discoverable **profile display names** (not login usernames); request targets that profile and is sent from your Personal/Work. Accept under a chosen profile. **GSAP:** fade+slide-in on mount |
 | CreateServerModal | Create server: name input, gradient accent bar, loading spinner, error display; used by ServerBar (+ button) and OnboardingPage |
 | UserPanel | Bottom bar: avatar/status, mute, deafen, settings. **GSAP:** status menu open/close (fade+rise+scale); mute/deafen buttons punch-scale on click; status dot pops on change. Mute/deafen play Web Audio cues via `VoiceContext` / `CallContext`. |

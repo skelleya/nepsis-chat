@@ -187,6 +187,44 @@ export function subscribeToDMMessages(
   return channel
 }
 
+export type DMReactionPayload = {
+  message_id: string
+  user_id: string
+  emoji: string
+}
+
+/** Subscribe to dm_message_reactions; filter to current conversation messages in the caller. */
+export function subscribeToDMReactions(
+  conversationId: string,
+  onReaction: (payload: { eventType: 'INSERT' | 'DELETE'; new: DMReactionPayload; old?: DMReactionPayload }) => void
+): RealtimeChannel | null {
+  if (!supabase) return null
+
+  const channel = supabase
+    .channel(`dm-reactions:${conversationId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'dm_message_reactions',
+      },
+      (payload) => {
+        const rec = (payload.new || payload.old) as DMReactionPayload
+        if (rec) {
+          onReaction({
+            eventType: payload.eventType as 'INSERT' | 'DELETE',
+            new: payload.new as DMReactionPayload,
+            old: payload.old as DMReactionPayload,
+          })
+        }
+      }
+    )
+    .subscribe()
+
+  return channel
+}
+
 export type ServerMemberPayload = {
   server_id: string
   user_id: string

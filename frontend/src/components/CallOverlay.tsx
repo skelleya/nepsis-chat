@@ -4,10 +4,11 @@
  * States:
  *  - calling:  Outgoing call screen (avatar, "Calling...", cancel)
  *  - ringing:  Incoming call screen (avatar, accept/decline)
- *  - in-call:  Compact top bar (username, duration, mute, deafen, end)
+ *  - in-call:  Compact top bar (click to expand) or full expanded panel
  *  - idle:     Nothing rendered
  */
 
+import { useEffect, useRef } from 'react'
 import { useCall } from '../contexts/CallContext'
 
 function formatDuration(seconds: number): string {
@@ -16,11 +17,40 @@ function formatDuration(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
+function CallVideo({
+  stream,
+  muted = false,
+  mirror = false,
+  className = '',
+}: {
+  stream: MediaStream | null
+  muted?: boolean
+  mirror?: boolean
+  className?: string
+}) {
+  const ref = useRef<HTMLVideoElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.srcObject = stream
+    if (stream) el.play().catch(() => {})
+  }, [stream])
+  if (!stream) return null
+  return (
+    <video
+      ref={ref}
+      autoPlay
+      playsInline
+      muted={muted}
+      className={`${className} ${mirror ? 'scale-x-[-1]' : ''}`}
+    />
+  )
+}
+
 export function CallOverlay() {
   const call = useCall()
 
   if (call.callState === 'idle') {
-    // Show brief "unavailable" toast if needed
     if (call.unavailableReason) {
       return (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg bg-red-600/90 text-white text-sm font-medium z-[100] shadow-lg">
@@ -36,7 +66,6 @@ export function CallOverlay() {
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
         <div className="bg-[#1e1f22] rounded-2xl p-8 w-80 flex flex-col items-center gap-6 shadow-2xl border border-white/5">
-          {/* Avatar */}
           <div className={`w-24 h-24 rounded-full flex items-center justify-center text-white font-bold text-3xl animate-pulse shadow-lg overflow-hidden ${call.remoteAvatarUrl ? 'bg-transparent' : 'bg-app-accent shadow-app-accent/30'}`}>
             {call.remoteAvatarUrl ? (
               <img src={call.remoteAvatarUrl} alt={call.remoteUsername ?? ''} className="w-full h-full object-cover" />
@@ -48,24 +77,15 @@ export function CallOverlay() {
             <h2 className="text-xl font-semibold text-white">
               {call.remoteUsername}
             </h2>
-            <p className="text-app-muted text-sm mt-1">Calling...</p>
+            <p className="text-app-muted text-sm mt-1">
+              {call.isVideoCall ? 'Video calling...' : 'Calling...'}
+            </p>
           </div>
-          {/* Animated dots */}
           <div className="flex gap-1.5">
-            <div
-              className="w-2 h-2 rounded-full bg-app-accent animate-bounce"
-              style={{ animationDelay: '0ms' }}
-            />
-            <div
-              className="w-2 h-2 rounded-full bg-app-accent animate-bounce"
-              style={{ animationDelay: '150ms' }}
-            />
-            <div
-              className="w-2 h-2 rounded-full bg-app-accent animate-bounce"
-              style={{ animationDelay: '300ms' }}
-            />
+            <div className="w-2 h-2 rounded-full bg-app-accent animate-bounce" style={{ animationDelay: '0ms' }} />
+            <div className="w-2 h-2 rounded-full bg-app-accent animate-bounce" style={{ animationDelay: '150ms' }} />
+            <div className="w-2 h-2 rounded-full bg-app-accent animate-bounce" style={{ animationDelay: '300ms' }} />
           </div>
-          {/* Cancel */}
           <button
             onClick={call.endCall}
             className="w-14 h-14 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center transition-colors shadow-lg"
@@ -83,7 +103,6 @@ export function CallOverlay() {
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
         <div className="bg-[#1e1f22] rounded-2xl p-8 w-80 flex flex-col items-center gap-6 shadow-2xl border border-white/5">
-          {/* Avatar with ring animation */}
           <div className="relative flex items-center justify-center">
             <div className="absolute w-24 h-24 rounded-full bg-app-accent/20 animate-ping" />
             <div className="absolute w-28 h-28 rounded-full border-2 border-app-accent/30 animate-pulse" />
@@ -99,9 +118,10 @@ export function CallOverlay() {
             <h2 className="text-xl font-semibold text-white">
               {call.remoteUsername}
             </h2>
-            <p className="text-app-muted text-sm mt-1">Incoming call...</p>
+            <p className="text-app-muted text-sm mt-1">
+              {call.isVideoCall ? 'Incoming video call...' : 'Incoming call...'}
+            </p>
           </div>
-          {/* Accept / Decline */}
           <div className="flex gap-8">
             <button
               onClick={call.declineCall}
@@ -123,12 +143,110 @@ export function CallOverlay() {
     )
   }
 
-  // ─── Active call bar ──────────────────────────────────────────
+  // ─── Active call ──────────────────────────────────────────────
   if (call.callState === 'in-call') {
+    if (call.callExpanded) {
+      return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="bg-[#1e1f22] rounded-2xl w-full max-w-3xl shadow-2xl border border-white/10 overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-4 py-3 flex items-center justify-between border-b border-white/10">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold overflow-hidden shrink-0 ${call.remoteAvatarUrl ? 'bg-transparent' : 'bg-app-accent'}`}>
+                  {call.remoteAvatarUrl ? (
+                    <img src={call.remoteAvatarUrl} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    call.remoteUsername?.charAt(0).toUpperCase()
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-white font-semibold truncate">{call.remoteUsername}</div>
+                  <div className="text-white/60 text-xs font-mono">{formatDuration(call.callDuration)}</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={call.minimizeCall}
+                className="px-3 py-1.5 rounded-lg text-sm text-white/80 hover:bg-white/10"
+                title="Minimize"
+              >
+                Minimize
+              </button>
+            </div>
+
+            <div className="relative flex-1 min-h-[280px] bg-[#111214] flex items-center justify-center">
+              {call.isVideoCall && call.remoteVideoStream ? (
+                <CallVideo
+                  stream={call.remoteVideoStream}
+                  className="w-full h-full max-h-[60vh] object-contain"
+                />
+              ) : (
+                <div className="flex flex-col items-center gap-3 py-16">
+                  <div className={`w-28 h-28 rounded-full flex items-center justify-center text-white font-bold text-4xl overflow-hidden ${call.remoteAvatarUrl ? 'bg-transparent' : 'bg-app-accent'}`}>
+                    {call.remoteAvatarUrl ? (
+                      <img src={call.remoteAvatarUrl} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      call.remoteUsername?.charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  <p className="text-app-muted text-sm">
+                    {call.isVideoCall ? 'Waiting for video…' : 'Voice call'}
+                  </p>
+                </div>
+              )}
+              {call.isVideoCall && call.localVideoStream && (
+                <div className="absolute bottom-3 right-3 w-36 sm:w-44 aspect-video rounded-lg overflow-hidden ring-2 ring-white/20 shadow-xl bg-black">
+                  <CallVideo
+                    stream={call.localVideoStream}
+                    muted
+                    mirror
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="px-4 py-4 flex items-center justify-center gap-3 bg-[#2b2d31]">
+              <button
+                onClick={call.toggleMute}
+                className={`p-3 rounded-full transition-colors ${
+                  call.isMuted ? 'bg-red-500/80 text-white' : 'bg-white/15 text-white hover:bg-white/25'
+                }`}
+                title={call.isMuted ? 'Unmute' : 'Mute'}
+              >
+                {call.isMuted ? <MicOffSmall /> : <MicSmall />}
+              </button>
+              <button
+                onClick={call.toggleDeafen}
+                className={`p-3 rounded-full transition-colors ${
+                  call.isDeafened ? 'bg-red-500/80 text-white' : 'bg-white/15 text-white hover:bg-white/25'
+                }`}
+                title={call.isDeafened ? 'Undeafen' : 'Deafen'}
+              >
+                {call.isDeafened ? <HeadphonesOffSmall /> : <HeadphonesSmall />}
+              </button>
+              <button
+                onClick={call.endCall}
+                className="p-3 rounded-full bg-red-600 hover:bg-red-700 text-white transition-colors"
+                title="End call"
+              >
+                <PhoneOffSmall />
+              </button>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    // Compact bar — click left side to expand
     return (
       <div className="fixed top-0 left-0 right-0 z-[100] flex justify-center pointer-events-none">
-        <div className="bg-green-600 rounded-b-xl px-6 py-2.5 flex items-center gap-4 shadow-lg pointer-events-auto">
-          <div className="flex items-center gap-2.5">
+        <div className="bg-green-600 rounded-b-xl px-4 py-2.5 flex items-center gap-3 shadow-lg pointer-events-auto">
+          <button
+            type="button"
+            onClick={call.expandCall}
+            className="flex items-center gap-2.5 hover:opacity-90 transition-opacity"
+            title="Click to expand call"
+          >
             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold overflow-hidden ${call.remoteAvatarUrl ? 'bg-transparent' : 'bg-white/20'}`}>
               {call.remoteAvatarUrl ? (
                 <img src={call.remoteAvatarUrl} alt={call.remoteUsername ?? ''} className="w-full h-full object-cover" />
@@ -142,11 +260,19 @@ export function CallOverlay() {
             <span className="text-white/70 text-xs font-mono">
               {formatDuration(call.callDuration)}
             </span>
-          </div>
+            {call.isVideoCall && (
+              <span className="text-[10px] uppercase font-bold text-white/80 bg-white/15 px-1.5 py-0.5 rounded">
+                Video
+              </span>
+            )}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/80 ml-0.5">
+              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+            </svg>
+          </button>
           <div className="w-px h-5 bg-white/20" />
           <div className="flex items-center gap-1.5">
-            {/* Mute */}
             <button
+              type="button"
               onClick={call.toggleMute}
               className={`p-2 rounded-full transition-colors ${
                 call.isMuted
@@ -157,8 +283,8 @@ export function CallOverlay() {
             >
               {call.isMuted ? <MicOffSmall /> : <MicSmall />}
             </button>
-            {/* Deafen */}
             <button
+              type="button"
               onClick={call.toggleDeafen}
               className={`p-2 rounded-full transition-colors ${
                 call.isDeafened
@@ -169,8 +295,8 @@ export function CallOverlay() {
             >
               {call.isDeafened ? <HeadphonesOffSmall /> : <HeadphonesSmall />}
             </button>
-            {/* End call */}
             <button
+              type="button"
               onClick={call.endCall}
               className="p-2 rounded-full bg-red-600 hover:bg-red-700 text-white transition-colors"
               title="End call"
@@ -186,8 +312,6 @@ export function CallOverlay() {
   return null
 }
 
-// ─── Icons ──────────────────────────────────────────────────────
-
 function PhoneIcon() {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
@@ -196,7 +320,6 @@ function PhoneIcon() {
   )
 }
 
-// Phone down (hang up) — no slash
 function PhoneOffIcon() {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
@@ -240,7 +363,6 @@ function HeadphonesOffSmall() {
   )
 }
 
-// Phone down (hang up) — no slash
 function PhoneOffSmall() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">

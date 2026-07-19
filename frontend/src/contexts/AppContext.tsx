@@ -12,6 +12,7 @@ import {
   subscribeToReactions,
   subscribeToDMMessages,
   subscribeToAllDMMessages,
+  subscribeToDMReactions,
   subscribeToAllChannelMessages,
   unsubscribe,
 } from '../services/realtime'
@@ -119,7 +120,12 @@ interface AppContextValue {
   channelMentionCounts: Record<string, number>
   loadDMConversations: () => Promise<void>
   openDM: (targetUserId: string, targetUsername: string) => Promise<string | undefined>
-  sendDMMessage: (conversationId: string, content: string) => Promise<void>
+  sendDMMessage: (
+    conversationId: string,
+    content: string,
+    options?: { replyToId?: string }
+  ) => Promise<void>
+  toggleDMReaction: (messageId: string, emoji: string) => Promise<void>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -191,8 +197,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   dmConversationsRef.current = dmConversations
   const realtimeReactionsRef = useRef<RealtimeChannel | null>(null)
   const realtimeDMRef = useRef<RealtimeChannel | null>(null)
+  const realtimeDMReactionsRef = useRef<RealtimeChannel | null>(null)
   const messagesRef = useRef(messages)
   messagesRef.current = messages
+  const dmMessagesRef = useRef(dmMessages)
+  dmMessagesRef.current = dmMessages
 
   // Load servers the user is a member of. Pass userId when user was just set (React may not have updated yet).
   const loadServers = useCallback(async (userIdOverride?: string) => {
@@ -476,20 +485,65 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   )
 
   const sendDMMessage = useCallback(
-    async (conversationId: string, content: string) => {
+    async (conversationId: string, content: string, options?: { replyToId?: string }) => {
       if (!user) return
       try {
-        const msg = await api.sendDMMessage(conversationId, user.id, content)
-        setDMMessages((prev) => ({
-          ...prev,
-          [conversationId]: [...(prev[conversationId] || []), msg],
-        }))
+        const msg = await api.sendDMMessage(conversationId, user.id, content, options)
+        setDMMessages((prev) => {
+          const list = prev[conversationId] || []
+          if (list.some((m) => m.id === msg.id)) return prev
+          return { ...prev, [conversationId]: [...list, msg] }
+        })
       } catch (err) {
         console.error('Send DM error:', err)
         throw err
       }
     },
     [user?.id]
+  )
+
+  const toggleDMReaction = useCallback(
+    async (messageId: string, emoji: string) => {
+      if (!user) return
+      try {
+        const conversationId = Object.keys(dmMessages).find((id) =>
+          dmMessages[id].some((m) => m.id === messageId)
+        )
+        if (!conversationId) return
+        const msg = dmMessages[conversationId].find((m) => m.id === messageId)
+        const reactions = msg?.reactions || []
+        const hasReacted = reactions.some((r) => r.user_id === user.id && r.emoji === emoji)
+        if (hasReacted) {
+          await api.removeDMReaction(messageId, user.id, emoji)
+          setDMMessages((prev) => ({
+            ...prev,
+            [conversationId]: prev[conversationId].map((m) =>
+              m.id === messageId
+                ? {
+                    ...m,
+                    reactions: (m.reactions || []).filter(
+                      (r) => !(r.user_id === user.id && r.emoji === emoji)
+                    ),
+                  }
+                : m
+            ),
+          }))
+        } else {
+          await api.addDMReaction(messageId, user.id, emoji)
+          setDMMessages((prev) => ({
+            ...prev,
+            [conversationId]: prev[conversationId].map((m) =>
+              m.id === messageId
+                ? { ...m, reactions: [...(m.reactions || []), { user_id: user.id, emoji }] }
+                : m
+            ),
+          }))
+        }
+      } catch (err) {
+        console.error('Failed to toggle DM reaction:', err)
+      }
+    },
+    [user, dmMessages]
   )
 
   const sendMessage = useCallback(
@@ -1156,6 +1210,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                   content: payload.new.content,
                   created_at: payload.new.created_at,
                   username: 'Unknown',
+                  reactions: [],
                 },
               ],
             }
@@ -1178,6 +1233,58 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     }
   }, [currentDMId, user?.id])
+
+  // Supabase Realtime: DM reactions for the open conversation
+  useEffect(() => {
+    if (!currentDMId || !supabase) return
+
+    const ch = subscribeToDMReactions(currentDMId, (payload) => {
+      const { message_id, user_id, emoji } = payload.new || payload.old || {}
+      if (!message_id || !user_id || !emoji) return
+
+      const list = dmMessagesRef.current[currentDMId] || []
+      if (!list.some((m) => m.id === message_id)) return
+
+      setDMMessages((prev) => {
+        const msgs = prev[currentDMId] || []
+        const msg = msgs.find((m) => m.id === message_id)
+        if (!msg) return prev
+        const reactions = msg.reactions || []
+        if (payload.eventType === 'INSERT') {
+          if (reactions.some((r) => r.user_id === user_id && r.emoji === emoji)) return prev
+          return {
+            ...prev,
+            [currentDMId]: msgs.map((m) =>
+              m.id === message_id
+                ? { ...m, reactions: [...reactions, { user_id, emoji }] }
+                : m
+            ),
+          }
+        }
+        return {
+          ...prev,
+          [currentDMId]: msgs.map((m) =>
+            m.id === message_id
+              ? {
+                  ...m,
+                  reactions: reactions.filter(
+                    (r) => !(r.user_id === user_id && r.emoji === emoji)
+                  ),
+                }
+              : m
+          ),
+        }
+      })
+    })
+
+    realtimeDMReactionsRef.current = ch
+    return () => {
+      if (realtimeDMReactionsRef.current) {
+        unsubscribe(realtimeDMReactionsRef.current)
+        realtimeDMReactionsRef.current = null
+      }
+    }
+  }, [currentDMId])
 
   return (
     <AppContext.Provider
@@ -1202,6 +1309,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         loadDMConversations,
         openDM,
         sendDMMessage,
+        toggleDMReaction,
         loadChannels,
         loadMessages,
         sendMessage,

@@ -45,6 +45,9 @@ Node.js + Express + Socket.io + SQLite.
 | GET | `/api/users/:id/privacy` | Get privacy settings (defaults if unset) |
 | PUT | `/api/users/:id/privacy` | Upsert privacy settings (DMs, calls, friend requests, voice/online visibility, speaking indicator) |
 | POST | `/api/dm/conversations` | Create or get DM between two users (`userId`, `targetUserId`) |
+| POST | `/api/dm/messages` | Send DM (`conversationId`, `userId`, `content`, optional `replyToId`) — returns reactions + reply_to |
+| POST | `/api/dm/messages/:id/reactions` | Add DM reaction (`userId`, `emoji`) |
+| DELETE | `/api/dm/messages/:id/reactions` | Remove DM reaction (`?userId=&emoji=`) |
 | GET | `/api/friends/list` | List friends (`?userId=`) — includes `status`, `friendship_profile`, `visible_profiles` |
 | GET | `/api/friends/requests` | List pending friend requests (`?userId=`) — includes `requester_profile` |
 | POST | `/api/friends/accept` | Accept friend request (`userId`, `requesterId`, `profile?`, `visibleProfiles?`) |

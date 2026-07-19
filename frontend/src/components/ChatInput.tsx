@@ -27,6 +27,8 @@ interface ChatInputProps {
   uploading?: boolean
   /** Optional control on the right inside the field (e.g. emoji) */
   rightSlot?: ReactNode
+  /** Optional id on the text input (e.g. for focus from parent) */
+  inputId?: string
 }
 
 /**
@@ -46,6 +48,7 @@ export function ChatInput({
   attachOpen = false,
   uploading = false,
   rightSlot,
+  inputId,
 }: ChatInputProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const cursorPosRef = useRef(0)
@@ -209,6 +212,7 @@ export function ChatInput({
 
         <input
           ref={inputRef}
+          id={inputId}
           type="text"
           value={value}
           onChange={(e) => {
