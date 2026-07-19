@@ -138,23 +138,45 @@ export function registerCallHandlers(io) {
 
     // ─── Cleanup on disconnect ────────────────────────────────────
     socket.on('disconnect', () => {
-      // Remove from user socket map
-      if (socket.userId) {
-        const sids = userSockets.get(socket.userId)
+      const uid = socket.userId
+      if (uid) {
+        const sids = userSockets.get(uid)
         if (sids) {
           sids.delete(socket.id)
-          if (sids.size === 0) userSockets.delete(socket.userId)
+          if (sids.size === 0) userSockets.delete(uid)
         }
       }
+      const stillOnline = !!(uid && userSockets.has(uid))
 
-      // End any active calls this socket was part of
       for (const [callId, call] of activeCalls) {
-        if (call.callerSocketId === socket.id || call.calleeSocketId === socket.id) {
-          const otherSid =
-            call.callerSocketId === socket.id ? call.calleeSocketId : call.callerSocketId
-          if (otherSid) io.to(otherSid).emit('call:ended', { callId })
-          activeCalls.delete(callId)
+        const onThisSocket =
+          call.callerSocketId === socket.id || call.calleeSocketId === socket.id
+        // Ringing callee has no calleeSocketId yet — end when they fully go offline
+        const partyGoneOffline =
+          !stillOnline &&
+          uid &&
+          (call.callerId === uid || call.calleeId === uid)
+
+        if (!onThisSocket && !partyGoneOffline) continue
+
+        const otherUserId = call.callerId === uid ? call.calleeId : call.callerId
+        const otherSid =
+          call.callerSocketId === socket.id
+            ? call.calleeSocketId
+            : call.calleeSocketId === socket.id
+              ? call.callerSocketId
+              : call.callerId === uid
+                ? call.calleeSocketId
+                : call.callerSocketId
+
+        if (otherSid) io.to(otherSid).emit('call:ended', { callId })
+        const otherSids = userSockets.get(otherUserId)
+        if (otherSids) {
+          for (const sid of otherSids) {
+            if (sid !== otherSid) io.to(sid).emit('call:ended', { callId })
+          }
         }
+        activeCalls.delete(callId)
       }
     })
   })

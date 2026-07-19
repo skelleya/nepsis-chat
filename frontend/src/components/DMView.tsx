@@ -1,6 +1,6 @@
 /**
  * DMView — Direct message chat UI.
- * Modern 1-on-1 conversation view with polished design.
+ * Modern 1-on-1 conversation view with polished alignment.
  */
 
 import { useState, useRef, useEffect } from 'react'
@@ -147,7 +147,7 @@ export function DMView({
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-[#0c0d0f]">
       {/* Header */}
-      <div className="h-14 px-5 flex items-center gap-4 border-b border-white/5 bg-[#16171a] flex-shrink-0">
+      <div className="h-14 px-4 sm:px-5 flex items-center gap-3 border-b border-white/5 bg-[#16171a] flex-shrink-0">
         {onClose && (
           <button
             onClick={onClose}
@@ -159,7 +159,7 @@ export function DMView({
             </svg>
           </button>
         )}
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-lg overflow-hidden ${otherAvatarUrl ? 'bg-transparent' : 'bg-gradient-to-br from-app-accent to-indigo-600 shadow-app-accent/20'}`}>
+        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden ${otherAvatarUrl ? 'bg-transparent' : 'bg-gradient-to-br from-app-accent to-indigo-600'}`}>
           {otherAvatarUrl ? (
             <img src={otherAvatarUrl} alt={username} className="w-full h-full object-cover" />
           ) : (
@@ -167,11 +167,10 @@ export function DMView({
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="font-semibold text-app-text truncate text-base">{username}</h2>
-          <p className="text-xs text-app-muted/80">Direct Message</p>
+          <h2 className="font-semibold text-app-text truncate text-[15px] leading-tight">{username}</h2>
+          <p className="text-[11px] text-app-muted/80 leading-tight mt-0.5">Direct Message</p>
         </div>
 
-        {/* 3 dots menu */}
         <div className="relative">
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
@@ -213,11 +212,11 @@ export function DMView({
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 sm:px-6 py-6 min-h-0">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 sm:px-5 py-4 min-h-0">
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-app-accent/20 to-indigo-600/20 flex items-center justify-center mb-4">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-app-accent">
+          <div className="flex flex-col items-center justify-center h-full text-center px-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-app-accent/20 to-indigo-600/20 flex items-center justify-center mb-3">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-app-accent">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
@@ -225,7 +224,7 @@ export function DMView({
             <p className="text-sm text-app-muted mt-1">Send a message to start the conversation</p>
           </div>
         ) : (
-          <div className="w-full max-w-3xl mx-auto flex flex-col">
+          <div className="w-full max-w-2xl mx-auto flex flex-col gap-0">
             {messages.map((msg, idx) => {
               const isMe = msg.user_id === currentUserId
               const prevMsg = messages[idx - 1]
@@ -247,28 +246,45 @@ export function DMView({
               return (
                 <div
                   key={msg.id}
-                  className={`group flex gap-3 w-full ${isMe ? 'flex-row-reverse' : ''} ${isNextFromSameSender ? 'mb-1.5' : 'mb-3'}`}
+                  className={`group flex w-full items-end gap-2.5 ${isMe ? 'flex-row-reverse' : 'flex-row'} ${
+                    isFromSameSender ? 'mt-0.5' : 'mt-3.5'
+                  } ${isNextFromSameSender ? '' : 'mb-0.5'}`}
                 >
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-bold flex-shrink-0 overflow-hidden bg-app-channel ${isFromSameSender ? 'opacity-0 invisible' : ''}`}>
-                    {avatarUrl ? (
-                      <img
-                        src={avatarUrl}
-                        alt={msg.username ?? ''}
-                        className="w-full h-full object-cover"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; e.currentTarget.parentElement!.textContent = (msg.username ?? '?').charAt(0).toUpperCase() }}
-                      />
+                  {/* Avatar column — always reserved for alignment */}
+                  <div className="w-8 flex-shrink-0 flex justify-center self-end">
+                    {!isFromSameSender ? (
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold overflow-hidden bg-app-channel">
+                        {avatarUrl ? (
+                          <img
+                            src={avatarUrl}
+                            alt={msg.username ?? ''}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              ;(e.target as HTMLImageElement).style.display = 'none'
+                              e.currentTarget.parentElement!.textContent = (msg.username ?? '?').charAt(0).toUpperCase()
+                            }}
+                          />
+                        ) : (
+                          (msg.username ?? '?').charAt(0).toUpperCase()
+                        )}
+                      </div>
                     ) : (
-                      (msg.username ?? '?').charAt(0).toUpperCase()
+                      <div className="w-8 h-8" aria-hidden />
                     )}
                   </div>
-                  <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[75%] min-w-0`}>
+
+                  <div className={`flex flex-col min-w-0 max-w-[min(78%,28rem)] ${isMe ? 'items-end' : 'items-start'}`}>
                     {!isFromSameSender && (
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <span className="font-medium text-app-text text-sm">{msg.username ?? 'Unknown'}</span>
-                        <span className="text-[11px] text-app-muted">{formatMessageTime(msg.created_at)}</span>
+                      <div className={`flex items-baseline gap-2 mb-1 px-0.5 ${isMe ? 'flex-row-reverse' : ''}`}>
+                        <span className="font-medium text-app-text text-[13px] leading-none">
+                          {msg.username ?? 'Unknown'}
+                        </span>
+                        <span className="text-[10px] text-app-muted leading-none">
+                          {formatMessageTime(msg.created_at)}
+                        </span>
                         {isMe && lastMessageFromMe?.id === msg.id && (
                           <span className="text-app-muted" title="Sent">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                               <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
                             </svg>
                           </span>
@@ -276,10 +292,10 @@ export function DMView({
                       </div>
                     )}
                     <div
-                      className={`text-sm break-words px-4 py-2.5 ${
+                      className={`text-[14px] leading-snug break-words px-3.5 py-2 ${
                         isMe
-                          ? 'bg-app-accent text-white rounded-2xl rounded-br-md shadow-lg shadow-app-accent/15'
-                          : 'bg-app-channel text-app-text rounded-2xl rounded-bl-md border border-white/5'
+                          ? 'bg-app-accent text-white rounded-2xl rounded-br-md'
+                          : 'bg-[#1e1f22] text-app-text rounded-2xl rounded-bl-md border border-white/[0.04]'
                       }`}
                     >
                       {(() => {
@@ -287,8 +303,8 @@ export function DMView({
                         if (parts.length === 0) return <span className="whitespace-pre-wrap">{msg.content}</span>
                         return parts.map((part, i) =>
                           part.type === 'image' ? (
-                            <a key={i} href={part.value} target="_blank" rel="noreferrer" className="block mt-2 first:mt-0">
-                              <img src={part.value} alt="" className="max-w-[280px] max-h-[200px] rounded-lg object-contain" />
+                            <a key={i} href={part.value} target="_blank" rel="noreferrer" className="block mt-1.5 first:mt-0">
+                              <img src={part.value} alt="" className="max-w-[240px] max-h-[180px] rounded-lg object-contain" />
                             </a>
                           ) : (
                             <span key={i} className="whitespace-pre-wrap">{part.value}</span>
@@ -296,13 +312,12 @@ export function DMView({
                         )
                       })()}
                     </div>
-                    {/* Reactions */}
-                    <div className="mt-1 flex flex-wrap gap-1 items-center">
+                    <div className={`mt-1 flex flex-wrap gap-1 items-center ${isMe ? 'justify-end' : 'justify-start'}`}>
                       {Object.entries(groupedReactions).map(([emoji, { count, userIds }]) => (
                         <button
                           key={emoji}
                           onClick={() => toggleReaction(msg.id, emoji)}
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-sm ${
+                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs ${
                             userIds.includes(currentUserId) ? 'bg-app-accent/30 text-app-accent' : 'bg-app-dark text-app-muted hover:bg-app-hover'
                           }`}
                         >
@@ -320,7 +335,7 @@ export function DMView({
                             setEmojiAnchorRect(e.currentTarget.getBoundingClientRect())
                           }
                         }}
-                        className="opacity-0 group-hover:opacity-100 text-app-muted hover:text-app-text transition-opacity text-sm"
+                        className="opacity-0 group-hover:opacity-100 text-app-muted hover:text-app-text transition-opacity text-xs px-1"
                       >
                         +
                       </button>
@@ -346,8 +361,8 @@ export function DMView({
       </div>
 
       {/* Input */}
-      <div className="px-4 py-4 border-t border-white/5 bg-[#16171a]/50 flex-shrink-0">
-        <form onSubmit={handleSubmit}>
+      <div className="px-3 sm:px-4 py-3 border-t border-white/5 bg-[#16171a]/60 flex-shrink-0">
+        <form onSubmit={handleSubmit} className="max-w-2xl mx-auto">
           {attachments.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-2">
               {attachments.map((a, i) => (
@@ -364,9 +379,8 @@ export function DMView({
               ))}
             </div>
           )}
-          <div className="flex items-center gap-2">
-            {/* + / X toggle */}
-            <div className="relative">
+          <div className="flex items-end gap-2">
+            <div className="relative flex-shrink-0 mb-0.5">
               <button
                 type="button"
                 onClick={() => setShowAttachMenu(!showAttachMenu)}
@@ -423,38 +437,31 @@ export function DMView({
                     >
                       🖼️ Picture
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowAttachMenu(false)}
-                      className="w-full px-4 py-2 text-left text-sm text-app-muted hover:bg-app-hover/60 flex items-center gap-2"
-                    >
-                      GIF (coming soon)
-                    </button>
                   </div>
                 </>
               )}
             </div>
 
-            <div className="flex-1 flex gap-2 min-w-0">
+            <div className="flex-1 min-w-0 [&_input]:min-h-[44px] [&_input]:py-2.5 [&_input]:px-3.5 [&_input]:text-[14px] [&_input]:rounded-xl">
               <ChatInput
                 value={input}
                 onChange={setInput}
                 onSubmit={doSend}
-                placeholder={`Message ${username}`}
+                placeholder={`Message @${username}`}
                 disabled={false}
                 members={conversation.other_user ? [{ id: conversation.other_user.id, username }] : []}
               />
-              <button
-                type="submit"
-                disabled={!input.trim() && attachments.length === 0}
-                className="p-2.5 rounded-lg bg-app-accent text-white hover:bg-app-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
-                title="Send"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-                </svg>
-              </button>
             </div>
+            <button
+              type="submit"
+              disabled={!input.trim() && attachments.length === 0}
+              className="mb-0.5 p-2.5 rounded-xl bg-app-accent text-white hover:bg-app-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+              title="Send"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+              </svg>
+            </button>
           </div>
         </form>
       </div>

@@ -1029,7 +1029,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const { conversation_id, user_id } = payload.new
       if (user_id === user.id) return
 
-      if (currentDMIdRef.current === conversation_id) return
+      const viewingThis = currentDMIdRef.current === conversation_id
 
       setDMConversations((prev) => {
         const hasConv = prev.some((c) => c.id === conversation_id)
@@ -1039,34 +1039,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return prev
       })
 
-      sounds.messageNotification('dm')
-      setDMUnreadCounts((prev) => ({
-        ...prev,
-        [conversation_id]: (prev[conversation_id] ?? 0) + 1,
-      }))
+      if (!viewingThis) {
+        sounds.messageNotification('dm')
+        setDMUnreadCounts((prev) => ({
+          ...prev,
+          [conversation_id]: (prev[conversation_id] ?? 0) + 1,
+        }))
+      }
+
+      // Always hydrate into the thread — do not rely solely on the per-DM channel
+      // (RLS/realtime races left open DMs stuck until refresh).
       try {
         const msg = await api.getDMMessage(payload.new.id)
-        // Desktop notification when tab is hidden (opt-in via Notification settings)
-        try {
-          const { loadPrefs } = await import('../services/userPrefs')
-          const prefs = loadPrefs().notifications
-          if (
-            prefs.browserDmNotifications &&
-            typeof document !== 'undefined' &&
-            document.hidden &&
-            'Notification' in window &&
-            Notification.permission === 'granted'
-          ) {
-            const conv = dmConversationsRef.current?.find((c) => c.id === conversation_id)
-            const from = conv?.other_user?.username || msg.username || 'Someone'
-            new Notification('New direct message', {
-              body: `${from}: ${String(msg.content || '').slice(0, 120)}`,
-              icon: './logo.png',
-              tag: `nepsis-dm-${conversation_id}`,
-            })
+        if (!viewingThis) {
+          try {
+            const { loadPrefs } = await import('../services/userPrefs')
+            const prefs = loadPrefs().notifications
+            if (
+              prefs.browserDmNotifications &&
+              typeof document !== 'undefined' &&
+              document.hidden &&
+              'Notification' in window &&
+              Notification.permission === 'granted'
+            ) {
+              const conv = dmConversationsRef.current?.find((c) => c.id === conversation_id)
+              const from = conv?.other_user?.username || msg.username || 'Someone'
+              new Notification('New direct message', {
+                body: `${from}: ${String(msg.content || '').slice(0, 120)}`,
+                icon: './logo.png',
+                tag: `nepsis-dm-${conversation_id}`,
+              })
+            }
+          } catch {
+            /* ignore notif errors */
           }
-        } catch {
-          /* ignore notif errors */
         }
         setDMMessages((prev) => {
           const list = prev[conversation_id] || []
@@ -1074,7 +1080,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           return { ...prev, [conversation_id]: [...list, msg] }
         })
       } catch {
-        /* ignore */
+        if (viewingThis) {
+          try {
+            await loadDMMessages(conversation_id)
+          } catch {
+            /* ignore */
+          }
+        }
       }
     })
 
@@ -1085,7 +1097,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         realtimeAllDMRef.current = null
       }
     }
-  }, [user?.id])
+  }, [user?.id, loadDMMessages, loadDMConversations])
 
   // Supabase Realtime: subscribe to DM messages for current conversation
   useEffect(() => {

@@ -85,8 +85,27 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
   const mutedBeforeDeafenRef = useRef(false)
   const isMutedRef = useRef(false)
   const isDeafenedRef = useRef(false)
+  const remoteUserIdRef = useRef<string | null>(null)
+  const remoteUsernameRef = useRef<string | null>(null)
+  const remoteAvatarUrlRef = useRef<string | null>(null)
+  const reconnectPeerRef = useRef<{
+    userId: string
+    username: string
+    avatarUrl?: string | null
+  } | null>(null)
+  const reconnectTimerRef = useRef<number | null>(null)
+  const initiateCallRef = useRef<
+    (targetUserId: string, targetUsername: string, targetAvatarUrl?: string) => void
+  >(() => {})
+  const acceptCallRef = useRef<() => void>(() => {})
+  const endCallRef = useRef<() => void>(() => {})
   isMutedRef.current = isMuted
   isDeafenedRef.current = isDeafened
+  remoteUserIdRef.current = remoteUserId
+  remoteUsernameRef.current = remoteUsername
+  remoteAvatarUrlRef.current = remoteAvatarUrl
+
+  const CALL_REJOIN_KEY = 'nepsis_call_rejoin'
 
   // Sync wrappers — update both ref + state
   const setCallState = useCallback((s: CallState) => {
@@ -99,7 +118,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
   }, [])
 
   // ─── Cleanup everything ─────────────────────────────────────────
-  const cleanup = useCallback(() => {
+  const cleanup = useCallback((opts?: { expectReconnect?: boolean }) => {
     stopRingRef.current?.()
     stopRingRef.current = null
     callNotificationRef.current?.close()
@@ -122,9 +141,11 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
     iceCandidateQueueRef.current = []
     setCallState('idle')
     setCallId(null)
-    setRemoteUserId(null)
-    setRemoteUsername(null)
-    setRemoteAvatarUrl(null)
+    if (!opts?.expectReconnect) {
+      setRemoteUserId(null)
+      setRemoteUsername(null)
+      setRemoteAvatarUrl(null)
+    }
     setIsMuted(false)
     setIsDeafened(false)
     mutedBeforeDeafenRef.current = false
@@ -238,6 +259,28 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
         callerUsername: string
         callerAvatarUrl?: string
       }) => {
+        // Peer refreshed mid-call and is calling us back — auto-accept
+        const awaiting = reconnectPeerRef.current
+        if (
+          callStateRef.current === 'idle' &&
+          awaiting &&
+          awaiting.userId === callerId
+        ) {
+          if (reconnectTimerRef.current) {
+            clearTimeout(reconnectTimerRef.current)
+            reconnectTimerRef.current = null
+          }
+          reconnectPeerRef.current = null
+          setCallId(id)
+          setRemoteUserId(callerId)
+          setRemoteUsername(callerUsername)
+          setRemoteAvatarUrl(callerAvatarUrl ?? awaiting.avatarUrl ?? null)
+          setCallState('ringing')
+          // Accept on next tick so state is set
+          window.setTimeout(() => acceptCallRef.current(), 50)
+          return
+        }
+
         if (callStateRef.current !== 'idle') {
           socket.emit('call:decline', { callId: id })
           return
@@ -311,6 +354,22 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
     socket.on('call:ended', () => {
       stopRingRef.current?.()
       stopRingRef.current = null
+      // If we were in-call, peer may be refreshing — wait briefly for their rejoin call
+      if (callStateRef.current === 'in-call' && remoteUserIdRef.current) {
+        reconnectPeerRef.current = {
+          userId: remoteUserIdRef.current,
+          username: remoteUsernameRef.current || 'User',
+          avatarUrl: remoteAvatarUrlRef.current,
+        }
+        if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
+        reconnectTimerRef.current = window.setTimeout(() => {
+          reconnectPeerRef.current = null
+          reconnectTimerRef.current = null
+        }, 15_000)
+        sounds.callDisconnected()
+        cleanup({ expectReconnect: true })
+        return
+      }
       sounds.callDisconnected()
       cleanup()
     })
@@ -373,10 +432,70 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
     return () => {
       socket.disconnect()
       stopRingRef.current?.()
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current)
+        reconnectTimerRef.current = null
+      }
       cleanup()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, username])
+
+  // Refresh while in a call: leave cleanly, then auto-call the peer again
+  useEffect(() => {
+    const onPageHide = () => {
+      if (callStateRef.current !== 'in-call' && callStateRef.current !== 'calling') return
+      const peerId = remoteUserIdRef.current
+      const peerName = remoteUsernameRef.current
+      if (!peerId || !peerName) return
+      try {
+        sessionStorage.setItem(
+          CALL_REJOIN_KEY,
+          JSON.stringify({
+            peerUserId: peerId,
+            peerUsername: peerName,
+            peerAvatarUrl: remoteAvatarUrlRef.current,
+          })
+        )
+      } catch {
+        /* ignore */
+      }
+      socketRef.current?.emit('call:end', { callId: callIdRef.current })
+    }
+    window.addEventListener('pagehide', onPageHide)
+    return () => window.removeEventListener('pagehide', onPageHide)
+  }, [])
+
+  // After refresh: re-initiate the call once the /calls socket is registered
+  useEffect(() => {
+    let attempts = 0
+    const tryRejoin = () => {
+      try {
+        const raw = sessionStorage.getItem(CALL_REJOIN_KEY)
+        if (!raw) return
+        if (!socketRef.current?.connected) {
+          if (attempts++ < 20) window.setTimeout(tryRejoin, 250)
+          return
+        }
+        sessionStorage.removeItem(CALL_REJOIN_KEY)
+        const parsed = JSON.parse(raw) as {
+          peerUserId?: string
+          peerUsername?: string
+          peerAvatarUrl?: string | null
+        }
+        if (!parsed.peerUserId || !parsed.peerUsername) return
+        initiateCallRef.current(
+          parsed.peerUserId,
+          parsed.peerUsername,
+          parsed.peerAvatarUrl ?? undefined
+        )
+      } catch {
+        /* ignore */
+      }
+    }
+    const t = window.setTimeout(tryRejoin, 500)
+    return () => window.clearTimeout(t)
+  }, [userId])
 
   // ─── Mute sync ──────────────────────────────────────────────────
   useEffect(() => {
@@ -401,6 +520,11 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
       if (callStateRef.current !== 'idle') return
       // Leave any active server voice channel before starting a DM call
       voice.leaveVoice()
+      reconnectPeerRef.current = null
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current)
+        reconnectTimerRef.current = null
+      }
       const id = `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
       setCallId(id)
       setRemoteUserId(targetUserId)
@@ -440,16 +564,27 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
 
   const declineCall = useCallback(() => {
     if (callStateRef.current !== 'ringing') return
+    reconnectPeerRef.current = null
     socketRef.current?.emit('call:decline', { callId: callIdRef.current })
     sounds.callDisconnected()
     cleanup()
   }, [cleanup])
 
   const endCall = useCallback(() => {
+    reconnectPeerRef.current = null
+    try {
+      sessionStorage.removeItem(CALL_REJOIN_KEY)
+    } catch {
+      /* ignore */
+    }
     socketRef.current?.emit('call:end', { callId: callIdRef.current })
     sounds.callDisconnected()
     cleanup()
   }, [cleanup])
+
+  initiateCallRef.current = initiateCall
+  acceptCallRef.current = acceptCall
+  endCallRef.current = endCall
 
   // Unmute undeafens. Deafen mutes; undeafen restores prior mute state.
   // One cue per action: unmute (covers undeafen), deafen (covers mute-from-deafen).
