@@ -1,9 +1,9 @@
 import { useState, useLayoutEffect, useRef, useCallback, type RefObject } from 'react'
-import { Link } from 'react-router-dom'
 import gsap from 'gsap'
 import { useApp } from '../contexts/AppContext'
 import { toApiError } from '../services/api'
 import { supabase } from '../services/supabase'
+import { WelcomeLanding } from './WelcomeLanding'
 
 type AuthMode = 'guest' | 'login' | 'signup'
 
@@ -69,6 +69,7 @@ function NepsisCoin({ coinRef }: { coinRef: RefObject<HTMLDivElement | null> }) 
 }
 
 export function LoginPage() {
+  const [phase, setPhase] = useState<'welcome' | 'auth'>('welcome')
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -419,7 +420,9 @@ export function LoginPage() {
     }
   }
 
-  const isElectron = !!(window as any).electronAPI?.isElectron
+  if (phase === 'welcome') {
+    return <WelcomeLanding onUseWebApp={() => setPhase('auth')} />
+  }
 
   return (
     <div
@@ -427,6 +430,13 @@ export function LoginPage() {
       className="fixed inset-0 flex items-center justify-center bg-app-darker"
     >
       <div ref={cardRef} className="w-full max-w-md p-10 rounded-xl bg-app-dark">
+        <button
+          type="button"
+          onClick={() => setPhase('welcome')}
+          className="mb-4 text-sm text-app-muted hover:text-app-text transition-colors"
+        >
+          ← Back
+        </button>
         <div
           ref={coinWrapRef}
           className="mx-auto mb-6 flex items-center justify-center cursor-grab active:cursor-grabbing"
@@ -445,12 +455,6 @@ export function LoginPage() {
           </div>
         </div>
         <h1 className="text-2xl font-bold text-white text-center mb-8">Nepsis Chat</h1>
-
-        {!isElectron && (
-          <p className="text-center mb-6">
-            <Link to="/download" className="text-app-accent hover:underline text-sm">Download desktop app</Link>
-          </p>
-        )}
 
         {error && (
           <div className="mb-4 p-3 rounded-lg bg-red-500/20 text-red-300 text-sm text-center">

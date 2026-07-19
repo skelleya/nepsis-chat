@@ -6,6 +6,10 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Figtree', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        display: ['Syne', 'Figtree', 'ui-sans-serif', 'sans-serif'],
+      },
       colors: {
         app: {
           // Space-separated RGB channels so opacity modifiers (/50, /80) work.
