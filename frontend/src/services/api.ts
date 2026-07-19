@@ -838,7 +838,10 @@ export async function updatePresence(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status, voiceChannelId }),
   })
-  if (!res.ok) throw new Error('Failed to update presence')
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string })?.error || 'Failed to update presence')
+  }
   return res.json()
 }
 

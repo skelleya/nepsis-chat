@@ -15,6 +15,7 @@ import { CallOverlay } from './components/CallOverlay'
 import { LoginPage } from './components/LoginPage'
 import { UpdateButton } from './components/UpdateButton'
 import { DownloadBanner } from './components/DownloadBanner'
+import { TitleBar } from './components/TitleBar'
 import { UserPanel } from './components/UserPanel'
 import { ServerSettingsModal } from './components/ServerSettingsModal'
 import { mockChannels } from './data/mockData'
@@ -118,11 +119,17 @@ function AppContent() {
   const displayName = user ? ((user.display_name && user.display_name.trim()) || user.username) : ''
   // Never render an empty shell (stale GSAP onComplete used to leave both flags false)
   const showLoginLayer = showLogin || !user
+  const isElectron = !!window.electronAPI?.isElectron
+  const chromePad = isElectron ? 'pt-8' : ''
 
   return (
     <>
+      {/* Electron: Discord-style custom chrome above everything */}
+      <div className="fixed top-0 left-0 right-0 z-[60]">
+        <TitleBar />
+      </div>
       {showApp && user && (
-        <div className="fixed inset-0 overflow-hidden bg-app-darker">
+        <div className={`fixed inset-0 overflow-hidden bg-app-darker ${chromePad}`}>
           <VoiceProvider userId={user.id} username={displayName}>
             <CallProvider userId={user.id} username={displayName}>
             <MainLayout
@@ -164,7 +171,7 @@ function AppContent() {
         </div>
       )}
       {showLoginLayer && (
-        <div ref={loginShellRef} className="fixed inset-0 z-20">
+        <div ref={loginShellRef} className={`fixed inset-0 z-20 ${chromePad}`}>
           <LoginPage />
         </div>
       )}
@@ -424,9 +431,12 @@ function MainLayout({
           const members = await api.getServerMembers(currentServerId)
           const isMember = members.some((m: ServerMember) => m.userId === user.id)
           if (!isMember) {
+            // Confirmed not in server_members — clear list (kicked / left).
+            // Do not invent a ghost self-row when membership is gone.
             setServerMembers([])
             break
           }
+          // Always overlay live self presence so you never look Offline / missing to yourself
           setServerMembers(withLiveSelfPresence(members))
         } while (membersNeedsReloadRef.current)
       } catch {
@@ -506,8 +516,27 @@ function MainLayout({
       )
     )
 
-    api.updatePresence(user.id, status, voiceChannelId).catch(() => {})
+    // Retry so the other device / Realtime subscribers see you instantly
+    const push = (attempt = 0) => {
+      api.updatePresence(user.id, status, voiceChannelId).catch((err) => {
+        console.warn('Presence update failed', err)
+        if (attempt < 2) setTimeout(() => push(attempt + 1), 400 * (attempt + 1))
+      })
+    }
+    push()
   }, [user?.id, voice.voiceChannelId, userStatus, withLiveSelfPresence])
+
+  // Heartbeat so other devices see you as online even if a single upsert was dropped
+  useEffect(() => {
+    if (!user) return
+    const tick = () => {
+      const status = voiceChannelIdRef.current ? 'in-voice' : userStatusRef.current
+      const voiceChannelId = voiceChannelIdRef.current ?? null
+      api.updatePresence(user.id, status === 'offline' ? 'online' : status, voiceChannelId).catch(() => {})
+    }
+    const id = setInterval(tick, 25000)
+    return () => clearInterval(id)
+  }, [user?.id])
 
   // Mark offline when tab closes / refreshes (keepalive survives unload)
   useEffect(() => {

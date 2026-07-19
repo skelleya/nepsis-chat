@@ -13,6 +13,11 @@ export interface ElectronAPI {
   isElectron: true
   getVersion: () => Promise<string>
   getPlatform: () => Promise<string>
+  windowMinimize: () => Promise<void>
+  windowMaximizeToggle: () => Promise<boolean>
+  windowClose: () => Promise<void>
+  windowIsMaximized: () => Promise<boolean>
+  onWindowMaximized: (callback: (maximized: boolean) => void) => (() => void) | void
   checkForUpdates: () => Promise<{ version?: string; error?: string } | null>
   onUpdateAvailable: (callback: (info: UpdateInfo) => void) => (() => void) | void
   onUpdateDownloaded: (callback: (info?: UpdateInfo) => void) => (() => void) | void

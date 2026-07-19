@@ -4,6 +4,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   isElectron: true,
   getVersion: () => ipcRenderer.invoke('get-version'),
   getPlatform: () => ipcRenderer.invoke('get-platform'),
+  windowMinimize: () => ipcRenderer.invoke('window-minimize'),
+  windowMaximizeToggle: () => ipcRenderer.invoke('window-maximize-toggle'),
+  windowClose: () => ipcRenderer.invoke('window-close'),
+  windowIsMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+  onWindowMaximized: (callback) => {
+    const handler = (_, maximized) => callback(!!maximized)
+    ipcRenderer.on('window-maximized', handler)
+    return () => ipcRenderer.removeListener('window-maximized', handler)
+  },
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   onUpdateAvailable: (callback) => {
     const handler = (_, info) => callback(info)

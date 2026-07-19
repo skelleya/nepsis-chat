@@ -76,7 +76,9 @@ export function DownloadBanner() {
   }
 
   // Landing already offers Download App; keep banner off home + download
-  if (!mounted || pathname === '/download' || pathname === '/') return null
+  // Desktop app has its own install — never show web download banner in Electron
+  const isElectron = !!(window as { electronAPI?: { isElectron?: boolean } }).electronAPI?.isElectron
+  if (!mounted || pathname === '/download' || pathname === '/' || isElectron) return null
 
   return (
     <div className="fixed top-0 left-0 right-0 z-50 flex justify-center pointer-events-none">

@@ -13,6 +13,9 @@ Desktop app wrapper and packaging. The packaged app loads the **same React UI** 
 - **Updates**: `electron-updater` from **GitHub Releases**. When a newer version ships, a **Nepsis update badge** appears at the top of the app; click to download, then restart to install.
 - **System tray**: Closing the window hides to tray (does not quit).
 - **Routing**: `HashRouter` + Vite `base: './'` for `file://` compatibility.
+- **Custom title bar**: Frameless window + `TitleBar.tsx` (drag region; Windows/Linux min/max/close). macOS uses `hiddenInset` traffic lights.
+- **Auth**: Desktop skips WelcomeLanding and Guest — Sign In / Sign Up only.
+- **Icons**: `electron/icon.png` + `electron/icon.ico` / `build/icon.ico` (multi-size). `app.setAppUserModelId('com.nepsis.chat')` for Windows taskbar.
 
 ---
 
