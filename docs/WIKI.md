@@ -49,6 +49,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Supabase migration — Postgres DB + email auth (guest + email login) |
 | + | Guest logout — delete guest account + leave all servers on logout |
 | + | Delete Account — User Settings → My Account Danger Zone; `DELETE /api/auth/account/:userId` purges owned servers, DMs, messages, memberships, and Supabase Auth user when linked |
+| + | Invite join remount fix — After joining via `/#/invite/:code`, home remounts `AppContent` with session intact (`showApp` from existing user); pending invite survives “Log In to Join” |
 | + | Discord-like UI overhaul — server creation, channel categories, voice user display, user panel, server settings, camera/screen share |
 | + | Messaging v3 — edit/delete messages, reply, emoji reactions, file/image uploads, owner/admin can delete any message |
 | + | Roles & members — server members list with roles (owner/admin/member), activity status, kick (owner/admin only) |
