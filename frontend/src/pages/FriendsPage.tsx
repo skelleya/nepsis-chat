@@ -602,9 +602,9 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
               <button
                 type="button"
                 onClick={() => switchTab('add')}
-                className="text-xs font-medium text-app-accent hover:text-white px-2 py-1 rounded-md hover:bg-app-accent/20 transition-colors shrink-0"
+                className="text-sm font-semibold text-white bg-app-accent hover:bg-app-accent-hover px-4 py-2 rounded-lg transition-colors shrink-0"
               >
-                + Add
+                + Add Friend
               </button>
             </div>
             {friends.length === 0 && requests.length === 0 ? (
