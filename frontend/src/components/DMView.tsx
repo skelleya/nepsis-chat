@@ -8,6 +8,7 @@ import * as api from '../services/api'
 import { useCall } from '../contexts/CallContext'
 import { ChatInput } from './ChatInput'
 import { EmojiPicker } from './EmojiPicker'
+import { FileAttachment, isImageUrl, isVideoUrl, isFileUrl } from './FileAttachment'
 
 interface DMViewProps {
   conversation: DMConversation
@@ -33,12 +34,10 @@ function formatMessageTime(iso: string): string {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined }) + ` at ${time}`
 }
 
-function isImageUrl(url: string): boolean {
-  return /\.(gif|jpe?g|png|webp|svg)$/i.test(url) || /supabase.*storage.*\.(gif|jpe?g|png|webp)/i.test(url)
-}
-
-function renderMessageContent(content: string): { type: 'text' | 'image'; value: string }[] {
-  const parts: { type: 'text' | 'image'; value: string }[] = []
+function renderMessageContent(
+  content: string
+): { type: 'text' | 'image' | 'video' | 'file'; value: string }[] {
+  const parts: { type: 'text' | 'image' | 'video' | 'file'; value: string }[] = []
   const urlRe = /(https?:\/\/[^\s]+)/g
   let lastIndex = 0
   let match
@@ -47,8 +46,11 @@ function renderMessageContent(content: string): { type: 'text' | 'image'; value:
       const text = content.slice(lastIndex, match.index)
       if (text.trim()) parts.push({ type: 'text', value: text })
     }
-    if (isImageUrl(match[1])) parts.push({ type: 'image', value: match[1] })
-    else parts.push({ type: 'text', value: match[1] })
+    const url = match[1]
+    if (isImageUrl(url)) parts.push({ type: 'image', value: url })
+    else if (isVideoUrl(url)) parts.push({ type: 'video', value: url })
+    else if (isFileUrl(url)) parts.push({ type: 'file', value: url })
+    else parts.push({ type: 'text', value: url })
     lastIndex = match.index + match[0].length
   }
   if (lastIndex < content.length) {
@@ -355,15 +357,19 @@ export function DMView({
                         {(() => {
                           const parts = renderMessageContent(msg.content)
                           if (parts.length === 0) return msg.content
-                          return parts.map((part, i) =>
-                            part.type === 'image' ? (
-                              <a key={i} href={part.value} target="_blank" rel="noreferrer" className="block mt-1" onClick={(e) => e.stopPropagation()}>
-                                <img src={part.value} alt="" className="max-w-[300px] max-h-[220px] rounded object-contain" />
-                              </a>
-                            ) : (
-                              <span key={i}>{part.value}</span>
-                            )
-                          )
+                          return parts.map((part, i) => {
+                            if (part.type === 'image' || part.type === 'video' || part.type === 'file') {
+                              return (
+                                <FileAttachment
+                                  key={i}
+                                  url={part.value}
+                                  type={part.type}
+                                  stopPropagation
+                                />
+                              )
+                            }
+                            return <span key={i}>{part.value}</span>
+                          })
                         })()}
                       </div>
                       <div className="mt-1 flex flex-wrap gap-1 items-center" onClick={(e) => e.stopPropagation()}>
