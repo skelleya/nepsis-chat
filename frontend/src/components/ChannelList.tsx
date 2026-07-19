@@ -33,6 +33,7 @@ interface VoiceUserInfo {
   isMuted?: boolean
   isDeafened?: boolean
   isSpeaking?: boolean
+  isScreenSharing?: boolean
 }
 
 interface VoiceConnectionInfo {
@@ -68,6 +69,8 @@ interface ChannelListProps {
   // Voice info
   voiceConnection: VoiceConnectionInfo | null
   voiceUsers: Record<string, VoiceUserInfo[]> // channelId -> users in voice
+  /** Discord-style: click LIVE / sharer to focus their screen in VoiceView */
+  onWatchScreenShare?: (userId: string) => void
   // Server settings
   onOpenServerSettings: () => void
   onInvitePeople?: () => Promise<void>
@@ -130,17 +133,38 @@ function categoryAwareCollisionDetection(args: Parameters<typeof closestCenter>[
 function DraggableVoiceUser({
   vu,
   canMove,
+  onWatchScreenShare,
 }: {
   vu: VoiceUserInfo
   canMove: boolean
+  onWatchScreenShare?: (userId: string) => void
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `${USER_PREFIX}${vu.userId}`,
     disabled: !canMove,
   })
+  const liveBadge = vu.isScreenSharing ? (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        onWatchScreenShare?.(vu.userId)
+      }}
+      className="bg-[#ed4245] text-white text-[9px] font-bold uppercase tracking-wide px-1 py-0.5 rounded-sm hover:bg-[#f04747] flex-shrink-0"
+      title="Watch screen share"
+    >
+      Live
+    </button>
+  ) : null
+
   if (!canMove) {
     return (
-      <div className="flex items-center gap-2 px-1.5 py-1 rounded text-app-muted hover:bg-app-hover/30">
+      <div
+        className={`flex items-center gap-2 px-1.5 py-1 rounded text-app-muted hover:bg-app-hover/30 ${vu.isScreenSharing ? 'cursor-pointer' : ''}`}
+        onClick={() => {
+          if (vu.isScreenSharing) onWatchScreenShare?.(vu.userId)
+        }}
+      >
         <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 ring-1.5 transition-all overflow-hidden ${
           vu.isSpeaking ? 'ring-2 ring-[#23a559] shadow-[0_0_8px_rgba(35,165,89,0.7)]' : 'ring-transparent'
         } ${vu.avatar_url ? 'bg-transparent' : 'bg-app-accent/80'}`}>
@@ -152,6 +176,7 @@ function DraggableVoiceUser({
         </div>
         <span className="text-xs truncate flex-1 min-w-0">{vu.username}</span>
         <div className="flex items-center gap-0.5 ml-auto flex-shrink-0">
+          {liveBadge}
           {vu.isMuted && <MicOffIcon size={12} className="text-red-400" />}
           {vu.isDeafened && <HeadphonesOffIcon size={12} className="text-red-400" />}
         </div>
@@ -176,6 +201,7 @@ function DraggableVoiceUser({
         </div>
         <span className="text-xs truncate flex-1 min-w-0">{vu.username}</span>
         <div className="flex items-center gap-0.5 ml-auto flex-shrink-0">
+          {liveBadge}
           {vu.isMuted && <MicOffIcon size={12} className="text-red-400" />}
           {vu.isDeafened && <HeadphonesOffIcon size={12} className="text-red-400" />}
         </div>
@@ -196,6 +222,7 @@ function SortableChannelItem({
   onUpdateChannel,
   onDeleteChannel,
   onMoveToChannel,
+  onWatchScreenShare,
   canEdit,
 }: {
   channel: Channel
@@ -208,6 +235,7 @@ function SortableChannelItem({
   VoiceIcon: React.ComponentType<{ className?: string }>
   onUpdateChannel?: (channelId: string, data: { name?: string; order?: number; categoryId?: string | null }) => Promise<void>
   onDeleteChannel?: (channelId: string) => Promise<void>
+  onWatchScreenShare?: (userId: string) => void
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
   canEdit?: boolean
 }) {
@@ -333,7 +361,12 @@ function SortableChannelItem({
               className={`ml-7 space-y-0.5 mt-0.5 p-1 rounded transition-colors ${isOver ? 'bg-app-accent/20 ring-1 ring-app-accent/50' : ''}`}
             >
               {voiceUsersList.map((vu) => (
-                <DraggableVoiceUser key={vu.userId} vu={vu} canMove={!!onMoveToChannel} />
+                <DraggableVoiceUser
+                  key={vu.userId}
+                  vu={vu}
+                  canMove={!!onMoveToChannel}
+                  onWatchScreenShare={onWatchScreenShare}
+                />
               ))}
             </div>
           )}
@@ -523,6 +556,7 @@ function CategorySection({
   onDeleteChannel,
   onDeleteCategory,
   onMoveToChannel,
+  onWatchScreenShare,
   voiceUsers,
   channelUnreadCounts,
   channelMentionCounts,
@@ -538,6 +572,7 @@ function CategorySection({
   onDeleteChannel?: (channelId: string) => Promise<void>
   onDeleteCategory?: (catId: string) => Promise<void>
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
+  onWatchScreenShare?: (userId: string) => void
   voiceUsers: Record<string, VoiceUserInfo[]>
   channelUnreadCounts?: Record<string, number>
   channelMentionCounts?: Record<string, number>
@@ -586,6 +621,7 @@ function CategorySection({
                 onUpdateChannel={onUpdateChannel}
                 onDeleteChannel={onDeleteChannel}
                 onMoveToChannel={onMoveToChannel}
+                onWatchScreenShare={onWatchScreenShare}
                 canEdit={canEdit}
               />
             ))}
@@ -612,6 +648,7 @@ export function ChannelList({
   onDeleteChannel,
   onDeleteCategory,
   onMoveToChannel,
+  onWatchScreenShare,
   isAdminOrOwner = false,
   voiceConnection,
   voiceUsers,
@@ -957,6 +994,7 @@ export function ChannelList({
                   onDeleteChannel={onDeleteChannel}
                   onDeleteCategory={onDeleteCategory}
                   onMoveToChannel={onMoveToChannel}
+                  onWatchScreenShare={onWatchScreenShare}
                   voiceUsers={voiceUsers}
                   channelUnreadCounts={channelUnreadCounts}
                   channelMentionCounts={channelMentionCounts}
@@ -980,6 +1018,7 @@ export function ChannelList({
                   onDeleteChannel={onDeleteChannel}
                   onDeleteCategory={onDeleteCategory}
                   onMoveToChannel={onMoveToChannel}
+                  onWatchScreenShare={onWatchScreenShare}
                   voiceUsers={voiceUsers}
                   channelUnreadCounts={channelUnreadCounts}
                   channelMentionCounts={channelMentionCounts}

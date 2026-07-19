@@ -370,26 +370,41 @@ function MainLayout({
   voiceChannelIdRef.current = voice.voiceChannelId
   userStatusRef.current = userStatus
 
-  /** Overlay live self-presence so we never look Offline while connected. */
+  /** Overlay live self-presence so we never look Offline / missing while connected. */
   const withLiveSelfPresence = useCallback((members: ServerMember[]): ServerMember[] => {
     if (!user) return members
     const liveVoice = voiceChannelIdRef.current
-    const liveStatus = liveVoice
+    const liveStatus: ServerMember['status'] = liveVoice
       ? 'in-voice'
       : userStatusRef.current === 'offline'
         ? 'offline'
         : userStatusRef.current === 'away' || userStatusRef.current === 'dnd'
           ? userStatusRef.current
           : 'online'
-    return members.map((m) => {
+    const patched = members.map((m) => {
       if (m.userId !== user.id) return m
       return {
         ...m,
         status: liveStatus,
-        voiceChannelId: liveVoice ?? null,
+        // Prefer live voice channel; keep API value only when not in voice locally
+        voiceChannelId: liveVoice ?? (liveStatus === 'in-voice' ? m.voiceChannelId : null),
+        username: m.username || currentDisplayName,
+        avatarUrl: user.avatar_url ?? m.avatarUrl,
       }
     })
-  }, [user])
+    // Ensure self is always in the member list when viewing a server we're in
+    if (!patched.some((m) => m.userId === user.id)) {
+      patched.push({
+        userId: user.id,
+        username: currentDisplayName,
+        avatarUrl: user.avatar_url,
+        role: 'member',
+        status: liveStatus,
+        voiceChannelId: liveVoice ?? null,
+      })
+    }
+    return patched
+  }, [user, currentDisplayName])
 
   useEffect(() => {
     if (!currentServerId || !user) {
@@ -434,8 +449,11 @@ function MainLayout({
       setServerMembers((prev) => {
         if (!prev.some((m) => m.userId === uid)) return prev
         if (payload.eventType === 'DELETE' || !payload.new?.user_id) {
-          return prev.map((m) =>
-            m.userId === uid ? { ...m, status: 'offline', voiceChannelId: null } : m
+          // Never wipe our own live presence from a Realtime DELETE race
+          return withLiveSelfPresence(
+            prev.map((m) =>
+              m.userId === uid ? { ...m, status: 'offline' as const, voiceChannelId: null } : m
+            )
           )
         }
         const st = payload.new.status
@@ -472,23 +490,24 @@ function MainLayout({
     const status = voice.voiceChannelId ? 'in-voice' : userStatus
     const voiceChannelId = voice.voiceChannelId ?? null
 
-    setServerMembers((prev) => {
-      if (!prev.some((m) => m.userId === user.id)) return prev
-      return prev.map((m) =>
-        m.userId === user.id
-          ? {
-              ...m,
-              status: status === 'offline' ? 'offline'
-                : status === 'away' || status === 'dnd' || status === 'in-voice' ? status
-                  : 'online',
-              voiceChannelId,
-            }
-          : m
+    setServerMembers((prev) =>
+      withLiveSelfPresence(
+        prev.map((m) =>
+          m.userId === user.id
+            ? {
+                ...m,
+                status: status === 'offline' ? 'offline'
+                  : status === 'away' || status === 'dnd' || status === 'in-voice' ? status
+                    : 'online',
+                voiceChannelId,
+              }
+            : m
+        )
       )
-    })
+    )
 
     api.updatePresence(user.id, status, voiceChannelId).catch(() => {})
-  }, [user?.id, voice.voiceChannelId, userStatus])
+  }, [user?.id, voice.voiceChannelId, userStatus, withLiveSelfPresence])
 
   // Mark offline when tab closes / refreshes (keepalive survives unload)
   useEffect(() => {
@@ -588,49 +607,77 @@ function MainLayout({
 
   // Build voice users map from ALL server members' presence — so users see who's in
   // each voice channel BEFORE entering (not just when they're already in one).
-  const voiceUsers: Record<string, { userId: string; username: string; avatar_url?: string; isMuted?: boolean; isDeafened?: boolean; isSpeaking?: boolean }[]> = {}
+  const voiceUsers: Record<string, { userId: string; username: string; avatar_url?: string; isMuted?: boolean; isDeafened?: boolean; isSpeaking?: boolean; isScreenSharing?: boolean }[]> = {}
   if (currentServerId && displayChannels.length > 0) {
     for (const member of serverMembers) {
       // Skip the current user from serverMembers — we'll add them from live voice state below
       if (member.userId === user.id) continue
       const chId = member.voiceChannelId
       if (!chId) continue
-      const ch = displayChannels.find((c) => c.id === chId && c.server_id === currentServerId)
+      // Channel IDs are globally unique; match by id (server_id optional for mock/partial loads)
+      const ch = displayChannels.find((c) => c.id === chId)
       if (!ch || ch.type !== 'voice') continue
+      if (ch.server_id && ch.server_id !== currentServerId) continue
       if (!voiceUsers[chId]) voiceUsers[chId] = []
       voiceUsers[chId].push({
         userId: member.userId,
         username: member.username,
         avatar_url: member.avatarUrl,
+        isScreenSharing: voice.screenShareUserIds.includes(member.userId),
       })
     }
-    // Add current user from LIVE voice state (instant, no API round-trip)
+    // Always inject self from LIVE voice state (never depend on API presence alone)
     if (voice.voiceChannelId) {
-      const chInServer = displayChannels.find((c) => c.id === voice.voiceChannelId && c.server_id === currentServerId)
-      if (chInServer) {
-        if (!voiceUsers[voice.voiceChannelId]) voiceUsers[voice.voiceChannelId] = []
-        // Add current user at the top
-        voiceUsers[voice.voiceChannelId].unshift({
-          userId: user.id,
-          username: currentDisplayName,
-          avatar_url: user.avatar_url,
-          isMuted: voice.isMuted,
-          isDeafened: voice.isDeafened,
-          isSpeaking: voice.isSpeaking,
-        })
+      const chInServer = displayChannels.find((c) => c.id === voice.voiceChannelId)
+      // Show under this channel when it belongs to the current server, or until channels finish loading
+      const belongsHere = !chInServer || !chInServer.server_id || chInServer.server_id === currentServerId
+      if (belongsHere) {
+        const chId = voice.voiceChannelId
+        if (!voiceUsers[chId]) voiceUsers[chId] = []
+        if (!voiceUsers[chId].some((u) => u.userId === user.id)) {
+          voiceUsers[chId].unshift({
+            userId: user.id,
+            username: currentDisplayName,
+            avatar_url: user.avatar_url,
+            isMuted: voice.isMuted,
+            isDeafened: voice.isDeafened,
+            isSpeaking: voice.isSpeaking,
+            isScreenSharing: voice.isScreenSharing,
+          })
+        } else {
+          const selfIdx = voiceUsers[chId].findIndex((u) => u.userId === user.id)
+          if (selfIdx >= 0) {
+            voiceUsers[chId][selfIdx] = {
+              ...voiceUsers[chId][selfIdx],
+              isMuted: voice.isMuted,
+              isDeafened: voice.isDeafened,
+              isSpeaking: voice.isSpeaking,
+              isScreenSharing: voice.isScreenSharing,
+            }
+          }
+        }
         // Merge real-time participants (remote peers) — use avatar from serverMembers if available
         const memberByUserId = new Map(serverMembers.map((m) => [m.userId, m]))
-        const inList = new Set(voiceUsers[voice.voiceChannelId].map((u) => u.userId))
+        const inList = new Set(voiceUsers[chId].map((u) => u.userId))
         for (const p of voice.participants) {
           if (!inList.has(p.userId)) {
             const m = memberByUserId.get(p.userId)
-            voiceUsers[voice.voiceChannelId].push({
+            voiceUsers[chId].push({
               userId: p.userId,
               username: p.username,
               avatar_url: m?.avatarUrl,
               isMuted: false,
               isSpeaking: p.isSpeaking,
+              isScreenSharing: voice.screenShareUserIds.includes(p.userId),
             })
+          } else {
+            const idx = voiceUsers[chId].findIndex((u) => u.userId === p.userId)
+            if (idx >= 0) {
+              voiceUsers[chId][idx] = {
+                ...voiceUsers[chId][idx],
+                isScreenSharing: voice.screenShareUserIds.includes(p.userId),
+              }
+            }
           }
         }
       }
@@ -727,13 +774,18 @@ function MainLayout({
               await api.moveMemberToVoiceChannel(currentServerId, targetUserId, channelId, user.id)
               showNotification('User moved to voice channel')
               const updated = await api.getServerMembers(currentServerId)
-              setServerMembers(updated)
+              setServerMembers(withLiveSelfPresence(updated))
             } catch (e) {
               showNotification((e as Error).message, 'error')
             }
           }}
           voiceConnection={voiceConnection}
           voiceUsers={voiceUsers}
+          onWatchScreenShare={(userId) => {
+            voice.setWatchingShareUserId(userId)
+            // Open the voice channel view so the resizable stage is visible
+            if (voice.voiceChannelId) setCurrentChannel(voice.voiceChannelId)
+          }}
           onOpenServerSettings={() => setShowServerSettings(true)}
           onInvitePeople={handleInvitePeople}
           onOpenCommunity={openCommunityView}
@@ -888,7 +940,7 @@ function MainLayout({
               await api.disconnectMemberFromVoice(currentServerId, targetUserId, user.id)
               showNotification('User disconnected from voice')
               const updated = await api.getServerMembers(currentServerId)
-              setServerMembers(updated)
+              setServerMembers(withLiveSelfPresence(updated))
             } catch (e) {
               showNotification((e as Error).message, 'error')
             }
@@ -945,7 +997,7 @@ function MainLayout({
             await api.moveMemberToVoiceChannel(currentServerId, targetUserId, channelId, user.id)
             showNotification('User moved to voice channel')
             const updated = await api.getServerMembers(currentServerId)
-            setServerMembers(updated)
+            setServerMembers(withLiveSelfPresence(updated))
           } catch (e) {
             showNotification((e as Error).message, 'error')
           }
@@ -965,7 +1017,7 @@ function MainLayout({
             await api.disconnectMemberFromVoice(currentServerId, targetUserId, user.id)
             showNotification('User disconnected from voice')
             const updated = await api.getServerMembers(currentServerId)
-            setServerMembers(updated)
+            setServerMembers(withLiveSelfPresence(updated))
           } catch (e) {
             showNotification((e as Error).message, 'error')
           }
@@ -1008,7 +1060,7 @@ function MainLayout({
           onMembersChange={async () => {
             if (currentServerId) {
               const updated = await api.getServerMembers(currentServerId)
-              setServerMembers(updated)
+              setServerMembers(withLiveSelfPresence(updated))
             }
           }}
         />

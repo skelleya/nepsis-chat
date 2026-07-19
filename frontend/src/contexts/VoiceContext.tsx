@@ -1,10 +1,11 @@
-import { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react'
+import { createContext, useContext, useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { createBroadcastSignaling } from '../services/signaling'
 import { createSocketSignaling } from '../services/socketSignaling'
 import { createWebRTCClient } from '../services/webrtc'
 import { ensureIceServers } from '../services/iceConfig'
 import { sounds } from '../services/sounds'
 import { getAudioConstraints, getVideoConstraints } from '../services/userPrefs'
+import { getScreenShareStream } from '../utils/mediaTracks'
 
 export interface VoiceParticipant {
   userId: string
@@ -42,6 +43,11 @@ interface VoiceContextValue {
   /** Play soundboard sound to all peers (Socket.io only; no-op when using BroadcastChannel) */
   playSoundboardSound: (soundUrl: string) => void
   error: string | null
+  /** User IDs currently sharing a screen (local + remotes) — Discord-style LIVE badges */
+  screenShareUserIds: string[]
+  /** Who the local user is watching (null = not watching; click to watch) */
+  watchingShareUserId: string | null
+  setWatchingShareUserId: (userId: string | null) => void
 }
 
 const VoiceContext = createContext<VoiceContextValue | null>(null)
@@ -70,6 +76,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [ping, setPing] = useState<number | null>(null)
   const [leftUserIds, setLeftUserIds] = useState<Set<string>>(new Set())
+  const [watchingShareUserId, setWatchingShareUserId] = useState<string | null>(null)
 
   const webrtcRef = useRef<ReturnType<typeof createWebRTCClient> | null>(null)
   const signalingRef = useRef<ReturnType<typeof createBroadcastSignaling> | ReturnType<typeof createSocketSignaling> | null>(null)
@@ -180,6 +187,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     setIsSpeaking(false)
     setPing(null)
     setError(null)
+    setWatchingShareUserId(null)
   }, [localStream, videoStream, screenStream])
 
   const joinVoice = useCallback(async (channelId: string, channelName: string) => {
@@ -430,19 +438,31 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
       }
       setScreenStream(null)
       setIsScreenSharing(false)
+      setWatchingShareUserId((prev) => (prev === userId ? null : prev))
     } else {
       try {
         const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
-        stream.getVideoTracks()[0]?.addEventListener('ended', () => {
+        const screenTrack = stream.getVideoTracks()[0]
+        if (screenTrack) {
+          try {
+            screenTrack.contentHint = 'detail'
+          } catch {
+            /* ignore */
+          }
+        }
+        screenTrack?.addEventListener('ended', () => {
           // User stopped sharing via browser UI
           stream.getTracks().forEach(async (track) => {
             await webrtcRef.current?.removeTrackFromAllPeers(track)
           })
           setScreenStream(null)
           setIsScreenSharing(false)
+          setWatchingShareUserId((prev) => (prev === userId ? null : prev))
         })
         setScreenStream(stream)
         setIsScreenSharing(true)
+        // Discord-like: sharer focuses their own share; others click to watch
+        setWatchingShareUserId(userId)
         for (const track of stream.getTracks()) {
           await webrtcRef.current?.addTrackToAllPeers(track, stream)
         }
@@ -452,7 +472,23 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         }
       }
     }
-  }, [isScreenSharing, screenStream])
+  }, [isScreenSharing, screenStream, userId])
+
+  // Clear watch target if that user stopped sharing / left
+  const screenShareUserIds = useMemo(() => {
+    const ids: string[] = []
+    if (isScreenSharing) ids.push(userId)
+    for (const p of participants) {
+      if (p.stream && getScreenShareStream(p.stream)) ids.push(p.userId)
+    }
+    return ids
+  }, [isScreenSharing, userId, participants])
+
+  useEffect(() => {
+    if (watchingShareUserId && !screenShareUserIds.includes(watchingShareUserId)) {
+      setWatchingShareUserId(null)
+    }
+  }, [watchingShareUserId, screenShareUserIds])
 
   const isConnected = !!localStream && !!voiceChannelId
 
@@ -503,6 +539,9 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         leaveVoice,
         playSoundboardSound,
         error,
+        screenShareUserIds,
+        watchingShareUserId,
+        setWatchingShareUserId,
       }}
     >
       {children}
