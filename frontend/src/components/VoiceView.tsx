@@ -1,11 +1,14 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback, type RefObject } from 'react'
 import type { Channel } from '../types'
 import { useVoice, type VoiceParticipant } from '../contexts/VoiceContext'
 import { RemoteAudio } from './RemoteAudio'
 import { MicIcon, MicOffIcon, HeadphonesIcon, HeadphonesOffIcon } from './icons/VoiceIcons'
 import { SoundboardDropdown } from './SoundboardDropdown'
-import { Panel, Group, Separator } from 'react-resizable-panels'
-import { getScreenShareStream, getParticipantVideoStream } from '../utils/mediaTracks'
+import {
+  getScreenShareStream,
+  getParticipantVideoStream,
+  hasLiveVideo,
+} from '../utils/mediaTracks'
 
 interface VoiceViewProps {
   channel: Channel
@@ -22,43 +25,108 @@ interface VoiceViewProps {
   onDisconnectMember?: (userId: string) => Promise<void>
 }
 
-function VideoElement({
+function useAttachStream(videoRef: RefObject<HTMLVideoElement | null>, stream: MediaStream | null) {
+  useEffect(() => {
+    const el = videoRef.current
+    if (!el || !stream) return
+    if (el.srcObject !== stream) {
+      el.srcObject = stream
+    }
+    const play = () => {
+      el.play().catch(() => { /* autoplay may need gesture */ })
+    }
+    play()
+    const onUnmute = () => play()
+    stream.getVideoTracks().forEach((t) => t.addEventListener('unmute', onUnmute))
+    return () => {
+      stream.getVideoTracks().forEach((t) => t.removeEventListener('unmute', onUnmute))
+    }
+  }, [videoRef, stream])
+}
+
+function AvatarGlyph({
+  username,
+  avatarUrl,
+  className = '',
+}: {
+  username: string
+  avatarUrl?: string
+  className?: string
+}) {
+  if (avatarUrl) {
+    return <img src={avatarUrl} alt={username} className={`object-cover ${className}`} />
+  }
+  return (
+    <div className={`bg-app-accent flex items-center justify-center text-white font-bold ${className}`}>
+      {(username || '?').charAt(0).toUpperCase()}
+    </div>
+  )
+}
+
+/** Large stage video — avatar placeholder until first frame (no black square). */
+function StageVideo({
   stream,
   muted = false,
   label,
+  badge,
   onClose,
+  objectFit = 'contain',
+  avatarUrl,
+  username,
 }: {
   stream: MediaStream
   muted?: boolean
   label: string
+  badge?: 'live' | 'camera'
   onClose?: () => void
+  objectFit?: 'contain' | 'cover'
+  avatarUrl?: string
+  username: string
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const [hasFrame, setHasFrame] = useState(false)
+  useAttachStream(videoRef, stream)
+
   useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream
-    }
+    setHasFrame(false)
   }, [stream])
+
   return (
-    <div className="relative w-full h-full min-h-0 bg-black rounded-lg overflow-hidden border border-app-hover flex flex-col">
+    <div className="relative w-full h-full min-h-0 rounded-xl overflow-hidden bg-[#1e1f22] border border-white/5 flex flex-col">
+      {!hasFrame && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 z-[1] pointer-events-none">
+          <AvatarGlyph
+            username={username}
+            avatarUrl={avatarUrl}
+            className="w-28 h-28 sm:w-36 sm:h-36 rounded-full text-4xl sm:text-5xl shadow-lg"
+          />
+          <span className="text-sm text-app-muted">Starting {badge === 'live' ? 'screen share' : 'camera'}…</span>
+        </div>
+      )}
       <video
         ref={videoRef}
         autoPlay
         playsInline
         muted={muted}
-        className="flex-1 w-full h-full min-h-0 object-contain"
+        onLoadedData={() => setHasFrame(true)}
+        onPlaying={() => setHasFrame(true)}
+        className={`flex-1 w-full h-full min-h-0 transition-opacity duration-200 ${
+          objectFit === 'cover' ? 'object-cover' : 'object-contain'
+        } ${hasFrame ? 'opacity-100' : 'opacity-0'}`}
       />
-      <div className="absolute top-2 left-2 flex items-center gap-2">
-        <span className="bg-[#ed4245] text-white text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-sm">
-          Live
-        </span>
-        <span className="bg-black/60 px-2 py-1 rounded text-xs text-white">{label}</span>
+      <div className="absolute top-3 left-3 flex items-center gap-2 z-[2]">
+        {badge === 'live' && (
+          <span className="bg-[#ed4245] text-white text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-sm">
+            Live
+          </span>
+        )}
+        <span className="bg-black/55 px-2.5 py-1 rounded-md text-xs text-white font-medium">{label}</span>
       </div>
       {onClose && (
         <button
           type="button"
           onClick={onClose}
-          className="absolute top-2 right-2 p-1.5 rounded bg-black/60 text-white hover:bg-black/80 transition-colors"
+          className="absolute top-3 right-3 p-1.5 rounded-md bg-black/55 text-white hover:bg-black/80 transition-colors z-[2]"
           title="Stop watching"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -70,14 +138,14 @@ function VideoElement({
   )
 }
 
-// Hook to track video track count on a MediaStream (re-renders when tracks change)
-// `version` is bumped by VoiceContext whenever onRemoteStream fires, forcing a recount
-// even when the stream reference stays the same (MediaStream.addTrack doesn't fire addtrack event)
 function useVideoTrackCount(stream: MediaStream | null, version = 0): number {
   const [count, setCount] = useState(0)
   useEffect(() => {
-    if (!stream) { setCount(0); return }
-    const update = () => setCount(stream.getVideoTracks().length)
+    if (!stream) {
+      setCount(0)
+      return
+    }
+    const update = () => setCount(stream.getVideoTracks().filter((t) => t.readyState !== 'ended').length)
     update()
     stream.addEventListener('addtrack', update)
     stream.addEventListener('removetrack', update)
@@ -122,7 +190,9 @@ function useSpeakingDetector(stream: MediaStream | null, enabled = true): boolea
           setTimeout(check, 100)
         }
         check()
-      } catch { /* AudioContext not available */ }
+      } catch {
+        /* AudioContext not available */
+      }
     }
     start()
     return () => {
@@ -133,21 +203,46 @@ function useSpeakingDetector(stream: MediaStream | null, enabled = true): boolea
   return speaking
 }
 
-function RemoteVideo({ stream, muted = false }: { stream: MediaStream; muted?: boolean }) {
+function TileVideo({
+  stream,
+  muted = false,
+  username,
+  avatarUrl,
+}: {
+  stream: MediaStream
+  muted?: boolean
+  username: string
+  avatarUrl?: string
+}) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const [hasFrame, setHasFrame] = useState(false)
+  useAttachStream(videoRef, stream)
+
   useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream
-    }
+    setHasFrame(false)
   }, [stream])
+
   return (
-    <video
-      ref={videoRef}
-      autoPlay
-      playsInline
-      muted={muted}
-      className="w-full h-full object-cover"
-    />
+    <div className="relative w-full h-full bg-[#1e1f22]">
+      {!hasFrame && (
+        <div className="absolute inset-0 flex items-center justify-center z-[1]">
+          <AvatarGlyph
+            username={username}
+            avatarUrl={avatarUrl}
+            className="w-16 h-16 sm:w-20 sm:h-20 rounded-full text-2xl"
+          />
+        </div>
+      )}
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted={muted}
+        onLoadedData={() => setHasFrame(true)}
+        onPlaying={() => setHasFrame(true)}
+        className={`w-full h-full object-cover transition-opacity duration-200 ${hasFrame ? 'opacity-100' : 'opacity-0'}`}
+      />
+    </div>
   )
 }
 
@@ -170,6 +265,7 @@ function ParticipantCard({
   onWatchShare,
   onMaximizeCamera,
   large = false,
+  compact = false,
 }: {
   participant: { userId: string; username: string; stream: MediaStream | null; isSpeaking: boolean; streamVersion?: number }
   avatarUrl?: string
@@ -187,10 +283,10 @@ function ParticipantCard({
   isSharingScreen?: boolean
   isWatching?: boolean
   onWatchShare?: (userId: string) => void
-  /** Click camera face to maximize */
   onMaximizeCamera?: (userId: string) => void
-  /** Larger circle when alone in the channel */
   large?: boolean
+  /** Filmstrip / sidebar tile */
+  compact?: boolean
 }) {
   const [showMenu, setShowMenu] = useState(false)
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
@@ -198,40 +294,100 @@ function ParticipantCard({
   const speaking = useSpeakingDetector(detectStream, isLocal ? !isMuted : true)
 
   const remoteVideoCount = useVideoTrackCount(isLocal ? null : participant.stream, participant.streamVersion ?? 0)
-  const hasRemoteVideo = !isLocal && remoteVideoCount > 0
+  const hasRemoteCamera = !isLocal && !!participantVideoStream && remoteVideoCount > 0
 
-  const localVideoRef = useRef<HTMLVideoElement>(null)
-  useEffect(() => {
-    if (isLocal && localVideoStream && localVideoRef.current) {
-      localVideoRef.current.srcObject = localVideoStream
-    }
-  }, [isLocal, localVideoStream])
+  const showVideo = isLocal
+    ? isCameraOn && !!localVideoStream && hasLiveVideo(localVideoStream)
+    : hasRemoteCamera && hasLiveVideo(participantVideoStream)
 
-  const showVideo = isLocal ? isCameraOn && !!localVideoStream : hasRemoteVideo && !!participantVideoStream
+  // Still show a video tile shell while tracks exist but frames aren't live yet (avatar inside)
+  const showVideoShell = isLocal
+    ? isCameraOn && !!localVideoStream
+    : hasRemoteCamera
+
   const showMuted = isLocal && isMuted
   const showAdminMenu = !isLocal && isAdminOrOwner && (onMuteMember || onDisconnectMember)
+
+  const ringClass = isWatching
+    ? 'ring-2 ring-app-accent shadow-[0_0_12px_rgba(88,101,242,0.45)]'
+    : speaking
+      ? 'ring-2 ring-[#23a559] shadow-[0_0_12px_rgba(35,165,89,0.5)]'
+      : 'ring-1 ring-white/10'
+
+  if (compact) {
+    return (
+      <div
+        className={`relative shrink-0 w-[7.5rem] sm:w-36 h-[4.75rem] sm:h-[5.5rem] rounded-lg overflow-hidden ${ringClass} ${
+          (isSharingScreen && onWatchShare) || (showVideoShell && onMaximizeCamera) ? 'cursor-pointer' : ''
+        }`}
+        onClick={() => {
+          if (isSharingScreen && onWatchShare) {
+            onWatchShare(participant.userId)
+            return
+          }
+          if (showVideoShell && onMaximizeCamera) onMaximizeCamera(participant.userId)
+        }}
+        title={participant.username}
+      >
+        {showVideoShell && (isLocal ? localVideoStream : participantVideoStream) ? (
+          <TileVideo
+            stream={(isLocal ? localVideoStream : participantVideoStream)!}
+            muted={isLocal || isDeafened}
+            username={participant.username}
+            avatarUrl={avatarUrl}
+          />
+        ) : (
+          <div className="w-full h-full bg-[#2b2d31] flex items-center justify-center">
+            <AvatarGlyph
+              username={participant.username}
+              avatarUrl={avatarUrl}
+              className="w-12 h-12 rounded-full text-lg"
+            />
+          </div>
+        )}
+        <div className="absolute inset-x-0 bottom-0 px-1.5 py-1 bg-gradient-to-t from-black/80 to-transparent">
+          <div className="text-[11px] text-white font-medium truncate">
+            {participant.username}
+            {participant.userId === currentUserId ? ' (you)' : ''}
+          </div>
+        </div>
+        {isSharingScreen && (
+          <span className="absolute top-1 left-1 bg-[#ed4245] text-white text-[9px] font-bold uppercase px-1 py-0.5 rounded-sm">
+            Live
+          </span>
+        )}
+        {showMuted && (
+          <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-[#ed4245] flex items-center justify-center">
+            <MicOffIcon size={10} className="text-white" />
+          </div>
+        )}
+        {!isLocal && participant.stream && (
+          <RemoteAudio stream={participant.stream} muted={isDeafened} />
+        )}
+      </div>
+    )
+  }
 
   const circleSize = large
     ? 'w-36 h-36 sm:w-44 sm:h-44 text-4xl sm:text-5xl'
     : 'w-24 h-24 sm:w-28 sm:h-28 text-2xl sm:text-3xl'
-  // Camera on → square tile so the full face is visible
   const videoTileSize = large
-    ? 'w-48 h-48 sm:w-56 sm:h-56'
-    : 'w-36 h-36 sm:w-40 sm:h-40'
+    ? 'w-64 h-48 sm:w-80 sm:h-56'
+    : 'w-52 h-40 sm:w-64 sm:h-48'
   const muteBadgeSize = large ? 'w-9 h-9' : 'w-7 h-7'
   const muteIconSize = large ? 16 : 14
 
   return (
     <div
       className={`relative flex flex-col items-center justify-center gap-2 px-2 py-3 select-none ${
-        (isSharingScreen && onWatchShare) || (showVideo && onMaximizeCamera) ? 'cursor-pointer' : ''
+        (isSharingScreen && onWatchShare) || (showVideoShell && onMaximizeCamera) ? 'cursor-pointer' : ''
       }`}
       onClick={() => {
         if (isSharingScreen && onWatchShare) {
           onWatchShare(participant.userId)
           return
         }
-        if (showVideo && onMaximizeCamera) onMaximizeCamera(participant.userId)
+        if (showVideoShell && onMaximizeCamera) onMaximizeCamera(participant.userId)
       }}
       onContextMenu={(e) => {
         if (showAdminMenu) {
@@ -290,28 +446,27 @@ function ParticipantCard({
           </div>
         </>
       )}
-      {showVideo ? (
+      {showVideoShell ? (
         <div
-          className={`relative ${videoTileSize} rounded-xl overflow-hidden bg-black ring-2 ${
-            isWatching
-              ? 'ring-app-accent shadow-[0_0_16px_rgba(88,101,242,0.4)]'
-              : speaking
-                ? 'ring-[#23a559] shadow-[0_0_16px_rgba(35,165,89,0.55)]'
-                : 'ring-white/10'
-          }`}
+          className={`relative ${videoTileSize} rounded-xl overflow-hidden ${ringClass}`}
           title="Click to maximize"
         >
-          {isLocal && localVideoStream ? (
-            <video
-              ref={localVideoRef}
-              autoPlay
-              playsInline
-              muted
-              className="w-full h-full object-cover"
+          {(isLocal ? localVideoStream : participantVideoStream) ? (
+            <TileVideo
+              stream={(isLocal ? localVideoStream : participantVideoStream)!}
+              muted={isLocal || isDeafened}
+              username={participant.username}
+              avatarUrl={avatarUrl}
             />
-          ) : participantVideoStream ? (
-            <RemoteVideo stream={participantVideoStream} muted={isDeafened} />
-          ) : null}
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-[#2b2d31]">
+              <AvatarGlyph
+                username={participant.username}
+                avatarUrl={avatarUrl}
+                className="w-20 h-20 rounded-full text-3xl"
+              />
+            </div>
+          )}
           {showMuted && (
             <div
               className={`absolute bottom-1.5 right-1.5 ${muteBadgeSize} rounded-full bg-[#ed4245] flex items-center justify-center ring-2 ring-app-darker shadow-md z-10`}
@@ -320,12 +475,16 @@ function ParticipantCard({
               <MicOffIcon size={muteIconSize} className="text-white" />
             </div>
           )}
+          {!showVideo && (
+            <div className="absolute bottom-1.5 left-1.5 text-[10px] text-white/80 bg-black/50 px-1.5 py-0.5 rounded">
+              Connecting…
+            </div>
+          )}
         </div>
       ) : (
-        /* Avatar circle — mute badge sits outside the clipped image so it is not cut off */
         <div className="relative">
           <div
-            className={`${circleSize} rounded-full flex items-center justify-center text-white font-bold transition-all duration-150 ${
+            className={`${circleSize} rounded-full flex items-center justify-center text-white font-bold transition-all duration-150 overflow-hidden ${
               isWatching
                 ? 'ring-4 ring-app-accent shadow-[0_0_16px_rgba(88,101,242,0.4)]'
                 : speaking
@@ -333,15 +492,11 @@ function ParticipantCard({
                   : 'ring-2 ring-white/10'
             } ${avatarUrl ? 'bg-transparent' : 'bg-app-accent'}`}
           >
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt={participant.username}
-                className="w-full h-full rounded-full object-cover"
-              />
-            ) : (
-              (participant.username || '?').charAt(0).toUpperCase()
-            )}
+            <AvatarGlyph
+              username={participant.username}
+              avatarUrl={avatarUrl}
+              className={avatarUrl ? 'w-full h-full' : 'w-full h-full text-inherit'}
+            />
           </div>
           {showMuted && (
             <div
@@ -353,7 +508,7 @@ function ParticipantCard({
           )}
         </div>
       )}
-      <div className="text-center max-w-[140px] sm:max-w-[160px]">
+      <div className="text-center max-w-[160px] sm:max-w-[200px]">
         <div className="font-semibold text-app-text text-sm truncate">
           {participant.username}
           {participant.userId === currentUserId && (
@@ -373,7 +528,18 @@ function ParticipantCard({
   )
 }
 
-export function VoiceView({ channel, currentUserId, currentUsername, currentUserAvatarUrl, voiceUsersInChannel = [], onInvitePeople, isAdminOrOwner, serverId: _serverId, onMuteMember, onDisconnectMember }: VoiceViewProps) {
+export function VoiceView({
+  channel,
+  currentUserId,
+  currentUsername,
+  currentUserAvatarUrl,
+  voiceUsersInChannel = [],
+  onInvitePeople,
+  isAdminOrOwner,
+  serverId: _serverId,
+  onMuteMember,
+  onDisconnectMember,
+}: VoiceViewProps) {
   const voice = useVoice()
   const {
     participants,
@@ -400,8 +566,99 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
   const [soundboardOpen, setSoundboardOpen] = useState(false)
   const soundboardButtonRef = useRef<HTMLButtonElement>(null)
   const [maximizedCameraUserId, setMaximizedCameraUserId] = useState<string | null>(null)
+  const autoFocusedCameraRef = useRef(false)
 
   const isInThisChannel = voiceChannelId === channel.id
+
+  const localParticipant = useMemo(
+    () => ({
+      userId: currentUserId,
+      username: currentUsername,
+      stream: null as MediaStream | null,
+      isSpeaking: false,
+    }),
+    [currentUserId, currentUsername]
+  )
+
+  const { allParticipants, avatarByUserId } = useMemo(() => {
+    const participantByUserId = new Map<string, VoiceParticipant | typeof localParticipant>()
+    const avatars = new Map<string, string>()
+    if (isInThisChannel) {
+      participantByUserId.set(currentUserId, localParticipant)
+      if (currentUserAvatarUrl) avatars.set(currentUserId, currentUserAvatarUrl)
+    }
+    for (const p of participants) {
+      participantByUserId.set(p.userId, p)
+    }
+    for (const vu of voiceUsersInChannel) {
+      if (!participantByUserId.has(vu.userId)) {
+        participantByUserId.set(vu.userId, {
+          userId: vu.userId,
+          username: vu.username,
+          stream: null,
+          isSpeaking: false,
+          streamVersion: 0,
+        })
+      } else {
+        const existing = participantByUserId.get(vu.userId)!
+        if (vu.username && (!existing.username || existing.username === 'User' || existing.username === 'Unknown')) {
+          participantByUserId.set(vu.userId, { ...existing, username: vu.username })
+        }
+      }
+      if (vu.avatar_url) avatars.set(vu.userId, vu.avatar_url)
+    }
+    const list = isInThisChannel
+      ? [localParticipant, ...Array.from(participantByUserId.values()).filter((p) => p.userId !== currentUserId)]
+      : Array.from(participantByUserId.values())
+    return { allParticipants: list, avatarByUserId: avatars }
+  }, [
+    isInThisChannel,
+    currentUserId,
+    currentUserAvatarUrl,
+    localParticipant,
+    participants,
+    voiceUsersInChannel,
+  ])
+
+  const watchingStream = useMemo(() => {
+    if (watchingShareUserId === currentUserId && isScreenSharing && screenStream) return screenStream
+    if (!watchingShareUserId) return null
+    const p = allParticipants.find((x) => x.userId === watchingShareUserId)
+    return p?.stream ? getScreenShareStream(p.stream) : null
+  }, [watchingShareUserId, currentUserId, isScreenSharing, screenStream, allParticipants])
+
+  const watchingUsername =
+    watchingShareUserId === currentUserId
+      ? currentUsername
+      : allParticipants.find((p) => p.userId === watchingShareUserId)?.username ?? 'Screen'
+
+  const isWatchingShare = !!watchingStream && watchingStream.getVideoTracks().length > 0
+  const isAlone = allParticipants.length === 1
+
+  const maximizedCameraStream = useMemo(() => {
+    if (!maximizedCameraUserId) return null
+    if (maximizedCameraUserId === currentUserId) return videoStream
+    const p = allParticipants.find((x) => x.userId === maximizedCameraUserId)
+    return p?.stream ? getParticipantVideoStream(p.stream) : null
+  }, [maximizedCameraUserId, currentUserId, videoStream, allParticipants])
+
+  const maximizedCameraUsername =
+    maximizedCameraUserId === currentUserId
+      ? currentUsername
+      : allParticipants.find((p) => p.userId === maximizedCameraUserId)?.username ?? 'Camera'
+
+  // Auto-focus own camera once when turned on (bigger stage). Screen share takes priority.
+  useEffect(() => {
+    if (!isInThisChannel) return
+    if (isCameraOn && videoStream && !watchingShareUserId && !autoFocusedCameraRef.current) {
+      setMaximizedCameraUserId(currentUserId)
+      autoFocusedCameraRef.current = true
+    }
+    if (!isCameraOn) {
+      autoFocusedCameraRef.current = false
+      setMaximizedCameraUserId((prev) => (prev === currentUserId ? null : prev))
+    }
+  }, [isCameraOn, videoStream, watchingShareUserId, currentUserId, isInThisChannel])
 
   // Clear maximized camera if that user turned camera off / left
   useEffect(() => {
@@ -411,127 +668,212 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
       return
     }
     if (maximizedCameraUserId !== currentUserId) {
-      const p = participants.find((x) => x.userId === maximizedCameraUserId)
+      const p = allParticipants.find((x) => x.userId === maximizedCameraUserId)
       if (!p?.stream || !getParticipantVideoStream(p.stream)) {
         setMaximizedCameraUserId(null)
       }
     }
-  }, [maximizedCameraUserId, currentUserId, isCameraOn, participants])
+  }, [maximizedCameraUserId, currentUserId, isCameraOn, allParticipants])
 
-  const localParticipant = {
-    userId: currentUserId,
-    username: currentUsername,
-    stream: null as MediaStream | null,
-    isSpeaking: false,
-  }
-
-  const participantByUserId = new Map<string, VoiceParticipant | typeof localParticipant>()
-  const avatarByUserId = new Map<string, string>()
-  if (isInThisChannel) {
-    participantByUserId.set(currentUserId, localParticipant)
-    if (currentUserAvatarUrl) avatarByUserId.set(currentUserId, currentUserAvatarUrl)
-  }
-  for (const p of participants) {
-    participantByUserId.set(p.userId, p)
-  }
-  // Merge presence users even if leftUserIds has them (session-replace emits peer-left
-  // before rejoin — filtering them hid participants from other clients).
-  for (const vu of voiceUsersInChannel) {
-    if (!participantByUserId.has(vu.userId)) {
-      participantByUserId.set(vu.userId, { userId: vu.userId, username: vu.username, stream: null, isSpeaking: false, streamVersion: 0 })
-    } else {
-      const existing = participantByUserId.get(vu.userId)!
-      if (vu.username && (!existing.username || existing.username === 'User' || existing.username === 'Unknown')) {
-        participantByUserId.set(vu.userId, { ...existing, username: vu.username })
+  const handleWatchShare = useCallback(
+    (userId: string) => {
+      if (watchingShareUserId === userId) {
+        setWatchingShareUserId(null)
+      } else {
+        setWatchingShareUserId(userId)
+        // Keep camera maximize if both — dual focus layout
       }
-    }
-    if (vu.avatar_url) avatarByUserId.set(vu.userId, vu.avatar_url)
-  }
-  const allParticipants = isInThisChannel
-    ? [localParticipant, ...Array.from(participantByUserId.values()).filter((p) => p.userId !== currentUserId)]
-    : Array.from(participantByUserId.values())
+    },
+    [watchingShareUserId, setWatchingShareUserId]
+  )
 
-  // Discord-style: only show stage when user chose to watch someone (or auto-focused own share)
-  const watchingStream =
-    watchingShareUserId === currentUserId && isScreenSharing && screenStream
-      ? screenStream
-      : watchingShareUserId
-        ? (() => {
-            const p = allParticipants.find((x) => x.userId === watchingShareUserId)
-            return p?.stream ? getScreenShareStream(p.stream) : null
-          })()
-        : null
-  const watchingUsername =
-    watchingShareUserId === currentUserId
-      ? currentUsername
-      : allParticipants.find((p) => p.userId === watchingShareUserId)?.username ?? 'Screen'
+  const handleMaximizeCamera = useCallback(
+    (userId: string) => {
+      setMaximizedCameraUserId((prev) => (prev === userId ? null : userId))
+    },
+    []
+  )
 
-  const isWatchingShare = !!watchingStream && watchingStream.getVideoTracks().length > 0
-  const isAlone = allParticipants.length === 1
+  const cardProps = useCallback(
+    (
+      p: { userId: string; username: string; stream: MediaStream | null; isSpeaking: boolean; streamVersion?: number },
+      opts: { large?: boolean; compact?: boolean } = {}
+    ) => ({
+      participant: p,
+      avatarUrl: avatarByUserId.get(p.userId),
+      isLocal: p.userId === currentUserId,
+      localStream,
+      localVideoStream: videoStream,
+      participantVideoStream: p.userId === currentUserId ? null : getParticipantVideoStream(p.stream),
+      isMuted,
+      isDeafened,
+      isCameraOn,
+      currentUserId,
+      isAdminOrOwner,
+      onMuteMember,
+      onDisconnectMember,
+      isSharingScreen: screenShareUserIds.includes(p.userId),
+      isWatching: watchingShareUserId === p.userId || maximizedCameraUserId === p.userId,
+      onWatchShare: screenShareUserIds.includes(p.userId) ? handleWatchShare : undefined,
+      onMaximizeCamera: handleMaximizeCamera,
+      large: opts.large,
+      compact: opts.compact,
+    }),
+    [
+      avatarByUserId,
+      currentUserId,
+      localStream,
+      videoStream,
+      isMuted,
+      isDeafened,
+      isCameraOn,
+      isAdminOrOwner,
+      onMuteMember,
+      onDisconnectMember,
+      screenShareUserIds,
+      watchingShareUserId,
+      maximizedCameraUserId,
+      handleWatchShare,
+      handleMaximizeCamera,
+    ]
+  )
 
-  const handleWatchShare = (userId: string) => {
-    setMaximizedCameraUserId(null)
-    if (watchingShareUserId === userId) {
-      setWatchingShareUserId(null)
-    } else {
-      setWatchingShareUserId(userId)
-    }
-  }
+  const showFocusLayout = isWatchingShare || (!!maximizedCameraUserId && !!maximizedCameraStream)
+  const showDualFocus = isWatchingShare && !!maximizedCameraUserId && !!maximizedCameraStream
 
-  const handleMaximizeCamera = (userId: string) => {
-    setWatchingShareUserId(null)
-    setMaximizedCameraUserId((prev) => (prev === userId ? null : userId))
-  }
+  const showSelfPip =
+    showFocusLayout &&
+    isCameraOn &&
+    !!videoStream &&
+    maximizedCameraUserId !== currentUserId &&
+    !(isWatchingShare && maximizedCameraUserId === currentUserId)
 
-  const maximizedCameraStream =
-    maximizedCameraUserId === currentUserId
-      ? videoStream
-      : (() => {
-          const p = allParticipants.find((x) => x.userId === maximizedCameraUserId)
-          return p?.stream ? getParticipantVideoStream(p.stream) : null
-        })()
-  const maximizedCameraUsername =
-    maximizedCameraUserId === currentUserId
-      ? currentUsername
-      : allParticipants.find((p) => p.userId === maximizedCameraUserId)?.username ?? 'Camera'
+  const renderFilmstrip = () => (
+    <div className="shrink-0 px-3 py-2 border-b border-white/5 bg-[#111214]/80">
+      <div className="flex gap-2 overflow-x-auto items-stretch pb-0.5 scrollbar-thin">
+        {allParticipants.map((p) => (
+          <ParticipantCard key={p.userId} {...cardProps(p, { compact: true })} />
+        ))}
+      </div>
+    </div>
+  )
 
-  const cardProps = (p: { userId: string; username: string; stream: MediaStream | null; isSpeaking: boolean; streamVersion?: number }, large = false) => ({
-    participant: p,
-    avatarUrl: avatarByUserId.get(p.userId),
-    isLocal: p.userId === currentUserId,
-    localStream,
-    localVideoStream: videoStream,
-    participantVideoStream: p.userId === currentUserId ? null : getParticipantVideoStream(p.stream),
-    isMuted,
-    isDeafened,
-    isCameraOn,
-    currentUserId,
-    isAdminOrOwner,
-    onMuteMember,
-    onDisconnectMember,
-    isSharingScreen: screenShareUserIds.includes(p.userId),
-    isWatching: watchingShareUserId === p.userId || maximizedCameraUserId === p.userId,
-    onWatchShare: screenShareUserIds.includes(p.userId) ? handleWatchShare : undefined,
-    onMaximizeCamera: handleMaximizeCamera,
-    large,
-  })
-
-  const renderParticipantsArea = () => {
+  const renderAvatarGrid = () => {
     if (allParticipants.length === 0) return null
-    // Avatars stay circular; camera-on tiles become square (see ParticipantCard)
     return (
       <div className="flex-1 overflow-auto p-6 min-h-0 flex items-center justify-center">
         <div
           className={`flex flex-wrap items-start justify-center gap-6 sm:gap-8 ${
-            isAlone ? 'max-w-sm' : 'max-w-4xl'
+            isAlone ? 'max-w-md' : 'max-w-5xl'
           }`}
         >
           {allParticipants.map((p) => (
-            <ParticipantCard key={p.userId} {...cardProps(p, isAlone)} />
+            <ParticipantCard key={p.userId} {...cardProps(p, { large: isAlone })} />
           ))}
         </div>
       </div>
     )
+  }
+
+  const renderFocusStage = () => {
+    if (showDualFocus && watchingStream && maximizedCameraStream) {
+      return (
+        <div className="flex-1 flex flex-col min-h-0">
+          {renderFilmstrip()}
+          <div className="flex-1 flex gap-2 p-2 min-h-0">
+            <div className="flex-[1.4] min-w-0 min-h-0">
+              <StageVideo
+                stream={watchingStream}
+                muted
+                badge="live"
+                label={`${watchingUsername} — Screen`}
+                username={watchingUsername}
+                avatarUrl={watchingShareUserId ? avatarByUserId.get(watchingShareUserId) : undefined}
+                objectFit="contain"
+                onClose={() => setWatchingShareUserId(null)}
+              />
+            </div>
+            <div className="flex-1 min-w-0 min-h-0">
+              <StageVideo
+                stream={maximizedCameraStream}
+                muted
+                badge="camera"
+                label={`${maximizedCameraUsername} — Camera`}
+                username={maximizedCameraUsername}
+                avatarUrl={maximizedCameraUserId ? avatarByUserId.get(maximizedCameraUserId) : undefined}
+                objectFit="cover"
+                onClose={() => setMaximizedCameraUserId(null)}
+              />
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    if (isWatchingShare && watchingStream) {
+      return (
+        <div className="flex-1 flex flex-col min-h-0">
+          {renderFilmstrip()}
+          <div className="flex-1 p-2 min-h-0 relative">
+            <StageVideo
+              stream={watchingStream}
+              muted
+              badge="live"
+              label={`${watchingUsername} — Screen`}
+              username={watchingUsername}
+              avatarUrl={watchingShareUserId ? avatarByUserId.get(watchingShareUserId) : undefined}
+              objectFit="contain"
+              onClose={() => setWatchingShareUserId(null)}
+            />
+            {showSelfPip && videoStream && (
+              <div className="absolute bottom-4 left-4 w-40 sm:w-52 aspect-video rounded-lg overflow-hidden ring-2 ring-white/20 shadow-2xl z-[3]">
+                <TileVideo
+                  stream={videoStream}
+                  muted
+                  username={currentUsername}
+                  avatarUrl={currentUserAvatarUrl}
+                />
+                <div className="absolute bottom-1 left-1.5 text-[10px] text-white font-medium drop-shadow">
+                  You
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    if (maximizedCameraUserId && maximizedCameraStream) {
+      return (
+        <div className="flex-1 flex flex-col min-h-0">
+          {allParticipants.length > 1 && renderFilmstrip()}
+          <div className="flex-1 p-2 sm:p-3 min-h-0 relative">
+            <StageVideo
+              stream={maximizedCameraStream}
+              muted
+              badge="camera"
+              label={`${maximizedCameraUsername} — Camera`}
+              username={maximizedCameraUsername}
+              avatarUrl={maximizedCameraUserId ? avatarByUserId.get(maximizedCameraUserId) : undefined}
+              objectFit="cover"
+              onClose={() => setMaximizedCameraUserId(null)}
+            />
+            {showSelfPip && videoStream && (
+              <div className="absolute bottom-4 left-4 w-36 sm:w-44 aspect-video rounded-lg overflow-hidden ring-2 ring-white/20 shadow-2xl z-[3]">
+                <TileVideo
+                  stream={videoStream}
+                  muted
+                  username={currentUsername}
+                  avatarUrl={currentUserAvatarUrl}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    return renderAvatarGrid()
   }
 
   return (
@@ -582,55 +924,7 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
           </div>
         )}
 
-        {isInThisChannel && (
-          isWatchingShare && watchingStream ? (
-            <Group orientation="vertical" autoSave="voice-view-screen-participants" className="flex-1 min-h-0">
-              <Panel defaultSize={65} minSize={20} maxSize={90} className="min-h-0">
-                <div className="h-full p-3 flex flex-col min-h-0">
-                  <VideoElement
-                    stream={watchingStream}
-                    muted
-                    label={`${watchingUsername} — Screen`}
-                    onClose={() => setWatchingShareUserId(null)}
-                  />
-                </div>
-              </Panel>
-              <Separator
-                className="h-3.5 bg-app-dark hover:bg-app-hover transition-colors data-[resize-handle-active]:bg-app-accent/60 flex items-center justify-center cursor-ns-resize"
-                title="Drag to resize screen share"
-              >
-                <div className="w-20 h-1.5 rounded-full bg-app-muted/60" />
-              </Separator>
-              <Panel defaultSize={35} minSize={10} maxSize={80} className="min-h-0">
-                {renderParticipantsArea()}
-              </Panel>
-            </Group>
-          ) : maximizedCameraUserId && maximizedCameraStream ? (
-            <Group orientation="vertical" autoSave="voice-view-camera-participants" className="flex-1 min-h-0">
-              <Panel defaultSize={70} minSize={30} maxSize={90} className="min-h-0">
-                <div className="h-full p-3 flex flex-col min-h-0">
-                  <VideoElement
-                    stream={maximizedCameraStream}
-                    muted
-                    label={`${maximizedCameraUsername} — Camera`}
-                    onClose={() => setMaximizedCameraUserId(null)}
-                  />
-                </div>
-              </Panel>
-              <Separator
-                className="h-3.5 bg-app-dark hover:bg-app-hover transition-colors data-[resize-handle-active]:bg-app-accent/60 flex items-center justify-center cursor-ns-resize"
-                title="Drag to resize camera"
-              >
-                <div className="w-20 h-1.5 rounded-full bg-app-muted/60" />
-              </Separator>
-              <Panel defaultSize={30} minSize={10} maxSize={70} className="min-h-0">
-                {renderParticipantsArea()}
-              </Panel>
-            </Group>
-          ) : (
-            renderParticipantsArea()
-          )
-        )}
+        {isInThisChannel && renderFocusStage()}
       </div>
 
       <div className="p-4 border-t border-app-dark shrink-0">

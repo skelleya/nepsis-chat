@@ -19,6 +19,29 @@ export function isScreenShareTrack(track: MediaStreamTrack): boolean {
   }
 }
 
+/** Cache derived MediaStreams so React effects don't thrash srcObject every render. */
+const subsetCache = new WeakMap<MediaStream, Map<string, MediaStream>>()
+
+function getOrCreateSubset(source: MediaStream, tracks: MediaStreamTrack[]): MediaStream {
+  const key = tracks.map((t) => t.id).sort().join('|')
+  let map = subsetCache.get(source)
+  if (!map) {
+    map = new Map()
+    subsetCache.set(source, map)
+  }
+  const existing = map.get(key)
+  if (existing) {
+    const live = existing.getVideoTracks().filter((t) => t.readyState !== 'ended')
+    if (live.length === tracks.length && tracks.every((t) => live.some((l) => l.id === t.id))) {
+      return existing
+    }
+  }
+  const out = new MediaStream()
+  tracks.forEach((t) => out.addTrack(t))
+  map.set(key, out)
+  return out
+}
+
 /** Extract screen-share-only stream from a peer/local MediaStream */
 export function getScreenShareStream(stream: MediaStream | null): MediaStream | null {
   if (!stream) return null
@@ -47,9 +70,7 @@ export function getScreenShareStream(stream: MediaStream | null): MediaStream | 
   }
 
   if (screenTracks.length === 0) return null
-  const out = new MediaStream()
-  screenTracks.forEach((t) => out.addTrack(t))
-  return out
+  return getOrCreateSubset(stream, screenTracks)
 }
 
 /** Extract camera-only stream (exclude screen share tracks) */
@@ -57,9 +78,7 @@ export function getCameraStream(stream: MediaStream | null): MediaStream | null 
   if (!stream) return null
   const cameraTracks = stream.getVideoTracks().filter((t) => !isScreenShareTrack(t) && t.readyState !== 'ended')
   if (cameraTracks.length === 0) return null
-  const out = new MediaStream()
-  cameraTracks.forEach((t) => out.addTrack(t))
-  return out
+  return getOrCreateSubset(stream, cameraTracks)
 }
 
 /** Prefer camera when both exist; else any video for participant tiles */
@@ -71,7 +90,11 @@ export function getParticipantVideoStream(stream: MediaStream | null): MediaStre
   if (getScreenShareStream(stream)) return null
   const videoTracks = stream.getVideoTracks().filter((t) => t.readyState !== 'ended')
   if (videoTracks.length === 0) return null
-  const out = new MediaStream()
-  videoTracks.forEach((t) => out.addTrack(t))
-  return out
+  return getOrCreateSubset(stream, videoTracks)
+}
+
+/** True when a video track is live and not muted (avoids mounting black tiles mid-renegotiation). */
+export function hasLiveVideo(stream: MediaStream | null): boolean {
+  if (!stream) return false
+  return stream.getVideoTracks().some((t) => t.readyState === 'live' && !t.muted)
 }
