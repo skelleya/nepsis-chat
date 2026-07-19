@@ -289,14 +289,8 @@ export function createWebRTCClient(
     if (!extraOutbound.some((e) => e.track === track)) {
       extraOutbound.push({ track, stream })
     }
-    // Hint screen content for better encoding (ignored if unsupported)
-    if (track.kind === 'video') {
-      try {
-        track.contentHint = 'detail'
-      } catch {
-        /* ignore */
-      }
-    }
+    // Do NOT set contentHint='detail' on all video — that made remote cameras look like
+    // screen shares (isScreenShareTrack). Screen tracks set contentHint in VoiceContext.
     for (const [peerId, { pc }] of peers) {
       try {
         if (!pc.getSenders().some((s) => s.track === track)) {
