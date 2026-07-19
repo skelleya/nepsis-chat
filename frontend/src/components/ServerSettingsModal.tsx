@@ -49,6 +49,7 @@ interface ServerSettingsModalProps {
   onUpdateServer: (data: { name?: string; icon_url?: string; banner_url?: string; rules_channel_id?: string | null; lock_channels_until_rules_accepted?: boolean; rules_accept_emoji?: string; updatedBy?: string }) => Promise<void>
   onDeleteServer: () => Promise<void>
   onKickMember?: (targetUserId: string) => Promise<void>
+  onBanMember?: (targetUserId: string) => Promise<void>
   onMembersChange?: () => void
 }
 
@@ -68,6 +69,7 @@ export function ServerSettingsModal({
   onUpdateServer,
   onDeleteServer,
   onKickMember,
+  onBanMember,
   onMembersChange,
 }: ServerSettingsModalProps) {
   const [name, setName] = useState(serverName)
@@ -255,6 +257,12 @@ export function ServerSettingsModal({
     onMembersChange?.()
   }
 
+  const handleBan = async (targetUserId: string) => {
+    await onBanMember?.(targetUserId)
+    setMembers((prev) => prev.filter((m) => m.userId !== targetUserId))
+    onMembersChange?.()
+  }
+
   const tabLabels: Record<string, string> = {
     overview: 'Server Overview',
     emojis: 'Custom Emojis',
@@ -428,12 +436,22 @@ export function ServerSettingsModal({
                     </div>
                   </div>
                   {canManageMembers && m.role !== 'owner' && m.userId !== userId && (
-                    <button
-                      onClick={() => handleKick(m.userId)}
-                      className="px-2 py-1 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded"
-                    >
-                      Kick
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleKick(m.userId)}
+                        className="px-2 py-1 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded"
+                      >
+                        Kick
+                      </button>
+                      {onBanMember && (
+                        <button
+                          onClick={() => handleBan(m.userId)}
+                          className="px-2 py-1 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded"
+                        >
+                          Ban
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               ))}

@@ -20,6 +20,7 @@ interface MembersSidebarProps {
   serverId: string | null
   voiceChannels?: Channel[]
   onKick?: (userId: string) => Promise<void>
+  onBan?: (userId: string) => Promise<void>
   onMessage?: (userId: string, username: string) => void
   onAddFriend?: (userId: string, username: string) => void
   onCall?: (userId: string, username: string, avatarUrl?: string) => void
@@ -37,6 +38,7 @@ export function MembersSidebar({
   serverId,
   voiceChannels = [],
   onKick,
+  onBan,
   onMessage,
   onAddFriend,
   onCall,
@@ -45,9 +47,9 @@ export function MembersSidebar({
   onDisconnectFromVoice,
   title = 'Members',
 }: MembersSidebarProps) {
-  const [kicking, setKicking] = useState<string | null>(null)
   const [minimized, setMinimized] = useState(false)
   const [selectedMember, setSelectedMember] = useState<ServerMember | null>(null)
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
   const [contextMenu, setContextMenu] = useState<{
     x: number
     y: number
@@ -57,8 +59,8 @@ export function MembersSidebar({
 
   const isAdminOrOwner = currentUserRole === 'owner' || currentUserRole === 'admin'
 
-  const canKick = (m: ServerMember) => {
-    if (!serverId || !onKick) return false
+  const canModerate = (m: ServerMember) => {
+    if (!serverId) return false
     if (m.userId === currentUserId) return false
     if (m.role === 'owner') return false
     if (currentUserRole === 'owner') return true
@@ -66,15 +68,18 @@ export function MembersSidebar({
     return false
   }
 
-  const handleKick = async (e: React.MouseEvent, userId: string) => {
-    e.stopPropagation()
-    if (!onKick) return
-    setKicking(userId)
-    try {
-      await onKick(userId)
-    } finally {
-      setKicking(null)
-    }
+  const canKick = (m: ServerMember) => canModerate(m) && !!onKick
+  const canBan = (m: ServerMember) => canModerate(m) && !!onBan
+
+  const openProfile = (member: ServerMember, el: HTMLElement) => {
+    setContextMenu(null)
+    setAnchorRect(el.getBoundingClientRect())
+    setSelectedMember(member)
+  }
+
+  const closeProfile = () => {
+    setSelectedMember(null)
+    setAnchorRect(null)
   }
 
   const canMoveToChannel = (m: ServerMember) =>
@@ -142,91 +147,82 @@ export function MembersSidebar({
   }
 
   return (
-    <div className="flex flex-shrink-0">
-      <div className="w-60 bg-app-channel flex flex-col">
-        <div className="h-12 px-4 flex items-center justify-between border-b border-app-dark">
-          <span className="text-app-text font-semibold">
-            {title} — {members.length}
-          </span>
-          <button
-            onClick={() => setMinimized(true)}
-            className="p-1 rounded text-app-muted hover:text-app-text hover:bg-app-hover transition-colors"
-            title="Minimize"
+    <div className="w-60 bg-app-channel flex flex-col flex-shrink-0 border-l border-app-dark">
+      <div className="h-12 px-4 flex items-center justify-between border-b border-app-dark">
+        <span className="text-app-text font-semibold">
+          {title} — {members.length}
+        </span>
+        <button
+          onClick={() => setMinimized(true)}
+          className="p-1 rounded text-app-muted hover:text-app-text hover:bg-app-hover transition-colors"
+          title="Minimize"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+          </svg>
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto py-2 min-h-0">
+        {members.map((member) => {
+          // Only show "In voice" if member is in a voice channel on THIS server
+          const isInVoiceOnThisServer =
+            member.status === 'in-voice' &&
+            member.voiceChannelId &&
+            voiceChannels.some((ch) => ch.id === member.voiceChannelId)
+          const displayStatus = isInVoiceOnThisServer
+            ? 'in-voice'
+            : member.status === 'online' || member.status === 'away' || member.status === 'dnd'
+              ? member.status
+              : 'offline'
+          const isSelected = selectedMember?.userId === member.userId
+          return (
+          <div
+            key={member.userId}
+            onClick={(e) => openProfile(member, e.currentTarget)}
+            onContextMenu={(e) => handleContextMenu(e, member)}
+            className={`px-4 py-2 flex items-center gap-3 hover:bg-app-hover group cursor-pointer ${
+              isSelected ? 'bg-app-hover/80' : ''
+            }`}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
-            </svg>
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto py-2 min-h-0">
-          {members.map((member) => {
-            // Only show "In voice" if member is in a voice channel on THIS server
-            const isInVoiceOnThisServer =
-              member.status === 'in-voice' &&
-              member.voiceChannelId &&
-              voiceChannels.some((ch) => ch.id === member.voiceChannelId)
-            const displayStatus = isInVoiceOnThisServer
-              ? 'in-voice'
-              : member.status === 'online' || member.status === 'away' || member.status === 'dnd'
-                ? member.status
-                : 'offline'
-            return (
-            <div
-              key={member.userId}
-              onClick={() => setSelectedMember(member)}
-              onContextMenu={(e) => handleContextMenu(e, member)}
-              className="px-4 py-2 flex items-center gap-3 hover:bg-app-hover group cursor-pointer"
-            >
-              <div className="relative flex-shrink-0">
-                <div className="w-8 h-8 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-sm overflow-hidden">
-                  {(member.userId === currentUserId && currentUserAvatarUrl) || member.avatarUrl ? (
-                    <img
-                      key={(member.userId === currentUserId && currentUserAvatarUrl) ? currentUserAvatarUrl : member.avatarUrl!}
-                      src={(member.userId === currentUserId && currentUserAvatarUrl) ? currentUserAvatarUrl : member.avatarUrl!}
-                      alt={member.username}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    member.username.charAt(0)
-                  )}
-                </div>
-                <div
-                  className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-app-channel ${
-                    displayStatus === 'online' ? 'bg-green-500'
-                      : displayStatus === 'in-voice' ? 'bg-yellow-500'
-                      : displayStatus === 'away' ? 'bg-amber-400'
-                      : displayStatus === 'dnd' ? 'bg-red-500'
-                      : 'bg-gray-500'
-                  }`}
-                />
+            <div className="relative flex-shrink-0">
+              <div className="w-8 h-8 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-sm overflow-hidden">
+                {(member.userId === currentUserId && currentUserAvatarUrl) || member.avatarUrl ? (
+                  <img
+                    key={(member.userId === currentUserId && currentUserAvatarUrl) ? currentUserAvatarUrl : member.avatarUrl!}
+                    src={(member.userId === currentUserId && currentUserAvatarUrl) ? currentUserAvatarUrl : member.avatarUrl!}
+                    alt={member.username}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  member.username.charAt(0)
+                )}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm text-app-text truncate">{member.username}</span>
-                  {roleBadge(member.role)}
-                </div>
-                <div className="text-[10px] text-app-muted">
-                  {displayStatus === 'in-voice' ? 'In voice'
-                    : displayStatus === 'online' ? 'Online'
-                    : displayStatus === 'away' ? 'Away'
-                    : displayStatus === 'dnd' ? 'Do Not Disturb'
-                    : 'Offline'}
-                </div>
-              </div>
-              {canKick(member) && (
-                <button
-                  onClick={(e) => handleKick(e, member.userId)}
-                  disabled={kicking === member.userId}
-                  className="opacity-0 group-hover:opacity-100 p-1 rounded text-red-400 hover:bg-red-500/20 text-xs disabled:opacity-50 transition-opacity"
-                  title="Kick from server"
-                >
-                  {kicking === member.userId ? '…' : 'Kick'}
-                </button>
-              )}
+              <div
+                className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-app-channel ${
+                  displayStatus === 'online' ? 'bg-green-500'
+                    : displayStatus === 'in-voice' ? 'bg-yellow-500'
+                    : displayStatus === 'away' ? 'bg-amber-400'
+                    : displayStatus === 'dnd' ? 'bg-red-500'
+                    : 'bg-gray-500'
+                }`}
+              />
             </div>
-            )
-          })}
-        </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm text-app-text truncate">{member.username}</span>
+                {roleBadge(member.role)}
+              </div>
+              <div className="text-[10px] text-app-muted">
+                {displayStatus === 'in-voice' ? 'In voice'
+                  : displayStatus === 'online' ? 'Online'
+                  : displayStatus === 'away' ? 'Away'
+                  : displayStatus === 'dnd' ? 'Do Not Disturb'
+                  : 'Offline'}
+              </div>
+            </div>
+          </div>
+          )
+        })}
       </div>
       {/* Context menu */}
       {contextMenu && (
@@ -276,8 +272,12 @@ export function MembersSidebar({
           {canKick(contextMenu.member) && (
             <button
               onClick={async () => {
-                await onKick?.(contextMenu.member.userId)
-                setContextMenu(null)
+                try {
+                  await onKick?.(contextMenu.member.userId)
+                } finally {
+                  setContextMenu(null)
+                  closeProfile()
+                }
               }}
               className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/20 flex items-center gap-2"
             >
@@ -285,6 +285,24 @@ export function MembersSidebar({
                 <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
               </svg>
               Kick from Server
+            </button>
+          )}
+          {canBan(contextMenu.member) && (
+            <button
+              onClick={async () => {
+                try {
+                  await onBan?.(contextMenu.member.userId)
+                } finally {
+                  setContextMenu(null)
+                  closeProfile()
+                }
+              }}
+              className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/20 flex items-center gap-2"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8 0-1.85.63-3.55 1.69-4.9L16.9 18.31A7.902 7.902 0 0112 20zm6.31-3.1L7.1 5.69A7.902 7.902 0 0112 4c4.42 0 8 3.58 8 8 0 1.85-.63 3.55-1.69 4.9z"/>
+              </svg>
+              Ban from Server
             </button>
           )}
           {canMuteOrDisconnect(contextMenu.member) && (
@@ -361,24 +379,29 @@ export function MembersSidebar({
         </div>
       )}
 
-      {selectedMember && (
+      {selectedMember && anchorRect && (
         <MemberProfilePanel
           member={selectedMember}
           currentUserId={currentUserId}
           voiceChannels={voiceChannels}
-          onClose={() => setSelectedMember(null)}
+          anchorRect={anchorRect}
+          canKick={canKick(selectedMember)}
+          canBan={canBan(selectedMember)}
+          onClose={closeProfile}
           onMessage={(userId, username) => {
             onMessage?.(userId, username)
-            setSelectedMember(null)
+            closeProfile()
           }}
           onAddFriend={(userId, username) => {
             onAddFriend?.(userId, username)
-            setSelectedMember(null)
+            closeProfile()
           }}
           onCall={onCall ? (userId, username, avatarUrl) => {
             onCall(userId, username, avatarUrl)
-            setSelectedMember(null)
+            closeProfile()
           } : undefined}
+          onKick={onKick}
+          onBan={onBan}
         />
       )}
     </div>

@@ -502,7 +502,29 @@ export async function kickMember(serverId: string, targetUserId: string, kickerU
     `${API_BASE}/servers/${serverId}/members/${targetUserId}?kickerUserId=${encodeURIComponent(kickerUserId)}`,
     { method: 'DELETE' }
   )
-  if (!res.ok) throw new Error('Failed to kick user')
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string })?.error || 'Failed to kick user')
+  }
+  return res.json()
+}
+
+/** Ban removes the member and blocks rejoin (invite / community join). */
+export async function banMember(
+  serverId: string,
+  targetUserId: string,
+  adminUserId: string,
+  reason?: string
+) {
+  const res = await fetch(`${API_BASE}/servers/${serverId}/members/${targetUserId}/ban`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ adminUserId, reason }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string })?.error || 'Failed to ban user')
+  }
   return res.json()
 }
 

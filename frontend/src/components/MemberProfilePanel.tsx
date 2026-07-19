@@ -1,3 +1,6 @@
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import gsap from 'gsap'
 import type { ServerMember } from './MembersSidebar'
 import type { Channel } from '../types'
 
@@ -5,115 +8,335 @@ interface MemberProfilePanelProps {
   member: ServerMember
   currentUserId: string
   voiceChannels?: Channel[]
+  /** Clicked member row — popout anchors to the left of this rect */
+  anchorRect: DOMRect
+  canKick?: boolean
+  canBan?: boolean
   onClose: () => void
   onMessage: (userId: string, username: string) => void
   onAddFriend: (userId: string, username: string) => void
   onCall?: (userId: string, username: string, avatarUrl?: string) => void
+  onKick?: (userId: string) => Promise<void>
+  onBan?: (userId: string) => Promise<void>
 }
+
+const POPOUT_WIDTH = 320
+const POPOUT_GAP = 10
+const VIEW_PAD = 12
 
 export function MemberProfilePanel({
   member,
   currentUserId,
   voiceChannels = [],
+  anchorRect,
+  canKick = false,
+  canBan = false,
   onClose,
   onMessage,
   onAddFriend,
   onCall,
+  onKick,
+  onBan,
 }: MemberProfilePanelProps) {
   const isCurrentUser = member.userId === currentUserId
+  const cardRef = useRef<HTMLDivElement>(null)
+  const closingRef = useRef(false)
+  const [busy, setBusy] = useState<'kick' | 'ban' | null>(null)
+  const [confirm, setConfirm] = useState<'kick' | 'ban' | null>(null)
+  const [actionError, setActionError] = useState('')
 
-  // Only show "In voice" if member is in a voice channel on THIS server
   const isInVoiceOnThisServer =
     member.status === 'in-voice' &&
     member.voiceChannelId &&
     voiceChannels.some((ch) => ch.id === member.voiceChannelId)
-  const displayStatus = isInVoiceOnThisServer ? 'in-voice' : member.status === 'online' ? 'online' : 'offline'
 
-  const roleBadge = (role: string) => {
-    if (role === 'owner') return <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-600/50 text-amber-200">owner</span>
-    if (role === 'admin') return <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-600/50 text-blue-200">admin</span>
-    return null
+  const displayStatus = isInVoiceOnThisServer
+    ? 'in-voice'
+    : member.status === 'online' || member.status === 'away' || member.status === 'dnd'
+      ? member.status
+      : 'offline'
+
+  const statusLabel =
+    displayStatus === 'in-voice'
+      ? 'In a voice channel'
+      : displayStatus === 'online'
+        ? 'Online'
+        : displayStatus === 'away'
+          ? 'Away'
+          : displayStatus === 'dnd'
+            ? 'Do Not Disturb'
+            : 'Offline'
+
+  const statusColor =
+    displayStatus === 'online'
+      ? 'bg-green-500'
+      : displayStatus === 'in-voice'
+        ? 'bg-yellow-500'
+        : displayStatus === 'away'
+          ? 'bg-amber-400'
+          : displayStatus === 'dnd'
+            ? 'bg-red-500'
+            : 'bg-gray-500'
+
+  const position = useMemo(() => {
+    const heightEstimate = 420
+    let left = anchorRect.left - POPOUT_WIDTH - POPOUT_GAP
+    if (left < VIEW_PAD) {
+      // Not enough room on the left — place just inside the members column edge
+      left = Math.max(VIEW_PAD, anchorRect.left - POPOUT_WIDTH - 4)
+    }
+    let top = anchorRect.top - 8
+    const maxTop = window.innerHeight - heightEstimate - VIEW_PAD
+    if (top > maxTop) top = Math.max(VIEW_PAD, maxTop)
+    if (top < VIEW_PAD) top = VIEW_PAD
+    return { left, top }
+  }, [anchorRect])
+
+  const requestClose = useCallback(() => {
+    if (closingRef.current) return
+    closingRef.current = true
+    const card = cardRef.current
+    if (!card) {
+      onClose()
+      return
+    }
+    gsap.to(card, {
+      opacity: 0,
+      x: 16,
+      scale: 0.97,
+      duration: 0.18,
+      ease: 'power2.in',
+      onComplete: onClose,
+    })
+  }, [onClose])
+
+  useLayoutEffect(() => {
+    const card = cardRef.current
+    if (!card) return
+    gsap.fromTo(
+      card,
+      { opacity: 0, x: 28, scale: 0.96 },
+      {
+        opacity: 1,
+        x: 0,
+        scale: 1,
+        duration: 0.28,
+        ease: 'power3.out',
+        clearProps: 'transform',
+      }
+    )
+  }, [member.userId])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') requestClose()
+    }
+    const onPointer = (e: MouseEvent) => {
+      const card = cardRef.current
+      if (!card) return
+      if (card.contains(e.target as Node)) return
+      requestClose()
+    }
+    window.addEventListener('keydown', onKey)
+    // Delay so the opening click does not immediately close
+    const t = window.setTimeout(() => window.addEventListener('mousedown', onPointer), 0)
+    return () => {
+      window.clearTimeout(t)
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('mousedown', onPointer)
+    }
+  }, [requestClose])
+
+  const runModerate = async (kind: 'kick' | 'ban') => {
+    setActionError('')
+    setBusy(kind)
+    try {
+      if (kind === 'kick') await onKick?.(member.userId)
+      else await onBan?.(member.userId)
+      requestClose()
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : `Failed to ${kind}`)
+      setConfirm(null)
+    } finally {
+      setBusy(null)
+    }
   }
 
-  const statusLabel = displayStatus === 'in-voice' ? 'In voice' : displayStatus === 'online' ? 'Online' : 'Offline'
-  const statusColor = displayStatus === 'online' ? 'bg-green-500' : displayStatus === 'in-voice' ? 'bg-yellow-500' : 'bg-gray-500'
+  const roleBadge =
+    member.role === 'owner' ? (
+      <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-600/40 text-amber-200 font-medium">
+        Server Owner
+      </span>
+    ) : member.role === 'admin' ? (
+      <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-blue-600/40 text-blue-200 font-medium">
+        Admin
+      </span>
+    ) : null
 
-  return (
-    <div className="w-60 bg-app-channel flex flex-col border-l border-app-dark">
-      <div className="h-12 px-4 flex items-center justify-between border-b border-app-dark">
-        <span className="text-app-text font-semibold text-sm">Profile</span>
+  const showModeration = !isCurrentUser && (canKick || canBan)
+
+  return createPortal(
+    <div
+      ref={cardRef}
+      role="dialog"
+      aria-label={`${member.username} profile`}
+      className="fixed z-[80] w-[320px] rounded-xl overflow-hidden shadow-2xl border border-white/10 bg-[#1e1f22] text-app-text"
+      style={{ left: position.left, top: position.top }}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      {/* Banner */}
+      <div className="relative h-[72px] bg-app-accent">
+        {member.bannerUrl ? (
+          <img src={member.bannerUrl} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-app-accent to-[#0b0c0e]/80" />
+        )}
         <button
-          onClick={onClose}
-          className="p-1 rounded text-app-muted hover:text-app-text hover:bg-app-hover transition-colors"
+          type="button"
+          onClick={requestClose}
+          className="absolute top-2 right-2 p-1 rounded-md bg-black/35 text-white/80 hover:text-white hover:bg-black/50 transition-colors"
           title="Close"
+          aria-label="Close profile"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
           </svg>
         </button>
       </div>
-      <div className="flex-1 overflow-y-auto">
-        <div className="relative h-20 bg-app-accent">
-          {member.bannerUrl ? (
-            <img src={member.bannerUrl} alt="" className="w-full h-full object-cover" />
-          ) : null}
-        </div>
-        <div className="flex flex-col items-center gap-4 px-4 pb-4 -mt-10">
-          <div className="relative">
-            <div className="w-20 h-20 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-2xl overflow-hidden ring-4 ring-app-channel">
-              {member.avatarUrl ? (
-                <img src={member.avatarUrl} alt={member.username} className="w-full h-full object-cover" />
-              ) : (
-                member.username.charAt(0).toUpperCase()
-              )}
-            </div>
-            <div
-              className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-app-channel ${statusColor}`}
-            />
+
+      <div className="px-4 pb-4">
+        {/* Avatar overlapping banner */}
+        <div className="relative -mt-10 mb-3 w-fit">
+          <div className="w-[80px] h-[80px] rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-2xl overflow-hidden ring-[6px] ring-[#1e1f22]">
+            {member.avatarUrl ? (
+              <img src={member.avatarUrl} alt={member.username} className="w-full h-full object-cover" />
+            ) : (
+              member.username.charAt(0).toUpperCase()
+            )}
           </div>
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-2 flex-wrap">
-              <span className="font-semibold text-app-text text-lg">{member.username}</span>
-              {roleBadge(member.role)}
+          <div
+            className={`absolute bottom-1 right-1 w-4 h-4 rounded-full border-[3px] border-[#1e1f22] ${statusColor}`}
+            title={statusLabel}
+          />
+        </div>
+
+        <div className="rounded-lg bg-[#111214] p-3 space-y-3">
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-xl font-bold text-white leading-tight">{member.username}</h2>
+              {roleBadge}
             </div>
-            <div className="text-xs text-app-muted mt-1">{statusLabel}</div>
+            <p className="text-sm text-app-muted mt-0.5">{statusLabel}</p>
           </div>
 
           {!isCurrentUser && (
-            <div className="w-full flex flex-col gap-2 mt-2">
+            <div className="flex flex-col gap-1.5 pt-1 border-t border-white/5">
               <button
+                type="button"
                 onClick={() => onMessage(member.userId, member.username)}
-                className="w-full px-4 py-2 rounded bg-app-accent hover:bg-app-accent-hover text-white text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+                className="w-full px-3 py-2 rounded-md bg-[#5865f2] hover:bg-[#4752c4] text-white text-sm font-medium flex items-center justify-center gap-2 transition-colors"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+                  <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
                 </svg>
                 Message
               </button>
               {onCall && (
                 <button
+                  type="button"
                   onClick={() => onCall(member.userId, member.username, member.avatarUrl)}
-                  className="w-full px-4 py-2 rounded bg-green-600 hover:bg-green-700 text-white text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+                  className="w-full px-3 py-2 rounded-md bg-[#23a559] hover:bg-[#1e8f4c] text-white text-sm font-medium flex items-center justify-center gap-2 transition-colors"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
+                    <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
                   </svg>
                   Call
                 </button>
               )}
               <button
+                type="button"
                 onClick={() => onAddFriend(member.userId, member.username)}
-                className="w-full px-4 py-2 rounded bg-app-hover hover:bg-app-hover/80 text-app-text text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+                className="w-full px-3 py-2 rounded-md bg-[#2b2d31] hover:bg-[#35373c] text-app-text text-sm font-medium flex items-center justify-center gap-2 transition-colors"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                  <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
                 </svg>
                 Add Friend
               </button>
             </div>
           )}
+
+          {showModeration && (
+            <div className="pt-2 border-t border-white/5 space-y-1.5">
+              <p className="text-[11px] uppercase tracking-wide text-app-muted font-semibold px-0.5">
+                Server moderation
+              </p>
+
+              {confirm ? (
+                <div className="rounded-md bg-[#2b2d31] p-2.5 space-y-2">
+                  <p className="text-xs text-app-text leading-snug">
+                    {confirm === 'ban'
+                      ? `Ban ${member.username}? They will be removed and cannot rejoin.`
+                      : `Kick ${member.username}? They can rejoin with an invite.`}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={!!busy}
+                      onClick={() => setConfirm(null)}
+                      className="flex-1 px-2 py-1.5 rounded-md text-xs font-medium bg-[#1e1f22] text-app-text hover:bg-[#35373c] disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!!busy}
+                      onClick={() => runModerate(confirm)}
+                      className="flex-1 px-2 py-1.5 rounded-md text-xs font-medium bg-red-600 hover:bg-red-500 text-white disabled:opacity-50"
+                    >
+                      {busy ? '…' : confirm === 'ban' ? 'Ban' : 'Kick'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {canKick && (
+                    <button
+                      type="button"
+                      onClick={() => setConfirm('kick')}
+                      className="w-full px-3 py-2 rounded-md text-sm font-medium text-red-400 hover:bg-red-500/15 flex items-center gap-2 transition-colors"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                      </svg>
+                      Kick from Server
+                    </button>
+                  )}
+                  {canBan && (
+                    <button
+                      type="button"
+                      onClick={() => setConfirm('ban')}
+                      className="w-full px-3 py-2 rounded-md text-sm font-medium text-red-400 hover:bg-red-500/15 flex items-center gap-2 transition-colors"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8 0-1.85.63-3.55 1.69-4.9L16.9 18.31A7.902 7.902 0 0112 20zm6.31-3.1L7.1 5.69A7.902 7.902 0 0112 4c4.42 0 8 3.58 8 8 0 1.85-.63 3.55-1.69 4.9z" />
+                      </svg>
+                      Ban from Server
+                    </button>
+                  )}
+                </>
+              )}
+
+              {actionError && (
+                <p className="text-xs text-red-400 px-0.5" role="alert">
+                  {actionError}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

@@ -107,6 +107,14 @@ invitesRouter.post('/:code/join', async (req, res) => {
       return res.status(404).json({ error: 'Invite has reached max uses' })
     }
 
+    const { data: ban } = await supabase
+      .from('server_bans')
+      .select('user_id')
+      .eq('server_id', invite.server_id)
+      .eq('user_id', userId)
+      .maybeSingle()
+    if (ban) return res.status(403).json({ error: 'You are banned from this server' })
+
     const { data: joiner } = await supabase
       .from('users')
       .select('active_profile')

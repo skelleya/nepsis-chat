@@ -592,11 +592,32 @@ function MainLayout({
 
   const handleKick = useCallback(
     async (targetUserId: string) => {
-      if (!currentServerId) return
-      await api.kickMember(currentServerId, targetUserId, user.id)
-      setServerMembers((prev) => prev.filter((m) => m.userId !== targetUserId))
+      if (!currentServerId || !user) return
+      try {
+        await api.kickMember(currentServerId, targetUserId, user.id)
+        setServerMembers((prev) => prev.filter((m) => m.userId !== targetUserId))
+        showNotification('Member kicked from server')
+      } catch (e) {
+        showNotification(e instanceof Error ? e.message : 'Failed to kick member', 'error')
+        throw e
+      }
     },
-    [currentServerId, user.id]
+    [currentServerId, user]
+  )
+
+  const handleBan = useCallback(
+    async (targetUserId: string) => {
+      if (!currentServerId || !user) return
+      try {
+        await api.banMember(currentServerId, targetUserId, user.id)
+        setServerMembers((prev) => prev.filter((m) => m.userId !== targetUserId))
+        showNotification('Member banned from server')
+      } catch (e) {
+        showNotification(e instanceof Error ? e.message : 'Failed to ban member', 'error')
+        throw e
+      }
+    },
+    [currentServerId, user]
   )
 
   const handleInvitePeople = useCallback(async () => {
@@ -1034,6 +1055,7 @@ function MainLayout({
           categoryId: c.category_id,
         }))}
         onKick={handleKick}
+        onBan={handleBan}
         onMessage={async (userId, username) => {
           try {
             await openDM(userId, username)
@@ -1119,6 +1141,7 @@ function MainLayout({
           serverBannerUrl={settingsServer.banner_url}
           onDeleteServer={() => deleteServer(settingsServer.id)}
           onKickMember={handleKick}
+          onBanMember={handleBan}
           onMembersChange={async () => {
             if (currentServerId) {
               try {
