@@ -161,9 +161,13 @@ export function UserPanel({
       <div className="h-[60px] bg-[#232428] px-2.5 flex items-center gap-1.5 flex-shrink-0">
         {/* User avatar + name — clickable for status */}
         <div className="relative flex-1 min-w-0" ref={statusMenuRef}>
-          <div
+          <button
+            type="button"
             onClick={toggleStatusMenu}
-            className="flex items-center gap-2.5 px-1.5 py-1.5 rounded hover:bg-app-hover/40 cursor-pointer transition-colors"
+            aria-haspopup="menu"
+            aria-expanded={showStatusMenu}
+            aria-label={`Status: ${displayStatus}. Change status`}
+            className="w-full flex items-center gap-2.5 px-1.5 py-1.5 rounded hover:bg-app-hover/40 cursor-pointer transition-colors text-left"
           >
             <div className={`relative flex-shrink-0 rounded-full transition-all duration-150 ${
               isSpeaking ? 'ring-2 ring-[#23a559] shadow-[0_0_12px_rgba(35,165,89,0.8)]' : ''
@@ -188,12 +192,13 @@ export function UserPanel({
               </div>
               <div className="text-xs text-app-muted truncate leading-tight">{displayStatus}</div>
             </div>
-          </div>
+          </button>
 
           {/* Status dropdown */}
           {showStatusMenu && (
             <div
               ref={statusDropdownRef}
+              role="menu"
               className="absolute left-0 bottom-full mb-1 w-48 bg-app-channel rounded-lg shadow-xl border border-app-hover/50 overflow-hidden z-[100] origin-bottom-left"
             >
               <div className="p-1">
