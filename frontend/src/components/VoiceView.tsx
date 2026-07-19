@@ -5,6 +5,7 @@ import { RemoteAudio } from './RemoteAudio'
 import { MicOffIcon, HeadphonesIcon, HeadphonesOffIcon } from './icons/VoiceIcons'
 import { SoundboardDropdown } from './SoundboardDropdown'
 import { Panel, Group, Separator } from 'react-resizable-panels'
+import { getScreenShareStream, getParticipantVideoStream } from '../utils/mediaTracks'
 
 interface VoiceViewProps {
   channel: Channel
@@ -21,62 +22,17 @@ interface VoiceViewProps {
   onDisconnectMember?: (userId: string) => Promise<void>
 }
 
-/** Detect if a video track is from screen share (getDisplayMedia) vs camera (getUserMedia) */
-function isScreenShareTrack(track: MediaStreamTrack): boolean {
-  try {
-    const settings = track.getSettings?.()
-    const surface = (settings as { displaySurface?: string })?.displaySurface
-    if (surface === 'monitor' || surface === 'window' || surface === 'browser') return true
-    // Fallback: remote tracks often lack displaySurface; use label (Chrome/Firefox set "screen" etc.)
-    const label = (track.label || '').toLowerCase()
-    if (/screen|display|window|monitor|capture/.test(label)) return true
-    return false
-  } catch {
-    return false
-  }
-}
-
-/** Extract screen-share-only stream from a stream (for remote participants who share screen) */
-function getScreenShareStream(stream: MediaStream | null): MediaStream | null {
-  if (!stream) return null
-  const videoTracks = stream.getVideoTracks()
-  let screenTracks = videoTracks.filter(isScreenShareTrack)
-  // Fallback: when 2+ video tracks and none match (remote displaySurface/label often missing),
-  // treat the larger-dimension track as screen share (screens are usually 1920x1080+)
-  if (screenTracks.length === 0 && videoTracks.length >= 2) {
-    const withWidth = videoTracks.map((t) => ({ t, w: (t.getSettings?.() as { width?: number })?.width ?? 0 }))
-    const byWidth = [...withWidth].sort((a, b) => b.w - a.w)
-    if (byWidth[0].w > 1280) screenTracks = [byWidth[0].t]
-  }
-  if (screenTracks.length === 0) return null
-  const out = new MediaStream()
-  screenTracks.forEach((t) => out.addTrack(t))
-  return out
-}
-
-/** Extract camera-only stream from a stream (for participant card when they also share screen) */
-function getCameraStream(stream: MediaStream | null): MediaStream | null {
-  if (!stream) return null
-  const cameraTracks = stream.getVideoTracks().filter((t) => !isScreenShareTrack(t))
-  if (cameraTracks.length === 0) return null
-  const out = new MediaStream()
-  cameraTracks.forEach((t) => out.addTrack(t))
-  return out
-}
-
-/** Get stream to show in participant card: prefer camera when both exist, else full video stream */
-function getParticipantVideoStream(stream: MediaStream | null): MediaStream | null {
-  if (!stream) return null
-  const cam = getCameraStream(stream)
-  if (cam && cam.getVideoTracks().length > 0) return cam
-  const videoTracks = stream.getVideoTracks()
-  if (videoTracks.length === 0) return null
-  const out = new MediaStream()
-  videoTracks.forEach((t) => out.addTrack(t))
-  return out
-}
-
-function VideoElement({ stream, muted = false, label }: { stream: MediaStream; muted?: boolean; label: string }) {
+function VideoElement({
+  stream,
+  muted = false,
+  label,
+  onClose,
+}: {
+  stream: MediaStream
+  muted?: boolean
+  label: string
+  onClose?: () => void
+}) {
   const videoRef = useRef<HTMLVideoElement>(null)
   useEffect(() => {
     if (videoRef.current) {
@@ -92,9 +48,24 @@ function VideoElement({ stream, muted = false, label }: { stream: MediaStream; m
         muted={muted}
         className="flex-1 w-full h-full min-h-0 object-contain"
       />
-      <div className="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded text-xs text-white">
-        {label}
+      <div className="absolute top-2 left-2 flex items-center gap-2">
+        <span className="bg-[#ed4245] text-white text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-sm">
+          Live
+        </span>
+        <span className="bg-black/60 px-2 py-1 rounded text-xs text-white">{label}</span>
       </div>
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-2 right-2 p-1.5 rounded bg-black/60 text-white hover:bg-black/80 transition-colors"
+          title="Stop watching"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+        </button>
+      )}
     </div>
   )
 }
@@ -194,6 +165,9 @@ function ParticipantCard({
   isAdminOrOwner,
   onMuteMember,
   onDisconnectMember,
+  isSharingScreen,
+  isWatching,
+  onWatchShare,
 }: {
   participant: { userId: string; username: string; stream: MediaStream | null; isSpeaking: boolean; streamVersion?: number }
   avatarUrl?: string
@@ -208,6 +182,9 @@ function ParticipantCard({
   isAdminOrOwner?: boolean
   onMuteMember?: (userId: string) => Promise<void>
   onDisconnectMember?: (userId: string) => Promise<void>
+  isSharingScreen?: boolean
+  isWatching?: boolean
+  onWatchShare?: (userId: string) => void
 }) {
   const [showMenu, setShowMenu] = useState(false)
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
@@ -231,8 +208,15 @@ function ParticipantCard({
   return (
     <div
       className={`relative flex flex-col items-center justify-center rounded-xl bg-app-dark/60 overflow-hidden border transition-all duration-150 min-h-[160px] flex-1 ${
-      speaking ? 'border-[#23a559] shadow-[0_0_12px_rgba(35,165,89,0.3)]' : 'border-app-hover/50'
-    }`}
+      isWatching
+        ? 'border-app-accent shadow-[0_0_12px_rgba(88,101,242,0.35)]'
+        : speaking
+          ? 'border-[#23a559] shadow-[0_0_12px_rgba(35,165,89,0.3)]'
+          : 'border-app-hover/50'
+    } ${isSharingScreen && onWatchShare ? 'cursor-pointer' : ''}`}
+      onClick={() => {
+        if (isSharingScreen && onWatchShare) onWatchShare(participant.userId)
+      }}
       onContextMenu={(e) => {
         if (showAdminMenu) {
           e.preventDefault()
@@ -241,6 +225,18 @@ function ParticipantCard({
         }
       }}
     >
+      {isSharingScreen && (
+        <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+          <span className="bg-[#ed4245] text-white text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-sm">
+            Live
+          </span>
+          {onWatchShare && (
+            <span className="bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-sm">
+              {isWatching ? 'Watching' : 'Click to watch'}
+            </span>
+          )}
+        </div>
+      )}
       {showAdminMenu && showMenu && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
@@ -365,6 +361,9 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
     localStream,
     playSoundboardSound,
     error,
+    screenShareUserIds,
+    watchingShareUserId,
+    setWatchingShareUserId,
   } = voice
 
   const [soundboardOpen, setSoundboardOpen] = useState(false)
@@ -399,44 +398,59 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
     ? [localParticipant, ...Array.from(participantByUserId.values()).filter((p) => p.userId !== currentUserId)]
     : Array.from(participantByUserId.values())
 
-  // Primary screen share: local first, then first remote
-  const localScreenShare = isScreenSharing && screenStream ? screenStream : null
-  const remoteScreenShares = allParticipants
-    .filter((p) => p.userId !== currentUserId && p.stream)
-    .map((p) => ({ userId: p.userId, username: p.username, stream: getScreenShareStream(p.stream!) }))
-    .filter((x) => x.stream && x.stream.getVideoTracks().length > 0)
-  const primaryScreenShare = localScreenShare
-    ? { stream: localScreenShare, username: currentUsername }
-    : remoteScreenShares[0]
-      ? { stream: remoteScreenShares[0].stream!, username: remoteScreenShares[0].username }
-      : null
+  // Discord-style: only show stage when user chose to watch someone (or auto-focused own share)
+  const watchingStream =
+    watchingShareUserId === currentUserId && isScreenSharing && screenStream
+      ? screenStream
+      : watchingShareUserId
+        ? (() => {
+            const p = allParticipants.find((x) => x.userId === watchingShareUserId)
+            return p?.stream ? getScreenShareStream(p.stream) : null
+          })()
+        : null
+  const watchingUsername =
+    watchingShareUserId === currentUserId
+      ? currentUsername
+      : allParticipants.find((p) => p.userId === watchingShareUserId)?.username ?? 'Screen'
 
-  const hasScreenShare = !!primaryScreenShare
+  const isWatchingShare = !!watchingStream && watchingStream.getVideoTracks().length > 0
   const isAlone = allParticipants.length === 1
+
+  const handleWatchShare = (userId: string) => {
+    if (watchingShareUserId === userId) {
+      setWatchingShareUserId(null)
+    } else {
+      setWatchingShareUserId(userId)
+    }
+  }
+
+  const cardProps = (p: { userId: string; username: string; stream: MediaStream | null; isSpeaking: boolean; streamVersion?: number }) => ({
+    participant: p,
+    avatarUrl: avatarByUserId.get(p.userId),
+    isLocal: p.userId === currentUserId,
+    localStream,
+    localVideoStream: videoStream,
+    participantVideoStream: p.userId === currentUserId ? null : getParticipantVideoStream(p.stream),
+    isMuted,
+    isDeafened,
+    isCameraOn,
+    currentUserId,
+    isAdminOrOwner,
+    onMuteMember,
+    onDisconnectMember,
+    isSharingScreen: screenShareUserIds.includes(p.userId),
+    isWatching: watchingShareUserId === p.userId,
+    onWatchShare: screenShareUserIds.includes(p.userId) ? handleWatchShare : undefined,
+  })
 
   const renderParticipantsArea = () => {
     if (allParticipants.length === 0) return null
     if (isAlone) {
       const p = allParticipants[0]
-      const participantVideoStream = p.userId === currentUserId ? null : getParticipantVideoStream(p.stream)
       return (
         <div className="flex-1 flex items-center justify-center p-4 min-h-0">
           <div className="w-full max-w-md">
-            <ParticipantCard
-              participant={p}
-              avatarUrl={avatarByUserId.get(p.userId)}
-              isLocal={p.userId === currentUserId}
-              localStream={localStream}
-              localVideoStream={videoStream}
-              participantVideoStream={participantVideoStream}
-              isMuted={isMuted}
-              isDeafened={isDeafened}
-              isCameraOn={isCameraOn}
-              currentUserId={currentUserId}
-              isAdminOrOwner={isAdminOrOwner}
-              onMuteMember={onMuteMember}
-              onDisconnectMember={onDisconnectMember}
-            />
+            <ParticipantCard {...cardProps(p)} />
           </div>
         </div>
       )
@@ -456,21 +470,7 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
         panels.push(
           <Panel key={p.userId} minSize={15} defaultSize={defaultSize} className="min-w-0">
             <div className="h-full p-2 flex min-h-0">
-              <ParticipantCard
-                participant={p}
-                avatarUrl={avatarByUserId.get(p.userId)}
-                isLocal={p.userId === currentUserId}
-                localStream={localStream}
-                localVideoStream={videoStream}
-                participantVideoStream={p.userId === currentUserId ? null : getParticipantVideoStream(p.stream)}
-                isMuted={isMuted}
-                isDeafened={isDeafened}
-                isCameraOn={isCameraOn}
-                currentUserId={currentUserId}
-                isAdminOrOwner={isAdminOrOwner}
-                onMuteMember={onMuteMember}
-                onDisconnectMember={onDisconnectMember}
-              />
+              <ParticipantCard {...cardProps(p)} />
             </div>
           </Panel>
         )
@@ -485,22 +485,7 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
       <div className="flex-1 overflow-auto p-4">
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
           {allParticipants.map((p) => (
-            <ParticipantCard
-              key={p.userId}
-              participant={p}
-              avatarUrl={avatarByUserId.get(p.userId)}
-              isLocal={p.userId === currentUserId}
-              localStream={localStream}
-              localVideoStream={videoStream}
-              participantVideoStream={p.userId === currentUserId ? null : getParticipantVideoStream(p.stream)}
-              isMuted={isMuted}
-              isDeafened={isDeafened}
-              isCameraOn={isCameraOn}
-              currentUserId={currentUserId}
-              isAdminOrOwner={isAdminOrOwner}
-              onMuteMember={onMuteMember}
-              onDisconnectMember={onDisconnectMember}
-            />
+            <ParticipantCard key={p.userId} {...cardProps(p)} />
           ))}
         </div>
       </div>
@@ -556,17 +541,25 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
         )}
 
         {isInThisChannel && (
-          hasScreenShare ? (
+          isWatchingShare && watchingStream ? (
             <Group orientation="vertical" autoSave="voice-view-screen-participants" className="flex-1 min-h-0">
-              <Panel defaultSize={60} minSize={5} maxSize={95} className="min-h-0">
-                <div className="h-full p-4 flex flex-col min-h-0">
-                  <VideoElement stream={primaryScreenShare.stream} muted label={`${primaryScreenShare.username} — Screen Share`} />
+              <Panel defaultSize={65} minSize={20} maxSize={90} className="min-h-0">
+                <div className="h-full p-3 flex flex-col min-h-0">
+                  <VideoElement
+                    stream={watchingStream}
+                    muted
+                    label={`${watchingUsername} — Screen`}
+                    onClose={() => setWatchingShareUserId(null)}
+                  />
                 </div>
               </Panel>
-              <Separator className="h-3 bg-app-dark hover:bg-app-hover transition-colors data-[resize-handle-active]:bg-app-accent/50 flex items-center justify-center cursor-ns-resize" title="Drag to resize screen share vs participants">
-                <div className="w-16 h-1.5 rounded-full bg-app-muted/50" />
+              <Separator
+                className="h-3.5 bg-app-dark hover:bg-app-hover transition-colors data-[resize-handle-active]:bg-app-accent/60 flex items-center justify-center cursor-ns-resize"
+                title="Drag to resize screen share"
+              >
+                <div className="w-20 h-1.5 rounded-full bg-app-muted/60" />
               </Separator>
-              <Panel defaultSize={40} minSize={5} maxSize={95} className="min-h-0">
+              <Panel defaultSize={35} minSize={10} maxSize={80} className="min-h-0">
                 {renderParticipantsArea()}
               </Panel>
             </Group>

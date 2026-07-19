@@ -124,6 +124,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Desktop Win+Mac — Electron packages Windows NSIS + macOS DMG/ZIP; bundled UI uses `.env.desktop` (live API) so the app matches the browser; top Nepsis update badge with download progress via `electron-updater` + GitHub Releases. |
 | + | Presence + ping — Optimistic self-presence + Realtime on `user_presence` so you show Online/In voice immediately; voice session kick + Connecting ghost fixes; ping bars are 3 green / 2 yellow / 1 red with hover tooltip (ms); socket RTT when alone in voice. Migration `20250211000017_user_presence_realtime.sql`. |
 | + | Voice UI v6 — Resizable panels: screen share vs participant cameras (drag divider to resize); single participant centered in middle; remote screen shares shown in main area; participant cards (2–4) resizable horizontally; `react-resizable-panels` with `autoSaveId` for layout persistence. |
+| + | Discord-style screenshare + self in voice — Click LIVE / participant tile to watch a share (not auto-forced); resizable stage; LIVE badges in channel list; late joiners receive camera/screen via `extraOutbound` tracks; self always injected into voice user list + members overlay. |
 | + | Rules channel — Owner/admin can create a Rules channel (read-only; members react only). Server Settings > Rules Channel: set rules channel, lock all channels until members accept, choose accept emoji (any emoji). Migration `20250211000010_rules_channel.sql`. |
 | + | Server list reorder — Click-hold-and-drag server icons in the left sidebar to reorder; order persisted in `server_members.display_order`. Migration `20250211000011_server_members_display_order.sql`. |
 | + | Create server UI modernized — CreateServerModal: gradient accent bar, refined layout, loading spinner, improved error styling, accessibility; OnboardingPage uses modal instead of `prompt()` for server name. |
@@ -286,7 +287,7 @@ A major UI overhaul to match Discord's layout and interaction patterns.
 | **Voice Users in Channels** | Users connected to a voice channel are shown nested under that channel in the channel list. |
 | **Voice Connection Bar** | When connected to voice and viewing a different channel, a compact bar shows: green "Voice Connected" indicator, channel name, disconnect button, camera toggle, screen share toggle. |
 | **Camera** | Toggle camera on/off in voice view or voice connection bar. Video shows in a grid. |
-| **Screen Share** | Share your screen in voice view or voice connection bar. Screen shows in a grid. Auto-stops when user cancels via browser UI. |
+| **Screen Share** | Discord-style: sharers get a LIVE badge; others click LIVE (sidebar or tile) to watch. Watching opens a resizable stage (drag divider). Auto-focus only for your own share. Late joiners still receive the track. Auto-stops when user cancels via browser UI. |
 | **Voice participant grid** | Participants in a voice call appear in a Discord-style square grid that fills the center of the screen. Avatar tiles with speaking indicator ring. |
 | **Server Tooltips** | Hover over server icons to see server name tooltip (like Discord). Active indicator pill on left side. |
 

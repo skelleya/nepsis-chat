@@ -39,8 +39,18 @@ export function createWebRTCClient(
   // Buffer ICE candidates that arrive before the remote description is set
   const pendingCandidates = new Map<string, RTCIceCandidateInit[]>()
   let currentLocalStream: MediaStream | null = null
+  /** Camera/screen tracks that must also be sent to peers who join after share started */
+  const extraOutbound: { track: MediaStreamTrack; stream: MediaStream }[] = []
   const isSocketMode = !!signaling.getSocketId
   const resolvedIceServers = iceServers.length > 0 ? iceServers : DEFAULT_ICE_SERVERS
+
+  const attachExtraTracks = (pc: RTCPeerConnection) => {
+    for (const { track, stream } of extraOutbound) {
+      if (track.readyState === 'ended') continue
+      const already = pc.getSenders().some((s) => s.track === track)
+      if (!already) pc.addTrack(track, stream)
+    }
+  }
 
   /** Drop an old PC for the same user when their socket id changes (session replace). */
   const retireSocketPeer = (socketId: string, notifyLeft: boolean) => {
@@ -146,6 +156,7 @@ export function createWebRTCClient(
     peers.forEach((entry) => {
       entry.pc.getSenders().forEach((s) => entry.pc.removeTrack(s))
       stream.getTracks().forEach((track) => entry.pc.addTrack(track, stream))
+      attachExtraTracks(entry.pc)
     })
   }
 
@@ -160,7 +171,7 @@ export function createWebRTCClient(
       updatePeerMeta(from, fromUserId, fromUsername)
     }
 
-    // Add ALL local tracks (audio + any video) so bidirectional media works
+    // Add ALL local tracks (audio + camera/screen) so bidirectional media works
     // Only add if not already sending (first connection)
     if (currentLocalStream) {
       const existingSenders = entry.pc.getSenders().filter((s) => s.track !== null)
@@ -168,6 +179,7 @@ export function createWebRTCClient(
         currentLocalStream.getTracks().forEach((track) => {
           entry!.pc.addTrack(track, currentLocalStream!)
         })
+        attachExtraTracks(entry.pc)
       }
     }
 
@@ -264,6 +276,8 @@ export function createWebRTCClient(
     localStream.getTracks().forEach((track) => {
       pc.addTrack(track, localStream)
     })
+    // Late joiners must also receive camera/screen already being shared
+    attachExtraTracks(pc)
 
     const offer = await pc.createOffer()
     await pc.setLocalDescription(offer)
@@ -273,9 +287,22 @@ export function createWebRTCClient(
   // ─── Video/Screen share: add/remove tracks + renegotiate ───────────
 
   const addTrackToAllPeers = async (track: MediaStreamTrack, stream: MediaStream) => {
+    if (!extraOutbound.some((e) => e.track === track)) {
+      extraOutbound.push({ track, stream })
+    }
+    // Hint screen content for better encoding (ignored if unsupported)
+    if (track.kind === 'video') {
+      try {
+        track.contentHint = 'detail'
+      } catch {
+        /* ignore */
+      }
+    }
     for (const [peerId, { pc }] of peers) {
       try {
-        pc.addTrack(track, stream)
+        if (!pc.getSenders().some((s) => s.track === track)) {
+          pc.addTrack(track, stream)
+        }
         const offer = await pc.createOffer()
         await pc.setLocalDescription(offer)
         if (pc.localDescription) signaling.sendOffer(peerId, pc.localDescription)
@@ -286,6 +313,8 @@ export function createWebRTCClient(
   }
 
   const removeTrackFromAllPeers = async (track: MediaStreamTrack) => {
+    const idx = extraOutbound.findIndex((e) => e.track === track)
+    if (idx >= 0) extraOutbound.splice(idx, 1)
     for (const [peerId, { pc }] of peers) {
       const sender = pc.getSenders().find((s) => s.track === track)
       if (sender) {
@@ -325,6 +354,7 @@ export function createWebRTCClient(
     peers.clear()
     userIdToSocketId.clear()
     pendingCandidates.clear()
+    extraOutbound.length = 0
     signaling.leave()
     signaling.close()
   }

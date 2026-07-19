@@ -122,13 +122,15 @@ Users can play custom audio clips (max 10 seconds) to all peers in a voice chann
 7. Per-user soundboard mute (🔊/🔇) in voice bar — lets users stop hearing soundboard without deafening
 8. Works only with Socket.io signaling (BroadcastChannel has no soundboard)
 
-### Resizable Voice Layout (Voice UI v6)
+### Resizable Voice Layout (Voice UI v6 / Discord watch)
 
 - **Single participant:** Centered in the middle of the view (vertically and horizontally).
-- **Screen share:** When anyone shares a screen (local or remote), the layout becomes a vertical split: screen share on top, participant cameras below. Drag the divider to resize — make the screen bigger and cameras smaller or vice versa.
+- **Screen share (click to watch):** Shares do **not** auto-fill the stage for viewers. Click a LIVE badge (channel list or participant tile) to watch. Your own share auto-focuses when you start sharing. Close (X) or click again to stop watching. While watching, vertical split: stage on top, participants below — drag the thick divider to resize (min ~20%).
+- **Late joiners:** `webrtc.ts` keeps `extraOutbound` camera/screen tracks and attaches them on `connectToPeer` / first `handleOffer` so new peers get media without the sharer restarting.
 - **2–4 participants:** Participant cards are in a horizontal resizable panel group. Drag dividers between cards to resize.
 - **5+ participants:** Grid layout (no per-card resizing).
 - Layout is persisted via `autoSaveId` (localStorage).
+- Helpers: `frontend/src/utils/mediaTracks.ts` (`isScreenShareTrack`, `getScreenShareStream`, …).
 
 ### Track Removal
 
