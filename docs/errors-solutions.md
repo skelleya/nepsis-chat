@@ -352,8 +352,11 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | Issue | Cause | Solution |
 |-------|-------|----------|
 | Opening a DM while in a server voice channel switched the left rail to Friends and hid voice users | `onSelectDM` always set `showFriends=true` | Keep the current sidebar: server stays on channels (voice presence visible); Friends home stays on friends. Clicking a text/voice channel clears the DM and returns to that view. |
-| Moving voice users required drag-only (easy to miss) | Channel list had no per-user menu | Side **⋯** on each voice user: Move to… / Mute / Disconnect (admin); drag-drop kept as secondary |
+| Moving voice users required drag-only (easy to miss) | Channel list had no per-user menu | Right-click voice user for Profile / Roles / Move to / Mute / Deafen / Kick / Ban; drag-drop into other voice rooms for moves |
 | Channel rail looked like Discord | `#` / speaker icons, uppercase category labels | Rounded channel rows, chat/wave glyphs, title-case section headers, orange selected bar |
+| Create channel modal stuck in skinny rail | Modal rendered inside transformed channel panel (`fixed` trapped) | `CreateChannelModal` portaled to `document.body` |
+| Server dropdown looked transparent | Menu inside rail + GSAP opacity / weak panel bg | Portaled server menu with solid `bg-app-darker`; clear GSAP props after enter |
+| Create channel always asked for type | Single + opened full type picker | Chat + / Voice + (and server menu entries) lock type and only ask for name |
 
 ---
 

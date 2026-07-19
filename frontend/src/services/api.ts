@@ -468,6 +468,44 @@ export async function muteMemberInVoice(
   return res.json()
 }
 
+export async function deafenMemberInVoice(
+  serverId: string,
+  targetUserId: string,
+  adminUserId: string
+): Promise<{ success: boolean }> {
+  const res = await fetch(
+    `${API_BASE}/servers/${serverId}/members/${targetUserId}/deafen-voice`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ adminUserId }),
+    }
+  )
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to deafen user')
+  }
+  return res.json()
+}
+
+export async function setMemberRole(
+  serverId: string,
+  targetUserId: string,
+  adminUserId: string,
+  role: 'admin' | 'member'
+): Promise<{ user_id: string; role: string }> {
+  const res = await fetch(`${API_BASE}/servers/${serverId}/members/${targetUserId}/role`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ adminUserId, role }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to update role')
+  }
+  return res.json()
+}
+
 export async function disconnectMemberFromVoice(
   serverId: string,
   targetUserId: string,

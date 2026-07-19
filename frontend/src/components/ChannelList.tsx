@@ -1,4 +1,5 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   DndContext,
   closestCenter,
@@ -26,6 +27,8 @@ import { useApp } from '../contexts/AppContext'
 import * as api from '../services/api'
 import type { ProfileType } from '../services/api'
 import { useGsapMenu } from '../hooks/useGsapMenu'
+import { MemberProfilePanel } from './MemberProfilePanel'
+import type { ServerMember } from './MembersSidebar'
 
 interface VoiceUserInfo {
   userId: string
@@ -91,7 +94,16 @@ interface ChannelListProps {
   // Admin: drop user onto voice channel to move them
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
   onMuteInVoice?: (userId: string) => Promise<void>
+  onDeafenInVoice?: (userId: string) => Promise<void>
   onDisconnectFromVoice?: (userId: string) => Promise<void>
+  onKick?: (userId: string) => Promise<void>
+  onBan?: (userId: string) => Promise<void>
+  onMessageUser?: (userId: string, username: string) => void
+  onCallUser?: (userId: string, username: string, avatarUrl?: string) => void
+  onAddFriend?: (userId: string, username: string) => void
+  onSetMemberRole?: (userId: string, role: 'admin' | 'member') => Promise<void>
+  serverMembers?: ServerMember[]
+  currentUserRole?: ServerMember['role']
   /** Owner/admin: can create rules channel and see rules option in modal */
   isAdminOrOwner?: boolean
 }
@@ -142,14 +154,18 @@ function RulesIcon({ className }: { className?: string }) {
   )
 }
 
-function MoreIcon({ className }: { className?: string }) {
+function GearIcon({ className }: { className?: string }) {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
-      <circle cx="5" cy="12" r="2" />
-      <circle cx="12" cy="12" r="2" />
-      <circle cx="19" cy="12" r="2" />
+      <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.488.488 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
     </svg>
   )
+}
+
+function menuItemClass(danger = false) {
+  return danger
+    ? 'w-full px-3 py-1.5 rounded-md text-[13px] text-left text-red-400 hover:bg-red-500/20'
+    : 'w-full px-3 py-1.5 rounded-md text-[13px] text-left text-app-text hover:bg-app-accent hover:text-white'
 }
 
 const CHANNEL_PREFIX = 'ch-'
@@ -175,30 +191,53 @@ function VoiceUserRow({
   vu,
   currentChannelId,
   voiceChannels,
+  member,
+  currentUserId,
+  currentUserRole = 'member',
   canModerate,
   isSelf,
   onMoveToChannel,
   onMuteInVoice,
+  onDeafenInVoice,
   onDisconnectFromVoice,
   onWatchScreenShare,
+  onKick,
+  onBan,
+  onMessageUser,
+  onCallUser,
+  onAddFriend,
+  onSetMemberRole,
 }: {
   vu: VoiceUserInfo
   currentChannelId: string
   voiceChannels: Channel[]
+  member?: ServerMember
+  currentUserId?: string
+  currentUserRole?: ServerMember['role']
   canModerate: boolean
   isSelf: boolean
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
   onMuteInVoice?: (userId: string) => Promise<void>
+  onDeafenInVoice?: (userId: string) => Promise<void>
   onDisconnectFromVoice?: (userId: string) => Promise<void>
   onWatchScreenShare?: (userId: string) => void
+  onKick?: (userId: string) => Promise<void>
+  onBan?: (userId: string) => Promise<void>
+  onMessageUser?: (userId: string, username: string) => void
+  onCallUser?: (userId: string, username: string, avatarUrl?: string) => void
+  onAddFriend?: (userId: string, username: string) => void
+  onSetMemberRole?: (userId: string, role: 'admin' | 'member') => Promise<void>
 }) {
-  const [showMenu, setShowMenu] = useState(false)
-  const [showMoveSub, setShowMoveSub] = useState(false)
+  const [ctx, setCtx] = useState<{ x: number; y: number } | null>(null)
+  const [sub, setSub] = useState<'move' | 'roles' | null>(null)
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [profileAnchor, setProfileAnchor] = useState<DOMRect | null>(null)
+  const rowRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
-  const shouldRenderMenu = useGsapMenu(showMenu, menuRef, {
+  const shouldRenderMenu = useGsapMenu(!!ctx, menuRef, {
     enterY: -4,
     exitY: -2,
-    transformOrigin: 'top right',
+    transformOrigin: 'top left',
   })
 
   const canDrag = canModerate && !!onMoveToChannel
@@ -208,189 +247,378 @@ function VoiceUserRow({
   })
 
   const otherVoice = voiceChannels.filter((ch) => ch.id !== currentChannelId && ch.type === 'voice')
-  const canMove = canModerate && !!onMoveToChannel && otherVoice.length > 0
-  const canMute = canModerate && !!onMuteInVoice && !isSelf
-  const canDisconnect = canModerate && !!onDisconnectFromVoice && !isSelf
-  const canWatch = !!vu.isScreenSharing && !!onWatchScreenShare
-  const hasOptions = canMove || canMute || canDisconnect || canWatch
+  const targetRole = member?.role ?? 'member'
+  const canModTarget =
+    canModerate &&
+    !isSelf &&
+    targetRole !== 'owner' &&
+    (currentUserRole === 'owner' || targetRole === 'member')
 
   const closeMenu = () => {
-    setShowMenu(false)
-    setShowMoveSub(false)
+    setCtx(null)
+    setSub(null)
+  }
+
+  useEffect(() => {
+    if (!ctx) return
+    const close = () => closeMenu()
+    window.addEventListener('click', close)
+    window.addEventListener('scroll', close, true)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('scroll', close, true)
+    }
+  }, [ctx])
+
+  const profileMember: ServerMember = member ?? {
+    userId: vu.userId,
+    username: vu.username,
+    avatarUrl: vu.avatar_url,
+    role: 'member',
+    status: 'in-voice',
+    voiceChannelId: currentChannelId,
+  }
+
+  const setRefs = (node: HTMLDivElement | null) => {
+    setNodeRef(node)
+    rowRef.current = node
   }
 
   return (
-    <div
-      ref={setNodeRef}
-      className={`group/vu relative flex items-center gap-1.5 pl-1.5 pr-0.5 py-1 rounded-lg text-app-muted transition-colors ${
-        isDragging ? 'opacity-40' : 'hover:bg-app-glass/[0.04]'
-      } ${vu.isScreenSharing && !hasOptions ? 'cursor-pointer' : ''}`}
-      onClick={() => {
-        if (vu.isScreenSharing && !hasOptions) onWatchScreenShare?.(vu.userId)
-      }}
-    >
+    <>
       <div
-        {...(canDrag ? { ...attributes, ...listeners } : {})}
-        className={`flex items-center gap-2 min-w-0 flex-1 ${canDrag ? 'cursor-grab active:cursor-grabbing touch-none' : ''}`}
-        title={canDrag ? 'Drag to another voice room' : undefined}
+        ref={setRefs}
+        className={`group/vu relative flex items-center gap-1.5 pl-1.5 pr-1 py-1 rounded-lg text-app-muted transition-colors ${
+          isDragging ? 'opacity-40' : 'hover:bg-app-glass/[0.04]'
+        }`}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setSub(null)
+          setCtx({ x: e.clientX, y: e.clientY })
+        }}
       >
         <div
-          className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0 ring-2 transition-all overflow-hidden ${
-            vu.isSpeaking
-              ? 'ring-[#23a559] shadow-[0_0_10px_rgba(35,165,89,0.45)]'
-              : 'ring-transparent'
-          } ${vu.avatar_url ? 'bg-transparent' : 'bg-app-accent/80'}`}
+          {...(canDrag ? { ...attributes, ...listeners } : {})}
+          className={`flex items-center gap-2 min-w-0 flex-1 ${canDrag ? 'cursor-grab active:cursor-grabbing touch-none' : ''}`}
+          title={canDrag ? 'Drag into another voice channel to move' : 'Right-click for options'}
         >
-          {vu.avatar_url ? (
-            <img src={vu.avatar_url} alt="" className="w-full h-full object-cover" />
-          ) : (
-            vu.username.charAt(0).toUpperCase()
-          )}
-        </div>
-        <span className="text-[12px] font-medium truncate min-w-0 text-app-text/85">{vu.username}</span>
-      </div>
-
-      <div className="flex items-center gap-0.5 flex-shrink-0">
-        {vu.isScreenSharing && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              onWatchScreenShare?.(vu.userId)
-            }}
-            className="text-[9px] font-semibold tracking-wide px-1.5 py-0.5 rounded-md bg-red-500/90 text-white hover:bg-red-500 flex-shrink-0"
-            title="Watch screen share"
+          <div
+            className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0 ring-2 transition-all overflow-hidden ${
+              vu.isSpeaking
+                ? 'ring-[#23a559] shadow-[0_0_10px_rgba(35,165,89,0.45)]'
+                : 'ring-transparent'
+            } ${vu.avatar_url ? 'bg-transparent' : 'bg-app-accent/80'}`}
           >
-            Live
-          </button>
-        )}
-        {vu.isMuted && <MicOffIcon size={12} className="text-red-400" />}
-        {vu.isDeafened && <HeadphonesOffIcon size={12} className="text-red-400" />}
+            {vu.avatar_url ? (
+              <img src={vu.avatar_url} alt="" className="w-full h-full object-cover" />
+            ) : (
+              vu.username.charAt(0).toUpperCase()
+            )}
+          </div>
+          <span className="text-[12px] font-medium truncate min-w-0 text-app-text/85 select-none">
+            {vu.username}
+          </span>
+        </div>
 
-        {hasOptions && (
-          <div className="relative">
+        <div className="flex items-center gap-0.5 flex-shrink-0">
+          {vu.isScreenSharing && (
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
-                setShowMenu((v) => !v)
-                setShowMoveSub(false)
+                onWatchScreenShare?.(vu.userId)
               }}
-              className="p-1 rounded-md text-app-muted hover:text-app-text hover:bg-app-glass/[0.06] opacity-70 group-hover/vu:opacity-100 max-lg:opacity-100 transition-opacity"
-              title="User options"
-              aria-label={`Options for ${vu.username}`}
+              className="text-[9px] font-semibold tracking-wide px-1.5 py-0.5 rounded-md bg-red-500/90 text-white hover:bg-red-500"
+              title="Watch screen share"
             >
-              <MoreIcon />
+              Live
             </button>
-            {shouldRenderMenu && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={closeMenu} />
-                <div
-                  ref={menuRef}
-                  className="absolute right-0 top-full mt-1 z-50 min-w-[168px] rounded-xl border border-app-glass/[0.08] bg-app-panel p-1 shadow-2xl"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {canWatch && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onWatchScreenShare?.(vu.userId)
-                        closeMenu()
-                      }}
-                      className="w-full px-2.5 py-1.5 rounded-lg text-[13px] text-left text-app-text hover:bg-app-accent hover:text-white"
-                    >
-                      Watch Live
-                    </button>
-                  )}
-                  {canMove && (
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setShowMoveSub((v) => !v)}
-                        className="w-full px-2.5 py-1.5 rounded-lg text-[13px] text-left text-app-text hover:bg-app-accent hover:text-white flex items-center justify-between gap-2"
-                      >
-                        <span>Move to…</span>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className={showMoveSub ? 'rotate-90' : ''}>
-                          <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
-                        </svg>
-                      </button>
-                      {showMoveSub && (
-                        <div className="mt-0.5 ml-1 rounded-lg border border-app-glass/[0.06] bg-app-panel p-0.5 max-h-40 overflow-y-auto">
-                          {otherVoice.map((ch) => (
-                            <button
-                              key={ch.id}
-                              type="button"
-                              onClick={async () => {
-                                await onMoveToChannel?.(vu.userId, ch.id)
-                                closeMenu()
-                              }}
-                              className="w-full px-2.5 py-1.5 rounded-md text-[12px] text-left text-app-text hover:bg-app-accent hover:text-white flex items-center gap-2"
-                            >
-                              <VoiceIcon className="opacity-70 flex-shrink-0" />
-                              <span className="truncate">{ch.name}</span>
-                            </button>
-                          ))}
-                        </div>
+          )}
+          {vu.isMuted && <MicOffIcon size={12} className="text-red-400 pointer-events-none" />}
+          {vu.isDeafened && <HeadphonesOffIcon size={12} className="text-red-400 pointer-events-none" />}
+        </div>
+      </div>
+
+      {shouldRenderMenu &&
+        ctx &&
+        createPortal(
+          <div
+            ref={menuRef}
+            className="fixed z-[220] min-w-[200px] rounded-xl border border-app-hover/50 bg-app-darker p-1 shadow-2xl"
+            style={{ left: Math.min(ctx.x, window.innerWidth - 220), top: Math.min(ctx.y, window.innerHeight - 320) }}
+            onClick={(e) => e.stopPropagation()}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            <button
+              type="button"
+              className={menuItemClass()}
+              onClick={() => {
+                setProfileAnchor(rowRef.current?.getBoundingClientRect() ?? new DOMRect(ctx.x, ctx.y, 0, 0))
+                setProfileOpen(true)
+                closeMenu()
+              }}
+            >
+              Profile
+            </button>
+            {!isSelf && onMessageUser && (
+              <button
+                type="button"
+                className={menuItemClass()}
+                onClick={() => {
+                  onMessageUser(vu.userId, vu.username)
+                  closeMenu()
+                }}
+              >
+                Message
+              </button>
+            )}
+            {!isSelf && onCallUser && (
+              <button
+                type="button"
+                className={menuItemClass()}
+                onClick={() => {
+                  onCallUser(vu.userId, vu.username, vu.avatar_url)
+                  closeMenu()
+                }}
+              >
+                Call
+              </button>
+            )}
+            {!isSelf && onAddFriend && (
+              <button
+                type="button"
+                className={menuItemClass()}
+                onClick={() => {
+                  onAddFriend(vu.userId, vu.username)
+                  closeMenu()
+                }}
+              >
+                Add Friend
+              </button>
+            )}
+            {vu.isScreenSharing && onWatchScreenShare && (
+              <button
+                type="button"
+                className={menuItemClass()}
+                onClick={() => {
+                  onWatchScreenShare(vu.userId)
+                  closeMenu()
+                }}
+              >
+                Watch Live
+              </button>
+            )}
+
+            <div className="h-px bg-app-hover/50 my-1" />
+
+            <div className="relative">
+              <button
+                type="button"
+                className={`${menuItemClass()} flex items-center justify-between gap-2`}
+                onClick={() => setSub(sub === 'roles' ? null : 'roles')}
+              >
+                <span>Roles</span>
+                <span className="text-[11px] text-app-muted capitalize">{targetRole}</span>
+              </button>
+              {sub === 'roles' && (
+                <div className="mt-0.5 ml-1 rounded-lg border border-app-hover/40 bg-app-dark p-0.5">
+                  {currentUserRole === 'owner' && !isSelf && targetRole !== 'owner' && onSetMemberRole ? (
+                    <>
+                      {targetRole !== 'admin' && (
+                        <button
+                          type="button"
+                          className={menuItemClass()}
+                          onClick={async () => {
+                            await onSetMemberRole(vu.userId, 'admin')
+                            closeMenu()
+                          }}
+                        >
+                          Make Admin
+                        </button>
                       )}
+                      {targetRole !== 'member' && (
+                        <button
+                          type="button"
+                          className={menuItemClass()}
+                          onClick={async () => {
+                            await onSetMemberRole(vu.userId, 'member')
+                            closeMenu()
+                          }}
+                        >
+                          Make Member
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <div className="px-3 py-1.5 text-[12px] text-app-muted capitalize">
+                      {targetRole}
+                      {currentUserRole !== 'owner' ? ' (owner can change)' : ''}
                     </div>
                   )}
-                  {canMute && (
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        await onMuteInVoice?.(vu.userId)
-                        closeMenu()
-                      }}
-                      className="w-full px-2.5 py-1.5 rounded-lg text-[13px] text-left text-app-text hover:bg-app-accent hover:text-white"
-                    >
-                      Server Mute
-                    </button>
-                  )}
-                  {canDisconnect && (
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        await onDisconnectFromVoice?.(vu.userId)
-                        closeMenu()
-                      }}
-                      className="w-full px-2.5 py-1.5 rounded-lg text-[13px] text-left text-red-400 hover:bg-red-500/20"
-                    >
-                      Disconnect
-                    </button>
-                  )}
                 </div>
-              </>
+              )}
+            </div>
+
+            {canModTarget && otherVoice.length > 0 && onMoveToChannel && (
+              <div className="relative">
+                <button
+                  type="button"
+                  className={`${menuItemClass()} flex items-center justify-between gap-2`}
+                  onClick={() => setSub(sub === 'move' ? null : 'move')}
+                >
+                  <span>Move to</span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className={sub === 'move' ? 'rotate-90' : ''}>
+                    <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+                  </svg>
+                </button>
+                {sub === 'move' && (
+                  <div className="mt-0.5 ml-1 rounded-lg border border-app-hover/40 bg-app-dark p-0.5 max-h-40 overflow-y-auto">
+                    <p className="px-2 py-1 text-[10px] text-app-muted">Or drag them onto a voice channel</p>
+                    {otherVoice.map((ch) => (
+                      <button
+                        key={ch.id}
+                        type="button"
+                        className={`${menuItemClass()} flex items-center gap-2`}
+                        onClick={async () => {
+                          await onMoveToChannel(vu.userId, ch.id)
+                          closeMenu()
+                        }}
+                      >
+                        <VoiceIcon className="opacity-70 flex-shrink-0" />
+                        <span className="truncate">{ch.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
-          </div>
+
+            {canModTarget && onMuteInVoice && (
+              <button
+                type="button"
+                className={menuItemClass()}
+                onClick={async () => {
+                  await onMuteInVoice(vu.userId)
+                  closeMenu()
+                }}
+              >
+                Server Mute
+              </button>
+            )}
+            {canModTarget && onDeafenInVoice && (
+              <button
+                type="button"
+                className={menuItemClass()}
+                onClick={async () => {
+                  await onDeafenInVoice(vu.userId)
+                  closeMenu()
+                }}
+              >
+                Server Deafen
+              </button>
+            )}
+            {canModTarget && onDisconnectFromVoice && (
+              <button
+                type="button"
+                className={menuItemClass()}
+                onClick={async () => {
+                  await onDisconnectFromVoice(vu.userId)
+                  closeMenu()
+                }}
+              >
+                Disconnect
+              </button>
+            )}
+
+            {canModTarget && (onKick || onBan) && <div className="h-px bg-app-hover/50 my-1" />}
+            {canModTarget && onKick && (
+              <button
+                type="button"
+                className={menuItemClass(true)}
+                onClick={async () => {
+                  if (confirm(`Kick ${vu.username} from the server?`)) await onKick(vu.userId)
+                  closeMenu()
+                }}
+              >
+                Kick
+              </button>
+            )}
+            {canModTarget && onBan && (
+              <button
+                type="button"
+                className={menuItemClass(true)}
+                onClick={async () => {
+                  if (confirm(`Ban ${vu.username} from the server?`)) await onBan(vu.userId)
+                  closeMenu()
+                }}
+              >
+                Ban
+              </button>
+            )}
+          </div>,
+          document.body
         )}
-      </div>
-    </div>
+
+      {profileOpen && profileAnchor && currentUserId && (
+        <MemberProfilePanel
+          member={profileMember}
+          currentUserId={currentUserId}
+          voiceChannels={voiceChannels}
+          anchorRect={profileAnchor}
+          placement="left"
+          canKick={!!(canModTarget && onKick)}
+          canBan={!!(canModTarget && onBan)}
+          onClose={() => {
+            setProfileOpen(false)
+            setProfileAnchor(null)
+          }}
+          onMessage={onMessageUser}
+          onAddFriend={onAddFriend}
+          onCall={onCallUser}
+          onKick={onKick}
+          onBan={onBan}
+        />
+      )}
+    </>
   )
 }
 
 function SortableChannelItem({
   channel,
+  categories,
   currentChannelId,
   onSelectChannel,
   voiceUsers,
   voiceChannels,
+  serverMembers,
   hasUnread,
   hasMention,
   onUpdateChannel,
   onDeleteChannel,
   onMoveToChannel,
   onMuteInVoice,
+  onDeafenInVoice,
   onDisconnectFromVoice,
   onWatchScreenShare,
+  onKick,
+  onBan,
+  onMessageUser,
+  onCallUser,
+  onAddFriend,
+  onSetMemberRole,
   canEdit,
   canModerate,
   currentUserId,
+  currentUserRole,
 }: {
   channel: Channel
+  categories: Category[]
   currentChannelId: string | null
   onSelectChannel: (ch: Channel) => void
   voiceUsers: Record<string, VoiceUserInfo[]>
   voiceChannels: Channel[]
+  serverMembers?: ServerMember[]
   hasUnread?: boolean
   hasMention?: boolean
   onUpdateChannel?: (channelId: string, data: { name?: string; order?: number; categoryId?: string | null }) => Promise<void>
@@ -398,12 +626,21 @@ function SortableChannelItem({
   onWatchScreenShare?: (userId: string) => void
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
   onMuteInVoice?: (userId: string) => Promise<void>
+  onDeafenInVoice?: (userId: string) => Promise<void>
   onDisconnectFromVoice?: (userId: string) => Promise<void>
+  onKick?: (userId: string) => Promise<void>
+  onBan?: (userId: string) => Promise<void>
+  onMessageUser?: (userId: string, username: string) => void
+  onCallUser?: (userId: string, username: string, avatarUrl?: string) => void
+  onAddFriend?: (userId: string, username: string) => void
+  onSetMemberRole?: (userId: string, role: 'admin' | 'member') => Promise<void>
   canEdit?: boolean
   canModerate?: boolean
   currentUserId?: string
+  currentUserRole?: ServerMember['role']
 }) {
   const [showMenu, setShowMenu] = useState(false)
+  const [showCatSub, setShowCatSub] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState(channel.name)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -525,28 +762,93 @@ function SortableChannelItem({
               {canEdit && (
                 <div className="relative">
                   <button
-                    onClick={() => setShowMenu(!showMenu)}
+                    onClick={() => {
+                      setShowMenu(!showMenu)
+                      setShowCatSub(false)
+                    }}
                     className="p-1.5 rounded-lg text-app-muted hover:text-app-text hover:bg-app-glass/[0.05] opacity-0 group-hover/ch:opacity-100 group-focus-within/ch:opacity-100 max-lg:opacity-100 transition-opacity"
-                    title="Channel options"
+                    title="Edit channel"
+                    aria-label={`Edit ${channel.name}`}
                   >
-                    <MoreIcon />
+                    <GearIcon />
                   </button>
                   {shouldRenderMenu && (
                     <>
-                      <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => {
+                          setShowMenu(false)
+                          setShowCatSub(false)
+                        }}
+                      />
                       <div
                         ref={menuRef}
-                        className="absolute right-0 top-full mt-1 z-50 min-w-[132px] rounded-xl border border-app-glass/[0.08] bg-app-panel p-1 shadow-2xl"
+                        className="absolute right-0 top-full mt-1 z-50 min-w-[180px] rounded-xl border border-app-hover/50 bg-app-darker p-1 shadow-2xl"
                       >
                         <button
                           onClick={() => {
                             setEditing(true)
                             setShowMenu(false)
                           }}
-                          className="w-full px-2.5 py-1.5 rounded-lg text-[13px] text-app-text hover:bg-app-accent hover:text-white text-left"
+                          className={menuItemClass()}
                         >
-                          Rename
+                          Rename Channel
                         </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(channel.id)
+                            } catch {
+                              /* ignore */
+                            }
+                            setShowMenu(false)
+                          }}
+                          className={menuItemClass()}
+                        >
+                          Copy Channel ID
+                        </button>
+                        {categories.length > 0 && onUpdateChannel && (
+                          <div>
+                            <button
+                              type="button"
+                              onClick={() => setShowCatSub((v) => !v)}
+                              className={`${menuItemClass()} flex items-center justify-between gap-2`}
+                            >
+                              <span>Move to Category</span>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className={showCatSub ? 'rotate-90' : ''}>
+                                <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+                              </svg>
+                            </button>
+                            {showCatSub && (
+                              <div className="mt-0.5 ml-1 rounded-lg border border-app-hover/40 bg-app-dark p-0.5 max-h-36 overflow-y-auto">
+                                <button
+                                  type="button"
+                                  className={menuItemClass()}
+                                  onClick={async () => {
+                                    await onUpdateChannel(channel.id, { categoryId: null })
+                                    setShowMenu(false)
+                                  }}
+                                >
+                                  No category
+                                </button>
+                                {categories.map((cat) => (
+                                  <button
+                                    key={cat.id}
+                                    type="button"
+                                    className={menuItemClass()}
+                                    onClick={async () => {
+                                      await onUpdateChannel(channel.id, { categoryId: cat.id })
+                                      setShowMenu(false)
+                                    }}
+                                  >
+                                    {cat.name}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <div className="h-px bg-app-hover/50 my-1" />
                         <button
                           onClick={async () => {
                             if (onDeleteChannel && confirm(`Delete channel "${channel.name}"?`)) {
@@ -554,9 +856,9 @@ function SortableChannelItem({
                             }
                             setShowMenu(false)
                           }}
-                          className="w-full px-2.5 py-1.5 rounded-lg text-[13px] text-red-400 hover:bg-red-500/20 text-left"
+                          className={menuItemClass(true)}
                         >
-                          Delete
+                          Delete Channel
                         </button>
                       </div>
                     </>
@@ -587,12 +889,22 @@ function SortableChannelItem({
                   vu={vu}
                   currentChannelId={channel.id}
                   voiceChannels={voiceChannels}
+                  member={serverMembers?.find((m) => m.userId === vu.userId)}
+                  currentUserId={currentUserId}
+                  currentUserRole={currentUserRole}
                   canModerate={!!canModerate}
                   isSelf={vu.userId === currentUserId}
                   onMoveToChannel={onMoveToChannel}
                   onMuteInVoice={onMuteInVoice}
+                  onDeafenInVoice={onDeafenInVoice}
                   onDisconnectFromVoice={onDisconnectFromVoice}
                   onWatchScreenShare={onWatchScreenShare}
+                  onKick={onKick}
+                  onBan={onBan}
+                  onMessageUser={onMessageUser}
+                  onCallUser={onCallUser}
+                  onAddFriend={onAddFriend}
+                  onSetMemberRole={onSetMemberRole}
                 />
               ))}
             </div>
@@ -606,11 +918,13 @@ function SortableChannelItem({
 function UncategorizedHeader({
   collapsed,
   onToggle,
-  onAddChannel,
+  onAddTextChannel,
+  onAddVoiceChannel,
 }: {
   collapsed: boolean
   onToggle: () => void
-  onAddChannel: () => void
+  onAddTextChannel: () => void
+  onAddVoiceChannel: () => void
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `${CATEGORY_PREFIX}${UNCATEGORIZED_ID}`,
@@ -632,18 +946,28 @@ function UncategorizedHeader({
       <span className="font-display text-[12px] font-semibold text-app-muted/90 tracking-tight truncate flex-1 hover:text-app-text transition-colors">
         Channels
       </span>
-      <button
-        onClick={(e) => {
-          e.stopPropagation()
-          onAddChannel()
-        }}
-        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 text-app-muted hover:text-app-text transition-all p-1 rounded-md hover:bg-app-glass/[0.05]"
-        title="Create Channel"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-          <path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-        </svg>
-      </button>
+      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100">
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onAddTextChannel()
+          }}
+          className="text-app-muted hover:text-app-text transition-all p-1 rounded-md hover:bg-app-glass/[0.05]"
+          title="Create text channel"
+        >
+          <ChatIcon />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onAddVoiceChannel()
+          }}
+          className="text-app-muted hover:text-app-text transition-all p-1 rounded-md hover:bg-app-glass/[0.05]"
+          title="Create voice channel"
+        >
+          <VoiceIcon />
+        </button>
+      </div>
     </div>
   )
 }
@@ -652,7 +976,8 @@ function SortableCategoryHeader({
   category,
   collapsed,
   onToggle,
-  onAddChannel,
+  onAddTextChannel,
+  onAddVoiceChannel,
   onUpdateCategory,
   onDeleteCategory,
   canEdit,
@@ -660,7 +985,8 @@ function SortableCategoryHeader({
   category: Category
   collapsed: boolean
   onToggle: () => void
-  onAddChannel: (catId: string) => void
+  onAddTextChannel: (catId: string) => void
+  onAddVoiceChannel: (catId: string) => void
   onUpdateCategory?: (catId: string, data: { name?: string }) => Promise<void>
   onDeleteCategory?: (catId: string) => Promise<void>
   canEdit?: boolean
@@ -738,14 +1064,22 @@ function SortableCategoryHeader({
         <button
           onClick={(e) => {
             e.stopPropagation()
-            onAddChannel(category.id)
+            onAddTextChannel(category.id)
           }}
           className="p-1 rounded-md text-app-muted hover:text-app-text hover:bg-app-glass/[0.05]"
-          title="Create Channel"
+          title="Create text channel"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-            <path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-          </svg>
+          <ChatIcon />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onAddVoiceChannel(category.id)
+          }}
+          className="p-1 rounded-md text-app-muted hover:text-app-text hover:bg-app-glass/[0.05]"
+          title="Create voice channel"
+        >
+          <VoiceIcon />
         </button>
         {canEdit && (
           <div className="relative">
@@ -755,25 +1089,25 @@ function SortableCategoryHeader({
                 setShowMenu(!showMenu)
               }}
               className="p-1 rounded-md text-app-muted hover:text-app-text hover:bg-app-glass/[0.05]"
-              title="Category options"
+              title="Edit category"
             >
-              <MoreIcon />
+              <GearIcon />
             </button>
             {shouldRenderMenu && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
                 <div
                   ref={menuRef}
-                  className="absolute left-0 top-full mt-1 z-50 min-w-[132px] rounded-xl border border-app-glass/[0.08] bg-app-panel p-1 shadow-2xl"
+                  className="absolute left-0 top-full mt-1 z-50 min-w-[148px] rounded-xl border border-app-hover/50 bg-app-darker p-1 shadow-2xl"
                 >
                   <button
                     onClick={() => {
                       setEditing(true)
                       setShowMenu(false)
                     }}
-                    className="w-full px-2.5 py-1.5 rounded-lg text-[13px] text-app-text hover:bg-app-accent hover:text-white text-left"
+                    className={menuItemClass()}
                   >
-                    Rename
+                    Rename Category
                   </button>
                   <button
                     onClick={async () => {
@@ -785,9 +1119,9 @@ function SortableCategoryHeader({
                       }
                       setShowMenu(false)
                     }}
-                    className="w-full px-2.5 py-1.5 rounded-lg text-[13px] text-red-400 hover:bg-red-500/20 text-left"
+                    className={menuItemClass(true)}
                   >
-                    Delete
+                    Delete Category
                   </button>
                 </div>
               </>
@@ -802,45 +1136,67 @@ function SortableCategoryHeader({
 function CategorySection({
   category,
   channels,
+  categories,
   allVoiceChannels,
+  serverMembers,
   currentChannelId,
   onSelectChannel,
-  onAddChannel,
+  onAddTextChannel,
+  onAddVoiceChannel,
   onUpdateChannel,
   onUpdateCategory,
   onDeleteChannel,
   onDeleteCategory,
   onMoveToChannel,
   onMuteInVoice,
+  onDeafenInVoice,
   onDisconnectFromVoice,
   onWatchScreenShare,
+  onKick,
+  onBan,
+  onMessageUser,
+  onCallUser,
+  onAddFriend,
+  onSetMemberRole,
   voiceUsers,
   channelUnreadCounts,
   channelMentionCounts,
   canEdit,
   canModerate,
   currentUserId,
+  currentUserRole,
 }: {
   category: Category | null
   channels: Channel[]
+  categories: Category[]
   allVoiceChannels: Channel[]
+  serverMembers?: ServerMember[]
   currentChannelId: string | null
   onSelectChannel: (ch: Channel) => void
-  onAddChannel: (catId?: string) => void
+  onAddTextChannel: (catId?: string) => void
+  onAddVoiceChannel: (catId?: string) => void
   onUpdateChannel?: (channelId: string, data: { name?: string; order?: number; categoryId?: string | null }) => Promise<void>
   onUpdateCategory?: (catId: string, data: { name?: string }) => Promise<void>
   onDeleteChannel?: (channelId: string) => Promise<void>
   onDeleteCategory?: (catId: string) => Promise<void>
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
   onMuteInVoice?: (userId: string) => Promise<void>
+  onDeafenInVoice?: (userId: string) => Promise<void>
   onDisconnectFromVoice?: (userId: string) => Promise<void>
   onWatchScreenShare?: (userId: string) => void
+  onKick?: (userId: string) => Promise<void>
+  onBan?: (userId: string) => Promise<void>
+  onMessageUser?: (userId: string, username: string) => void
+  onCallUser?: (userId: string, username: string, avatarUrl?: string) => void
+  onAddFriend?: (userId: string, username: string) => void
+  onSetMemberRole?: (userId: string, role: 'admin' | 'member') => Promise<void>
   voiceUsers: Record<string, VoiceUserInfo[]>
   channelUnreadCounts?: Record<string, number>
   channelMentionCounts?: Record<string, number>
   canEdit?: boolean
   canModerate?: boolean
   currentUserId?: string
+  currentUserRole?: ServerMember['role']
 }) {
   const [collapsed, setCollapsed] = useState(false)
 
@@ -851,7 +1207,8 @@ function CategorySection({
           category={category}
           collapsed={collapsed}
           onToggle={() => setCollapsed(!collapsed)}
-          onAddChannel={onAddChannel}
+          onAddTextChannel={onAddTextChannel}
+          onAddVoiceChannel={onAddVoiceChannel}
           onUpdateCategory={onUpdateCategory}
           onDeleteCategory={onDeleteCategory}
           canEdit={canEdit}
@@ -861,7 +1218,8 @@ function CategorySection({
         <UncategorizedHeader
           collapsed={collapsed}
           onToggle={() => setCollapsed(!collapsed)}
-          onAddChannel={() => onAddChannel(undefined)}
+          onAddTextChannel={() => onAddTextChannel(undefined)}
+          onAddVoiceChannel={() => onAddVoiceChannel(undefined)}
         />
       )}
 
@@ -875,21 +1233,31 @@ function CategorySection({
               <SortableChannelItem
                 key={channel.id}
                 channel={channel}
+                categories={categories}
                 currentChannelId={currentChannelId}
                 onSelectChannel={onSelectChannel}
                 voiceUsers={voiceUsers}
                 voiceChannels={allVoiceChannels}
+                serverMembers={serverMembers}
                 hasUnread={channel.type === 'text' && (channelUnreadCounts?.[channel.id] ?? 0) > 0}
                 hasMention={channel.type === 'text' && (channelMentionCounts?.[channel.id] ?? 0) > 0}
                 onUpdateChannel={onUpdateChannel}
                 onDeleteChannel={onDeleteChannel}
                 onMoveToChannel={onMoveToChannel}
                 onMuteInVoice={onMuteInVoice}
+                onDeafenInVoice={onDeafenInVoice}
                 onDisconnectFromVoice={onDisconnectFromVoice}
                 onWatchScreenShare={onWatchScreenShare}
+                onKick={onKick}
+                onBan={onBan}
+                onMessageUser={onMessageUser}
+                onCallUser={onCallUser}
+                onAddFriend={onAddFriend}
+                onSetMemberRole={onSetMemberRole}
                 canEdit={canEdit}
                 canModerate={canModerate}
                 currentUserId={currentUserId}
+                currentUserRole={currentUserRole}
               />
             ))}
           </div>
@@ -916,8 +1284,17 @@ export function ChannelList({
   onDeleteCategory,
   onMoveToChannel,
   onMuteInVoice,
+  onDeafenInVoice,
   onDisconnectFromVoice,
+  onKick,
+  onBan,
+  onMessageUser,
+  onCallUser,
+  onAddFriend,
+  onSetMemberRole,
   onWatchScreenShare,
+  serverMembers = [],
+  currentUserRole = 'member',
   isAdminOrOwner = false,
   voiceConnection,
   voiceUsers,
@@ -939,14 +1316,37 @@ export function ChannelList({
   const allVoiceChannels = channels.filter((c) => c.type === 'voice')
   const [showCreateChannel, setShowCreateChannel] = useState(false)
   const [createChannelCategoryId, setCreateChannelCategoryId] = useState<string | undefined>()
+  const [createChannelType, setCreateChannelType] = useState<'text' | 'voice' | 'rules'>('text')
+  const [createChannelLockType, setCreateChannelLockType] = useState(true)
   const [showServerMenu, setShowServerMenu] = useState(false)
   const [serverProfileBusy, setServerProfileBusy] = useState(false)
+  const serverHeaderRef = useRef<HTMLDivElement>(null)
   const serverMenuRef = useRef<HTMLDivElement>(null)
+  const [serverMenuPos, setServerMenuPos] = useState<{ top: number; left: number; width: number } | null>(null)
   const shouldRenderServerMenu = useGsapMenu(showServerMenu, serverMenuRef, {
     enterY: -8,
     exitY: -6,
     transformOrigin: 'top center',
   })
+
+  const openCreateChannel = (type: 'text' | 'voice' | 'rules', catId?: string, lockType = true) => {
+    setCreateChannelType(type)
+    setCreateChannelLockType(lockType)
+    setCreateChannelCategoryId(catId)
+    setShowCreateChannel(true)
+    setShowServerMenu(false)
+  }
+
+  useEffect(() => {
+    if (!showServerMenu) {
+      setServerMenuPos(null)
+      return
+    }
+    const el = serverHeaderRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    setServerMenuPos({ top: rect.bottom + 4, left: rect.left + 8, width: Math.max(rect.width - 16, 200) })
+  }, [showServerMenu])
 
   const setMyServerProfile = async (profileType: ProfileType) => {
     if (!serverId || !user?.id) return
@@ -1049,7 +1449,7 @@ export function ChannelList({
           </div>
         )}
         {/* Server / Friends Header */}
-        <div className="relative">
+        <div className="relative" ref={serverHeaderRef}>
           <button
             onClick={() => {
               if (isFriendsView) return
@@ -1074,24 +1474,39 @@ export function ChannelList({
             )}
           </button>
 
-          {/* Server dropdown menu */}
-          {shouldRenderServerMenu && !hasNoServers && !isFriendsView && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowServerMenu(false)} />
-              <div ref={serverMenuRef} className="absolute top-12 left-2 right-2 z-50 bg-app-panel rounded-lg shadow-xl p-1.5 border border-app-hover/30">
+          {/* Server dropdown — portaled so it isn't trapped/transparent in the rail */}
+          {shouldRenderServerMenu && !hasNoServers && !isFriendsView && serverMenuPos &&
+            createPortal(
+              <>
+                <div className="fixed inset-0 z-[180]" onClick={() => setShowServerMenu(false)} />
+                <div
+                  ref={serverMenuRef}
+                  className="fixed z-[190] rounded-lg bg-app-darker border border-app-hover/60 shadow-2xl p-1.5"
+                  style={{ top: serverMenuPos.top, left: serverMenuPos.left, width: serverMenuPos.width }}
+                >
                 <button
-                  onClick={() => {
-                    setCreateChannelCategoryId(undefined)
-                    setShowCreateChannel(true)
-                    setShowServerMenu(false)
-                  }}
+                  onClick={() => openCreateChannel('text', undefined, true)}
                   className="w-full px-2 py-1.5 rounded text-sm text-app-text hover:bg-app-accent hover:text-white text-left flex items-center gap-2 transition-colors"
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="flex-shrink-0">
-                    <path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                  </svg>
-                  Create Channel
+                  <ChatIcon className="flex-shrink-0" />
+                  Create Text Channel
                 </button>
+                <button
+                  onClick={() => openCreateChannel('voice', undefined, true)}
+                  className="w-full px-2 py-1.5 rounded text-sm text-app-text hover:bg-app-accent hover:text-white text-left flex items-center gap-2 transition-colors"
+                >
+                  <VoiceIcon className="flex-shrink-0" />
+                  Create Voice Channel
+                </button>
+                {isAdminOrOwner && (
+                  <button
+                    onClick={() => openCreateChannel('rules', undefined, true)}
+                    className="w-full px-2 py-1.5 rounded text-sm text-app-text hover:bg-app-accent hover:text-white text-left flex items-center gap-2 transition-colors"
+                  >
+                    <RulesIcon className="flex-shrink-0" />
+                    Create Rules Channel
+                  </button>
+                )}
                 <button
                   onClick={async () => {
                     const name = prompt('Category name:')
@@ -1162,8 +1577,9 @@ export function ChannelList({
                   </>
                 )}
               </div>
-            </>
-          )}
+              </>,
+              document.body
+            )}
         </div>
 
         {/* Direct Messages */}
@@ -1259,27 +1675,35 @@ export function ChannelList({
                   key={category.id}
                   category={category}
                   channels={catChannels}
+                  categories={categories}
                   allVoiceChannels={allVoiceChannels}
+                  serverMembers={serverMembers}
                   currentChannelId={currentChannelId}
                   onSelectChannel={onSelectChannel}
-                  onAddChannel={(catId) => {
-                    setCreateChannelCategoryId(catId)
-                    setShowCreateChannel(true)
-                  }}
+                  onAddTextChannel={(catId) => openCreateChannel('text', catId, true)}
+                  onAddVoiceChannel={(catId) => openCreateChannel('voice', catId, true)}
                   onUpdateChannel={onUpdateChannel}
                   onUpdateCategory={onUpdateCategory}
                   onDeleteChannel={onDeleteChannel}
                   onDeleteCategory={onDeleteCategory}
                   onMoveToChannel={onMoveToChannel}
                   onMuteInVoice={onMuteInVoice}
+                  onDeafenInVoice={onDeafenInVoice}
                   onDisconnectFromVoice={onDisconnectFromVoice}
                   onWatchScreenShare={onWatchScreenShare}
+                  onKick={onKick}
+                  onBan={onBan}
+                  onMessageUser={onMessageUser}
+                  onCallUser={onCallUser}
+                  onAddFriend={onAddFriend}
+                  onSetMemberRole={onSetMemberRole}
                   voiceUsers={voiceUsers}
                   channelUnreadCounts={channelUnreadCounts}
                   channelMentionCounts={channelMentionCounts}
                   canEdit={isOwner}
                   canModerate={isAdminOrOwner}
                   currentUserId={user?.id}
+                  currentUserRole={currentUserRole}
                 />
               ))}
 
@@ -1288,27 +1712,35 @@ export function ChannelList({
                 <CategorySection
                   category={null}
                   channels={uncategorizedChannels}
+                  categories={categories}
                   allVoiceChannels={allVoiceChannels}
+                  serverMembers={serverMembers}
                   currentChannelId={currentChannelId}
                   onSelectChannel={onSelectChannel}
-                  onAddChannel={() => {
-                    setCreateChannelCategoryId(undefined)
-                    setShowCreateChannel(true)
-                  }}
+                  onAddTextChannel={() => openCreateChannel('text', undefined, true)}
+                  onAddVoiceChannel={() => openCreateChannel('voice', undefined, true)}
                   onUpdateChannel={onUpdateChannel}
                   onUpdateCategory={onUpdateCategory}
                   onDeleteChannel={onDeleteChannel}
                   onDeleteCategory={onDeleteCategory}
                   onMoveToChannel={onMoveToChannel}
                   onMuteInVoice={onMuteInVoice}
+                  onDeafenInVoice={onDeafenInVoice}
                   onDisconnectFromVoice={onDisconnectFromVoice}
                   onWatchScreenShare={onWatchScreenShare}
+                  onKick={onKick}
+                  onBan={onBan}
+                  onMessageUser={onMessageUser}
+                  onCallUser={onCallUser}
+                  onAddFriend={onAddFriend}
+                  onSetMemberRole={onSetMemberRole}
                   voiceUsers={voiceUsers}
                   channelUnreadCounts={channelUnreadCounts}
                   channelMentionCounts={channelMentionCounts}
                   canEdit={isOwner}
                   canModerate={isAdminOrOwner}
                   currentUserId={user?.id}
+                  currentUserRole={currentUserRole}
                 />
               )}
             </SortableContext>
@@ -1403,13 +1835,15 @@ export function ChannelList({
           </div>
         )}
 
-        {/* Create Channel Modal */}
+        {/* Create Channel Modal (portaled to body inside the modal component) */}
         {showCreateChannel && (
           <CreateChannelModal
             onClose={() => setShowCreateChannel(false)}
             onCreate={async (name, type) => {
               await onCreateChannel(name, type, createChannelCategoryId)
             }}
+            defaultType={createChannelType}
+            lockType={createChannelLockType}
             categoryName={categories.find((c) => c.id === createChannelCategoryId)?.name}
             canCreateRules={isAdminOrOwner}
           />

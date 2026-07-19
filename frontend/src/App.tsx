@@ -1026,6 +1026,15 @@ function MainLayout({
               showNotification((e as Error).message, 'error')
             }
           }}
+          onDeafenInVoice={async (targetUserId) => {
+            if (!currentServerId) return
+            try {
+              await api.deafenMemberInVoice(currentServerId, targetUserId, user.id)
+              showNotification('User deafened in voice')
+            } catch (e) {
+              showNotification((e as Error).message, 'error')
+            }
+          }}
           onDisconnectFromVoice={async (targetUserId) => {
             if (!currentServerId) return
             try {
@@ -1037,6 +1046,39 @@ function MainLayout({
               showNotification((e as Error).message, 'error')
             }
           }}
+          onKick={handleKick}
+          onBan={handleBan}
+          onMessageUser={async (userId, username) => {
+            try {
+              await handleOpenDM(userId, username)
+            } catch (e) {
+              showNotification((e as Error).message, 'error')
+            }
+          }}
+          onCallUser={(targetUserId, targetUsername, targetAvatarUrl) => {
+            call.initiateCall(targetUserId, targetUsername, targetAvatarUrl)
+          }}
+          onAddFriend={async (userId, username) => {
+            try {
+              await api.sendFriendRequest(user.id, userId, 'personal', 'personal')
+              showNotification(`Friend request sent to ${username}`)
+            } catch (e) {
+              showNotification((e as Error).message, 'error')
+            }
+          }}
+          onSetMemberRole={async (targetUserId, role) => {
+            if (!currentServerId) return
+            try {
+              await api.setMemberRole(currentServerId, targetUserId, user.id, role)
+              showNotification(role === 'admin' ? 'User promoted to admin' : 'User set to member')
+              const updated = await api.getServerMembers(currentServerId)
+              setServerMembers(withLiveSelfPresence(updated))
+            } catch (e) {
+              showNotification((e as Error).message, 'error')
+            }
+          }}
+          serverMembers={serverMembers}
+          currentUserRole={currentUserRole}
           voiceConnection={voiceConnection}
           voiceUsers={voiceUsers}
           onWatchScreenShare={(userId) => {

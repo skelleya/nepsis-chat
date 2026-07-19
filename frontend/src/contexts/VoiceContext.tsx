@@ -511,6 +511,17 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     return () => unsub?.()
   }, [voiceChannelId])
 
+  // ─── Admin deafen listener ─
+  useEffect(() => {
+    const signaling = signalingRef.current
+    if (!signaling || !voiceChannelId) return
+    const unsub = (signaling as { onAdminDeafen?: (cb: () => void) => () => void }).onAdminDeafen?.(() => {
+      setIsMutedState(true)
+      setIsDeafened(true)
+    })
+    return () => unsub?.()
+  }, [voiceChannelId, setIsDeafened])
+
   // ─── Local/remote voice-state sync (mute/deafen badges for peers) ─
   useEffect(() => {
     if (!voiceChannelId) return
