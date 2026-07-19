@@ -559,13 +559,13 @@ serversRouter.get('/:id/members', async (req, res) => {
     let error
     ;({ data: members, error } = await supabase
       .from('server_members')
-      .select('user_id, role, joined_at, profile_type, users(id, display_name, avatar_url, banner_url)')
+      .select('user_id, role, joined_at, profile_type, users(id, username, display_name, avatar_url, banner_url)')
       .eq('server_id', req.params.id))
 
     if (error && /profile_type/i.test(error.message || '')) {
       ;({ data: members, error } = await supabase
         .from('server_members')
-        .select('user_id, role, joined_at, users(id, display_name, avatar_url, banner_url)')
+        .select('user_id, role, joined_at, users(id, username, display_name, avatar_url, banner_url)')
         .eq('server_id', req.params.id))
     }
     if (error) throw error
@@ -592,9 +592,11 @@ serversRouter.get('/:id/members', async (req, res) => {
     const result = (members || []).map((m) => {
       const type = m.profile_type === 'work' ? 'work' : 'personal'
       const profile = profileMap[m.user_id]?.[type] || profileMap[m.user_id]?.personal
+      // Prefer profile → users.display_name → users.username (never blank "Unknown" for real accounts)
       const displayName =
         (profile?.display_name && profile.display_name.trim()) ||
         (m.users?.display_name && m.users.display_name.trim()) ||
+        (m.users?.username && String(m.users.username).trim()) ||
         'Unknown'
       return {
         userId: m.user_id,

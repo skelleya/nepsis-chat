@@ -20,15 +20,27 @@ authRouter.post('/login', async (req, res) => {
 
     if (existing) return res.json(existing)
 
-    // Create new guest user
+    // Create new guest user — seed display_name + personal profile so members never show "Unknown"
     const id = 'u' + Date.now()
     const { data: newUser, error } = await supabase
       .from('users')
-      .insert({ id, username, is_guest: true })
+      .insert({ id, username, display_name: username, is_guest: true })
       .select()
       .single()
 
     if (error) throw error
+    // Best-effort profile seed (members list falls back to username if this fails)
+    const { error: profileError } = await supabase.from('user_profiles').upsert(
+      {
+        id: `p-${id}-personal`,
+        user_id: id,
+        profile_type: 'personal',
+        display_name: username,
+        discoverable: true,
+      },
+      { onConflict: 'user_id,profile_type' }
+    )
+    if (profileError) console.warn('Guest profile seed failed', profileError.message)
     res.json(newUser)
   } catch (err) {
     console.error('Guest login error:', err)
@@ -92,16 +104,27 @@ authRouter.post('/auth/callback', async (req, res) => {
 
     if (existing) return res.json(existing)
 
-    // Create user linked to Supabase Auth
+    // Create user linked to Supabase Auth — seed display_name + personal profile
     const id = 'u' + Date.now()
     const displayName = username || email.split('@')[0]
     const { data: newUser, error } = await supabase
       .from('users')
-      .insert({ id, username: displayName, email, auth_id, is_guest: false })
+      .insert({ id, username: displayName, display_name: displayName, email, auth_id, is_guest: false })
       .select()
       .single()
 
     if (error) throw error
+    const { error: profileError } = await supabase.from('user_profiles').upsert(
+      {
+        id: `p-${id}-personal`,
+        user_id: id,
+        profile_type: 'personal',
+        display_name: displayName,
+        discoverable: true,
+      },
+      { onConflict: 'user_id,profile_type' }
+    )
+    if (profileError) console.warn('Auth profile seed failed', profileError.message)
     res.json(newUser)
   } catch (err) {
     console.error('Auth callback error:', err)

@@ -1,8 +1,10 @@
+import type { CSSProperties } from 'react'
 import { useDesktopUpdate } from '../hooks/useDesktopUpdate'
 
 /**
  * Top-of-app update badge for the desktop shell.
  * Appears when electron-updater finds a newer GitHub Release.
+ * Positioned below the custom title bar with no-drag so clicks always work.
  */
 export function UpdateButton() {
   const {
@@ -10,6 +12,8 @@ export function UpdateButton() {
     updateAvailable,
     updateDownloaded,
     downloading,
+    installing,
+    installError,
     availableVersion,
     downloadPercent,
     downloadUpdate,
@@ -19,38 +23,58 @@ export function UpdateButton() {
   if (!isElectron || !updateAvailable) return null
 
   const versionLabel = availableVersion ? `v${availableVersion}` : 'Update'
+  const noDrag = { WebkitAppRegion: 'no-drag' } as CSSProperties
 
   if (updateDownloaded) {
     return (
-      <div className="fixed top-8 left-0 right-0 z-[55] flex justify-center pointer-events-none">
-        <button
-          type="button"
-          onClick={installUpdate}
-          className="pointer-events-auto mt-0 flex items-center gap-3 rounded-b-2xl bg-[#23a559] pl-3 pr-4 py-2.5 text-white shadow-lg transition-transform hover:-translate-y-0.5"
-          title="Restart to install update"
-        >
-          <img
-            src="./logo.png"
-            alt=""
-            className="h-8 w-8 rounded-lg object-contain bg-white/95 p-0.5"
-          />
-          <span className="text-left">
-            <span className="block text-sm font-semibold leading-tight">Restart to update</span>
-            <span className="block text-[11px] text-white/85">{versionLabel} is ready</span>
-          </span>
-        </button>
+      <div
+        className="fixed top-8 left-0 right-0 z-[70] flex justify-center pointer-events-none"
+        style={noDrag}
+      >
+        <div className="pointer-events-auto flex flex-col items-center">
+          <button
+            type="button"
+            onClick={() => {
+              void installUpdate()
+            }}
+            disabled={installing}
+            className="mt-0 flex items-center gap-3 rounded-b-2xl bg-[#23a559] pl-3 pr-4 py-2.5 text-white shadow-lg transition-transform hover:-translate-y-0.5 disabled:opacity-90 disabled:hover:translate-y-0"
+            title="Restart to install update"
+            style={noDrag}
+          >
+            <img
+              src="./logo.png"
+              alt=""
+              className="h-8 w-8 rounded-lg object-contain bg-white/95 p-0.5"
+            />
+            <span className="text-left">
+              <span className="block text-sm font-semibold leading-tight">
+                {installing ? 'Restarting…' : 'Restart to update'}
+              </span>
+              <span className="block text-[11px] text-white/85">
+                {installError ? installError : `${versionLabel} is ready`}
+              </span>
+            </span>
+          </button>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="fixed top-8 left-0 right-0 z-[55] flex justify-center pointer-events-none">
+    <div
+      className="fixed top-8 left-0 right-0 z-[70] flex justify-center pointer-events-none"
+      style={noDrag}
+    >
       <button
         type="button"
-        onClick={downloadUpdate}
+        onClick={() => {
+          void downloadUpdate()
+        }}
         disabled={downloading}
         className="pointer-events-auto mt-0 flex items-center gap-3 rounded-b-2xl bg-[#111214] border border-white/10 border-t-0 pl-3 pr-4 py-2.5 text-white shadow-lg transition-transform hover:-translate-y-0.5 disabled:opacity-90 disabled:hover:translate-y-0"
         title={downloading ? `Downloading… ${downloadPercent}%` : `Download ${versionLabel}`}
+        style={noDrag}
       >
         <span className="relative flex h-9 w-9 items-center justify-center">
           <img

@@ -43,7 +43,7 @@ Artifacts land in `electron/dist/`.
 | `frontend/src/hooks/useDesktopUpdate.ts` | IPC: available / progress / downloaded |
 | `electron/main.js` | `autoUpdater` → `update-available`, `update-download-progress`, `update-downloaded` |
 
-Flow: check on launch (+ every 30 min) → badge “Update available” → user clicks → download with progress → “Restart to update”.
+Flow: check on launch (+ every 30 min) → badge “Update available” → user clicks → download with progress → “Restart to update”. Badge sits below the custom title bar (`z-[70]`, `no-drag`) so clicks work. `quit-and-install` sets `isQuitting`, removes tray close handlers, then `quitAndInstall` with `app.exit` fallback (0.1.3+).
 
 ---
 
