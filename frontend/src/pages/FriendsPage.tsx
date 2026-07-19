@@ -93,8 +93,15 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
   const moveTabIndicator = useCallback((animate: boolean) => {
     const track = tabsNavRef.current
     const indicator = tabIndicatorRef.current
+    if (!track || !indicator) return
+    // Add Friend is a separate orange CTA — hide the pill while that view is open
+    if (activeTab === 'add') {
+      gsap.killTweensOf(indicator)
+      gsap.to(indicator, { opacity: 0, duration: 0.2, ease: 'power2.out' })
+      return
+    }
     const btn = tabBtnRefs.current[activeTab]
-    if (!track || !indicator || !btn) return
+    if (!btn) return
     const x = btn.offsetLeft
     const width = btn.offsetWidth
     gsap.killTweensOf(indicator)
@@ -106,6 +113,7 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
     gsap.to(indicator, {
       x,
       width,
+      opacity: 1,
       duration: 0.35,
       ease: 'power3.inOut',
       force3D: false,
@@ -315,11 +323,10 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
 
   const onlineFriends = friends.filter((f) => f.status === 'online' || f.status === 'in-voice')
 
-  const tabs: { id: FriendsTab; label: string; count?: number }[] = [
+  const tabs: { id: Exclude<FriendsTab, 'add'>; label: string; count?: number }[] = [
     { id: 'all', label: 'All' },
     { id: 'pending', label: 'Pending', count: requests.length },
     { id: 'online', label: 'Online', count: onlineFriends.length },
-    { id: 'add', label: 'Add Friend' },
   ]
 
   return (
@@ -340,8 +347,8 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
         <h2 className="font-display text-xl font-bold text-white">Friends</h2>
       </div>
 
-      {/* Tabs — GSAP pill + content slide (same rhythm as User Settings) */}
-      <div className="px-4 pt-3 pb-2 border-b border-app-dark/50 flex-shrink-0">
+      {/* Tabs — All / Pending / Online + orange Add Friend beside Online */}
+      <div className="px-4 pt-3 pb-2 border-b border-app-dark/50 flex-shrink-0 flex items-center gap-2 flex-wrap">
         <div ref={tabsNavRef} className="relative flex gap-1 w-fit max-w-full">
           <div
             ref={tabIndicatorRef}
@@ -369,6 +376,17 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
             </button>
           ))}
         </div>
+        <button
+          type="button"
+          onClick={() => switchTab('add')}
+          className={`px-3.5 py-2 rounded-lg text-sm font-semibold transition-colors shrink-0 ${
+            activeTab === 'add'
+              ? 'bg-app-accent text-white ring-2 ring-white/20'
+              : 'bg-app-accent hover:bg-app-accent-hover text-white'
+          }`}
+        >
+          Add Friend
+        </button>
       </div>
 
       {/* Content */}
@@ -597,18 +615,9 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
         ) : (
           /* All friends */
           <div>
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <h3 className="text-sm font-semibold text-app-text">All friends — {friends.length}</h3>
-              <button
-                type="button"
-                onClick={() => switchTab('add')}
-                className="text-sm font-semibold text-white bg-app-accent hover:bg-app-accent-hover px-4 py-2 rounded-lg transition-colors shrink-0"
-              >
-                + Add Friend
-              </button>
-            </div>
+            <h3 className="text-sm font-semibold text-app-text mb-3">All friends — {friends.length}</h3>
             {friends.length === 0 && requests.length === 0 ? (
-              <p className="text-sm text-app-muted">No friends yet. Use + Add to search by display name.</p>
+              <p className="text-sm text-app-muted">No friends yet. Use Add Friend to search by display name.</p>
             ) : friends.length === 0 ? (
               <p className="text-sm text-app-muted">No friends yet.</p>
             ) : (
