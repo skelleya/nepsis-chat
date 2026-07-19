@@ -41,6 +41,8 @@ export interface UserPrefs {
 }
 
 const STORAGE_KEY = 'nepsis_user_prefs'
+/** One-time migrate old default accent (blurple) → Nepsis orange */
+const ACCENT_MIGRATE_KEY = 'nepsis_accent_orange_v1'
 
 export const DEFAULT_PREFS: UserPrefs = {
   appearance: {
@@ -136,7 +138,14 @@ export function loadPrefs(): UserPrefs {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return structuredClone(DEFAULT_PREFS)
-    return mergePrefs(JSON.parse(raw))
+    const prefs = mergePrefs(JSON.parse(raw))
+    // Old installs defaulted to Discord blurple — move to orange once (can re-pick Blurple in Appearance)
+    if (!localStorage.getItem(ACCENT_MIGRATE_KEY) && prefs.appearance.accent === 'blurple') {
+      prefs.appearance.accent = 'orange'
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs))
+      localStorage.setItem(ACCENT_MIGRATE_KEY, '1')
+    }
+    return prefs
   } catch {
     return structuredClone(DEFAULT_PREFS)
   }
