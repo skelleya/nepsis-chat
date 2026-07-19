@@ -101,6 +101,8 @@ Node.js + Express + Socket.io + SQLite.
 
 ## Socket.io Namespaces
 
+Handlers are registered with the **Namespace** (`io.of('/voice')`, etc.), not the root Server. On a Namespace, `namespace.sockets` is already `Map<socketId, Socket>`. Do not use `namespace.sockets.sockets` (that double path only exists on the root Server via `server.sockets.sockets`).
+
 ### `/chat`
 
 | Event | Direction | Payload |
