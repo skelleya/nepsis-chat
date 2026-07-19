@@ -84,9 +84,46 @@ export async function getServers(userId: string) {
   return res.json()
 }
 
-export async function getCommunityServers() {
+export type CommunityServer = {
+  id: string
+  name: string
+  icon_url?: string
+  banner_url?: string
+  owner_id: string
+  ownerName?: string | null
+  memberCount?: number
+  onlineCount?: number
+  is_community?: boolean
+  lock_channels_until_rules_accepted?: boolean
+  rules_channel_id?: string | null
+}
+
+export type ServerPreview = {
+  id: string
+  name: string
+  iconUrl?: string
+  bannerUrl?: string
+  ownerId: string
+  ownerName: string
+  memberCount: number
+  onlineCount: number
+  channelCount: number
+  requiresRules: boolean
+  isCommunity: boolean
+}
+
+export async function getCommunityServers(): Promise<CommunityServer[]> {
   const res = await fetch(`${API_BASE}/servers/community`)
   if (!res.ok) throw new Error('Failed to fetch community servers')
+  return res.json()
+}
+
+export async function getServerPreview(serverId: string): Promise<ServerPreview> {
+  const res = await fetch(`${API_BASE}/servers/${serverId}/preview`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to fetch server details')
+  }
   return res.json()
 }
 
@@ -473,8 +510,9 @@ export async function kickMember(serverId: string, targetUserId: string, kickerU
 
 export async function getInviteByCode(code: string): Promise<{
   code: string
-  server: { id: string; name: string; iconUrl?: string; bannerUrl?: string }
+  server: { id: string; name: string; iconUrl?: string; bannerUrl?: string; memberCount?: number }
   inviter: string
+  memberCount?: number
   expiresAt?: string
   maxUses?: number
   useCount?: number

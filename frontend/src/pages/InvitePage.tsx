@@ -9,8 +9,9 @@ export function InvitePage() {
   const { user, loadServers, setCurrentServer } = useApp()
   const [invite, setInvite] = useState<{
     code: string
-    server: { id: string; name: string; iconUrl?: string; bannerUrl?: string }
+    server: { id: string; name: string; iconUrl?: string; bannerUrl?: string; memberCount?: number }
     inviter: string
+    memberCount?: number
   } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [joining, setJoining] = useState(false)
@@ -93,8 +94,15 @@ export function InvitePage() {
           )}
         </div>
         <h1 className="text-2xl font-bold text-white mb-1">{invite.server.name}</h1>
-        <p className="text-app-muted mb-6">
+        <p className="text-app-muted mb-2">
           {invite.inviter} has invited you to join
+        </p>
+        <p className="text-sm text-app-muted/90 mb-6 inline-flex items-center justify-center gap-2">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-app-muted/70" aria-hidden />
+            {(invite.memberCount ?? invite.server.memberCount ?? 0).toLocaleString()}{' '}
+            {(invite.memberCount ?? invite.server.memberCount ?? 0) === 1 ? 'Member' : 'Members'}
+          </span>
         </p>
 
         {user ? (

@@ -63,7 +63,40 @@ serversRouter.get('/', async (req, res) => {
   }
 })
 
-// Get community servers (discoverable)
+/** Count members (+ online) for a list of server IDs */
+async function memberStatsForServers(serverIds) {
+  const stats = {}
+  for (const id of serverIds) stats[id] = { memberCount: 0, onlineCount: 0 }
+  if (!serverIds.length) return stats
+
+  const { data: members } = await supabase
+    .from('server_members')
+    .select('server_id, user_id')
+    .in('server_id', serverIds)
+
+  const userIds = [...new Set((members || []).map((m) => m.user_id))]
+  let onlineIds = new Set()
+  if (userIds.length) {
+    const { data: presence } = await supabase
+      .from('user_presence')
+      .select('user_id, status')
+      .in('user_id', userIds)
+    onlineIds = new Set(
+      (presence || [])
+        .filter((p) => p.status && p.status !== 'offline')
+        .map((p) => p.user_id)
+    )
+  }
+
+  for (const m of members || []) {
+    if (!stats[m.server_id]) stats[m.server_id] = { memberCount: 0, onlineCount: 0 }
+    stats[m.server_id].memberCount += 1
+    if (onlineIds.has(m.user_id)) stats[m.server_id].onlineCount += 1
+  }
+  return stats
+}
+
+// Get community servers (discoverable) — includes member counts for Explore UI
 serversRouter.get('/community', async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -72,8 +105,31 @@ serversRouter.get('/community', async (req, res) => {
       .eq('is_community', true)
       .order('name')
     if (error) throw error
-    res.json(data || [])
+    const list = data || []
+    const stats = await memberStatsForServers(list.map((s) => s.id))
+
+    const ownerIds = [...new Set(list.map((s) => s.owner_id).filter(Boolean))]
+    const ownerNames = {}
+    if (ownerIds.length) {
+      const { data: owners } = await supabase
+        .from('users')
+        .select('id, username, display_name')
+        .in('id', ownerIds)
+      for (const u of owners || []) {
+        ownerNames[u.id] = (u.display_name && u.display_name.trim()) || u.username || 'Unknown'
+      }
+    }
+
+    res.json(
+      list.map((s) => ({
+        ...s,
+        memberCount: stats[s.id]?.memberCount ?? 0,
+        onlineCount: stats[s.id]?.onlineCount ?? 0,
+        ownerName: ownerNames[s.owner_id] || null,
+      }))
+    )
   } catch (err) {
+    console.error('Get community servers error:', err)
     res.status(500).json({ error: 'Failed to fetch community servers' })
   }
 })
@@ -97,6 +153,50 @@ serversRouter.put('/reorder', async (req, res) => {
   } catch (err) {
     console.error('Reorder servers error:', err)
     res.status(500).json({ error: 'Failed to reorder servers' })
+  }
+})
+
+// Public preview for Explore / invite-style details (community servers only)
+serversRouter.get('/:id/preview', async (req, res) => {
+  try {
+    const { data: server, error } = await supabase
+      .from('servers')
+      .select('id, name, icon_url, banner_url, owner_id, is_community, lock_channels_until_rules_accepted, rules_channel_id')
+      .eq('id', req.params.id)
+      .single()
+    if (error || !server) return res.status(404).json({ error: 'Server not found' })
+    if (!server.is_community) {
+      return res.status(403).json({ error: 'Server preview is only available for community servers' })
+    }
+
+    const stats = await memberStatsForServers([server.id])
+    const { data: owner } = await supabase
+      .from('users')
+      .select('username, display_name')
+      .eq('id', server.owner_id)
+      .maybeSingle()
+
+    const { count: channelCount } = await supabase
+      .from('channels')
+      .select('id', { count: 'exact', head: true })
+      .eq('server_id', server.id)
+
+    res.json({
+      id: server.id,
+      name: server.name,
+      iconUrl: server.icon_url,
+      bannerUrl: server.banner_url,
+      ownerId: server.owner_id,
+      ownerName: (owner?.display_name && owner.display_name.trim()) || owner?.username || 'Unknown',
+      memberCount: stats[server.id]?.memberCount ?? 0,
+      onlineCount: stats[server.id]?.onlineCount ?? 0,
+      channelCount: channelCount ?? 0,
+      requiresRules: !!(server.lock_channels_until_rules_accepted && server.rules_channel_id),
+      isCommunity: true,
+    })
+  } catch (err) {
+    console.error('Server preview error:', err)
+    res.status(500).json({ error: 'Failed to fetch server preview' })
   }
 })
 

@@ -52,14 +52,29 @@ invitesRouter.get('/:code', async (req, res) => {
 
     const { data: creator } = await supabase
       .from('users')
-      .select('username')
+      .select('username, display_name')
       .eq('id', invite.created_by)
       .single()
 
+    const { count: memberCount } = await supabase
+      .from('server_members')
+      .select('user_id', { count: 'exact', head: true })
+      .eq('server_id', invite.server_id)
+
+    const inviterName =
+      (creator?.display_name && creator.display_name.trim()) || creator?.username || 'Unknown'
+
     res.json({
       code: invite.code,
-      server: { id: server.id, name: server.name, iconUrl: server.icon_url, bannerUrl: server.banner_url },
-      inviter: creator?.username || 'Unknown',
+      server: {
+        id: server.id,
+        name: server.name,
+        iconUrl: server.icon_url,
+        bannerUrl: server.banner_url,
+        memberCount: memberCount ?? 0,
+      },
+      inviter: inviterName,
+      memberCount: memberCount ?? 0,
       expiresAt: invite.expires_at,
       maxUses: invite.max_uses,
       useCount: invite.use_count,
