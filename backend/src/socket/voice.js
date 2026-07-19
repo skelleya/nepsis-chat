@@ -2,11 +2,18 @@
  * Voice signaling namespace (/voice).
  * - One active session per userId (new join kicks older sockets)
  * - peer-left only when no remaining sockets for that user in the room
+ *
+ * Note: `io` here is the /voice Namespace from `io.of('/voice')`, not the root
+ * Server. On a Namespace, `.sockets` is already Map<socketId, Socket>.
  */
 
 function socketsForUser(io, userId) {
   const out = []
-  for (const [, s] of io.sockets.sockets) {
+  // Namespace.sockets is a Map — do NOT use io.sockets.sockets (that shape is
+  // only on the root Server's default namespace: server.sockets.sockets).
+  const map = io?.sockets
+  if (!map || typeof map.values !== 'function') return out
+  for (const s of map.values()) {
     if (s.userId === userId) out.push(s)
   }
   return out
