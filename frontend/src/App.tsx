@@ -19,7 +19,10 @@ import { TitleBar } from './components/TitleBar'
 import { UserPanel } from './components/UserPanel'
 import { ServerSettingsModal } from './components/ServerSettingsModal'
 import { mockChannels } from './data/mockData'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+
+/** Set when an unauthenticated user clicks “Log In to Join” on an invite link. */
+const PENDING_INVITE_KEY = 'nepsis_pending_invite'
 import { DownloadPage } from './pages/DownloadPage'
 import { InvitePage } from './pages/InvitePage'
 import { CommunityPage } from './pages/CommunityPage'
@@ -28,6 +31,7 @@ import { OnboardingPage, ONBOARDING_COMPLETED_KEY } from './pages/OnboardingPage
 import { ErrorBoundary } from './components/ErrorBoundary'
 
 function AppContent() {
+  const navigate = useNavigate()
   const {
     user,
     servers,
@@ -63,8 +67,10 @@ function AppContent() {
     logout,
   } = useApp()
 
-  const [showLogin, setShowLogin] = useState(true)
-  const [showApp, setShowApp] = useState(false)
+  // If AppContent remounts while already authenticated (e.g. return from /invite/:code),
+  // show the app immediately — the null→user transition effect will not re-fire.
+  const [showLogin, setShowLogin] = useState(() => !user)
+  const [showApp, setShowApp] = useState(() => !!user)
   const prevUserRef = useRef(user)
   const loginShellRef = useRef<HTMLDivElement>(null)
   const transitioningRef = useRef(false)
@@ -79,6 +85,13 @@ function AppContent() {
       return
     }
 
+    // Already signed in on (re)mount — keep app visible (invite join → navigate home).
+    if (user && !showApp) {
+      setShowApp(true)
+      setShowLogin(false)
+      return
+    }
+
     if (prev && !user) {
       // Kill in-flight login fade so onComplete cannot hide login after logout
       if (loginShellRef.current) gsap.killTweensOf(loginShellRef.current)
@@ -87,7 +100,18 @@ function AppContent() {
       setShowLogin(true)
       if (loginShellRef.current) gsap.set(loginShellRef.current, { opacity: 1, y: 0, scale: 1 })
     }
-  }, [user])
+  }, [user, showApp])
+
+  // After login from an invite page, resume the invite flow.
+  useEffect(() => {
+    if (!user) return
+    let code: string | null = null
+    try {
+      code = sessionStorage.getItem(PENDING_INVITE_KEY)
+      if (code) sessionStorage.removeItem(PENDING_INVITE_KEY)
+    } catch { /* ignore */ }
+    if (code) navigate(`/invite/${code}`)
+  }, [user, navigate])
 
   useLayoutEffect(() => {
     if (!user || !showApp || !showLogin || transitioningRef.current) return
@@ -967,14 +991,13 @@ function MainLayout({
         <OnboardingPage onExplore={openCommunityView} />
       ) : showCommunity ? (
         <CommunityPage
-          onJoinServer={() => {
+          onJoinServer={(serverId) => {
             setShowCommunity(false)
             setShowFriends(false)
-            if (currentServerId) {
-              try {
-                localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'server' }))
-              } catch { /* ignore */ }
-            }
+            try {
+              localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'server' }))
+            } catch { /* ignore */ }
+            if (serverId) setCurrentServer(serverId)
           }}
           onClose={
             servers.length > 0

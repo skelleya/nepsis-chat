@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import * as api from '../services/api'
 import { useApp } from '../contexts/AppContext'
 
+const PENDING_INVITE_KEY = 'nepsis_pending_invite'
+
 export function InvitePage() {
   const { code } = useParams<{ code: string }>()
   const navigate = useNavigate()
@@ -30,24 +32,37 @@ export function InvitePage() {
   const handleJoin = async () => {
     if (!user || !code || !invite) return
     setJoining(true)
+    setError(null)
     try {
       const { serverId } = await api.joinViaInvite(code, user.id)
+      try {
+        sessionStorage.setItem('joinServerId', serverId)
+        localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'server' }))
+      } catch { /* ignore */ }
       // Refresh server list and switch to the joined server directly (no reload needed)
       await loadServers(user.id)
       setCurrentServer(serverId)
       navigate('/')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to join')
-    } finally {
       setJoining(false)
     }
+  }
+
+  const handleLoginToJoin = () => {
+    if (code) {
+      try {
+        sessionStorage.setItem(PENDING_INVITE_KEY, code)
+      } catch { /* ignore */ }
+    }
+    navigate('/')
   }
 
   const handleOpenApp = () => {
     navigate('/')
   }
 
-  if (error) {
+  if (error && !invite) {
     return (
       <div className="min-h-screen bg-[#313338] flex flex-col items-center justify-center p-6">
         <div className="w-full max-w-md rounded-2xl bg-[#2b2d31] p-8 text-center shadow-xl">
@@ -105,6 +120,10 @@ export function InvitePage() {
           </span>
         </p>
 
+        {error && (
+          <p className="text-red-400 text-sm mb-4">{error}</p>
+        )}
+
         {user ? (
           <button
             onClick={handleJoin}
@@ -117,7 +136,7 @@ export function InvitePage() {
           <div className="space-y-3">
             <p className="text-sm text-app-muted">You need to log in to join this server.</p>
             <button
-              onClick={handleOpenApp}
+              onClick={handleLoginToJoin}
               className="w-full px-6 py-3 bg-app-accent hover:bg-app-accent-hover text-white rounded-lg font-semibold transition-colors"
             >
               Log In to Join
