@@ -62,7 +62,8 @@ frontend/src/
 | PrivacySettingsTab | Voice-focused privacy toggles/selects; persists via `GET/PUT /api/users/:id/privacy` |
 | ProfilesSettingsTab | Edit Personal/Work profiles; set server presentation; manage which friends see which profiles |
 | OnboardingPage | Shown when new (non-guest) user has no servers; CTAs: Create first server (opens CreateServerModal), Explore community; persisted via `nepsis_onboarding_completed` |
-| CommunityPage | Explore page: invite code entry, community servers list; shown when guest has no servers or when user completes onboarding. **GSAP:** fade+slide-in on mount (compass bubble) |
+| CommunityPage | Explore page: invite code entry; community list shows online/member counts; **click a server** opens details panel (members, online, channels, owner, Join/Open). **GSAP:** fade+slide-in on mount |
+| InvitePage | Public invite join page — server banner/icon/name, inviter, **member count**, Join Server |
 | UpdateButton | Green update (Electron only) |
 | DownloadBanner | Centered top tab: short prompt (“Prefer the desktop app?”) + clear Download button + subtle dismiss; `rounded-b-xl`; dismissible (localStorage); sets `--download-banner-height`; hidden on `/download` and in Electron. **GSAP:** slide/fade in/out |
 | WelcomeLanding | Pre-auth home (white split): large Nepsis logo left (`mix-blend-multiply` drops black square), **Use Web App** / **Download App** right. Syne + Figtree; GSAP entrance. |

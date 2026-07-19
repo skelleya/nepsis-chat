@@ -47,7 +47,7 @@ Node.js + Express + Socket.io + SQLite.
 | POST | `/api/friends/decline` | Decline friend request (`userId`, `requesterId`) |
 | POST | `/api/friends/request` | Send friend request (`userId`, `targetUserId`, `profile?` personal\|work) — respects target `who_can_add_friend` |
 | PATCH | `/api/friends/visibility` | Update per-friend profile visibility (`userId`, `friendId`, `visibleProfiles?`, `friendshipProfile?`) |
-| GET | `/api/invites/:code` | Public invite details (server name, icon, inviter) — for join page |
+| GET | `/api/invites/:code` | Public invite details (server name, icon, inviter, **memberCount**) — for join page |
 | POST | `/api/invites/:code/join` | Join server via invite (`userId`) |
 | POST | `/api/servers/:id/invites` | Create invite (`createdBy`) — any member |
 | GET | `/api/servers/:id/invites` | List server invites |
