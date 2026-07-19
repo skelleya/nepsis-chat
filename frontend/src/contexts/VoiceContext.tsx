@@ -285,6 +285,13 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         video: false,
       })
       acquiredStream = stream
+      for (const track of stream.getAudioTracks()) {
+        try {
+          ;(track as MediaStreamTrack & { contentHint?: string }).contentHint = 'speech'
+        } catch {
+          /* ignore */
+        }
+      }
       setLocalStream(stream)
       setVoiceChannelId(channelId)
       setVoiceChannelName(channelName)
@@ -635,6 +642,13 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
           video: getVideoConstraints(),
           audio: false,
         })
+        for (const track of stream.getVideoTracks()) {
+          try {
+            track.contentHint = 'motion'
+          } catch {
+            /* ignore */
+          }
+        }
         setVideoStream(stream)
         setIsCameraOn(true)
         // Add video tracks to all peer connections (triggers renegotiation)
@@ -669,7 +683,11 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
       setWatchingShareUserId((prev) => (prev === userId ? null : prev))
     } else {
       try {
-        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+        const { HIGH_QUALITY_SCREEN } = await import('../services/mediaQuality')
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: HIGH_QUALITY_SCREEN,
+          audio: false,
+        })
         const screenTrack = stream.getVideoTracks()[0]
         if (screenTrack) {
           try {

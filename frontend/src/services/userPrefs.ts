@@ -3,6 +3,8 @@
  * Persisted in localStorage; applied at runtime via CSS vars + media constraints.
  */
 
+import { HIGH_QUALITY_CAMERA, highQualityAudioBase } from './mediaQuality'
+
 export type ThemeId = 'dark' | 'midnight' | 'amoled' | 'white'
 export type AccentId = 'orange' | 'blurple' | 'green' | 'teal' | 'rose' | 'gold'
 export type DensityId = 'comfortable' | 'compact'
@@ -216,9 +218,10 @@ export function applyAppearancePrefs(appearance: AppearancePrefs = loadPrefs().a
   root.style.colorScheme = appearance.theme === 'white' ? 'light' : 'dark'
 }
 
-/** Media constraints for mic capture from saved prefs */
+/** Media constraints for mic capture — high-quality defaults + user toggles */
 export function getAudioConstraints(prefs: VoicePrefs = loadPrefs().voice): MediaTrackConstraints {
   const c: MediaTrackConstraints = {
+    ...highQualityAudioBase(),
     echoCancellation: prefs.echoCancellation,
     noiseSuppression: prefs.noiseSuppression,
     autoGainControl: prefs.autoGainControl,
@@ -230,7 +233,7 @@ export function getAudioConstraints(prefs: VoicePrefs = loadPrefs().voice): Medi
 }
 
 export function getVideoConstraints(prefs: VoicePrefs = loadPrefs().voice): MediaTrackConstraints {
-  const c: MediaTrackConstraints = {}
+  const c: MediaTrackConstraints = { ...HIGH_QUALITY_CAMERA }
   if (prefs.videoInputId) {
     c.deviceId = { exact: prefs.videoInputId }
   }

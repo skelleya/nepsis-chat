@@ -357,6 +357,8 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | Create channel modal stuck in skinny rail | Modal rendered inside transformed channel panel (`fixed` trapped) | `CreateChannelModal` portaled to `document.body` |
 | Server dropdown looked transparent | Menu inside rail + GSAP opacity / weak panel bg | Portaled server menu with solid `bg-app-darker`; clear GSAP props after enter |
 | Create channel always asked for type | Single + opened full type picker | Chat + / Voice + (and server menu entries) lock type and only ask for name |
+| Voice/video sounded/looked soft vs Discord | Default getUserMedia + no bitrate/codec prefs | `mediaQuality.ts`: 48 kHz Opus prefs, 128 kbps audio, 720p+/2.5 Mbps camera, 4 Mbps screen; applied on PC senders |
+| Members minimized rail looked sparse | Vertical text + lone chevron | Avatar stack preview, CoolIcons, count badge |
 
 ---
 

@@ -2,7 +2,10 @@
  * WebRTC client - mesh topology for voice/video.
  * Uses getUserMedia for audio (Opus codec) and video.
  * Supports both BroadcastChannel and Socket.io signaling.
+ * Applies high-quality codec prefs + bitrates (see mediaQuality.ts).
  */
+
+import { applyPeerConnectionQuality, applySenderQuality, preferHighQualityCodecs } from './mediaQuality'
 
 export interface WebRTCHandlers {
   onRemoteStream: (peerId: string, userId: string, username: string, stream: MediaStream) => void
@@ -52,8 +55,16 @@ export function createWebRTCClient(
     for (const { track, stream } of extraOutbound) {
       if (track.readyState === 'ended') continue
       const already = pc.getSenders().some((s) => s.track === track)
-      if (!already) pc.addTrack(track, stream)
+      if (!already) {
+        const sender = pc.addTrack(track, stream)
+        void applySenderQuality(sender)
+      }
     }
+  }
+
+  const tunePc = (pc: RTCPeerConnection) => {
+    preferHighQualityCodecs(pc)
+    void applyPeerConnectionQuality(pc)
   }
 
   /** Drop an old PC for the same user when their socket id changes (session replace). */
@@ -82,7 +93,11 @@ export function createWebRTCClient(
       }
     }
 
-    const pc = new RTCPeerConnection({ iceServers: resolvedIceServers })
+    const pc = new RTCPeerConnection({
+      iceServers: resolvedIceServers,
+      bundlePolicy: 'max-bundle',
+      rtcpMuxPolicy: 'require',
+    })
 
     // Create a single combined remote stream per peer so audio + video tracks coexist
     const remoteStream = new MediaStream()
@@ -205,7 +220,8 @@ export function createWebRTCClient(
       const existingSenders = entry.pc.getSenders().filter((s) => s.track !== null)
       if (existingSenders.length === 0) {
         currentLocalStream.getTracks().forEach((track) => {
-          entry!.pc.addTrack(track, currentLocalStream!)
+          const sender = entry!.pc.addTrack(track, currentLocalStream!)
+          void applySenderQuality(sender)
         })
         attachExtraTracks(entry.pc)
       }
@@ -228,8 +244,10 @@ export function createWebRTCClient(
 
       await entry.pc.setRemoteDescription(new RTCSessionDescription(sdp))
       await flushCandidates(from, entry.pc)
+      tunePc(entry.pc)
       const answer = await entry.pc.createAnswer()
       await entry.pc.setLocalDescription(answer)
+      void applyPeerConnectionQuality(entry.pc)
       if (entry.pc.localDescription) signaling.sendAnswer(from, entry.pc.localDescription)
     } catch (err) {
       console.warn('handleOffer failed for', from, err)
@@ -299,13 +317,16 @@ export function createWebRTCClient(
     currentLocalStream = localStream
     const pc = createPeerConnection(remotePeerId, userId, username)
     localStream.getTracks().forEach((track) => {
-      pc.addTrack(track, localStream)
+      const sender = pc.addTrack(track, localStream)
+      void applySenderQuality(sender)
     })
     // Late joiners must also receive camera/screen already being shared
     attachExtraTracks(pc)
+    tunePc(pc)
 
     const offer = await pc.createOffer()
     await pc.setLocalDescription(offer)
+    void applyPeerConnectionQuality(pc)
     if (pc.localDescription) signaling.sendOffer(remotePeerId, pc.localDescription)
   }
 
@@ -320,10 +341,13 @@ export function createWebRTCClient(
     for (const [peerId, { pc }] of peers) {
       try {
         if (!pc.getSenders().some((s) => s.track === track)) {
-          pc.addTrack(track, stream)
+          const sender = pc.addTrack(track, stream)
+          void applySenderQuality(sender)
         }
+        tunePc(pc)
         const offer = await pc.createOffer()
         await pc.setLocalDescription(offer)
+        void applyPeerConnectionQuality(pc)
         if (pc.localDescription) signaling.sendOffer(peerId, pc.localDescription)
       } catch (err) {
         console.error('Renegotiation (add track) failed for', peerId, err)

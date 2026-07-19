@@ -67,6 +67,9 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Channel rail v2 — Non-Discord layout: rounded channel rows, chat/wave icons, title-case section headers, orange selected accent. Voice users show a side **⋯** menu (Move to… / Server Mute / Disconnect for admins; Watch Live when sharing); drag-drop move kept as secondary. |
 | + | White theme — Appearance → Color theme includes **White** (light surfaces). CSS tokens `--app-glass` / `--app-panel` keep overlays and menus readable across dark and light. |
 | + | Voice user context menu — Right-click name in channel rail (no ⋯). Options: Profile, Roles, Move to, Message, Call, Watch Live; admins also Server Mute / Server Deafen / Disconnect / Kick / Ban. Move primarily via drag-drop. Channel hover gear for rename/copy ID/move category/delete. Create channel modal centered; type locked from which + was clicked. |
+| + | High-quality media — Opus preferred; audio ~128 kbps / 48 kHz; camera 720p–1080p @ ~2.5 Mbps; screen share ~4 Mbps + `contentHint`. `mediaQuality.ts` applies codec prefs + sender bitrates on peer connections. |
+| + | CoolIcons — UI icons from CoolIcons Free Iconset (Figma / Iconify `ci`) via `CoolIcon`; voice controls + members rail migrated. |
+| + | Members sidebar v2 — Grouped In Voice / Online / Offline; minimized rail shows avatar stack + count (CoolIcons chevrons). |
 | + | Split deployment — Frontend on Vercel (git push, ~1 min), backend self-hosted (API + Socket.io). Download page links to GitHub Releases |
 | + | Voice status server-scoped — "In voice" and voice connection bar only show for the server where the user is actually in voice; no cross-server confusion |
 | + | Layout cache — Channels and categories cached in localStorage; instant server preview on switch; background refresh when tab becomes visible; preload for other servers |

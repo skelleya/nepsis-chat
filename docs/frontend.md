@@ -58,7 +58,8 @@ frontend/src/
 | Server Settings ownership | `isAdminOrOwner` uses `servers.owner_id` **or** members role. Members/servers fetch errors keep prior state so the owner menu and modal do not disappear during polls. |
 | DownloadPage | OS-detect primary **Install for Mac/Windows** (Apple/Windows logos); click starts installer download immediately; **Other Installers** reveals the rest + Linux Coming soon. |
 | SoundboardDropdown | Soundboard UI: list sounds with emoji; add (pick emoji for new sound); edit emoji per sound; delete; plays to all peers. Spam-click restarts playback. |
-| MembersSidebar | Online members. Click a name for Discord-style profile popout (left of row). **Admin:** Kick/Ban in popout + context menu; right-click in-voice for Mute / Disconnect / Move. |
+| MembersSidebar | Grouped **In Voice / Online / Offline**. Click for profile popout. Minimized: avatar stack + count + CoolIcons chevron. Context menu uses CoolIcons. **Admin:** Kick/Ban / Mute / Disconnect / Move. |
+| CoolIcon | Iconify `ci` (CoolIcons Free Iconset from Figma). Use `<CoolIcon name="users" />` instead of inline SVGs. |
 | MemberProfilePanel | Floating user card (portal + GSAP); Message/Call/Add Friend; owner/admin Kick & Ban with confirm. |
 | DMView | Discord-style DM stream (left-aligned, grouped, date separators). Composer: + inside field, Enter to send, no send button. |
 | ChatView | Same Discord chat chrome for server channels — grouped messages, hover actions, integrated + composer. |

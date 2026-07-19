@@ -144,7 +144,8 @@ export function VoiceVideoSettingsTab() {
     <div>
       <h3 className="text-xl font-bold text-app-text mb-1">Voice & Video</h3>
       <p className="text-app-muted text-sm mb-4">
-        Choose devices and processing. Applied the next time you join voice or start a call.
+        Choose devices and processing. Capture uses high-quality defaults (48&nbsp;kHz Opus voice,
+        720p–1080p camera, crisp screen share) — applied the next time you join voice or start a call.
       </p>
 
       <div className="bg-app-channel rounded-lg p-4 mb-4 space-y-4">
