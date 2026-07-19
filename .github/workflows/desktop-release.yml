@@ -1,0 +1,154 @@
+# Build Windows + macOS installers and publish a GitHub Release.
+# Trigger: Actions → Desktop Release → Run workflow
+name: Desktop Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish to GitHub Releases (uncheck to only build artifacts)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+      tag: ${{ steps.read.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: read
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./electron/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Releasing $VERSION (tag v$VERSION)"
+
+  build-windows:
+    needs: version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            electron/package-lock.json
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+      - name: Install electron deps
+        working-directory: electron
+        run: npm ci
+      - name: Build Windows installer
+        working-directory: electron
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run package:win
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: |
+            electron/dist/NepsisChat-Setup.exe
+            electron/dist/NepsisChat-Setup.exe.blockmap
+            electron/dist/latest.yml
+            electron/dist/*.zip
+          if-no-files-found: error
+
+  build-macos:
+    needs: version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            electron/package-lock.json
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+      - name: Install electron deps
+        working-directory: electron
+        run: npm ci
+      - name: Build macOS DMG + ZIP
+        working-directory: electron
+        env:
+          # Unsigned public build — users may need right-click → Open once (Gatekeeper)
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run package:mac
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-installer
+          path: |
+            electron/dist/*.dmg
+            electron/dist/*.zip
+            electron/dist/*.blockmap
+            electron/dist/latest-mac.yml
+          if-no-files-found: error
+
+  publish:
+    needs: [version, build-windows, build-macos]
+    if: ${{ inputs.publish }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
+          path: release-assets
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-installer
+          path: release-assets
+      - name: List assets
+        run: ls -lah release-assets
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.version.outputs.tag }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          NOTES="$(cat <<EOF
+          ## Nepsis Chat ${VERSION}
+
+          First public desktop installers for **Windows** and **macOS**.
+
+          ### Install
+          - **Windows:** download \`NepsisChat-Setup.exe\` and run the installer
+          - **macOS:** download the \`.dmg\`, open it, drag Nepsis Chat to Applications
+            - If macOS blocks an unsigned build: right-click the app → **Open** → Open
+
+          Auto-updates use these GitHub Release assets (\`latest.yml\` / \`latest-mac.yml\`).
+          EOF
+          )"
+
+          # Replace existing release for this tag if re-running
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release delete "$TAG" --yes --cleanup-tag || true
+            # tag may remain; delete_tag via delete --cleanup-tag
+            sleep 2
+          fi
+
+          gh release create "$TAG" \
+            --title "Nepsis Chat ${VERSION}" \
+            --notes "$NOTES" \
+            release-assets/*

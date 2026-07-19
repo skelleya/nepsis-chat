@@ -17,8 +17,10 @@ Files: `electron/main.js`, `frontend/src/components/UpdateButton.tsx`, `frontend
 
 ## Publishing a release
 
+**Preferred (CI):** bump `electron/package.json` version → push → GitHub Actions → **Desktop Release** → Run workflow. That builds Windows + macOS and publishes one release (`v{version}`) with both installers + `latest.yml` / `latest-mac.yml`.
+
 ```bash
-# Bump version in electron/package.json first (or use npm run bump after)
+# Local alternative — bump version in electron/package.json first
 export GH_TOKEN=ghp_...   # repo scope: contents/releases
 
 # On Windows (or CI windows-latest) — produces NepsisChat-Setup.exe + latest.yml

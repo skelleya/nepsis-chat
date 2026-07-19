@@ -42,7 +42,8 @@
     "publish": {
       "provider": "github",
       "owner": "skelleya",
-      "repo": "nepsis-chat"
+      "repo": "nepsis-chat",
+      "releaseType": "release"
     },
     "win": {
       "target": [
