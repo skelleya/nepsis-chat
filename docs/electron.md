@@ -65,6 +65,14 @@ Flow: check on launch (+ every 30 min) → badge “Update available” → user
 5. Download page (`/download`) auto-detects OS and shows **Install for Mac** / **Install for Windows** with platform logos.
 6. Install older version → publish newer → confirm top update badge appears.
 
-### Unsigned macOS note
+### macOS signing note
 
-CI builds set `CSC_IDENTITY_AUTO_DISCOVERY=false` (no Apple Developer cert). Users may need **right-click → Open** the first time. Add notarization env vars later for frictionless installs.
+CI uses **ad-hoc codesign** (`mac.identity: "-"`) so Gatekeeper is less likely to show “app is damaged”. There is still **no Apple notarization** until a Developer ID cert is configured.
+
+If a user still sees “damaged and cannot be opened”:
+
+```bash
+xattr -cr "/Applications/Nepsis Chat.app"
+```
+
+Then open the app again (or right-click → **Open**).
