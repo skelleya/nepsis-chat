@@ -50,6 +50,26 @@ function sendToRenderer(channel, payload) {
   if (win?.webContents) win.webContents.send(channel, payload)
 }
 
+/** Compare dotted versions; true if remote is strictly newer than local. */
+function isVersionNewer(remote, local) {
+  if (!remote || !local) return false
+  const parse = (v) =>
+    String(v)
+      .replace(/^v/i, '')
+      .split(/[.+-]/)
+      .map((p) => parseInt(p, 10) || 0)
+  const a = parse(remote)
+  const b = parse(local)
+  const len = Math.max(a.length, b.length)
+  for (let i = 0; i < len; i++) {
+    const x = a[i] || 0
+    const y = b[i] || 0
+    if (x > y) return true
+    if (x < y) return false
+  }
+  return false
+}
+
 function createTray() {
   const icon = loadIcon()
   if (!icon) return
@@ -174,7 +194,17 @@ ipcMain.handle('check-for-updates', async () => {
   if (!app.isPackaged) return { error: 'Not packaged' }
   try {
     const result = await autoUpdater.checkForUpdates()
-    return result?.updateInfo ? { version: result.updateInfo.version } : null
+    const feedVersion = result?.updateInfo?.version || null
+    const currentVersion = app.getVersion()
+    // electron-updater still returns updateInfo.version when already on latest —
+    // only surface a badge when a newer release is actually available.
+    const available =
+      !!result?.isUpdateAvailable && isVersionNewer(feedVersion, currentVersion)
+    return {
+      version: available ? feedVersion : undefined,
+      currentVersion,
+      isUpdateAvailable: available,
+    }
   } catch (err) {
     return { error: err?.message || 'Check failed' }
   }
@@ -191,9 +221,21 @@ ipcMain.handle('download-update', async () => {
 })
 
 autoUpdater.on('update-available', (info) => {
+  const feedVersion = info?.version
+  const currentVersion = app.getVersion()
+  if (!isVersionNewer(feedVersion, currentVersion)) {
+    sendToRenderer('update-not-available', { version: currentVersion })
+    return
+  }
   sendToRenderer('update-available', {
-    version: info?.version,
+    version: feedVersion,
     releaseName: info?.releaseName,
+  })
+})
+
+autoUpdater.on('update-not-available', (info) => {
+  sendToRenderer('update-not-available', {
+    version: info?.version || app.getVersion(),
   })
 })
 

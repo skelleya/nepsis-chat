@@ -21,8 +21,16 @@ export function useDesktopUpdate() {
       if (info?.version) setAvailableVersion(info.version)
     })
 
+    const offNotAvailable = api.onUpdateNotAvailable?.(() => {
+      // After a successful install/restart the feed still returns a version —
+      // clear the badge when we are already on latest.
+      setUpdateAvailable(false)
+      setAvailableVersion(null)
+    })
+
     const offDownloaded = api.onUpdateDownloaded((info) => {
       setUpdateDownloaded(true)
+      setUpdateAvailable(true)
       setDownloading(false)
       setDownloadPercent(100)
       if (info?.version) setAvailableVersion(info.version)
@@ -34,14 +42,20 @@ export function useDesktopUpdate() {
     })
 
     api.checkForUpdates().then((result) => {
-      if (result?.version) {
+      if (result?.error) return
+      if (result?.isUpdateAvailable && result.version) {
         setUpdateAvailable(true)
         setAvailableVersion(result.version)
+      } else {
+        // Already on latest (or no update) — hide the overlay after restart
+        setUpdateAvailable(false)
+        setAvailableVersion(null)
       }
     })
 
     return () => {
       offAvailable?.()
+      offNotAvailable?.()
       offDownloaded?.()
       offProgress?.()
     }

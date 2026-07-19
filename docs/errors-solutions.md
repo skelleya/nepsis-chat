@@ -68,6 +68,7 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | Installer shows old text (e.g. old description) or wrong version | Using old build artifacts | Rebuild: `cd electron && npm run package:full` — installer reads from package.json |
 | Grey screen + "Downloading" stuck | Update check found update but download hangs (e.g. unreachable localhost:3000) | UpdateButton now only shows when update is ready to install. Rebuild frontend; if dev mode, start frontend first (`cd frontend && npm run dev`) |
 | **Restart to update does nothing** | (1) Badge sat under the custom title bar (`z-60` drag region) so clicks never reached the button. (2) Tray “hide on close” could interfere with `quitAndInstall`. (3) Failures were only `console.error`. | **Fix (0.1.3+)**: UpdateButton `z-[70]` + `WebkitAppRegion: no-drag`; main process sets `isQuitting`, removes window `close` listeners, then `quitAndInstall` with `app.exit` fallback; UI shows Restarting… / error. |
+| **“Update available” badge stays after restart into new version** | `check-for-updates` returned `{ version }` whenever `updateInfo` existed. electron-updater still sets `updateInfo.version` when `isUpdateAvailable: false` (already latest). Renderer did `if (result?.version) setUpdateAvailable(true)`. | **Fix**: IPC returns `isUpdateAvailable` only when feed version is newer than `app.getVersion()`; hook shows badge only then; `update-not-available` clears state. Files: `electron/main.js`, `useDesktopUpdate.ts`, `preload.js`. Rebuild desktop app to ship. |
 
 ---
 
