@@ -801,7 +801,7 @@ export function ChannelList({
             }}
             className="w-full h-12 px-4 flex items-center justify-between border-b border-app-dark/80 text-app-text font-semibold shadow-sm hover:bg-app-hover/50 transition-colors"
           >
-            <span className="truncate">
+            <span className="font-display truncate">
               {isFriendsView ? 'Friends' : hasNoServers ? 'Explore' : (serverName ?? 'Server')}
             </span>
             {!isFriendsView && (
