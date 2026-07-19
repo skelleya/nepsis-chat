@@ -1,6 +1,6 @@
 {
   "name": "nepsis-chat",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Nepsis Chat - WebRTC voice chat",
   "main": "main.js",
   "scripts": {
@@ -37,7 +37,8 @@
     "files": [
       "main.js",
       "preload.js",
-      "icon.png"
+      "icon.png",
+      "icon.ico"
     ],
     "publish": {
       "provider": "github",
@@ -51,7 +52,7 @@
         "zip"
       ],
       "signAndEditExecutable": false,
-      "icon": "icon.png"
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,

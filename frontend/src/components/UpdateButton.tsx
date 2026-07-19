@@ -22,7 +22,7 @@ export function UpdateButton() {
 
   if (updateDownloaded) {
     return (
-      <div className="fixed top-0 left-0 right-0 z-[60] flex justify-center pointer-events-none">
+      <div className="fixed top-8 left-0 right-0 z-[55] flex justify-center pointer-events-none">
         <button
           type="button"
           onClick={installUpdate}
@@ -44,7 +44,7 @@ export function UpdateButton() {
   }
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[60] flex justify-center pointer-events-none">
+    <div className="fixed top-8 left-0 right-0 z-[55] flex justify-center pointer-events-none">
       <button
         type="button"
         onClick={downloadUpdate}

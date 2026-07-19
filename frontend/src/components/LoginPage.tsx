@@ -8,8 +8,16 @@ import { WelcomeLanding, type WelcomeLandingHandle } from './WelcomeLanding'
 
 type AuthMode = 'guest' | 'login' | 'signup'
 
-const TABS: { id: AuthMode; label: string }[] = [
+const isElectronApp = () => !!(typeof window !== 'undefined' && window.electronAPI?.isElectron)
+
+const ALL_TABS: { id: AuthMode; label: string }[] = [
   { id: 'guest', label: 'Guest' },
+  { id: 'login', label: 'Sign In' },
+  { id: 'signup', label: 'Sign Up' },
+]
+
+/** Desktop builds: account login only — no guest, no pre-login landing. */
+const DESKTOP_TABS: { id: AuthMode; label: string }[] = [
   { id: 'login', label: 'Sign In' },
   { id: 'signup', label: 'Sign Up' },
 ]
@@ -71,12 +79,14 @@ function NepsisCoin({ coinRef }: { coinRef: RefObject<HTMLDivElement | null> }) 
 
 export function LoginPage() {
   const navigate = useNavigate()
-  const [phase, setPhase] = useState<'welcome' | 'auth'>('welcome')
+  const desktop = isElectronApp()
+  const TABS = desktop ? DESKTOP_TABS : ALL_TABS
+  const [phase, setPhase] = useState<'welcome' | 'auth'>(() => (desktop ? 'auth' : 'welcome'))
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [mode, setMode] = useState<AuthMode>('guest')
-  const [tab, setTab] = useState<AuthMode>('guest')
+  const [mode, setMode] = useState<AuthMode>(() => (desktop ? 'login' : 'guest'))
+  const [tab, setTab] = useState<AuthMode>(() => (desktop ? 'login' : 'guest'))
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
@@ -95,7 +105,7 @@ export function LoginPage() {
   const coinRef = useRef<HTMLDivElement>(null)
   const pendingEnterRef = useRef(false)
   const slideDirectionRef = useRef(1)
-  const targetModeRef = useRef<AuthMode>('guest')
+  const targetModeRef = useRef<AuthMode>(desktop ? 'login' : 'guest')
   const tabIndicatorReadyRef = useRef(false)
   const fieldsClosedRef = useRef(false)
 
@@ -434,6 +444,10 @@ export function LoginPage() {
 
   const handleGuestSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (desktop) {
+      setError('Guest accounts are not available in the desktop app. Please sign in.')
+      return
+    }
     if (!username.trim() || loading) return
     setError('')
     setLoading(true)
@@ -490,7 +504,7 @@ export function LoginPage() {
     }
   }
 
-  if (phase === 'welcome') {
+  if (phase === 'welcome' && !desktop) {
     return (
       <WelcomeLanding
         ref={welcomeRef}
@@ -506,14 +520,16 @@ export function LoginPage() {
       className="fixed inset-0 flex items-center justify-center bg-app-darker will-change-transform"
     >
       <div ref={cardRef} className="w-full max-w-md p-10 rounded-xl bg-app-dark">
-        <button
-          type="button"
-          onClick={goToWelcome}
-          disabled={navBusy}
-          className="mb-4 text-sm text-app-muted hover:text-app-text transition-colors disabled:opacity-50"
-        >
-          ← Back
-        </button>
+        {!desktop && (
+          <button
+            type="button"
+            onClick={goToWelcome}
+            disabled={navBusy}
+            className="mb-4 text-sm text-app-muted hover:text-app-text transition-colors disabled:opacity-50"
+          >
+            ← Back
+          </button>
+        )}
         <div
           ref={coinWrapRef}
           className="mx-auto mb-6 flex items-center justify-center cursor-grab active:cursor-grabbing"

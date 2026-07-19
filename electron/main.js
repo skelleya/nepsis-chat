@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } = require('electron')
 const path = require('path')
+const fs = require('fs')
 const { autoUpdater } = require('electron-updater')
 
 const isDev = process.env.NODE_ENV === 'development'
@@ -25,13 +26,23 @@ if (!isDev && app.isPackaged) {
 }
 
 function loadIcon() {
-  const iconPath = path.join(__dirname, 'icon.png')
-  const icon = nativeImage.createFromPath(iconPath)
-  if (icon.isEmpty()) {
-    console.warn('Failed to load icon from', iconPath)
-    return undefined
+  // Prefer .ico on Windows (taskbar / Alt-Tab); PNG elsewhere
+  const candidates =
+    process.platform === 'win32'
+      ? [
+          path.join(__dirname, 'icon.ico'),
+          path.join(__dirname, 'build', 'icon.ico'),
+          path.join(__dirname, 'icon.png'),
+        ]
+      : [path.join(__dirname, 'icon.png')]
+
+  for (const iconPath of candidates) {
+    if (!fs.existsSync(iconPath)) continue
+    const icon = nativeImage.createFromPath(iconPath)
+    if (!icon.isEmpty()) return icon
   }
-  return icon
+  console.warn('Failed to load Nepsis icon')
+  return undefined
 }
 
 function sendToRenderer(channel, payload) {
@@ -62,6 +73,7 @@ function createTray() {
 
 function createWindow() {
   const icon = loadIcon()
+  const isMac = process.platform === 'darwin'
 
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -69,7 +81,10 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     icon,
-    // Match the browser app chrome — no Electron menu bar clutter
+    // Custom Discord-like chrome (TitleBar.tsx in renderer)
+    frame: false,
+    titleBarStyle: isMac ? 'hiddenInset' : 'default',
+    trafficLightPosition: isMac ? { x: 14, y: 10 } : undefined,
     autoHideMenuBar: true,
     backgroundColor: '#111214',
     show: false,
@@ -77,23 +92,26 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
-      // Same origin policies as a normal browser tab for the bundled SPA
       spellcheck: true,
     },
   })
 
   if (icon) mainWindow.setIcon(icon)
 
-  // Remove default File/Edit menu so the window feels like the web app
   Menu.setApplicationMenu(null)
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
   })
 
+  const emitMaximized = () => {
+    sendToRenderer('window-maximized', mainWindow.isMaximized())
+  }
+  mainWindow.on('maximize', emitMaximized)
+  mainWindow.on('unmaximize', emitMaximized)
+
   if (app.isPackaged) {
     // Bundled frontend built with --mode desktop (production API + Supabase).
-    // Falls back to live Vercel only if the bundle is missing.
     mainWindow.loadFile(BUNDLED_INDEX).catch(() => {
       mainWindow.loadURL(PROD_URL)
     })
@@ -121,7 +139,6 @@ npm run dev</pre>
 
   if (!isDev && app.isPackaged) {
     autoUpdater.checkForUpdates().catch(() => {})
-    // Re-check periodically so users see the badge without restarting
     setInterval(() => {
       autoUpdater.checkForUpdates().catch(() => {})
     }, 1000 * 60 * 30)
@@ -137,6 +154,21 @@ npm run dev</pre>
 
 ipcMain.handle('get-version', () => app.getVersion())
 ipcMain.handle('get-platform', () => process.platform)
+
+ipcMain.handle('window-minimize', () => {
+  mainWindow?.minimize()
+})
+ipcMain.handle('window-maximize-toggle', () => {
+  if (!mainWindow) return false
+  if (mainWindow.isMaximized()) mainWindow.unmaximize()
+  else mainWindow.maximize()
+  return mainWindow.isMaximized()
+})
+ipcMain.handle('window-close', () => {
+  // Same as clicking X — hide to tray unless quitting
+  mainWindow?.close()
+})
+ipcMain.handle('window-is-maximized', () => !!mainWindow?.isMaximized())
 
 ipcMain.handle('check-for-updates', async () => {
   if (!app.isPackaged) return { error: 'Not packaged' }
