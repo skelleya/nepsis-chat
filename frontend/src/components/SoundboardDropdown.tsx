@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import * as api from '../services/api'
 import { EmojiPicker } from './EmojiPicker'
+import { useGsapMenu } from '../hooks/useGsapMenu'
 
 const MAX_DURATION_SECONDS = 10
 const DEFAULT_EMOJI = '🔊'
@@ -23,6 +24,11 @@ export function SoundboardDropdown({ userId, onPlay, anchorRef, isOpen, onClose 
   const [emojiAnchorRect, setEmojiAnchorRect] = useState<DOMRect | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const shouldRender = useGsapMenu(isOpen, dropdownRef, {
+    enterY: 10,
+    exitY: 8,
+    transformOrigin: 'bottom center',
+  })
 
   const fetchSounds = async () => {
     setLoading(true)
@@ -117,12 +123,12 @@ export function SoundboardDropdown({ userId, onPlay, anchorRef, isOpen, onClose 
     }
   }
 
-  if (!isOpen) return null
+  if (!shouldRender) return null
 
   return (
     <div
       ref={dropdownRef}
-      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-80 max-h-96 overflow-hidden rounded-xl bg-[#2b2d31] border border-app-hover shadow-xl z-50 flex flex-col"
+      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-80 max-h-96 overflow-hidden rounded-xl bg-app-channel border border-app-hover shadow-xl z-50 flex flex-col"
     >
       <div className="p-2 border-b border-app-hover flex items-center justify-between gap-2">
         <span className="font-semibold text-app-text text-sm">Soundboard</span>

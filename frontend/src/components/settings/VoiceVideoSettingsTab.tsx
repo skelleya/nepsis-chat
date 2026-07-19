@@ -147,7 +147,7 @@ export function VoiceVideoSettingsTab() {
         Choose devices and processing. Applied the next time you join voice or start a call.
       </p>
 
-      <div className="bg-[#2b2d31] rounded-lg p-4 mb-4 space-y-4">
+      <div className="bg-app-channel rounded-lg p-4 mb-4 space-y-4">
         <Select
           label="Input device (microphone)"
           value={prefs.audioInputId}
@@ -171,7 +171,7 @@ export function VoiceVideoSettingsTab() {
         />
       </div>
 
-      <div className="bg-[#2b2d31] rounded-lg p-4 mb-4 space-y-4">
+      <div className="bg-app-channel rounded-lg p-4 mb-4 space-y-4">
         <div>
           <div className="flex items-center justify-between mb-2">
             <label className="text-xs font-bold uppercase text-app-muted">Output volume</label>
@@ -204,9 +204,9 @@ export function VoiceVideoSettingsTab() {
         ))}
       </div>
 
-      <div className="bg-[#2b2d31] rounded-lg p-4 mb-4 space-y-3">
+      <div className="bg-app-channel rounded-lg p-4 mb-4 space-y-3">
         <h4 className="font-semibold text-white">Mic test</h4>
-        <div className="h-2 rounded-full bg-[#1e1f22] overflow-hidden">
+        <div className="h-2 rounded-full bg-app-darker overflow-hidden">
           <div
             className="h-full bg-app-accent transition-[width] duration-75"
             style={{ width: `${Math.round(micLevel * 100)}%` }}

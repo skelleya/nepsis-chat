@@ -347,6 +347,30 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 
 ---
 
+## Full audit fix pass (2026-07)
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Brand felt like Discord after landing | Default accent blurple; hardcoded `#5865f2` / Discord greys | Default accent `#FF5A1F`; Appearance tab wired; Chat/DM/modals use `--app-*` tokens |
+| Appearance “Coming soon” | UI stub while `userPrefs` already applied themes | `AppearanceSettingsTab` controls theme/accent/density/fontSize |
+| Create Channel / Server Settings popped | Only Create Server + User Settings used GSAP | GSAP enter/exit (+ Escape/dialog roles) on Create Channel & Server Settings; shared `useGsapMenu` |
+| Friends/Community vanished on close | Enter tween only | Exit tween then `onClose` |
+| Profile vanished on Message/Call | Parent hard-unmounted before exit | Exit completes, then action runs |
+| DM call connected but silent | ICE candidates queued until remote SDP but never flushed after answer | `flushIceQueue()` after every `setRemoteDescription` |
+| Ghost “Connecting…” tiles | Presence re-added leavers; `leftUserIds` unused in VoiceView | Skip `leftUserIds` in merge; clear after 10s |
+| Late joiner missed active screen share | `room-peers` omitted `screenSharing` | Backend includes flag; frontend seeds `remoteScreenShareIds` |
+| Everyone jumped to sharer’s stage | Auto-watch on every remote `screen-share` | Click-to-watch for remotes; sharer still auto-focuses self |
+| Peers never looked muted | Mute was local-only | `voice-state` socket event + remote mute badges |
+| Join voice during DM call | No cross-context gate | `mediaSessionGate` rejects voice join while call busy |
+| Silent after network blip in voice | Socket reconnect without re-`join-voice` | `onReconnect` rejoin + peer reset |
+| Video call refresh → audio only | Rejoin payload omitted `withVideo` | Persist and restore `withVideo` in `CALL_REJOIN_KEY` |
+| Mic stayed on after failed join | getUserMedia stream not stopped in catch | Stop tracks on join failure |
+| Chat unusable on phone | Fixed three rails | Mobile slide-over channel + members rails |
+| Block/Report “coming soon” | No implementation | Local block list + bug-report API for Report; Privacy unblock UI |
+| Docs said SQLite | Stale structure docs | `project-structure.md` / `backend.md` updated to Supabase |
+
+---
+
 ## Adding New Issues
 
 When a new error occurs:

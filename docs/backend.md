@@ -1,6 +1,6 @@
 # Backend
 
-Node.js + Express + Socket.io + SQLite.
+Node.js + Express + Socket.io + Supabase (Postgres). Legacy `src/db/init.js` (SQLite) is unused.
 
 ---
 

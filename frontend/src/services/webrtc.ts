@@ -9,6 +9,11 @@ export interface WebRTCHandlers {
   onPeerLeft: (peerId: string) => void
   /** Called when we learn about a peer. playSound: only true when someone joins while we're in (peer-joined), not for room-peers */
   onPeerJoined?: (userId: string, username: string, playSound?: boolean) => void
+  /** Presence metadata delivered before media tracks exist. */
+  onPeerMetadata?: (
+    userId: string,
+    metadata: { screenSharing?: boolean; muted?: boolean; deafened?: boolean }
+  ) => void
 }
 
 export interface SignalingBridge {
@@ -130,12 +135,22 @@ export function createWebRTCClient(
       if (e.candidate) signaling.sendIceCandidate(remotePeerId, e.candidate.toJSON())
     }
 
+    const markPeerFailed = () => {
+      const entry = peers.get(remotePeerId)
+      if (!entry || entry.pc !== pc) return
+      retireSocketPeer(remotePeerId, true)
+    }
+
     pc.onconnectionstatechange = () => {
       // Ignore transient "disconnected" (ICE restart may recover). Always close PC when removing.
       if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-        const entry = peers.get(remotePeerId)
-        if (!entry || entry.pc !== pc) return
-        retireSocketPeer(remotePeerId, true)
+        markPeerFailed()
+      }
+    }
+
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === 'failed') {
+        markPeerFailed()
       }
     }
 
@@ -353,11 +368,15 @@ export function createWebRTCClient(
 
   // ─── Signaling message handler ────────────────────────────────────
 
-  const leave = () => {
+  const resetPeers = () => {
     peers.forEach(({ pc }) => pc.close())
     peers.clear()
     userIdToSocketId.clear()
     pendingCandidates.clear()
+  }
+
+  const leave = () => {
+    resetPeers()
     extraOutbound.length = 0
     signaling.leave()
     signaling.close()
@@ -373,12 +392,27 @@ export function createWebRTCClient(
       username?: string
       sdp?: RTCSessionDescriptionInit
       candidate?: RTCIceCandidateInit
-      peers?: { socketId: string; userId: string; username: string }[]
+      peers?: {
+        socketId: string
+        userId: string
+        username: string
+        screenSharing?: boolean
+        muted?: boolean
+        deafened?: boolean
+      }[]
+      screenSharing?: boolean
+      muted?: boolean
+      deafened?: boolean
     }
 
     if (m.type === 'room-peers') {
       // New joiner: add participants and connect to existing peers (no sound — we're the one who joined)
       for (const p of m.peers || []) {
+        handlers.onPeerMetadata?.(p.userId, {
+          screenSharing: p.screenSharing,
+          muted: p.muted,
+          deafened: p.deafened,
+        })
         handlers.onPeerJoined?.(p.userId, p.username, false)
         handlePeerJoined(p.socketId, p.userId, p.username)
       }
@@ -387,6 +421,11 @@ export function createWebRTCClient(
 
     if (m.type === 'peer-joined' || (m.type === 'join' && m.userId)) {
       const peerId = m.socketId ?? m.userId!
+      handlers.onPeerMetadata?.(m.userId ?? peerId, {
+        screenSharing: m.screenSharing,
+        muted: m.muted,
+        deafened: m.deafened,
+      })
       handlers.onPeerJoined?.(m.userId ?? peerId, m.username || 'Unknown', true)
       handlePeerJoined(peerId, m.userId, m.username)
       return
@@ -443,6 +482,7 @@ export function createWebRTCClient(
     addTrackToAllPeers,
     removeTrackFromAllPeers,
     getPing,
+    resetPeers,
     leave: () => {
       leave()
       unsubscribe()

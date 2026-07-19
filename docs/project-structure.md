@@ -1,20 +1,19 @@
 # Project Structure
 
-File layout and architecture.
+Nepsis Chat — Discord-like voice/video chat (web + Electron).
 
 ---
 
-## Top-Level
+## Top level
 
-```
-e:\Nepsis Chat\
-├── frontend/       React + Vite + Tailwind
-├── backend/        Node.js + Express + Socket.io
-├── electron/       Desktop app (Electron)
-├── docs/           Documentation (this WIKI)
-├── package.json    Root scripts
-└── README.md
-```
+| Path | Purpose |
+|------|---------|
+| `frontend/` | React + Vite + TypeScript + Tailwind app |
+| `backend/` | Node.js + Express + Socket.io API |
+| `electron/` | Desktop shell (Electron + auto-update) |
+| `supabase/` | Postgres migrations + config |
+| `docs/` | WIKI, domain docs, errors & solutions |
+| `scripts/` | Ops helpers (clean-disk, clean-updates) |
 
 ---
 
@@ -22,49 +21,15 @@ e:\Nepsis Chat\
 
 | Path | Purpose |
 |------|---------|
-| `src/App.tsx` | Main app, routes, layout |
-| `src/main.tsx` | React entry |
-| `src/components/` | UI components |
-| `src/hooks/` | React hooks |
-| `src/services/` | API, signaling, WebRTC |
-| `src/contexts/` | AppContext |
-| `src/pages/` | DownloadPage, FriendsPage, CommunityPage, OnboardingPage, InvitePage |
-| `src/components/WelcomeLanding.tsx` | Pre-login white split landing (logo + Use Web App / Download App) |
-| `src/components/LoginPage.tsx` | Auth form after Use Web App |
-| `src/data/` | mockData |
-| `src/types/` | TypeScript interfaces |
-| `public/` | Static assets: logo.png, favicon.png, NepsisChat-Setup.exe |
-
-### Components
-
-- **ServerBar** — Server list (left sidebar), server icon tooltips, + button for creating servers, discover button
-- **ChannelList** — Text/voice channels organized by categories, collapsible sections, create channel button per category, server dropdown menu (create channel, create category, server settings), voice connection bar (when in voice shows channel name, disconnect, camera, screen share)
-- **ChatView** — Text channel + messages
-- **VoiceView** — Voice channel + participants, camera/screen share video grid, mute/deafen/camera/screenshare/disconnect controls
-- **MembersSidebar** — Online members
-- **UserPanel** — Bottom-left user panel: avatar, username, status, mute button, deafen button, settings gear (opens UserSettingsModal)
-- **CreateServerModal** — Modal for creating a new server (name input, icon placeholder)
-- **CreateChannelModal** — Modal for creating a new channel (type selection: text/voice, name input)
-- **ServerSettingsModal** — Full-screen server settings: rename, delete server, navigation sidebar
-- **UserSettingsModal** — Full-screen user settings: account info, avatar, logout, navigation sidebar
-- **RemoteAudio** — Plays remote WebRTC audio
-- **UpdateButton** — Green update button (Electron only)
-- **LoginPage** — Username login
-
-### Contexts
-
-- **AppContext** — Global app state: user, servers, channels, categories, messages, CRUD operations for servers/channels/categories
-- **VoiceContext** — Global voice state: current voice channel, mute/deafen, camera/screen share, participants, join/leave/toggle controls
-
-### Services
-
-- **api.ts** — REST API client (auth, servers, channels, categories, messages — full CRUD)
-- **layoutCache.ts** — Client-side cache for server layout (channels + categories), localStorage, instant preview on server switch
-- **signaling.ts** — BroadcastChannel signaling (2-tab test)
-- **socketSignaling.ts** — Socket.io signaling (with backend)
-- **webrtc.ts** — WebRTC client (mesh P2P; accepts ICE server list)
-- **iceConfig.ts** — STUN + optional TURN (`ensureIceServers` from `/api/webrtc/ice` or `VITE_TURN_*`)
-- **chatSocket.ts** — Chat Socket.io (optional)
+| `src/App.tsx` | Auth gate, main layout, mobile nav, view routing |
+| `src/main.tsx` | Entry, HashRouter, appearance prefs boot |
+| `src/index.css` | Tailwind + CSS tokens (`--app-*`, landing) |
+| `src/components/` | UI (chat, voice, settings, landing, modals) |
+| `src/contexts/` | AppContext, VoiceContext, CallContext |
+| `src/services/` | API, WebRTC, signaling, prefs, blocked users |
+| `src/hooks/` | Voice, desktop update, GSAP menu helper |
+| `src/pages/` | Download, Invite, Friends, Community, Onboarding |
+| `public/` | Logo, favicon, optional installer assets |
 
 ---
 
@@ -72,25 +37,18 @@ e:\Nepsis Chat\
 
 | Path | Purpose |
 |------|---------|
-| `src/index.js` | Express server, Socket.io |
-| `src/db/init.js` | SQLite schema + seed |
-| `src/routes/` | REST routes |
-| `src/socket/` | Socket.io handlers |
-| `data.sqlite` | Database file |
-| `updates/` | Update files (installer, latest.yml) |
-
-### Routes
-
-- `auth.js` — login, users
-- `servers.js` — servers, channels
-- `messages.js` — messages
-- `version.js` — app version
-- `webrtc.js` — `GET /ice` (STUN + optional TURN from env)
+| `src/index.js` | Express server, Socket.io, CORS |
+| `src/db/supabase.js` | Supabase service client |
+| `src/db/init.js` | Legacy SQLite helper (unused; DB is Supabase) |
+| `src/routes/` | REST routes (auth, servers, messages, DM, friends, …) |
+| `src/socket/` | `/chat`, `/voice`, `/calls` namespaces |
+| `updates/` | Optional local update files (prefer GitHub Releases) |
 
 ### Socket namespaces
 
 - `/chat` — chat, typing
-- `/voice` — WebRTC signaling
+- `/voice` — WebRTC signaling, screen-share, voice-state (mute/deafen)
+- `/calls` — DM 1:1 calls
 
 ---
 
@@ -98,23 +56,32 @@ e:\Nepsis Chat\
 
 | Path | Purpose |
 |------|---------|
-| `main.js` | Main process, autoUpdater |
-| `icon.png` | Nepsis logo — app icon (window, tray, installer, desktop shortcut) |
-| `preload.js` | Exposes electronAPI to renderer |
-| `scripts/bump-version.js` | Version bump |
-| `scripts/publish-update.js` | Copy to backend/updates |
+| `main.js` | Main process, autoUpdater, tray |
+| `preload.js` | Exposes `electronAPI` to renderer |
+| `scripts/` | bump-version, publish-update, copy-exe |
 | `dist/` | Build output |
 
 ---
 
-## Tech Stack
+## Tech stack
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | React 18, Vite, TypeScript, Tailwind CSS |
-| Voice | WebRTC, Opus (default) |
-| Real-time | Socket.io |
+| Frontend | React 19, Vite 7, TypeScript, Tailwind 3, GSAP |
+| Voice / calls | WebRTC mesh, Socket.io signaling, STUN + optional TURN |
+| Real-time | Socket.io + Supabase Realtime |
 | Backend | Node.js, Express |
-| Database | SQLite (better-sqlite3) |
-| Desktop | Electron, electron-updater |
-| Packaging | electron-builder (NSIS) |
+| Database / Auth / Storage | Supabase (Postgres, Auth, Storage) |
+| Desktop | Electron 33, electron-builder, electron-updater |
+| Deploy | Frontend → Vercel; backend → Railway/VPS; desktop → GitHub Releases |
+
+---
+
+## Related docs
+
+- [WIKI](WIKI.md) — index + changelog
+- [Frontend](frontend.md) — components & GSAP
+- [Backend](backend.md) — API & sockets
+- [WebRTC / Voice](webrtc-voice.md) — mesh, ICE, screen share
+- [Errors & Solutions](errors-solutions.md) — known issues and fixes
+- [Deployment](deployment.md) — env & hosting

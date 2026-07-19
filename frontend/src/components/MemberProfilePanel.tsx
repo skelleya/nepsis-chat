@@ -68,15 +68,13 @@ export function MemberProfilePanel({
             : 'Offline'
 
   const statusColor =
-    displayStatus === 'online'
-      ? 'bg-green-500'
-      : displayStatus === 'in-voice'
-        ? 'bg-yellow-500'
-        : displayStatus === 'away'
-          ? 'bg-amber-400'
-          : displayStatus === 'dnd'
-            ? 'bg-red-500'
-            : 'bg-gray-500'
+    displayStatus === 'online' || displayStatus === 'in-voice'
+      ? 'bg-[#23a559]'
+      : displayStatus === 'away'
+        ? 'bg-[#f0b232]'
+        : displayStatus === 'dnd'
+          ? 'bg-red-500'
+          : 'bg-[#80848e]'
 
   const position = useMemo(() => {
     const heightEstimate = 420
@@ -92,27 +90,33 @@ export function MemberProfilePanel({
     return { left, top }
   }, [anchorRect])
 
-  const requestClose = useCallback(() => {
+  const requestClose = useCallback((afterClose?: () => void) => {
     if (closingRef.current) return
     closingRef.current = true
     const card = cardRef.current
     if (!card) {
       onClose()
+      afterClose?.()
       return
     }
+    gsap.killTweensOf(card)
     gsap.to(card, {
       opacity: 0,
       x: 16,
       scale: 0.97,
       duration: 0.18,
       ease: 'power2.in',
-      onComplete: onClose,
+      onComplete: () => {
+        onClose()
+        afterClose?.()
+      },
     })
   }, [onClose])
 
   useLayoutEffect(() => {
     const card = cardRef.current
     if (!card) return
+    gsap.killTweensOf(card)
     gsap.fromTo(
       card,
       { opacity: 0, x: 28, scale: 0.96 },
@@ -125,6 +129,9 @@ export function MemberProfilePanel({
         clearProps: 'transform',
       }
     )
+    return () => {
+      gsap.killTweensOf(card)
+    }
   }, [member.userId])
 
   useEffect(() => {
@@ -180,7 +187,7 @@ export function MemberProfilePanel({
       ref={cardRef}
       role="dialog"
       aria-label={`${member.username} profile`}
-      className="fixed z-[80] w-[320px] rounded-xl overflow-hidden shadow-2xl border border-white/10 bg-[#1e1f22] text-app-text"
+      className="fixed z-[80] w-[320px] rounded-xl overflow-hidden shadow-2xl border border-white/10 bg-app-darker text-app-text"
       style={{ left: position.left, top: position.top }}
       onMouseDown={(e) => e.stopPropagation()}
     >
@@ -193,7 +200,7 @@ export function MemberProfilePanel({
         )}
         <button
           type="button"
-          onClick={requestClose}
+          onClick={() => requestClose()}
           className="absolute top-2 right-2 p-1 rounded-md bg-black/35 text-white/80 hover:text-white hover:bg-black/50 transition-colors"
           title="Close"
           aria-label="Close profile"
@@ -207,7 +214,7 @@ export function MemberProfilePanel({
       <div className="px-4 pb-4">
         {/* Avatar overlapping banner */}
         <div className="relative -mt-10 mb-3 w-fit">
-          <div className="w-[80px] h-[80px] rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-2xl overflow-hidden ring-[6px] ring-[#1e1f22]">
+          <div className="w-[80px] h-[80px] rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-2xl overflow-hidden ring-[6px] ring-app-darker">
             {member.avatarUrl ? (
               <img src={member.avatarUrl} alt={member.username} className="w-full h-full object-cover" />
             ) : (
@@ -215,7 +222,7 @@ export function MemberProfilePanel({
             )}
           </div>
           <div
-            className={`absolute bottom-1 right-1 w-4 h-4 rounded-full border-[3px] border-[#1e1f22] ${statusColor}`}
+            className={`absolute bottom-1 right-1 w-4 h-4 rounded-full border-[3px] border-app-darker ${statusColor}`}
             title={statusLabel}
           />
         </div>
@@ -233,8 +240,8 @@ export function MemberProfilePanel({
             <div className="flex flex-col gap-1.5 pt-1 border-t border-white/5">
               <button
                 type="button"
-                onClick={() => onMessage(member.userId, member.username)}
-                className="w-full px-3 py-2 rounded-md bg-[#5865f2] hover:bg-[#4752c4] text-white text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+                onClick={() => requestClose(() => onMessage(member.userId, member.username))}
+                className="w-full px-3 py-2 rounded-md bg-app-accent hover:bg-app-accent-hover text-white text-sm font-medium flex items-center justify-center gap-2 transition-colors"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
@@ -244,7 +251,7 @@ export function MemberProfilePanel({
               {onCall && (
                 <button
                   type="button"
-                  onClick={() => onCall(member.userId, member.username, member.avatarUrl)}
+                  onClick={() => requestClose(() => onCall(member.userId, member.username, member.avatarUrl))}
                   className="w-full px-3 py-2 rounded-md bg-[#23a559] hover:bg-[#1e8f4c] text-white text-sm font-medium flex items-center justify-center gap-2 transition-colors"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -255,8 +262,8 @@ export function MemberProfilePanel({
               )}
               <button
                 type="button"
-                onClick={() => onAddFriend(member.userId, member.username)}
-                className="w-full px-3 py-2 rounded-md bg-[#2b2d31] hover:bg-[#35373c] text-app-text text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+                onClick={() => requestClose(() => onAddFriend(member.userId, member.username))}
+                className="w-full px-3 py-2 rounded-md bg-app-channel hover:bg-app-hover text-app-text text-sm font-medium flex items-center justify-center gap-2 transition-colors"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
@@ -273,7 +280,7 @@ export function MemberProfilePanel({
               </p>
 
               {confirm ? (
-                <div className="rounded-md bg-[#2b2d31] p-2.5 space-y-2">
+                <div className="rounded-md bg-app-channel p-2.5 space-y-2">
                   <p className="text-xs text-app-text leading-snug">
                     {confirm === 'ban'
                       ? `Ban ${member.username}? They will be removed and cannot rejoin.`
@@ -284,7 +291,7 @@ export function MemberProfilePanel({
                       type="button"
                       disabled={!!busy}
                       onClick={() => setConfirm(null)}
-                      className="flex-1 px-2 py-1.5 rounded-md text-xs font-medium bg-[#1e1f22] text-app-text hover:bg-[#35373c] disabled:opacity-50"
+                      className="flex-1 px-2 py-1.5 rounded-md text-xs font-medium bg-app-darker text-app-text hover:bg-app-hover disabled:opacity-50"
                     >
                       Cancel
                     </button>

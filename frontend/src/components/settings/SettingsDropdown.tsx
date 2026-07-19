@@ -110,6 +110,9 @@ export function SettingsDropdown({
         ease: 'power3.out',
       }
     )
+    return () => {
+      gsap.killTweensOf(menu)
+    }
   }, [mounted, open, menuPos])
 
   useEffect(() => {
@@ -163,7 +166,7 @@ export function SettingsDropdown({
         aria-controls={mounted ? listId : undefined}
         aria-label={ariaLabel}
         onClick={() => (open ? close() : openMenu())}
-        className={`group flex items-center gap-2 text-left text-sm text-app-text bg-[#1e1f22] border border-[#3f4147] hover:border-[#5c5e66] focus:border-app-accent focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+        className={`group flex items-center gap-2 text-left text-sm text-app-text bg-app-darker border border-app-hover hover:border-app-muted/50 focus:border-app-accent focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
           fullWidth
             ? 'w-full px-3 py-2.5 rounded-md'
             : 'min-w-[148px] max-w-[200px] px-2.5 py-1.5 rounded-md'
@@ -176,7 +179,7 @@ export function SettingsDropdown({
           viewBox="0 0 12 12"
           fill="none"
           aria-hidden
-          className={`flex-shrink-0 text-[#b5bac1] transition-transform duration-200 ${open ? 'rotate-180 text-white' : 'group-hover:text-[#dbdee1]'}`}
+          className={`flex-shrink-0 text-app-muted transition-transform duration-200 ${open ? 'rotate-180 text-white' : 'group-hover:text-app-text'}`}
         >
           <path d="M2.5 4.25L6 7.75L9.5 4.25" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -196,7 +199,7 @@ export function SettingsDropdown({
             width: menuPos.width,
             zIndex: 80,
           }}
-          className="rounded-md bg-[#111214] border border-[#3f4147] shadow-xl shadow-black/40 overflow-hidden py-1 max-h-60 overflow-y-auto will-change-transform"
+          className="rounded-md bg-app-darker border border-app-hover shadow-xl shadow-black/40 overflow-hidden py-1 max-h-60 overflow-y-auto will-change-transform"
         >
           {options.map((opt) => {
             const isSelected = opt.value === value
@@ -211,7 +214,7 @@ export function SettingsDropdown({
                 className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                   isSelected
                     ? 'bg-app-accent/25 text-white'
-                    : 'text-[#dbdee1] hover:bg-white/[0.06] hover:text-white'
+                    : 'text-app-text hover:bg-white/[0.06] hover:text-white'
                 }`}
               >
                 <span className="w-3.5 flex-shrink-0 flex items-center justify-center" aria-hidden>

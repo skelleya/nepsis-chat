@@ -183,14 +183,14 @@ export function ChatInput({
 
   return (
     <div className="relative w-full min-w-0">
-      <div className="flex items-center gap-1 bg-[#383a40] rounded-lg min-h-[44px] px-1.5 focus-within:ring-1 focus-within:ring-white/10">
+      <div className="flex items-center gap-1 bg-app-hover rounded-lg min-h-[44px] px-1.5 focus-within:ring-1 focus-within:ring-app-accent/30">
         {onAttachClick && (
           <div className="relative flex-shrink-0">
             <button
               type="button"
               onClick={onAttachClick}
               disabled={disabled || uploading}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-[#b5bac1] hover:text-white hover:bg-white/10 transition-colors disabled:opacity-50"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-app-muted hover:text-white hover:bg-white/10 transition-colors disabled:opacity-50"
               title={attachOpen ? 'Close' : 'Upload a file'}
               aria-label={attachOpen ? 'Close attach menu' : 'Attach file'}
             >
@@ -223,27 +223,27 @@ export function ChatInput({
           onSelect={(e) => { cursorPosRef.current = (e.target as HTMLInputElement).selectionStart ?? 0 }}
           placeholder={placeholder}
           disabled={disabled}
-          className="flex-1 min-w-0 bg-transparent border-0 outline-none text-[15px] text-[#dbdee1] placeholder:text-[#949ba4] py-2.5 px-1"
+          className="flex-1 min-w-0 bg-transparent border-0 outline-none text-[15px] text-app-text placeholder:text-app-muted py-2.5 px-1"
         />
 
         {rightSlot && <div className="flex-shrink-0 flex items-center pr-0.5">{rightSlot}</div>}
       </div>
 
       {autocomplete && matches.length > 0 && (
-        <div className="absolute bottom-full left-0 mb-2 w-full max-w-sm bg-[#2b2d31] rounded-lg shadow-xl border border-white/10 overflow-hidden z-50 max-h-52 overflow-y-auto">
+        <div className="absolute bottom-full left-0 mb-2 w-full max-w-sm bg-app-channel rounded-lg shadow-xl border border-white/10 overflow-hidden z-50 max-h-52 overflow-y-auto">
           {matches.map((item, i) => (
             <button
               key={autocomplete.type === 'mention' ? (item as { id: string }).id : (item as { shortcode: string }).shortcode}
               type="button"
               onClick={() => applySuggestion((item as { display: string }).display)}
               className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${
-                i === selectedIndex ? 'bg-[#404249]' : 'hover:bg-[#35373c]'
+                i === selectedIndex ? 'bg-app-hover' : 'hover:bg-app-hover/80'
               }`}
             >
               {autocomplete.type === 'mention' ? (
                 <>
-                  <span className="text-[#949ba4] text-sm">@</span>
-                  <span className="text-[#f2f3f5] font-medium text-sm">
+                  <span className="text-app-muted text-sm">@</span>
+                  <span className="text-app-text font-medium text-sm">
                     {(item as { username: string }).username}
                   </span>
                 </>
@@ -254,7 +254,7 @@ export function ChatInput({
                   ) : (
                     <span className="text-lg leading-none">{(item as { display: string }).display}</span>
                   )}
-                  <span className="text-[#949ba4] text-sm">:{(item as { shortcode: string }).shortcode}:</span>
+                  <span className="text-app-muted text-sm">:{(item as { shortcode: string }).shortcode}:</span>
                 </>
               )}
             </button>

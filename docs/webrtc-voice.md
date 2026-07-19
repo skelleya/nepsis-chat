@@ -125,11 +125,12 @@ Users can play custom audio clips (max 10 seconds) to all peers in a voice chann
 ### Resizable Voice Layout (Voice UI v6 / Discord watch)
 
 - **Single participant:** Centered in the middle of the view (vertically and horizontally).
-- **Screen share (click to watch):** Shares do **not** auto-fill the stage for viewers. Click a LIVE badge (channel list or participant tile) to watch. Your own share auto-focuses when you start sharing. Close (X) or click again to stop watching. While watching, vertical split: stage on top, participants below — drag the thick divider to resize (min ~20%).
-- **Late joiners:** `webrtc.ts` keeps `extraOutbound` camera/screen tracks and attaches them on `connectToPeer` / first `handleOffer` so new peers get media without the sharer restarting.
-- **2–4 participants:** Participant cards are in a horizontal resizable panel group. Drag dividers between cards to resize.
-- **5+ participants:** Grid layout (no per-card resizing).
-- Layout is persisted via `autoSaveId` (localStorage).
+- **Screen share (click to watch):** Shares do **not** auto-fill the stage for viewers. Click a LIVE badge (channel list or participant tile) to watch. Your own share auto-focuses when you start sharing. Close (X) or click again to stop watching. Layout: focus stage + filmstrip (not auto-watch for remotes).
+- **Late joiners:** `room-peers` includes `screenSharing` / `muted` / `deafened` so new peers seed share + mute badges immediately. `webrtc.ts` also keeps `extraOutbound` camera/screen tracks for renegotiation attach.
+- **Mute badges:** Local mute/deafen emits `voice-state` on `/voice`; peers show remote mute icons.
+- **Ghost tiles:** `leftUserIds` excludes presence-stale leavers from the “Connecting…” merge for ~10s.
+- **Reconnect:** Voice socket `onReconnect` re-emits join and resets peer connections.
+- **DM call gate:** Joining voice while a DM call is active is blocked via `mediaSessionGate`.
 - Helpers: `frontend/src/utils/mediaTracks.ts` (`isScreenShareTrack`, `getScreenShareStream`, …).
 
 ### Track Removal

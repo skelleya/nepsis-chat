@@ -16,7 +16,13 @@ interface VoiceViewProps {
   currentUsername: string
   currentUserAvatarUrl?: string
   /** Users in this channel from presence (sidebar) — ensures we show them even before WebRTC connects */
-  voiceUsersInChannel?: { userId: string; username: string; avatar_url?: string }[]
+  voiceUsersInChannel?: {
+    userId: string
+    username: string
+    avatar_url?: string
+    isMuted?: boolean
+    isDeafened?: boolean
+  }[]
   onInvitePeople?: () => Promise<void>
   /** Admin/owner: mute and disconnect users in voice */
   isAdminOrOwner?: boolean
@@ -92,7 +98,7 @@ function StageVideo({
   }, [stream])
 
   return (
-    <div className="relative w-full h-full min-h-0 rounded-xl overflow-hidden bg-[#1e1f22] border border-white/5 flex flex-col">
+    <div className="relative w-full h-full min-h-0 rounded-xl overflow-hidden bg-app-darker border border-white/5 flex flex-col">
       {!hasFrame && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 z-[1] pointer-events-none">
           <AvatarGlyph
@@ -223,7 +229,7 @@ function TileVideo({
   }, [stream])
 
   return (
-    <div className="relative w-full h-full bg-[#1e1f22]">
+    <div className="relative w-full h-full bg-app-darker">
       {!hasFrame && (
         <div className="absolute inset-0 flex items-center justify-center z-[1]">
           <AvatarGlyph
@@ -305,7 +311,7 @@ function ParticipantCard({
     ? isCameraOn && !!localVideoStream
     : hasRemoteCamera
 
-  const showMuted = isLocal && isMuted
+  const showMuted = isMuted
   const showAdminMenu = !isLocal && isAdminOrOwner && (onMuteMember || onDisconnectMember)
 
   const ringClass = isWatching
@@ -337,7 +343,7 @@ function ParticipantCard({
             avatarUrl={avatarUrl}
           />
         ) : (
-          <div className="w-full h-full bg-[#2b2d31] flex items-center justify-center">
+          <div className="w-full h-full bg-app-channel flex items-center justify-center">
             <AvatarGlyph
               username={participant.username}
               avatarUrl={avatarUrl}
@@ -456,7 +462,7 @@ function ParticipantCard({
               avatarUrl={avatarUrl}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-[#2b2d31]">
+            <div className="w-full h-full flex items-center justify-center bg-app-channel">
               <AvatarGlyph
                 username={participant.username}
                 avatarUrl={avatarUrl}
@@ -537,6 +543,8 @@ export function VoiceView({
   const voice = useVoice()
   const {
     participants,
+    leftUserIds,
+    remoteVoiceStates,
     isMuted,
     setIsMuted,
     isDeafened,
@@ -570,8 +578,11 @@ export function VoiceView({
       username: currentUsername,
       stream: null as MediaStream | null,
       isSpeaking: false,
+      isMuted,
+      isDeafened,
+      streamVersion: 0,
     }),
-    [currentUserId, currentUsername]
+    [currentUserId, currentUsername, isMuted, isDeafened]
   )
 
   const { allParticipants, avatarByUserId } = useMemo(() => {
@@ -585,19 +596,28 @@ export function VoiceView({
       participantByUserId.set(p.userId, p)
     }
     for (const vu of voiceUsersInChannel) {
+      if (vu.userId !== currentUserId && leftUserIds.has(vu.userId)) continue
       if (!participantByUserId.has(vu.userId)) {
         participantByUserId.set(vu.userId, {
           userId: vu.userId,
           username: vu.username,
           stream: null,
           isSpeaking: false,
+          isMuted: !!vu.isMuted,
+          isDeafened: !!vu.isDeafened,
           streamVersion: 0,
         })
       } else {
         const existing = participantByUserId.get(vu.userId)!
-        if (vu.username && (!existing.username || existing.username === 'User' || existing.username === 'Unknown')) {
-          participantByUserId.set(vu.userId, { ...existing, username: vu.username })
-        }
+        participantByUserId.set(vu.userId, {
+          ...existing,
+          username:
+            vu.username && (!existing.username || existing.username === 'User' || existing.username === 'Unknown')
+              ? vu.username
+              : existing.username,
+          isMuted: vu.isMuted ?? existing.isMuted,
+          isDeafened: vu.isDeafened ?? existing.isDeafened,
+        })
       }
       if (vu.avatar_url) avatars.set(vu.userId, vu.avatar_url)
     }
@@ -611,6 +631,7 @@ export function VoiceView({
     currentUserAvatarUrl,
     localParticipant,
     participants,
+    leftUserIds,
     voiceUsersInChannel,
   ])
 
@@ -700,34 +721,46 @@ export function VoiceView({
 
   const cardProps = useCallback(
     (
-      p: { userId: string; username: string; stream: MediaStream | null; isSpeaking: boolean; streamVersion?: number },
+      p: {
+        userId: string
+        username: string
+        stream: MediaStream | null
+        isSpeaking: boolean
+        streamVersion?: number
+        isMuted?: boolean
+        isDeafened?: boolean
+      },
       opts: { large?: boolean; compact?: boolean } = {}
-    ) => ({
-      participant: p,
-      avatarUrl: avatarByUserId.get(p.userId),
-      isLocal: p.userId === currentUserId,
-      localStream,
-      localVideoStream: videoStream,
-      participantVideoStream:
-        p.userId === currentUserId
-          ? null
-          : getParticipantVideoStream(p.stream, {
-              knownScreenSharing: screenShareUserIds.includes(p.userId),
-            }),
-      isMuted,
-      isDeafened,
-      isCameraOn,
-      currentUserId,
-      isAdminOrOwner,
-      onMuteMember,
-      onDisconnectMember,
-      isSharingScreen: screenShareUserIds.includes(p.userId),
-      isWatching: watchingShareUserId === p.userId || maximizedCameraUserId === p.userId,
-      onWatchShare: screenShareUserIds.includes(p.userId) ? handleWatchShare : undefined,
-      onMaximizeCamera: handleMaximizeCamera,
-      large: opts.large,
-      compact: opts.compact,
-    }),
+    ) => {
+      const isLocal = p.userId === currentUserId
+      const remoteState = remoteVoiceStates[p.userId]
+      return {
+        participant: p,
+        avatarUrl: avatarByUserId.get(p.userId),
+        isLocal,
+        localStream,
+        localVideoStream: videoStream,
+        participantVideoStream:
+          isLocal
+            ? null
+            : getParticipantVideoStream(p.stream, {
+                knownScreenSharing: screenShareUserIds.includes(p.userId),
+              }),
+        isMuted: isLocal ? isMuted : remoteState?.muted ?? p.isMuted ?? false,
+        isDeafened,
+        isCameraOn,
+        currentUserId,
+        isAdminOrOwner,
+        onMuteMember,
+        onDisconnectMember,
+        isSharingScreen: screenShareUserIds.includes(p.userId),
+        isWatching: watchingShareUserId === p.userId || maximizedCameraUserId === p.userId,
+        onWatchShare: screenShareUserIds.includes(p.userId) ? handleWatchShare : undefined,
+        onMaximizeCamera: handleMaximizeCamera,
+        large: opts.large,
+        compact: opts.compact,
+      }
+    },
     [
       avatarByUserId,
       currentUserId,
@@ -735,6 +768,7 @@ export function VoiceView({
       videoStream,
       isMuted,
       isDeafened,
+      remoteVoiceStates,
       isCameraOn,
       screenShareUserIds,
       isAdminOrOwner,

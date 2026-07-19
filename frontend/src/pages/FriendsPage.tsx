@@ -24,7 +24,7 @@ function StatusDot({ status }: { status?: string }) {
   return (
     <div
       className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
-        isOnline ? 'bg-[#23a559]' : isAway ? 'bg-yellow-500' : isDnd ? 'bg-red-500' : 'bg-app-muted'
+        isOnline ? 'bg-[#23a559]' : isAway ? 'bg-[#f0b232]' : isDnd ? 'bg-red-500' : 'bg-[#80848e]'
       }`}
       title={status === 'in-voice' ? 'In voice' : status || 'Offline'}
     />
@@ -35,6 +35,7 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
   const { user } = useApp()
   const call = useCall()
   const pageRef = useRef<HTMLDivElement>(null)
+  const closingRef = useRef(false)
   const [friends, setFriends] = useState<Friend[]>([])
   const [requests, setRequests] = useState<FriendRequest[]>([])
   const [loading, setLoading] = useState(true)
@@ -53,6 +54,7 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
   useLayoutEffect(() => {
     const page = pageRef.current
     if (!page) return
+    gsap.killTweensOf(page)
     gsap.fromTo(
       page,
       { opacity: 0, x: 28 },
@@ -65,7 +67,33 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
         clearProps: 'transform',
       }
     )
+    return () => {
+      gsap.killTweensOf(page)
+    }
   }, [])
+
+  const requestClose = useCallback((afterClose?: () => void) => {
+    if (closingRef.current) return
+    closingRef.current = true
+    const page = pageRef.current
+    if (!page) {
+      onClose?.()
+      afterClose?.()
+      return
+    }
+    gsap.killTweensOf(page)
+    gsap.to(page, {
+      opacity: 0,
+      x: 24,
+      duration: 0.22,
+      ease: 'power2.in',
+      force3D: false,
+      onComplete: () => {
+        onClose?.()
+        afterClose?.()
+      },
+    })
+  }, [onClose])
 
   const load = useCallback(async () => {
     if (!user) return
@@ -123,7 +151,7 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
   const handleMessage = async (friend: Friend) => {
     try {
       await onOpenDM(friend.id, friend.username)
-      if (!stayOnFriendsWhenOpeningDM && onClose) onClose()
+      if (!stayOnFriendsWhenOpeningDM && onClose) requestClose()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to open DM')
     }
@@ -131,7 +159,7 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
 
   const handleCall = (friend: Friend) => {
     call.initiateCall(friend.id, friend.username, friend.avatar_url)
-    if (onClose) onClose()
+    if (onClose) requestClose()
   }
 
   const handleSearchProfiles = async () => {
@@ -209,7 +237,7 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
       <div className="flex items-center gap-3 px-4 py-3 border-b border-app-dark/80 flex-shrink-0">
         {onClose && (
           <button
-            onClick={onClose}
+            onClick={() => requestClose()}
             className="p-1.5 rounded text-app-muted hover:text-app-text hover:bg-app-hover transition-colors"
             title="Back"
           >
@@ -218,7 +246,7 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
             </svg>
           </button>
         )}
-        <h2 className="text-xl font-bold text-white">Friends</h2>
+        <h2 className="font-display text-xl font-bold text-white">Friends</h2>
       </div>
 
       {/* Tabs */}
@@ -270,7 +298,7 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
                       className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
                         addAsProfile === type
                           ? 'bg-app-accent text-white'
-                          : 'bg-[#2b2d31] text-app-muted hover:text-app-text'
+                          : 'bg-app-channel text-app-muted hover:text-app-text'
                       }`}
                     >
                       {type === 'personal' ? 'Personal' : 'Work'}
@@ -286,7 +314,7 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
                 onChange={(e) => setAddFriendInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearchProfiles()}
                 placeholder="Search display name…"
-                className="flex-1 px-3 py-2 rounded-lg bg-[#2b2d31] text-app-text placeholder-app-muted border border-app-hover/30 focus:border-app-accent focus:outline-none"
+                className="flex-1 px-3 py-2 rounded-lg bg-app-channel text-app-text placeholder-app-muted border border-app-hover/30 focus:border-app-accent focus:outline-none"
               />
               <button
                 onClick={handleSearchProfiles}
@@ -307,7 +335,7 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
                 {searchResults.map((result) => (
                   <div
                     key={result.profile_id}
-                    className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-[#2b2d31]"
+                    className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-app-channel"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       {result.avatar_url ? (
@@ -354,7 +382,7 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
                       className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
                         acceptAsProfile === type
                           ? 'bg-app-accent text-white'
-                          : 'bg-[#2b2d31] text-app-muted hover:text-app-text'
+                          : 'bg-app-channel text-app-muted hover:text-app-text'
                       }`}
                     >
                       {type === 'personal' ? 'Personal' : 'Work'}
@@ -370,7 +398,7 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
                 {requests.map((req) => (
                   <div
                     key={req.requester_id}
-                    className="flex items-center justify-between px-4 py-3 rounded-xl bg-[#2b2d31] hover:bg-[#36373d]"
+                    className="flex items-center justify-between px-4 py-3 rounded-xl bg-app-channel hover:bg-app-hover"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-sm overflow-hidden">
@@ -420,7 +448,7 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
                 {onlineFriends.map((friend) => (
                   <div
                     key={friend.id}
-                    className="flex items-center justify-between px-4 py-3 rounded-xl bg-[#2b2d31] hover:bg-[#36373d]"
+                    className="flex items-center justify-between px-4 py-3 rounded-xl bg-app-channel hover:bg-app-hover"
                   >
                     <div className="flex items-center gap-3">
                       <div className="relative">
@@ -478,7 +506,7 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
                 {friends.map((friend) => (
                   <div
                     key={friend.id}
-                    className="flex items-center justify-between px-4 py-3 rounded-xl bg-[#2b2d31] hover:bg-[#36373d]"
+                    className="flex items-center justify-between px-4 py-3 rounded-xl bg-app-channel hover:bg-app-hover"
                   >
                     <div className="flex items-center gap-3">
                       <div className="relative">

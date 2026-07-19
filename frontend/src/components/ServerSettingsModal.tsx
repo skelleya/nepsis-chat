@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import gsap from 'gsap'
 import * as api from '../services/api'
 
 interface ServerEmoji {
@@ -78,6 +79,12 @@ export function ServerSettingsModal({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const iconInputRef = useRef<HTMLInputElement>(null)
   const bannerInputRef = useRef<HTMLInputElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const deleteOverlayRef = useRef<HTMLDivElement>(null)
+  const deletePanelRef = useRef<HTMLDivElement>(null)
+  const closingRef = useRef(false)
   const [emojis, setEmojis] = useState<ServerEmoji[]>([])
   const [emojiName, setEmojiName] = useState('')
   const [emojiFile, setEmojiFile] = useState<File | null>(null)
@@ -97,6 +104,95 @@ export function ServerSettingsModal({
   const [bannerLoading, setBannerLoading] = useState(false)
   const [iconError, setIconError] = useState('')
   const [iconLoading, setIconLoading] = useState(false)
+
+  useLayoutEffect(() => {
+    const overlay = overlayRef.current
+    const panel = panelRef.current
+    if (!overlay || !panel) return
+
+    gsap.killTweensOf([overlay, panel])
+    gsap.fromTo(overlay, { opacity: 0 }, { opacity: 1, duration: 0.25, ease: 'sine.out' })
+    gsap.fromTo(
+      panel,
+      { opacity: 0, y: 18, scale: 0.97 },
+      {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        duration: 0.35,
+        ease: 'power3.out',
+        force3D: false,
+        clearProps: 'transform',
+      }
+    )
+
+    return () => {
+      gsap.killTweensOf([overlay, panel, contentRef.current, deleteOverlayRef.current, deletePanelRef.current].filter(Boolean))
+    }
+  }, [])
+
+  const requestClose = useCallback(() => {
+    if (closingRef.current) return
+    closingRef.current = true
+    const overlay = overlayRef.current
+    const panel = panelRef.current
+    const content = contentRef.current
+    if (!overlay || !panel) {
+      onClose()
+      return
+    }
+    gsap.killTweensOf([overlay, panel, content].filter(Boolean))
+    gsap.to(overlay, { opacity: 0, duration: 0.2, ease: 'sine.in' })
+    gsap.to(panel, {
+      opacity: 0,
+      y: 12,
+      scale: 0.98,
+      duration: 0.2,
+      ease: 'power2.in',
+      force3D: false,
+      onComplete: onClose,
+    })
+  }, [onClose])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') requestClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [requestClose])
+
+  useLayoutEffect(() => {
+    const content = contentRef.current
+    if (!content) return
+    gsap.killTweensOf(content)
+    gsap.fromTo(
+      content,
+      { opacity: 0 },
+      { opacity: 1, duration: 0.18, ease: 'sine.out', overwrite: true }
+    )
+  }, [activeTab])
+
+  useLayoutEffect(() => {
+    if (!showDeleteConfirm) return
+    const overlay = deleteOverlayRef.current
+    const panel = deletePanelRef.current
+    if (!overlay || !panel) return
+    gsap.killTweensOf([overlay, panel])
+    gsap.fromTo(overlay, { opacity: 0 }, { opacity: 1, duration: 0.16, ease: 'sine.out' })
+    gsap.fromTo(
+      panel,
+      { opacity: 0, y: 10, scale: 0.98 },
+      { opacity: 1, y: 0, scale: 1, duration: 0.2, ease: 'power2.out', force3D: false }
+    )
+    return () => {
+      gsap.killTweensOf([overlay, panel])
+    }
+  }, [showDeleteConfirm])
+
+  const switchTab = (tab: typeof activeTab) => {
+    setActiveTab(tab)
+  }
 
   useEffect(() => {
     api.getServerEmojis(serverId).then(setEmojis).catch(() => setEmojis([]))
@@ -214,7 +310,7 @@ export function ServerSettingsModal({
 
   const handleDelete = async () => {
     await onDeleteServer()
-    onClose()
+    requestClose()
   }
 
   const handleCreateInvite = async () => {
@@ -273,47 +369,48 @@ export function ServerSettingsModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-[#313338] z-50 flex">
+    <div ref={overlayRef} className="fixed inset-0 bg-app-dark z-50 flex">
+      <div ref={panelRef} className="flex h-full w-full will-change-transform">
       {/* Left sidebar */}
-      <div className="w-[218px] bg-[#2b2d31] flex flex-col items-end pt-[60px] pr-2 pl-5 flex-shrink-0">
+      <div className="w-[218px] bg-app-channel flex flex-col items-end pt-[60px] pr-2 pl-5 flex-shrink-0">
         <div className="w-[190px]">
           <div className="px-2.5 py-1.5 text-xs font-bold text-app-muted uppercase tracking-wider truncate">
             {serverName}
           </div>
           <button
-            onClick={() => setActiveTab('overview')}
+            onClick={() => switchTab('overview')}
             className={`w-full px-2.5 py-1.5 rounded text-sm text-left mb-0.5 ${activeTab === 'overview' ? 'text-white bg-app-hover/60' : 'text-app-muted hover:text-app-text hover:bg-app-hover/40'}`}
           >
             Overview
           </button>
           <button
-            onClick={() => setActiveTab('emojis')}
+            onClick={() => switchTab('emojis')}
             className={`w-full px-2.5 py-1.5 rounded text-sm text-left mb-0.5 ${activeTab === 'emojis' ? 'text-white bg-app-hover/60' : 'text-app-muted hover:text-app-text hover:bg-app-hover/40'}`}
           >
             Custom Emojis
           </button>
           <button
-            onClick={() => setActiveTab('members')}
+            onClick={() => switchTab('members')}
             className={`w-full px-2.5 py-1.5 rounded text-sm text-left mb-0.5 ${activeTab === 'members' ? 'text-white bg-app-hover/60' : 'text-app-muted hover:text-app-text hover:bg-app-hover/40'}`}
           >
             Members
           </button>
           <button
-            onClick={() => setActiveTab('invites')}
+            onClick={() => switchTab('invites')}
             className={`w-full px-2.5 py-1.5 rounded text-sm text-left mb-0.5 ${activeTab === 'invites' ? 'text-white bg-app-hover/60' : 'text-app-muted hover:text-app-text hover:bg-app-hover/40'}`}
           >
             Invites
           </button>
           {canManageRules && (
             <button
-              onClick={() => setActiveTab('rules')}
+              onClick={() => switchTab('rules')}
               className={`w-full px-2.5 py-1.5 rounded text-sm text-left mb-0.5 ${activeTab === 'rules' ? 'text-white bg-app-hover/60' : 'text-app-muted hover:text-app-text hover:bg-app-hover/40'}`}
             >
               Rules Channel
             </button>
           )}
           <button
-            onClick={() => setActiveTab('audit')}
+            onClick={() => switchTab('audit')}
             className={`w-full px-2.5 py-1.5 rounded text-sm text-left mb-0.5 ${activeTab === 'audit' ? 'text-white bg-app-hover/60' : 'text-app-muted hover:text-app-text hover:bg-app-hover/40'}`}
           >
             Audit Log
@@ -331,15 +428,16 @@ export function ServerSettingsModal({
       {/* Main content */}
       <div className="flex-1 flex flex-col max-w-[740px] pt-[60px] px-10">
         <h2 className="text-xl font-bold text-white mb-5">{tabLabels[activeTab]}</h2>
+        <div ref={contentRef} className="will-change-opacity">
 
         {activeTab === 'emojis' && (
           <div className="space-y-6">
             <p className="text-sm text-app-muted">
-              Upload custom emojis for this server. Use <code className="px-1 py-0.5 rounded bg-[#1e1f22] text-xs">:emoji_name:</code> in chat. Owners and admins can add emojis.
+              Upload custom emojis for this server. Use <code className="px-1 py-0.5 rounded bg-app-darker text-xs">:emoji_name:</code> in chat. Owners and admins can add emojis.
             </p>
             {canManageEmojis && userId && (
               <div
-                className="rounded-xl border-2 border-dashed border-app-hover/50 bg-[#2b2d31]/50 p-6 hover:border-app-accent/50 hover:bg-[#2b2d31]/80 transition-colors"
+                className="rounded-xl border-2 border-dashed border-app-hover/50 bg-app-channel/50 p-6 hover:border-app-accent/50 hover:bg-app-channel/80 transition-colors"
                 onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-app-accent/70') }}
                 onDragLeave={(e) => { e.currentTarget.classList.remove('border-app-accent/70') }}
                 onDrop={(e) => {
@@ -357,7 +455,7 @@ export function ServerSettingsModal({
                       value={emojiName}
                       onChange={(e) => setEmojiName(e.target.value)}
                       placeholder="my_emoji"
-                      className="w-full px-3 py-2.5 bg-[#1e1f22] rounded-lg text-app-text border border-transparent focus:border-app-accent/50 focus:ring-1 focus:ring-app-accent/30 outline-none transition-all"
+                      className="w-full px-3 py-2.5 bg-app-darker rounded-lg text-app-text border border-transparent focus:border-app-accent/50 focus:ring-1 focus:ring-app-accent/30 outline-none transition-all"
                     />
                   </div>
                   <div className="flex-1 min-w-[160px]">
@@ -384,7 +482,7 @@ export function ServerSettingsModal({
             <div>
               <h3 className="text-sm font-semibold text-app-text mb-3">Server emojis</h3>
               {emojis.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-app-hover/40 bg-[#2b2d31]/30 p-12 text-center">
+                <div className="rounded-xl border border-dashed border-app-hover/40 bg-app-channel/30 p-12 text-center">
                   <div className="w-16 h-16 rounded-2xl bg-app-hover/30 flex items-center justify-center mx-auto mb-3">
                     <span className="text-3xl opacity-50">😀</span>
                   </div>
@@ -396,9 +494,9 @@ export function ServerSettingsModal({
                   {emojis.map((e) => (
                     <div
                       key={e.id}
-                      className="group flex items-center gap-3 p-3 rounded-xl bg-[#2b2d31] hover:bg-[#36373d] transition-colors"
+                      className="group flex items-center gap-3 p-3 rounded-xl bg-app-channel hover:bg-app-hover transition-colors"
                     >
-                      <div className="w-10 h-10 rounded-lg bg-[#1e1f22] flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      <div className="w-10 h-10 rounded-lg bg-app-darker flex items-center justify-center flex-shrink-0 overflow-hidden">
                         <img src={e.image_url} alt={e.name} className="w-8 h-8 object-contain" />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -420,7 +518,7 @@ export function ServerSettingsModal({
               {members.map((m) => (
                 <div
                   key={m.userId}
-                  className="flex items-center justify-between px-3 py-2 rounded-lg bg-[#2b2d31] hover:bg-[#36373d]"
+                  className="flex items-center justify-between px-3 py-2 rounded-lg bg-app-channel hover:bg-app-hover"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-app-accent/80 flex items-center justify-center text-white text-sm font-bold">
@@ -470,7 +568,7 @@ export function ServerSettingsModal({
                 <select
                   value={rulesChannelIdState}
                   onChange={(e) => setRulesChannelIdState(e.target.value)}
-                  className="w-full px-3 py-2.5 bg-[#1e1f22] rounded-lg text-app-text border border-transparent focus:border-app-accent/50 outline-none"
+                  className="w-full px-3 py-2.5 bg-app-darker rounded-lg text-app-text border border-transparent focus:border-app-accent/50 outline-none"
                 >
                   <option value="">None</option>
                   {rulesChannels.map((ch) => (
@@ -485,7 +583,7 @@ export function ServerSettingsModal({
                   id="lock-until-accepted"
                   checked={lockUntilAccepted}
                   onChange={(e) => setLockUntilAccepted(e.target.checked)}
-                  className="rounded border-app-hover bg-[#1e1f22]"
+                  className="rounded border-app-hover bg-app-darker"
                 />
                 <label htmlFor="lock-until-accepted" className="text-sm text-app-text">
                   Lock all channels until members accept rules (react with emoji below)
@@ -498,7 +596,7 @@ export function ServerSettingsModal({
                   value={acceptEmoji}
                   onChange={(e) => setAcceptEmoji(e.target.value)}
                   placeholder="👍"
-                  className="w-full px-3 py-2.5 bg-[#1e1f22] rounded-lg text-app-text border border-transparent focus:border-app-accent/50 outline-none"
+                  className="w-full px-3 py-2.5 bg-app-darker rounded-lg text-app-text border border-transparent focus:border-app-accent/50 outline-none"
                 />
                 <p className="text-xs text-app-muted mt-1">Emoji members must react with to accept rules (e.g. 👍 ✅)</p>
               </div>
@@ -538,7 +636,7 @@ export function ServerSettingsModal({
                 invites.map((inv) => (
                   <div
                     key={inv.code}
-                    className="flex items-center justify-between px-3 py-2 rounded-lg bg-[#2b2d31]"
+                    className="flex items-center justify-between px-3 py-2 rounded-lg bg-app-channel"
                   >
                     <code className="text-sm text-app-muted font-mono">/{inv.code}</code>
                     <span className="text-xs text-app-muted">Used {inv.use_count} times</span>
@@ -573,7 +671,7 @@ export function ServerSettingsModal({
                 <p className="text-sm text-app-muted">No audit entries yet.</p>
               ) : (
                 auditLog.map((e) => (
-                  <div key={e.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-[#2b2d31] text-sm">
+                  <div key={e.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-app-channel text-sm">
                     <span className="text-app-muted shrink-0">
                       {new Date(e.createdAt).toLocaleString()}
                     </span>
@@ -658,7 +756,7 @@ export function ServerSettingsModal({
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-3 py-2.5 bg-[#1e1f22] rounded-[3px] text-app-text text-base outline-none focus:ring-2 focus:ring-app-accent border-none"
+                className="w-full px-3 py-2.5 bg-app-darker rounded-[3px] text-app-text text-base outline-none focus:ring-2 focus:ring-app-accent border-none"
               />
             </div>
 
@@ -675,7 +773,7 @@ export function ServerSettingsModal({
 
         {/* Save bar */}
         {name !== serverName && name.trim() && (
-          <div className="fixed bottom-0 left-[218px] right-0 bg-[#111214] p-3 flex items-center justify-end gap-3 shadow-lg">
+          <div className="fixed bottom-0 left-[218px] right-0 bg-app-darker p-3 flex items-center justify-end gap-3 shadow-lg">
             <span className="text-sm text-app-muted mr-auto">Careful — you have unsaved changes!</span>
             <button
               onClick={() => setName(serverName)}
@@ -685,24 +783,33 @@ export function ServerSettingsModal({
             </button>
             <button
               onClick={handleSave}
-              className="px-6 py-2 bg-[#23a559] hover:bg-[#1e8c4a] text-white rounded-[3px] text-sm font-medium transition-colors"
+              className="px-6 py-2 bg-[#23a559] hover:opacity-90 text-white rounded-[3px] text-sm font-medium transition-colors"
             >
               Save Changes
             </button>
           </div>
         )}
+        </div>
 
         {/* Delete confirmation dialog */}
         {showDeleteConfirm && (
-          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60]" onClick={() => setShowDeleteConfirm(false)}>
-            <div className="bg-[#313338] rounded-xl w-[440px] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div
+            ref={deleteOverlayRef}
+            className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60]"
+            onClick={() => setShowDeleteConfirm(false)}
+          >
+            <div
+              ref={deletePanelRef}
+              className="bg-app-dark rounded-xl w-[440px] shadow-2xl will-change-transform"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="p-4">
                 <h3 className="text-xl font-bold text-white">Delete '{serverName}'</h3>
                 <p className="text-sm text-app-muted mt-2">
                   Are you sure you want to delete <strong className="text-app-text">{serverName}</strong>? This action cannot be undone.
                 </p>
               </div>
-              <div className="bg-[#2b2d31] p-4 flex justify-end gap-3 rounded-b-xl">
+              <div className="bg-app-channel p-4 flex justify-end gap-3 rounded-b-xl">
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
                   className="px-4 py-2 text-sm text-app-text hover:underline"
@@ -724,14 +831,16 @@ export function ServerSettingsModal({
       {/* Close button */}
       <div className="pt-[60px] pr-5 flex-shrink-0">
         <button
-          onClick={onClose}
+          onClick={requestClose}
           className="w-9 h-9 rounded-full border-2 border-app-muted/60 flex items-center justify-center text-app-muted hover:text-white hover:border-white transition-colors"
+          aria-label="Close server settings"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <path d="M18.4 4L12 10.4L5.6 4L4 5.6L10.4 12L4 18.4L5.6 20L12 13.6L18.4 20L20 18.4L13.6 12L20 5.6L18.4 4Z"/>
           </svg>
         </button>
         <div className="text-xs text-app-muted text-center mt-1">ESC</div>
+      </div>
       </div>
     </div>
   )

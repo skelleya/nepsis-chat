@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useState, useRef, useEffect, useCallback, useLayoutEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
+import gsap from 'gsap'
 import { EMOJI_CATEGORIES, EMOJI_SHORTCODES } from '../data/emojis'
 
 export interface ServerEmoji {
@@ -66,6 +67,7 @@ export function EmojiPicker({
   const scrollRef = useRef<HTMLDivElement>(null)
   const categoryRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const searchRef = useRef<HTMLInputElement>(null)
+  const closingRef = useRef(false)
   const [recentEmojis] = useState(getRecentEmojis)
   const [position, setPosition] = useState<{ top: number; left: number }>({ top: -9999, left: -9999 })
   const [hover, setHover] = useState<{ emoji?: string; imageUrl?: string; name: string } | null>(null)
@@ -134,6 +136,44 @@ export function EmojiPicker({
     setPosition({ top, left })
   }, [anchorRect])
 
+  useLayoutEffect(() => {
+    const picker = pickerRef.current
+    if (!picker) return
+    gsap.killTweensOf(picker)
+    gsap.fromTo(
+      picker,
+      { opacity: 0, y: 8, scale: 0.97, transformOrigin: 'bottom left' },
+      { opacity: 1, y: 0, scale: 1, duration: 0.22, ease: 'power3.out', force3D: false }
+    )
+    return () => {
+      gsap.killTweensOf(picker)
+    }
+  }, [])
+
+  const requestClose = useCallback((afterClose?: () => void) => {
+    if (closingRef.current) return
+    closingRef.current = true
+    const picker = pickerRef.current
+    if (!picker) {
+      afterClose?.()
+      onClose()
+      return
+    }
+    gsap.killTweensOf(picker)
+    gsap.to(picker, {
+      opacity: 0,
+      y: 6,
+      scale: 0.97,
+      duration: 0.16,
+      ease: 'power2.in',
+      force3D: false,
+      onComplete: () => {
+        afterClose?.()
+        onClose()
+      },
+    })
+  }, [onClose])
+
   /* ── Block native mousedown propagation so parent click-outside
        handlers (e.g. SoundboardDropdown) don't fire ───────────── */
   useEffect(() => {
@@ -147,18 +187,18 @@ export function EmojiPicker({
   /* ── Click outside → close ─────────────────────────────────── */
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) onClose()
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) requestClose()
     }
     const timer = setTimeout(() => document.addEventListener('mousedown', handler), 10)
     return () => { clearTimeout(timer); document.removeEventListener('mousedown', handler) }
-  }, [onClose])
+  }, [requestClose])
 
   /* ── Escape → close ────────────────────────────────────────── */
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') requestClose() }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [onClose])
+  }, [requestClose])
 
   /* ── Auto-focus search on mount ────────────────────────────── */
   useEffect(() => { setTimeout(() => searchRef.current?.focus(), 50) }, [])
@@ -190,7 +230,7 @@ export function EmojiPicker({
   /* ── Select handler (also saves to recent) ─────────────────── */
   const handleSelect = (emoji: string) => {
     addRecentEmoji(emoji)
-    onSelect(emoji)
+    requestClose(() => onSelect(emoji))
   }
 
   /* ── Shared button classes ─────────────────────────────────── */
@@ -210,14 +250,14 @@ export function EmojiPicker({
         style={{
           width: PICKER_W,
           height: PICKER_H,
-          background: '#2b2d31',
+          background: 'rgb(var(--app-channel))',
         }}
       >
         {/* ───── Search bar ───── */}
         <div className="px-3 pt-3 pb-2 flex-shrink-0">
           <div className="relative">
             <svg
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#949ba4]"
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-app-muted"
               viewBox="0 0 24 24" fill="none" stroke="currentColor"
               strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
             >
@@ -230,7 +270,7 @@ export function EmojiPicker({
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search emoji…"
-              className="w-full bg-[#1e1f22] text-[#dbdee1] text-sm rounded-md pl-9 pr-3 py-[7px] placeholder:text-[#949ba4]/70 outline-none border border-transparent focus:border-[#5865f2]/50 transition-colors"
+              className="w-full bg-app-darker text-app-text text-sm rounded-md pl-9 pr-3 py-[7px] placeholder:text-app-muted/70 outline-none border border-transparent focus:border-app-accent/50 transition-colors"
             />
           </div>
         </div>
@@ -245,7 +285,7 @@ export function EmojiPicker({
                 className={`flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-md text-[15px] transition-all duration-150 ${
                   activeCategory === cat
                     ? 'bg-white/[0.08] text-white'
-                    : 'text-[#949ba4] hover:bg-white/[0.04] hover:text-[#dbdee1]'
+                    : 'text-app-muted hover:bg-white/[0.04] hover:text-app-text'
                 }`}
                 title={cat}
               >
@@ -309,7 +349,7 @@ export function EmojiPicker({
               )}
 
               {searchResults.emojis.length === 0 && searchResults.serverEmojis.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-14 text-[#949ba4] select-none">
+                <div className="flex flex-col items-center justify-center py-14 text-app-muted select-none">
                   <span className="text-4xl mb-3 opacity-60">😕</span>
                   <p className="text-sm font-medium">No results found</p>
                   <p className="text-xs mt-1 opacity-70">Try a different search term</p>
@@ -320,7 +360,7 @@ export function EmojiPicker({
             /* ── Category browsing view ── */
             categories.map(cat => (
               <div key={cat} ref={el => { categoryRefs.current[cat] = el }}>
-                <p className="text-[11px] font-bold text-[#949ba4]/80 uppercase tracking-wider px-1 py-1.5 sticky top-0 bg-[#2b2d31]/[0.97] backdrop-blur-[2px] z-10 select-none">
+                <p className="text-[11px] font-bold text-app-muted/80 uppercase tracking-wider px-1 py-1.5 sticky top-0 bg-app-channel/95 backdrop-blur-[2px] z-10 select-none">
                   {cat}
                 </p>
                 <div className="grid grid-cols-8 gap-px">
@@ -385,13 +425,13 @@ export function EmojiPicker({
                   : hover.emoji}
               </span>
               {hover.name && (
-                <span className="text-sm text-[#dbdee1] font-medium truncate">
+                <span className="text-sm text-app-text font-medium truncate">
                   :{hover.name}:
                 </span>
               )}
             </>
           ) : (
-            <span className="text-xs text-[#949ba4] select-none">Pick an emoji…</span>
+            <span className="text-xs text-app-muted select-none">Pick an emoji…</span>
           )}
         </div>
       </div>

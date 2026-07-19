@@ -111,22 +111,22 @@ export function CreateServerModal({ onClose, onCreate }: CreateServerModalProps)
     >
       <div
         ref={panelRef}
-        className="relative w-full max-w-[480px] mx-4 rounded-2xl bg-[#313338] shadow-2xl shadow-black/50 ring-1 ring-white/5 overflow-hidden will-change-transform"
+        className="relative w-full max-w-[480px] mx-4 rounded-2xl bg-app-dark shadow-2xl shadow-black/50 ring-1 ring-white/5 overflow-hidden will-change-transform"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Moving gradient accent bar */}
         <div className="h-1 overflow-hidden" aria-hidden>
           <div
             ref={accentFillRef}
-            className="h-full w-[200%] will-change-transform bg-[linear-gradient(90deg,rgb(var(--app-accent))_0%,#23a559_16%,#faa61a_33%,rgb(var(--app-accent))_50%,#23a559_66%,#faa61a_83%,rgb(var(--app-accent))_100%)]"
+            className="h-full w-[200%] will-change-transform bg-[linear-gradient(90deg,rgb(var(--app-accent))_0%,#23a559_25%,rgb(var(--app-accent))_50%,#23a559_75%,rgb(var(--app-accent))_100%)]"
           />
         </div>
 
         <div className="p-6 sm:p-8">
           {/* Header */}
           <div className="flex items-start gap-4 mb-6">
-            <div className="flex-shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-[#faa61a]/30 to-[#faa61a]/10 flex items-center justify-center border border-[#faa61a]/25">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="text-[#faa61a]">
+            <div className="flex-shrink-0 w-14 h-14 rounded-2xl bg-gradient-to-br from-app-accent/30 to-app-accent/10 flex items-center justify-center border border-app-accent/25">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="text-app-accent">
                 <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
@@ -162,7 +162,7 @@ export function CreateServerModal({ onClose, onCreate }: CreateServerModalProps)
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. My Awesome Server"
-                className="w-full px-4 py-3 bg-[#1e1f22] rounded-lg text-app-text text-base placeholder:text-app-muted/50 outline-none focus:ring-2 focus:ring-app-accent focus:ring-offset-2 focus:ring-offset-[#313338] transition-shadow"
+                className="w-full px-4 py-3 bg-app-darker rounded-lg text-app-text text-base placeholder:text-app-muted/50 outline-none focus:ring-2 focus:ring-app-accent focus:ring-offset-2 focus:ring-offset-app-dark transition-shadow"
                 autoFocus
                 disabled={loading}
               />

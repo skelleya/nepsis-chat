@@ -23,9 +23,9 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-[#111214] text-[#dbdee1] p-6 text-center">
+        <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-app-darker text-app-text p-6 text-center">
           <h1 className="text-xl font-semibold">Something went wrong</h1>
-          <p className="text-sm text-[#b5bac1] max-w-md">
+          <p className="text-sm text-app-muted max-w-md">
             The app hit an unexpected error. Reload to continue.
           </p>
           <pre className="text-xs text-red-300/90 max-w-lg overflow-auto whitespace-pre-wrap text-left bg-black/40 rounded-lg p-3">
@@ -33,7 +33,7 @@ export class ErrorBoundary extends Component<Props, State> {
           </pre>
           <button
             type="button"
-            className="px-4 py-2 rounded-md bg-[#5865f2] hover:bg-[#4752c4] text-white text-sm font-medium"
+            className="px-4 py-2 rounded-md bg-app-accent hover:bg-app-accent-hover text-white text-sm font-medium"
             onClick={() => window.location.reload()}
           >
             Reload

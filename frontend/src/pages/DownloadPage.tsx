@@ -205,7 +205,7 @@ export function DownloadPage() {
     >
       <div ref={cardRef} className="w-full max-w-lg p-8 rounded-xl bg-app-dark text-center">
         <img src="./logo.png" alt="Nepsis" className="h-14 mx-auto mb-4 object-contain bg-white rounded-full p-1" />
-        <h1 className="text-2xl font-bold text-white mb-2">Install Nepsis Chat</h1>
+        <h1 className="font-display text-2xl font-bold text-white mb-2">Install Nepsis Chat</h1>
         <p className="text-app-muted mb-2">
           Same experience as the web app — voice, chat, and servers — as a native desktop app.
         </p>

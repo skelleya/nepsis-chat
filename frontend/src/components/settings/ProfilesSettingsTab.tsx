@@ -370,12 +370,12 @@ export function ProfilesSettingsTab({
         ))}
       </div>
 
-      <div className="bg-[#111214] rounded-lg overflow-hidden mb-4">
+      <div className="bg-app-darker rounded-lg overflow-hidden mb-4">
         <div className="relative h-24">
           {current.banner_url ? (
             <img src={current.banner_url} alt="" className="w-full h-full object-cover" />
           ) : (
-            <div className={`w-full h-full ${editing === 'work' ? 'bg-[#5865f2]' : 'bg-app-accent'}`} />
+            <div className={`w-full h-full ${editing === 'work' ? 'bg-app-accent-hover' : 'bg-app-accent'}`} />
           )}
           <input
             ref={bannerInputRef}
@@ -404,10 +404,10 @@ export function ProfilesSettingsTab({
                 <img
                   src={current.avatar_url}
                   alt=""
-                  className="w-20 h-20 rounded-full object-cover border-4 border-[#111214]"
+                  className="w-20 h-20 rounded-full object-cover border-4 border-app-darker"
                 />
               ) : (
-                <div className="w-20 h-20 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-2xl border-4 border-[#111214]">
+                <div className="w-20 h-20 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-2xl border-4 border-app-darker">
                   {(current.display_name || '?').charAt(0).toUpperCase()}
                 </div>
               )}
@@ -440,7 +440,7 @@ export function ProfilesSettingsTab({
             value={current.display_name}
             onChange={(e) => patchCurrent({ display_name: e.target.value })}
             placeholder={editing === 'personal' ? 'Personal name' : 'Work name'}
-            className="w-full mt-1 mb-3 px-3 py-2 bg-[#2b2d31] rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none"
+            className="w-full mt-1 mb-3 px-3 py-2 bg-app-channel rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none"
           />
 
           <label className="text-xs font-bold text-app-muted uppercase">Bio</label>
@@ -450,7 +450,7 @@ export function ProfilesSettingsTab({
             rows={2}
             maxLength={190}
             placeholder="Short public bio"
-            className="w-full mt-1 mb-3 px-3 py-2 bg-[#2b2d31] rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none resize-none"
+            className="w-full mt-1 mb-3 px-3 py-2 bg-app-channel rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none resize-none"
           />
 
           <div className="flex items-start justify-between gap-4 mb-4 py-2">
@@ -479,7 +479,7 @@ export function ProfilesSettingsTab({
         </div>
       </div>
 
-      <div className="bg-[#2b2d31] rounded-lg p-4 mb-4">
+      <div className="bg-app-channel rounded-lg p-4 mb-4">
         <h4 className="font-semibold text-white mb-1">Default for new servers</h4>
         <p className="text-xs text-app-muted mb-3">
           First time you join a server, this identity is used. You can change the preset per server later.
@@ -499,7 +499,7 @@ export function ProfilesSettingsTab({
                 className={`px-3 py-1.5 rounded text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed ${
                   activeServerProfile === type
                     ? 'bg-app-accent text-white'
-                    : 'bg-[#1e1f22] text-app-muted hover:text-app-text'
+                    : 'bg-app-darker text-app-muted hover:text-app-text'
                 }`}
               >
                 {type === 'personal' ? 'Personal' : 'Work'}
@@ -510,7 +510,7 @@ export function ProfilesSettingsTab({
         </div>
       </div>
 
-      <div className="bg-[#2b2d31] rounded-lg p-4">
+      <div className="bg-app-channel rounded-lg p-4">
         <h4 className="font-semibold text-white mb-1">Friend profile visibility</h4>
         <p className="text-xs text-app-muted mb-3">
           {hasBothProfiles

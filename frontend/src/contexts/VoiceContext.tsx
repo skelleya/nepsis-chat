@@ -6,14 +6,22 @@ import { ensureIceServers } from '../services/iceConfig'
 import { sounds } from '../services/sounds'
 import { getAudioConstraints, getVideoConstraints } from '../services/userPrefs'
 import { getScreenShareStream } from '../utils/mediaTracks'
+import { getCallBusy } from '../services/mediaSessionGate'
 
 export interface VoiceParticipant {
   userId: string
   username: string
   stream: MediaStream | null
   isSpeaking: boolean
+  isMuted?: boolean
+  isDeafened?: boolean
   /** Incremented when the stream's tracks change (forces React re-render) */
   streamVersion: number
+}
+
+export interface RemoteVoiceState {
+  muted: boolean
+  deafened: boolean
 }
 
 interface VoiceContextValue {
@@ -35,6 +43,7 @@ interface VoiceContextValue {
   participants: VoiceParticipant[]
   /** User IDs that have left (peer-left) — exclude from presence merge to avoid ghost "Connecting..." */
   leftUserIds: Set<string>
+  remoteVoiceStates: Record<string, RemoteVoiceState>
   localStream: MediaStream | null
   isSpeaking: boolean      // local user speaking detection
   ping: number | null       // latency in ms
@@ -79,9 +88,11 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   const [watchingShareUserId, setWatchingShareUserId] = useState<string | null>(null)
   /** Explicit screen-share signals from peers (remote tracks often lack labels) */
   const [remoteScreenShareIds, setRemoteScreenShareIds] = useState<Set<string>>(new Set())
+  const [remoteVoiceStates, setRemoteVoiceStates] = useState<Record<string, RemoteVoiceState>>({})
 
   const webrtcRef = useRef<ReturnType<typeof createWebRTCClient> | null>(null)
   const signalingRef = useRef<ReturnType<typeof createBroadcastSignaling> | ReturnType<typeof createSocketSignaling> | null>(null)
+  const leftUserClearTimeoutsRef = useRef<Map<string, number>>(new Map())
   const voiceChannelIdRef = useRef<string | null>(null)
   const voiceChannelNameRef = useRef<string | null>(null)
   const leaveVoiceRef = useRef<(opts?: { preserveRejoin?: boolean }) => void>(() => {})
@@ -160,6 +171,11 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
       return [...prev, { userId: pUserId, username: pUsername || 'User', stream, isSpeaking, streamVersion: 0 }]
     })
     // Re-joining clears left-set so presence can show them again
+    const leftTimer = leftUserClearTimeoutsRef.current.get(pUserId)
+    if (leftTimer) {
+      window.clearTimeout(leftTimer)
+      leftUserClearTimeoutsRef.current.delete(pUserId)
+    }
     setLeftUserIds((prev) => {
       if (!prev.has(pUserId)) return prev
       const next = new Set(prev)
@@ -170,9 +186,32 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
 
   const removeParticipant = useCallback((peerId: string) => {
     // Mark left so we don't keep a ghost "Connecting..." tile from stale WebRTC state.
-    // VoiceView still shows the user if presence lists them in the channel (session-replace race).
     setLeftUserIds((prev) => new Set(prev).add(peerId))
+    const existingTimer = leftUserClearTimeoutsRef.current.get(peerId)
+    if (existingTimer) window.clearTimeout(existingTimer)
+    const timer = window.setTimeout(() => {
+      leftUserClearTimeoutsRef.current.delete(peerId)
+      setLeftUserIds((prev) => {
+        if (!prev.has(peerId)) return prev
+        const next = new Set(prev)
+        next.delete(peerId)
+        return next
+      })
+    }, 10_000)
+    leftUserClearTimeoutsRef.current.set(peerId, timer)
     setParticipants((prev) => prev.filter((p) => p.userId !== peerId))
+    setRemoteScreenShareIds((prev) => {
+      if (!prev.has(peerId)) return prev
+      const next = new Set(prev)
+      next.delete(peerId)
+      return next
+    })
+    setRemoteVoiceStates((prev) => {
+      if (!prev[peerId]) return prev
+      const next = { ...prev }
+      delete next[peerId]
+      return next
+    })
   }, [])
 
   const leaveVoice = useCallback((opts?: { preserveRejoin?: boolean }) => {
@@ -193,8 +232,13 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     setVideoStream(null)
     setScreenStream(null)
     setParticipants([])
+    for (const timer of leftUserClearTimeoutsRef.current.values()) {
+      window.clearTimeout(timer)
+    }
+    leftUserClearTimeoutsRef.current.clear()
     setLeftUserIds(new Set())
     setRemoteScreenShareIds(new Set())
+    setRemoteVoiceStates({})
     setVoiceChannelId(null)
     setVoiceChannelName(null)
     setIsCameraOn(false)
@@ -221,12 +265,18 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   const joinVoice = useCallback(async (channelId: string, channelName: string) => {
     if (voiceChannelId === channelId) return
 
+    if (getCallBusy()) {
+      setError('Leave call before joining voice')
+      return
+    }
+
     if (voiceChannelId) {
       leaveVoice()
       await new Promise((r) => setTimeout(r, 100))
     }
 
     setError(null)
+    let acquiredStream: MediaStream | null = null
     try {
       // Prefetch ICE before joining so we don't miss room-peers while waiting
       const iceServers = await ensureIceServers()
@@ -234,6 +284,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         audio: getAudioConstraints(),
         video: false,
       })
+      acquiredStream = stream
       setLocalStream(stream)
       setVoiceChannelId(channelId)
       setVoiceChannelName(channelName)
@@ -245,6 +296,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
       setParticipants([])
       setLeftUserIds(new Set())
       setRemoteScreenShareIds(new Set())
+      setRemoteVoiceStates({})
 
       const signaling = USE_SOCKET
         ? createSocketSignaling(channelId, userId, username)
@@ -277,19 +329,63 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
             addOrUpdateParticipant(pUserId, pUsername, null)
             if (playSound) sounds.userJoin()
           },
+          onPeerMetadata: (pUserId, metadata) => {
+            if (!pUserId || pUserId === userId) return
+            if (metadata.screenSharing) {
+              setRemoteScreenShareIds((prev) => new Set(prev).add(pUserId))
+            }
+            if (metadata.muted !== undefined || metadata.deafened !== undefined) {
+              setRemoteVoiceStates((prev) => ({
+                ...prev,
+                [pUserId]: {
+                  muted: !!metadata.muted,
+                  deafened: !!metadata.deafened,
+                },
+              }))
+            }
+          },
         },
         iceServers
       )
       webrtcRef.current = webrtc
       webrtc.addLocalStream(stream)
 
+      ;(signaling as {
+        onReconnect?: (cb: () => void) => () => void
+      }).onReconnect?.(() => {
+        if (!voiceChannelIdRef.current) return
+        setParticipants([])
+        setLeftUserIds(new Set())
+        setRemoteScreenShareIds(new Set())
+        setRemoteVoiceStates({})
+        webrtcRef.current?.resetPeers?.()
+        void signaling.join()
+      })
+
       await signaling.join()
       sounds.voiceConnected()
     } catch (err) {
+      acquiredStream?.getTracks().forEach((t) => t.stop())
+      try {
+        webrtcRef.current?.leave()
+      } catch {
+        /* ignore */
+      }
+      webrtcRef.current = null
+      try {
+        ;(signalingRef.current as { close?: () => void } | null)?.close?.()
+      } catch {
+        /* ignore */
+      }
+      signalingRef.current = null
       setError(err instanceof Error ? err.message : 'Failed to access microphone')
       setVoiceChannelId(null)
       setVoiceChannelName(null)
       setLocalStream(null)
+      setParticipants([])
+      setLeftUserIds(new Set())
+      setRemoteScreenShareIds(new Set())
+      setRemoteVoiceStates({})
       try {
         sessionStorage.removeItem(VOICE_REJOIN_KEY)
       } catch {
@@ -414,6 +510,34 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     })
     return () => unsub?.()
   }, [voiceChannelId])
+
+  // ─── Local/remote voice-state sync (mute/deafen badges for peers) ─
+  useEffect(() => {
+    if (!voiceChannelId) return
+    const sig = signalingRef.current as {
+      emitVoiceState?: (state: { muted: boolean; deafened: boolean }) => void
+    } | null
+    sig?.emitVoiceState?.({ muted: isMuted, deafened: isDeafened })
+  }, [voiceChannelId, isMuted, isDeafened])
+
+  useEffect(() => {
+    const signaling = signalingRef.current
+    if (!signaling || !voiceChannelId) return
+    const unsub = (
+      signaling as {
+        onVoiceState?: (
+          cb: (d: { userId: string; muted: boolean; deafened: boolean }) => void
+        ) => () => void
+      }
+    ).onVoiceState?.(({ userId: fromId, muted, deafened }) => {
+      if (!fromId || fromId === userId) return
+      setRemoteVoiceStates((prev) => ({
+        ...prev,
+        [fromId]: { muted: !!muted, deafened: !!deafened },
+      }))
+    })
+    return () => unsub?.()
+  }, [voiceChannelId, userId])
 
   // ─── Admin disconnect listener (when an admin disconnects this user from voice) ─
   useEffect(() => {
@@ -585,9 +709,8 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         else next.delete(fromId)
         return next
       })
-      // Auto-show remote share so the other user actually sees it
-      if (active) setWatchingShareUserId(fromId)
-      else setWatchingShareUserId((prev) => (prev === fromId ? null : prev))
+      // Remote shares are click-to-watch; only clear focus when the watched share stops.
+      if (!active) setWatchingShareUserId((prev) => (prev === fromId ? null : prev))
     })
     return () => unsub?.()
   }, [voiceChannelId, userId])
@@ -651,6 +774,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         screenStream,
         participants,
         leftUserIds,
+        remoteVoiceStates,
         localStream,
         isSpeaking,
         ping,

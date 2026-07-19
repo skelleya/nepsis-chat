@@ -73,7 +73,7 @@ function HelpTab({ user }: { user: { id: string; username: string; is_guest?: bo
   return (
     <div>
       <h3 className="text-xl font-bold text-white mb-4">Help & Support</h3>
-      <div className="bg-[#2b2d31] rounded-lg p-4 space-y-4">
+      <div className="bg-app-channel rounded-lg p-4 space-y-4">
         <h4 className="font-semibold text-white">Report a Bug</h4>
         {isGuest ? (
           <p className="text-app-muted text-sm">
@@ -93,7 +93,7 @@ function HelpTab({ user }: { user: { id: string; username: string; is_guest?: bo
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Brief summary of the issue"
                   maxLength={256}
-                  className="w-full px-3 py-2 bg-[#1e1f22] rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none placeholder:text-app-muted"
+                  className="w-full px-3 py-2 bg-app-darker rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none placeholder:text-app-muted"
                 />
               </div>
               <div>
@@ -104,7 +104,7 @@ function HelpTab({ user }: { user: { id: string; username: string; is_guest?: bo
                   placeholder="Steps to reproduce, what you expected, what happened..."
                   rows={4}
                   maxLength={8000}
-                  className="w-full px-3 py-2 bg-[#1e1f22] rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none placeholder:text-app-muted resize-none"
+                  className="w-full px-3 py-2 bg-app-darker rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none placeholder:text-app-muted resize-none"
                 />
               </div>
               <p className="text-app-muted text-xs">
@@ -323,10 +323,12 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
     closingRef.current = true
     const overlay = overlayRef.current
     const panel = panelRef.current
+    const content = contentRef.current
     if (!overlay || !panel) {
       onClose()
       return
     }
+    gsap.killTweensOf([overlay, panel, content].filter(Boolean))
     gsap.to(overlay, { opacity: 0, duration: 0.2, ease: 'sine.in' })
     gsap.to(panel, {
       opacity: 0,
@@ -616,12 +618,12 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
     >
       <div
         ref={panelRef}
-        className="relative bg-[#313338] rounded-lg shadow-2xl w-full max-w-[740px] h-[min(640px,90vh)] flex overflow-hidden"
+        className="relative bg-app-dark rounded-lg shadow-2xl w-full max-w-[740px] h-[min(640px,90vh)] flex overflow-hidden"
       >
         {/* Left sidebar */}
-        <div className="w-[218px] bg-[#2b2d31] flex-shrink-0 flex flex-col min-h-0">
+        <div className="w-[218px] bg-app-channel flex-shrink-0 flex flex-col min-h-0">
           <div className="px-4 pt-4 pb-3 flex-shrink-0">
-            <h2 className="text-xs font-bold uppercase tracking-wide text-[#949ba4]">
+            <h2 className="text-xs font-bold uppercase tracking-wide text-app-muted">
               User Settings
             </h2>
           </div>
@@ -641,7 +643,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
                   className={`relative z-10 w-full px-2.5 py-1.5 rounded-md text-[15px] font-medium leading-6 text-left transition-colors ${
                     activeTab === tab.id
                       ? 'text-white'
-                      : 'text-[#b5bac1] hover:text-[#dbdee1]'
+                      : 'text-app-muted hover:text-app-text'
                   }`}
                 >
                   {tab.label}
@@ -732,7 +734,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
                               value={displayName}
                               onChange={(e) => setDisplayName(e.target.value)}
                               placeholder={user.username}
-                              className="w-full mt-1 px-3 py-2 bg-[#2b2d31] rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none placeholder:text-app-muted/60"
+                              className="w-full mt-1 px-3 py-2 bg-app-channel rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none placeholder:text-app-muted/60"
                             />
                           </div>
                           <button
@@ -763,7 +765,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
                                   className={`px-3 py-2 rounded text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed ${
                                     defaultProfile === type
                                       ? 'bg-app-accent text-white'
-                                      : 'bg-[#2b2d31] text-app-muted hover:text-app-text'
+                                      : 'bg-app-channel text-app-muted hover:text-app-text'
                                   }`}
                                 >
                                   {type === 'personal' ? 'Personal' : 'Work'}
@@ -796,7 +798,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
                             disabled={isGuest}
-                            className="w-full mt-1 px-3 py-2 bg-[#2b2d31] rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="w-full mt-1 px-3 py-2 bg-app-channel rounded text-app-text border border-transparent focus:border-app-accent focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed"
                           />
                         </div>
                         {!isGuest && (
@@ -851,7 +853,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
                     onClick={() => !deletingAccount && setShowDeleteConfirm(false)}
                   >
                     <div
-                      className="bg-[#313338] rounded-xl w-[min(440px,92vw)] shadow-2xl"
+                      className="bg-app-dark rounded-xl w-[min(440px,92vw)] shadow-2xl"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="p-4">
@@ -870,11 +872,11 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
                           placeholder={user.username}
                           disabled={deletingAccount}
                           autoFocus
-                          className="w-full px-3 py-2 bg-[#1e1f22] rounded text-app-text border border-transparent focus:border-red-500 focus:outline-none placeholder:text-app-muted/60 disabled:opacity-60"
+                          className="w-full px-3 py-2 bg-app-darker rounded text-app-text border border-transparent focus:border-red-500 focus:outline-none placeholder:text-app-muted/60 disabled:opacity-60"
                         />
                         {deleteError && <p className="text-red-400 text-sm mt-2">{deleteError}</p>}
                       </div>
-                      <div className="bg-[#2b2d31] p-4 flex justify-end gap-3 rounded-b-xl">
+                      <div className="bg-app-channel p-4 flex justify-end gap-3 rounded-b-xl">
                         <button
                           type="button"
                           onClick={() => setShowDeleteConfirm(false)}
@@ -943,15 +945,15 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
           </div>
         </div>
 
-        {/* Close — sits above the scrollbar track in the top-right corner */}
+        {/* Close — muted circular X to match server settings */}
         <button
           type="button"
           onClick={requestClose}
           aria-label="Close settings"
-          className="absolute top-0 right-0 z-20 w-12 h-12 flex items-center justify-center text-[#ed4245] hover:text-[#ff5c5f] bg-[#313338] border-l border-b border-[#4e5058] rounded-tr-lg transition-colors hover:bg-[#35373c]"
+          className="absolute top-5 right-5 z-20 w-9 h-9 rounded-full border-2 border-app-muted/60 flex items-center justify-center text-app-muted hover:text-white hover:border-white transition-colors"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.25" strokeLinecap="round" aria-hidden>
-            <path d="M6 6l12 12M18 6L6 18" />
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d="M18.4 4L12 10.4L5.6 4L4 5.6L10.4 12L4 18.4L5.6 20L12 13.6L18.4 20L20 18.4L13.6 12L20 5.6L18.4 4Z" />
           </svg>
         </button>
       </div>
