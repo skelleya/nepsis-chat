@@ -5,15 +5,20 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build:frontend": "cd ../frontend && npm run build",
+    "build:frontend": "cd ../frontend && npm run build -- --mode desktop",
     "bump": "node scripts/bump-version.js",
-    "package": "npm run build:frontend && electron-builder --win",
-    "package:full": "npm run package && npm run copy-exe && npm run bump",
-    "publish:github": "npm run package && electron-builder --win -p always",
+    "package": "npm run package:win",
+    "package:win": "npm run build:frontend && electron-builder --win",
+    "package:mac": "npm run build:frontend && electron-builder --mac",
+    "package:all": "npm run build:frontend && electron-builder --win --mac",
+    "package:full": "npm run package:win && npm run copy-exe && npm run bump",
+    "publish:github": "npm run build:frontend && electron-builder --win --mac -p always",
+    "publish:github:win": "npm run build:frontend && electron-builder --win -p always",
+    "publish:github:mac": "npm run build:frontend && electron-builder --mac -p always",
     "copy-exe": "node scripts/copy-exe.js",
     "publish-update": "node scripts/publish-update.js"
   },
-  "author": "",
+  "author": "Nepsis",
   "license": "ISC",
   "devDependencies": {
     "electron": "^33.2.0",
@@ -26,7 +31,8 @@
     "appId": "com.nepsis.chat",
     "productName": "Nepsis Chat",
     "directories": {
-      "output": "dist"
+      "output": "dist",
+      "buildResources": "build"
     },
     "files": [
       "main.js",
@@ -40,7 +46,8 @@
     },
     "win": {
       "target": [
-        "nsis"
+        "nsis",
+        "zip"
       ],
       "signAndEditExecutable": false,
       "icon": "icon.png"
@@ -49,6 +56,26 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "artifactName": "NepsisChat-Setup.${ext}"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.social-networking",
+      "icon": "icon.png",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "artifactName": "NepsisChat-${version}-${arch}.${ext}",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Nepsis Chat needs the microphone for voice chat.",
+        "NSCameraUsageDescription": "Nepsis Chat needs the camera for video in voice channels."
+      }
+    },
+    "dmg": {
+      "artifactName": "NepsisChat-${version}.${ext}"
     },
     "extraResources": [
       {

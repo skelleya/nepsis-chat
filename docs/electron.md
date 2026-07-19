@@ -1,72 +1,66 @@
 # Electron & Desktop App
 
-Desktop app wrapper and packaging.
+Desktop app wrapper and packaging. The packaged app loads the **same React UI** as the browser (bundled into `resources/webapp/`), pointed at the live Railway API via `frontend/.env.desktop`.
 
 ---
 
 ## Overview
 
-- **Installed app**: Loads from bundled frontend (`resources/webapp/`) — no Vercel dependency. API calls go to your backend (`VITE_API_URL` baked in at build). Falls back to PROD_URL only if bundled files are missing.
-- **Dev mode**: Loads from URL (default: `http://localhost:5173`)
-- NSIS installer installs to Program Files
-- electron-updater for auto-updates
-- Green "Update Available" button when a new version is pushed
-- **System tray**: Closing the window hides to tray (does not quit). Right-click tray → Show or Quit.
-- **Routing**: Frontend uses `HashRouter` (not `BrowserRouter`) so routes work with both `http://` and `file://` protocols. URLs use hashes: `/#/`, `/#/download`.
-- **App icon**: Uses `app.setAppUserModelId('com.nepsis.chat')` + `nativeImage.createFromPath()` + `mainWindow.setIcon()` for proper Windows taskbar icon in both dev and packaged modes. Electron-builder embeds the icon into the `.exe` for the installer.
-- **Session persistence**: User login is saved to `localStorage` so users stay logged in across app restarts.
+- **Installed app**: Loads bundled frontend (`resources/webapp/index.html`) — identical UI to the web app. API/Supabase baked at package time (`npm run build -- --mode desktop`).
+- **Dev mode**: Loads `http://localhost:5173` (`APP_URL`).
+- **Windows**: NSIS installer `NepsisChat-Setup.exe`
+- **macOS**: DMG + ZIP (ZIP required for `electron-updater`)
+- **Updates**: `electron-updater` from **GitHub Releases**. When a newer version ships, a **Nepsis update badge** appears at the top of the app; click to download, then restart to install.
+- **System tray**: Closing the window hides to tray (does not quit).
+- **Routing**: `HashRouter` + Vite `base: './'` for `file://` compatibility.
 
 ---
 
-## Files
+## Commands
 
-| File | Purpose |
-|------|---------|
-| main.js | Main process, BrowserWindow, autoUpdater |
-| icon.png | **Nepsis logo** — app icon (window title bar, tray, installer, desktop shortcut, NSIS wizard). To update: copy your logo to `electron/icon.png`, `frontend/public/logo.png`, and `frontend/public/favicon.png`, then run `npm run package:full` |
-| preload.js | Exposes electronAPI to renderer |
-| scripts/bump-version.js | Bump patch version (0.1.9 → 0.2.0 when patch hits 10) |
-| scripts/publish-update.js | Copy build to backend/updates |
+| Command | Purpose |
+|---------|---------|
+| `npm run electron` | Dev: Electron + local Vite (start frontend separately) |
+| `npm run package:win` | Build frontend (desktop mode) + Windows NSIS |
+| `npm run package:mac` | Build frontend + macOS DMG/ZIP (**must run on macOS**) |
+| `npm run package:all` | Win + Mac (Mac targets need a Mac host) |
+| `npm run release` | Build Win+Mac and publish to GitHub Releases (`GH_TOKEN` required) |
+| `npm run release:win` | Publish Windows only |
+| `npm run release:mac` | Publish macOS only |
 
----
-
-## electronAPI (preload)
-
-Exposed to the renderer via `window.electronAPI`:
-
-| Method | Returns | Purpose |
-|--------|---------|---------|
-| getVersion | string | App version |
-| checkForUpdates | object | Check for updates |
-| onUpdateAvailable | void | Subscribe to update-available |
-| onUpdateDownloaded | void | Subscribe to update-downloaded |
-| quitAndInstall | void | Restart and install update |
+Artifacts land in `electron/dist/`.
 
 ---
 
-## Environment Variables
+## Update badge (renderer)
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| APP_URL | http://localhost:5173 | URL the app loads (dev mode) |
-| PROD_URL | https://nepsischat.vercel.app | Fallback URL when bundled files missing |
-| UPDATE_URL | `${PROD_URL}/updates` | Update server URL |
-| NODE_ENV | — | `development` = dev tools |
+| File | Role |
+|------|------|
+| `frontend/src/components/UpdateButton.tsx` | Top-center badge with Nepsis logo |
+| `frontend/src/hooks/useDesktopUpdate.ts` | IPC: available / progress / downloaded |
+| `electron/main.js` | `autoUpdater` → `update-available`, `update-download-progress`, `update-downloaded` |
 
----
-
-## Build Output
-
-| Path | Contents |
-|------|----------|
-| dist/Nepsis Chat Setup X.X.X.exe | NSIS installer (with Nepsis logo) |
-| dist/latest.yml | Update manifest |
-| dist/win-unpacked/ | Unpacked app (for testing) |
+Flow: check on launch (+ every 30 min) → badge “Update available” → user clicks → download with progress → “Restart to update”.
 
 ---
 
-## Production
+## Environment
 
-1. Edit `electron/package.json` → `build.publish.url` to your server
-2. Upload `Nepsis Chat Setup X.X.X.exe` and `latest.yml` to that URL
-3. Ensure CORS allows the app origin if needed
+| Variable | Purpose |
+|----------|---------|
+| `frontend/.env.desktop` | `VITE_API_URL` / Supabase keys for packaged builds |
+| `APP_URL` | Dev load URL (default Vite) |
+| `PROD_URL` | Fallback if bundle missing (Vercel) |
+| `GH_TOKEN` | Required for `npm run release` |
+| Apple notarization vars | Required for public macOS distribution |
+
+---
+
+## First release checklist
+
+1. Set `frontend/.env.desktop` to live Railway + Supabase (already wired for production).
+2. On a machine with Node: `cd electron && npm ci`
+3. Windows: `npm run package:win` (or `npm run release:win` with `GH_TOKEN`)
+4. macOS (on a Mac): `npm run package:mac` / `npm run release:mac`
+5. Confirm GitHub Release has `NepsisChat-Setup.exe`, `latest.yml`, and for Mac `*.dmg` / `*.zip` + `latest-mac.yml`
+6. Install older version → publish newer → confirm top badge appears

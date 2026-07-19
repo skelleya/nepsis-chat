@@ -4,7 +4,7 @@ const { autoUpdater } = require('electron-updater')
 
 const isDev = process.env.NODE_ENV === 'development'
 const APP_URL = process.env.APP_URL || 'http://localhost:5173'
-const PROD_URL = process.env.PROD_URL || 'https://nepsis-chat.vercel.app'
+const PROD_URL = process.env.PROD_URL || 'https://nepsischat.vercel.app'
 const BUNDLED_INDEX = path.join(process.resourcesPath, 'webapp', 'index.html')
 
 // Set AppUserModelId early — required for Windows to show the custom icon
@@ -15,11 +15,12 @@ if (process.platform === 'win32') {
 
 let mainWindow = null
 let tray = null
+let updateReady = false
 
-// Updates from GitHub Releases
+// Updates from GitHub Releases (same channel for Windows + macOS)
 if (!isDev && app.isPackaged) {
   autoUpdater.setFeedURL({ provider: 'github', owner: 'skelleya', repo: 'nepsis-chat' })
-  autoUpdater.autoDownload = false  // User clicks download icon to start
+  autoUpdater.autoDownload = false // User clicks the update badge to start
   autoUpdater.autoInstallOnAppQuit = true
 }
 
@@ -33,22 +34,29 @@ function loadIcon() {
   return icon
 }
 
+function sendToRenderer(channel, payload) {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (win?.webContents) win.webContents.send(channel, payload)
+}
+
 function createTray() {
   const icon = loadIcon()
   if (!icon) return
-  tray = new Tray(icon)
+  tray = new Tray(icon.resize({ width: 16, height: 16 }))
   tray.setToolTip('Nepsis Chat')
 
   const contextMenu = Menu.buildFromTemplate([
     { label: 'Show Nepsis Chat', click: () => mainWindow?.show() },
     { type: 'separator' },
-    { label: 'Quit', click: () => {
-      app.isQuitting = true
-      app.quit()
-    } },
+    {
+      label: 'Quit',
+      click: () => {
+        app.isQuitting = true
+        app.quit()
+      },
+    },
   ])
   tray.setContextMenu(contextMenu)
-
   tray.on('click', () => mainWindow?.show())
 }
 
@@ -58,26 +66,40 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
-    icon: icon,
+    minWidth: 900,
+    minHeight: 600,
+    icon,
+    // Match the browser app chrome — no Electron menu bar clutter
+    autoHideMenuBar: true,
+    backgroundColor: '#111214',
+    show: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
+      // Same origin policies as a normal browser tab for the bundled SPA
+      spellcheck: true,
     },
   })
 
-  // Explicitly set the icon on the window (ensures taskbar picks it up)
   if (icon) mainWindow.setIcon(icon)
 
+  // Remove default File/Edit menu so the window feels like the web app
+  Menu.setApplicationMenu(null)
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show()
+  })
+
   if (app.isPackaged) {
-    // Load from bundled frontend (built with VITE_API_URL). No Vercel dependency.
-    // Fall back to PROD_URL only if bundled files are missing (e.g. dev package).
+    // Bundled frontend built with --mode desktop (production API + Supabase).
+    // Falls back to live Vercel only if the bundle is missing.
     mainWindow.loadFile(BUNDLED_INDEX).catch(() => {
       mainWindow.loadURL(PROD_URL)
     })
   } else {
     mainWindow.loadURL(APP_URL)
-    mainWindow.webContents.once('did-fail-load', (_, errorCode, errorDescription, validatedURL) => {
+    mainWindow.webContents.once('did-fail-load', (_, errorCode) => {
       if (errorCode === -6 || errorCode === -2) {
         mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(`
           <!DOCTYPE html><html><head><meta charset="utf-8"><title>Nepsis Chat</title></head>
@@ -94,11 +116,15 @@ npm run dev</pre>
   }
 
   if (isDev) {
-    mainWindow.webContents.openDevTools()
+    mainWindow.webContents.openDevTools({ mode: 'detach' })
   }
 
   if (!isDev && app.isPackaged) {
     autoUpdater.checkForUpdates().catch(() => {})
+    // Re-check periodically so users see the badge without restarting
+    setInterval(() => {
+      autoUpdater.checkForUpdates().catch(() => {})
+    }, 1000 * 60 * 30)
   }
 
   mainWindow.on('close', (event) => {
@@ -110,6 +136,7 @@ npm run dev</pre>
 }
 
 ipcMain.handle('get-version', () => app.getVersion())
+ipcMain.handle('get-platform', () => process.platform)
 
 ipcMain.handle('check-for-updates', async () => {
   if (!app.isPackaged) return { error: 'Not packaged' }
@@ -132,22 +159,30 @@ ipcMain.handle('download-update', async () => {
 })
 
 autoUpdater.on('update-available', (info) => {
-  const win = BrowserWindow.getAllWindows()[0]
-  if (win?.webContents) win.webContents.send('update-available', info)
-  // Don't auto-download — user clicks the download icon to start
+  sendToRenderer('update-available', {
+    version: info?.version,
+    releaseName: info?.releaseName,
+  })
 })
 
-let updateReady = false
-autoUpdater.on('update-downloaded', () => {
+autoUpdater.on('download-progress', (progress) => {
+  sendToRenderer('update-download-progress', {
+    percent: progress?.percent ?? 0,
+    transferred: progress?.transferred ?? 0,
+    total: progress?.total ?? 0,
+  })
+})
+
+autoUpdater.on('update-downloaded', (info) => {
   updateReady = true
-  const win = BrowserWindow.getAllWindows()[0]
-  if (win?.webContents) win.webContents.send('update-downloaded')
+  sendToRenderer('update-downloaded', { version: info?.version })
 })
 
 ipcMain.handle('quit-and-install', () => {
   if (!updateReady) {
     return Promise.reject(new Error('Update not ready'))
   }
+  app.isQuitting = true
   setImmediate(() => autoUpdater.quitAndInstall(false, true))
   return Promise.resolve()
 })
@@ -163,4 +198,5 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  else mainWindow?.show()
 })

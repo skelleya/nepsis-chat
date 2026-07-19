@@ -8,11 +8,16 @@
     "build:frontend": "cd frontend && npm run build",
     "start:backend": "cd backend && npm start",
     "electron": "cd electron && npm start",
-    "package": "cd electron && npm run package",
+    "package": "cd electron && npm run package:win",
+    "package:win": "cd electron && npm run package:win",
+    "package:mac": "cd electron && npm run package:mac",
+    "package:all": "cd electron && npm run package:all",
     "package:full": "cd electron && npm run package:full",
     "clean-updates": "node scripts/clean-updates.js",
     "clean-disk": "node scripts/clean-disk.js",
     "release": "cd electron && npm run publish:github",
+    "release:win": "cd electron && npm run publish:github:win",
+    "release:mac": "cd electron && npm run publish:github:mac",
     "release:full": "cd electron && npm run package:full"
   }
 }

@@ -135,7 +135,7 @@ export const WelcomeLanding = forwardRef<WelcomeLandingHandle, WelcomeLandingPro
                 >
                   <span>
                     <span className="block text-[1.05rem] font-semibold tracking-tight">Download App</span>
-                    <span className="block text-sm font-normal opacity-75 mt-0.5">Windows desktop installer</span>
+                    <span className="block text-sm font-normal opacity-75 mt-0.5">Windows &amp; macOS desktop</span>
                   </span>
                   <span
                     className="landing-cta-arrow shrink-0 transition-transform duration-200 group-hover:translate-x-0.5"
