@@ -190,7 +190,7 @@ export function DMView({
               username.charAt(0).toUpperCase()
             )}
           </div>
-          <h2 className="font-semibold text-app-text text-[16px] truncate">{username}</h2>
+          <h2 className="font-display font-semibold text-app-text text-[16px] truncate">{username}</h2>
         </button>
 
         <div className="flex items-center gap-1">
