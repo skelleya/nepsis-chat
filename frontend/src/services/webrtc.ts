@@ -41,7 +41,6 @@ export function createWebRTCClient(
   let currentLocalStream: MediaStream | null = null
   /** Camera/screen tracks that must also be sent to peers who join after share started */
   const extraOutbound: { track: MediaStreamTrack; stream: MediaStream }[] = []
-  const isSocketMode = !!signaling.getSocketId
   const resolvedIceServers = iceServers.length > 0 ? iceServers : DEFAULT_ICE_SERVERS
 
   const attachExtraTracks = (pc: RTCPeerConnection) => {
@@ -148,12 +147,20 @@ export function createWebRTCClient(
   // Update stored metadata when we learn the real username from signaling
   const updatePeerMeta = (peerId: string, userId?: string, username?: string) => {
     const entry = peers.get(peerId)
-    if (entry) {
-      if (userId) {
-        entry.userId = userId
-        userIdToSocketId.set(userId, peerId)
-      }
-      if (username) entry.username = username
+    if (!entry) return
+    if (userId) {
+      entry.userId = userId
+      userIdToSocketId.set(userId, peerId)
+    }
+    if (username) entry.username = username
+    // Tracks can arrive before userId is known — flush UI once meta is set
+    if (entry.userId && entry.remoteStream.getTracks().length > 0) {
+      handlers.onRemoteStream(
+        peerId,
+        entry.userId,
+        entry.username || 'User',
+        entry.remoteStream
+      )
     }
   }
 
@@ -190,10 +197,18 @@ export function createWebRTCClient(
     }
 
     try {
-      // Glare during screen/camera renegotiation: always roll back our local offer
-      // and accept theirs. Ignoring remote offers dropped screen-share tracks.
+      // Perfect negotiation (polite peer): on glare, exactly one side yields.
+      // Always-rollback made both peers accept each other's offer, then ignore
+      // each other's answers in "stable" — no matched session → silent/blind.
       if (entry.pc.signalingState === 'have-local-offer') {
-        await entry.pc.setLocalDescription({ type: 'rollback' })
+        const mySocketId = signaling.getSocketId?.() ?? localId
+        const isPolite = mySocketId > from // higher id yields to remote offer
+        if (isPolite) {
+          await entry.pc.setLocalDescription({ type: 'rollback' })
+        } else {
+          // Impolite: keep our offer; their colliding offer is ignored
+          return
+        }
       }
 
       await entry.pc.setRemoteDescription(new RTCSessionDescription(sdp))
@@ -252,17 +267,13 @@ export function createWebRTCClient(
     if (remotePeerId === localId) return
     if (peers.has(remotePeerId)) return
 
-    if (isSocketMode) {
-      // Socket mode: Only existing peers receive 'peer-joined', so no glare risk.
-      if (currentLocalStream) {
-        connectToPeer(remotePeerId, currentLocalStream, userId, username)
-      }
-    } else {
-      // BroadcastChannel mode: Both tabs see the join, use ID comparison.
-      const shouldInitiate = localId < remotePeerId
-      if (currentLocalStream && shouldInitiate) {
-        connectToPeer(remotePeerId, currentLocalStream, userId, username)
-      }
+    // Both socket modes fire this: existing peers via peer-joined, joiners via
+    // room-peers. Always pick one offerer by socket/local id so we don't glare
+    // on every 2-person join (dual offer + always-rollback broke all media).
+    const myId = signaling.getSocketId?.() ?? localId
+    const shouldInitiate = myId < remotePeerId
+    if (currentLocalStream && shouldInitiate) {
+      connectToPeer(remotePeerId, currentLocalStream, userId, username)
     }
   }
 

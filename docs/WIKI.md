@@ -54,6 +54,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | DM polish — Realtime DM reactions; Call/Video Call in DM header; expand in-call panel; click message to reply; Add Friend CTA under All friends. Migration `20250211000021_dm_reactions_reply.sql` |
 | + | Chat/DM file download — `FileAttachment` adds Download on images, videos, and files in channel chat and DMs |
 | + | Voice audio/camera fix — Stop misclassifying cameras as screens; keep remote audio mounted across focus layouts so peers stay audible/visible |
+| + | WebRTC glare fix — Dual offer + always-rollback broke join media for guests and registered users; polite peer + single offerer restores audio/camera |
 | + | Discord-like UI overhaul — server creation, channel categories, voice user display, user panel, server settings, camera/screen share |
 | + | Messaging v3 — edit/delete messages, reply, emoji reactions, file/image uploads, owner/admin can delete any message |
 | + | Roles & members — server members list with roles (owner/admin/member), activity status, kick (owner/admin only) |
