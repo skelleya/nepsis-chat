@@ -55,7 +55,9 @@ frontend/src/
 | VoiceView | Avatar circles when cam off. **Camera/screen:** focus stage (auto-maximize camera) + top filmstrip; dual stage when screen + camera; self PiP when watching others. Tiles show avatar until first video frame (no black squares). Stream subsets cached in `mediaTracks.ts`. |
 | RemoteAudio | Plays remote WebRTC stream |
 | CallOverlay | DM call UI: outgoing/incoming/in-call states |
-| DMView | Direct message chat; Call + Video Call in header (expand if already in call with them); click a message to reply; reactions persisted + realtime via `dm_message_reactions`; reply preview bar |
+| DMView | Direct message chat; Call + Video Call in header (expand if already in call with them); click a message to reply; reactions persisted + realtime via `dm_message_reactions`; reply preview bar; file/image/video links use `FileAttachment` with Download |
+| FileAttachment | Shared chat/DM media card — image/video preview or file chip plus **Download** (blob download, CORS fallback opens tab) |
+| ChatView | Channel chat; attachments render via `FileAttachment` with Download on images, videos, and files |
 | CallOverlay | Ringing/calling modals; in-call compact green bar (**click to expand** full panel with video stage + local PiP); mute/deafen/end |
 | FriendsPage | All / Pending / Online / Add Friend tabs; **+ Add a Friend** button under the All list opens the Add tab |
 | FriendsPage | Discord-like Friends home: tabs (All, Pending, Online, Add Friend). **Add Friend** searches discoverable **profile display names** (not login usernames); request targets that profile and is sent from your Personal/Work. Accept under a chosen profile. **GSAP:** fade+slide-in on mount |

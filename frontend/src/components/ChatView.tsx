@@ -4,6 +4,7 @@ import { useApp } from '../contexts/AppContext'
 import * as api from '../services/api'
 import { EmojiPicker } from './EmojiPicker'
 import { ChatInput } from './ChatInput'
+import { FileAttachment } from './FileAttachment'
 
 interface ServerEmoji {
   id: string
@@ -350,19 +351,14 @@ export function ChatView({
 
                   {message.attachments?.length ? (
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {message.attachments.map((a, i) =>
-                        a.type === 'video' || a.url.match(/\.(mp4|webm|mov|avi)$/i) ? (
-                          <video key={i} src={a.url} controls className="max-w-[300px] max-h-[200px] rounded" preload="metadata" />
-                        ) : a.type === 'image' || a.url.match(/\.(gif|jpe?g|png|webp|svg)$/i) ? (
-                          <a key={i} href={a.url} target="_blank" rel="noreferrer">
-                            <img src={a.url} alt="" className="max-w-[300px] max-h-[200px] rounded object-contain" />
-                          </a>
-                        ) : (
-                          <a key={i} href={a.url} target="_blank" rel="noreferrer" className="text-sm text-[#00a8fc] hover:underline">
-                            📎 {a.filename || 'attachment'}
-                          </a>
-                        )
-                      )}
+                      {message.attachments.map((a, i) => (
+                        <FileAttachment
+                          key={i}
+                          url={a.url}
+                          type={a.type}
+                          filename={a.filename}
+                        />
+                      ))}
                     </div>
                   ) : null}
 
