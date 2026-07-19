@@ -111,7 +111,8 @@ jobs:
 
   publish:
     needs: [version, build-windows, build-macos]
-    if: ${{ inputs.publish }}
+    # inputs.* only exists for workflow_dispatch — referencing it alone skips tag-push publishes
+    if: ${{ always() && needs.build-windows.result == 'success' && needs.build-macos.result == 'success' && (github.event_name != 'workflow_dispatch' || inputs.publish) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -137,7 +138,7 @@ jobs:
           NOTES="$(cat <<EOF
           ## Nepsis Chat ${VERSION}
 
-          First public desktop installers for **Windows** and **macOS**.
+          Desktop installers for **Windows** and **macOS**.
 
           ### Install
           - **Windows:** download \`NepsisChat-Setup.exe\` and run the installer
@@ -148,14 +149,14 @@ jobs:
           EOF
           )"
 
-          # Replace existing release for this tag if re-running
+          # Replace existing GitHub Release for this tag if re-running (keep the git tag)
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release delete "$TAG" --yes --cleanup-tag || true
-            # tag may remain; delete_tag via delete --cleanup-tag
+            gh release delete "$TAG" --yes || true
             sleep 2
           fi
 
           gh release create "$TAG" \
             --title "Nepsis Chat ${VERSION}" \
             --notes "$NOTES" \
+            --target "$GITHUB_SHA" \
             release-assets/*
