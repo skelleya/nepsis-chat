@@ -134,6 +134,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Server Settings ownership fix — `servers.owner_id` keeps owner admin UI even when members poll fails/clears; do not wipe members/servers on transient API errors; modal uses a server snapshot so it is not unmounted mid-edit; create-server fails closed if owner membership cannot be inserted. |
 | + | Community Explore details — Click a community server to open a details panel (members, online, channels, owner, rules note) with Join/Open. `GET /servers/community` includes counts; `GET /servers/:id/preview` for full preview. Invite links (`GET /invites/:code`) include `memberCount` on the invite page. |
 | + | Voice namespace Map fix — `socketsForUser` crashed on join (`io.sockets.sockets is not iterable`) because handlers get the `/voice` Namespace (`.sockets` is already the Map). Railway restart loop hid other members. Iterate `io.sockets.values()`. |
+| + | Member profile popout — Clicking a member opens a Discord-style floating card to the left of their name (GSAP), not a right rail. Owner/admin get Kick + Ban with confirm; ban uses `server_bans` and blocks rejoin. Migration `20250211000019_server_bans.sql`. |
 | + | Rules channel — Owner/admin can create a Rules channel (read-only; members react only). Server Settings > Rules Channel: set rules channel, lock all channels until members accept, choose accept emoji (any emoji). Migration `20250211000010_rules_channel.sql`. |
 | + | Server list reorder — Click-hold-and-drag server icons in the left sidebar to reorder; order persisted in `server_members.display_order`. Migration `20250211000011_server_members_display_order.sql`. |
 | + | Create server UI modernized — CreateServerModal: gradient accent bar, refined layout, loading spinner, improved error styling, accessibility; OnboardingPage uses modal instead of `prompt()` for server name. |
@@ -193,6 +194,7 @@ Guest accounts are temporary. When a guest user clicks **Logout**:
 | `messages.attachments` | JSONB array of `{url, type, filename}` |
 | `message_reactions` | (message_id, user_id, emoji) — composite PK |
 | `user_presence` | (user_id, status, voice_channel_id) — online/offline/in-voice |
+| `server_bans` | (server_id, user_id, banned_by, reason) — blocks invite/community rejoin after ban |
 
 ### Storage
 

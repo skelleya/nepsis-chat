@@ -47,7 +47,8 @@ frontend/src/
 | Server Settings ownership | `isAdminOrOwner` uses `servers.owner_id` **or** members role. Members/servers fetch errors keep prior state so the owner menu and modal do not disappear during polls. |
 | DownloadPage | OS-detect primary **Install for Mac/Windows** (Apple/Windows logos); click starts installer download immediately; **Other Installers** reveals the rest + Linux Coming soon. |
 | SoundboardDropdown | Soundboard UI: list sounds with emoji; add (pick emoji for new sound); edit emoji per sound; delete; plays to all peers. Spam-click restarts playback. |
-| MembersSidebar | Online members. **Admin:** right-click member in voice for Mute in Voice, Disconnect from Voice, Move to Channel. |
+| MembersSidebar | Online members. Click a name for Discord-style profile popout (left of row). **Admin:** Kick/Ban in popout + context menu; right-click in-voice for Mute / Disconnect / Move. |
+| MemberProfilePanel | Floating user card (portal + GSAP); Message/Call/Add Friend; owner/admin Kick & Ban with confirm. |
 | RemoteAudio | Plays remote WebRTC stream |
 | CallOverlay | DM call UI: outgoing/incoming/in-call states |
 | DMView | Direct message chat; modern UI with gradient header, rounded bubbles, relative timestamps; groups consecutive messages from same sender (avatar/name shown only on first in group); spacing: 1.5 between same-sender, 5 between different senders |

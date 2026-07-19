@@ -22,6 +22,82 @@ async function logAudit(serverId, userId, action, details = {}) {
   }
 }
 
+async function isUserBanned(serverId, userId) {
+  const { data } = await supabase
+    .from('server_bans')
+    .select('user_id')
+    .eq('server_id', serverId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  return !!data
+}
+
+/** Owner/admin may moderate target; same rules as kick. */
+async function assertCanModerateMember(serverId, actorUserId, targetUserId) {
+  const { data: actor } = await supabase
+    .from('server_members')
+    .select('role')
+    .eq('server_id', serverId)
+    .eq('user_id', actorUserId)
+    .single()
+
+  if (!actor || !['owner', 'admin'].includes(actor.role)) {
+    return { ok: false, status: 403, error: 'Only owner or admin can moderate members' }
+  }
+
+  const { data: target } = await supabase
+    .from('server_members')
+    .select('role')
+    .eq('server_id', serverId)
+    .eq('user_id', targetUserId)
+    .single()
+
+  if (!target) return { ok: false, status: 404, error: 'User not in server' }
+  if (target.role === 'owner') return { ok: false, status: 403, error: 'Cannot moderate server owner' }
+  if (actor.role === 'admin' && target.role === 'admin') {
+    return { ok: false, status: 403, error: 'Admins cannot moderate other admins' }
+  }
+  return { ok: true, actor, target }
+}
+
+async function removeMemberFromServer(serverId, targetUserId) {
+  const { error } = await supabase
+    .from('server_members')
+    .delete()
+    .eq('server_id', serverId)
+    .eq('user_id', targetUserId)
+  if (error) throw error
+
+  // Clear voice presence so they leave channel lists immediately
+  try {
+    await supabase
+      .from('user_presence')
+      .update({ status: 'offline', voice_channel_id: null })
+      .eq('user_id', targetUserId)
+  } catch {
+    /* ignore */
+  }
+}
+
+function disconnectUserVoiceSockets(voiceNs, targetUserId) {
+  if (!voiceNs?.sockets) return
+  for (const socket of voiceNs.sockets.values()) {
+    if (socket.userId === targetUserId) {
+      try {
+        socket.emit('admin-disconnect-from-voice')
+        if (socket.voiceChannel) {
+          socket.leave(`voice:${socket.voiceChannel}`)
+          socket.voiceChannel = null
+        }
+        socket.userId = null
+        socket.username = null
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+}
+
 // Get servers the user is a member of. Auto-joins community servers.
 serversRouter.get('/', async (req, res) => {
   try {
@@ -596,6 +672,10 @@ serversRouter.post('/:id/join', async (req, res) => {
     const { userId, profileType } = req.body
     if (!userId) return res.status(400).json({ error: 'userId required' })
 
+    if (await isUserBanned(req.params.id, userId)) {
+      return res.status(403).json({ error: 'You are banned from this server' })
+    }
+
     let profile = profileType === 'work' ? 'work' : profileType === 'personal' ? 'personal' : null
     if (!profile) {
       const { data: userRow } = await supabase
@@ -916,49 +996,55 @@ serversRouter.post('/:id/members/:userId/move-voice', async (req, res) => {
   }
 })
 
-// Kick user (owner/admin only)
+// Kick user (owner/admin only) — removes from server; they can rejoin via invite
 serversRouter.delete('/:id/members/:userId', async (req, res) => {
   const { id: serverId, userId: targetUserId } = req.params
   const kickerUserId = req.query.kickerUserId
   if (!kickerUserId) return res.status(400).json({ error: 'kickerUserId required' })
 
   try {
-    const { data: kicker } = await supabase
-      .from('server_members')
-      .select('role')
-      .eq('server_id', serverId)
-      .eq('user_id', kickerUserId)
-      .single()
+    const gate = await assertCanModerateMember(serverId, kickerUserId, targetUserId)
+    if (!gate.ok) return res.status(gate.status).json({ error: gate.error })
 
-    if (!kicker || !['owner', 'admin'].includes(kicker.role)) {
-      return res.status(403).json({ error: 'Only owner or admin can kick users' })
-    }
-
-    const { data: target } = await supabase
-      .from('server_members')
-      .select('role')
-      .eq('server_id', serverId)
-      .eq('user_id', targetUserId)
-      .single()
-
-    if (!target) return res.status(404).json({ error: 'User not in server' })
-    if (target.role === 'owner') return res.status(403).json({ error: 'Cannot kick server owner' })
-    if (kicker.role === 'admin' && target.role === 'admin') {
-      return res.status(403).json({ error: 'Admins cannot kick other admins' })
-    }
-
-    const { error } = await supabase
-      .from('server_members')
-      .delete()
-      .eq('server_id', serverId)
-      .eq('user_id', targetUserId)
-
-    if (error) throw error
+    await removeMemberFromServer(serverId, targetUserId)
+    disconnectUserVoiceSockets(req.app.get('voiceNamespace'), targetUserId)
     await logAudit(serverId, kickerUserId, 'member_kicked', { targetUserId })
     res.json({ success: true })
   } catch (err) {
     console.error('Kick user error:', err)
     res.status(500).json({ error: 'Failed to kick user' })
+  }
+})
+
+// Ban user (owner/admin only) — kick + block rejoin
+serversRouter.post('/:id/members/:userId/ban', async (req, res) => {
+  const { id: serverId, userId: targetUserId } = req.params
+  const adminUserId = req.body?.adminUserId || req.query.adminUserId
+  const reason = typeof req.body?.reason === 'string' ? req.body.reason.slice(0, 500) : null
+  if (!adminUserId) return res.status(400).json({ error: 'adminUserId required' })
+
+  try {
+    const gate = await assertCanModerateMember(serverId, adminUserId, targetUserId)
+    if (!gate.ok) return res.status(gate.status).json({ error: gate.error })
+
+    const { error: banErr } = await supabase.from('server_bans').upsert(
+      {
+        server_id: serverId,
+        user_id: targetUserId,
+        banned_by: adminUserId,
+        reason,
+      },
+      { onConflict: 'server_id,user_id' }
+    )
+    if (banErr) throw banErr
+
+    await removeMemberFromServer(serverId, targetUserId)
+    disconnectUserVoiceSockets(req.app.get('voiceNamespace'), targetUserId)
+    await logAudit(serverId, adminUserId, 'member_banned', { targetUserId, reason })
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Ban user error:', err)
+    res.status(500).json({ error: 'Failed to ban user' })
   }
 })
 

@@ -24,6 +24,8 @@ Node.js + Express + Socket.io + SQLite.
 | GET | `/api/servers/community` | Discoverable servers + `memberCount` / `onlineCount` / `ownerName` |
 | GET | `/api/servers/:id/preview` | Public community server details (members, online, channels, owner, rules flag) |
 | GET | `/api/servers/:id/members` | List members with roles & presence. Display name: profile → `users.display_name` → `users.username` → Unknown |
+| DELETE | `/api/servers/:id/members/:userId?kickerUserId=` | Kick member (owner/admin). Clears presence; they may rejoin via invite. |
+| POST | `/api/servers/:id/members/:userId/ban` | Ban member (`adminUserId`, optional `reason`). Removes membership, inserts `server_bans`, blocks invite/community rejoin. |
 | DELETE | `/api/servers/:id/members/:userId` | Kick user (`?kickerUserId=`) — owner/admin only |
 | POST | `/api/servers/:id/members/:userId/mute-voice` | Mute user in voice (`adminUserId`) — owner/admin only; emits admin-mute to target socket |
 | POST | `/api/servers/:id/members/:userId/disconnect-voice` | Disconnect user from voice (`adminUserId`) — owner/admin only; clears presence, emits admin-disconnect-from-voice |
