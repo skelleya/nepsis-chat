@@ -210,13 +210,39 @@ autoUpdater.on('update-downloaded', (info) => {
   sendToRenderer('update-downloaded', { version: info?.version })
 })
 
-ipcMain.handle('quit-and-install', () => {
-  if (!updateReady) {
-    return Promise.reject(new Error('Update not ready'))
-  }
+ipcMain.handle('quit-and-install', async () => {
+  // Always allow quit so tray "hide on close" cannot swallow the install
   app.isQuitting = true
-  setImmediate(() => autoUpdater.quitAndInstall(false, true))
-  return Promise.resolve()
+
+  if (!updateReady) {
+    // Still attempt install — download may be ready even if the flag was missed
+    console.warn('quit-and-install: updateReady was false; attempting quitAndInstall anyway')
+  }
+
+  // Detach close-to-tray handlers so quitAndInstall is not blocked
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.removeAllListeners('close')
+  }
+
+  // Brief delay lets the IPC reply reach the renderer before process exit
+  await new Promise((r) => setTimeout(r, 150))
+
+  try {
+    // isSilent=false, isForceRunAfter=true — restart into the new version
+    autoUpdater.quitAndInstall(false, true)
+  } catch (err) {
+    console.error('quitAndInstall failed', err)
+    // autoInstallOnAppQuit is true — force quit so the update still applies
+    app.exit(0)
+  }
+
+  // Fallback if quitAndInstall does not exit (some Windows/tray setups)
+  setTimeout(() => {
+    if (!app.isQuitting) return
+    app.exit(0)
+  }, 4000)
+
+  return { ok: true }
 })
 
 app.whenReady().then(() => {

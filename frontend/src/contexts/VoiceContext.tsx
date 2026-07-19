@@ -159,6 +159,8 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   }, [userId])
 
   const removeParticipant = useCallback((peerId: string) => {
+    // Mark left so we don't keep a ghost "Connecting..." tile from stale WebRTC state.
+    // VoiceView still shows the user if presence lists them in the channel (session-replace race).
     setLeftUserIds((prev) => new Set(prev).add(peerId))
     setParticipants((prev) => prev.filter((p) => p.userId !== peerId))
   }, [])

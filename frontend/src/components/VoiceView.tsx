@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect, type ReactNode } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import type { Channel } from '../types'
 import { useVoice, type VoiceParticipant } from '../contexts/VoiceContext'
 import { RemoteAudio } from './RemoteAudio'
-import { MicOffIcon, HeadphonesIcon, HeadphonesOffIcon } from './icons/VoiceIcons'
+import { MicIcon, MicOffIcon, HeadphonesIcon, HeadphonesOffIcon } from './icons/VoiceIcons'
 import { SoundboardDropdown } from './SoundboardDropdown'
 import { Panel, Group, Separator } from 'react-resizable-panels'
 import { getScreenShareStream, getParticipantVideoStream } from '../utils/mediaTracks'
@@ -168,6 +168,7 @@ function ParticipantCard({
   isSharingScreen,
   isWatching,
   onWatchShare,
+  large = false,
 }: {
   participant: { userId: string; username: string; stream: MediaStream | null; isSpeaking: boolean; streamVersion?: number }
   avatarUrl?: string
@@ -185,6 +186,8 @@ function ParticipantCard({
   isSharingScreen?: boolean
   isWatching?: boolean
   onWatchShare?: (userId: string) => void
+  /** Larger circle when alone in the channel */
+  large?: boolean
 }) {
   const [showMenu, setShowMenu] = useState(false)
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
@@ -202,18 +205,20 @@ function ParticipantCard({
   }, [isLocal, localVideoStream])
 
   const showVideo = isLocal ? isCameraOn && !!localVideoStream : hasRemoteVideo && !!participantVideoStream
-
+  const showMuted = isLocal && isMuted
   const showAdminMenu = !isLocal && isAdminOrOwner && (onMuteMember || onDisconnectMember)
+
+  const circleSize = large
+    ? 'w-36 h-36 sm:w-44 sm:h-44 text-4xl sm:text-5xl'
+    : 'w-24 h-24 sm:w-28 sm:h-28 text-2xl sm:text-3xl'
+  const muteBadgeSize = large ? 'w-9 h-9' : 'w-7 h-7'
+  const muteIconSize = large ? 16 : 14
 
   return (
     <div
-      className={`relative flex flex-col items-center justify-center rounded-xl bg-app-dark/60 overflow-hidden border transition-all duration-150 min-h-[160px] flex-1 ${
-      isWatching
-        ? 'border-app-accent shadow-[0_0_12px_rgba(88,101,242,0.35)]'
-        : speaking
-          ? 'border-[#23a559] shadow-[0_0_12px_rgba(35,165,89,0.3)]'
-          : 'border-app-hover/50'
-    } ${isSharingScreen && onWatchShare ? 'cursor-pointer' : ''}`}
+      className={`relative flex flex-col items-center justify-center gap-2 px-2 py-3 select-none ${
+        isSharingScreen && onWatchShare ? 'cursor-pointer' : ''
+      }`}
       onClick={() => {
         if (isSharingScreen && onWatchShare) onWatchShare(participant.userId)
       }}
@@ -226,7 +231,7 @@ function ParticipantCard({
       }}
     >
       {isSharingScreen && (
-        <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+        <div className="absolute -top-0.5 right-1 z-10 flex items-center gap-1">
           <span className="bg-[#ed4245] text-white text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-sm">
             Live
           </span>
@@ -238,44 +243,52 @@ function ParticipantCard({
         </div>
       )}
       {showAdminMenu && showMenu && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-              <div
-                className="fixed z-50 bg-[#111214] rounded-lg shadow-xl py-1 min-w-[180px] border border-app-hover/30"
-                style={{ left: menuPos.x, top: menuPos.y }}
-                onClick={(e) => e.stopPropagation()}
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+          <div
+            className="fixed z-50 bg-[#111214] rounded-lg shadow-xl py-1 min-w-[180px] border border-app-hover/30"
+            style={{ left: menuPos.x, top: menuPos.y }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {onMuteMember && (
+              <button
+                onClick={async () => {
+                  await onMuteMember(participant.userId)
+                  setShowMenu(false)
+                }}
+                className="w-full px-3 py-2 text-left text-sm text-app-text hover:bg-app-accent hover:text-white flex items-center gap-2"
               >
-                {onMuteMember && (
-                  <button
-                    onClick={async () => {
-                      await onMuteMember(participant.userId)
-                      setShowMenu(false)
-                    }}
-                    className="w-full px-3 py-2 text-left text-sm text-app-text hover:bg-app-accent hover:text-white flex items-center gap-2"
-                  >
-                    <MicOffIcon size={14} />
-                    Mute
-                  </button>
-                )}
-                {onDisconnectMember && (
-                  <button
-                    onClick={async () => {
-                      await onDisconnectMember(participant.userId)
-                      setShowMenu(false)
-                    }}
-                    className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/20 flex items-center gap-2"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 00-2.67-1.85.996.996 0 01-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
-                    </svg>
-                    Disconnect
-                  </button>
-                )}
-              </div>
-            </>
-          )}
+                <MicOffIcon size={14} />
+                Mute
+              </button>
+            )}
+            {onDisconnectMember && (
+              <button
+                onClick={async () => {
+                  await onDisconnectMember(participant.userId)
+                  setShowMenu(false)
+                }}
+                className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/20 flex items-center gap-2"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 00-2.67-1.85.996.996 0 01-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
+                </svg>
+                Disconnect
+              </button>
+            )}
+          </div>
+        </>
+      )}
       {showVideo ? (
-        <div className="flex-1 w-full relative bg-black min-h-0">
+        <div
+          className={`relative ${circleSize} rounded-full overflow-hidden bg-black ring-2 ${
+            isWatching
+              ? 'ring-app-accent shadow-[0_0_16px_rgba(88,101,242,0.4)]'
+              : speaking
+                ? 'ring-[#23a559] shadow-[0_0_16px_rgba(35,165,89,0.55)]'
+                : 'ring-white/10'
+          }`}
+        >
           {isLocal && localVideoStream ? (
             <video
               ref={localVideoRef}
@@ -287,53 +300,60 @@ function ParticipantCard({
           ) : participantVideoStream ? (
             <RemoteVideo stream={participantVideoStream} muted={isDeafened} />
           ) : null}
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-3 py-2">
-            <div className="font-semibold text-white text-sm truncate flex items-center gap-1.5">
-              {participant.username}
-              {participant.userId === currentUserId && <span className="text-white/60 font-normal">(you)</span>}
-              {isLocal && isMuted && (
-                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-600/80">
-                  <MicOffIcon size={10} className="text-white" />
-                </span>
-              )}
+          {showMuted && (
+            <div
+              className={`absolute bottom-0.5 right-0.5 ${muteBadgeSize} rounded-full bg-[#ed4245] flex items-center justify-center ring-2 ring-app-darker shadow-md z-10`}
+              title="Muted"
+            >
+              <MicOffIcon size={muteIconSize} className="text-white" />
             </div>
-          </div>
+          )}
         </div>
       ) : (
-        <>
-          <div className="flex-1 w-full flex items-center justify-center p-4">
+        /* Avatar circle — mute badge sits outside the clipped image so it is not cut off */
+        <div className="relative">
+          <div
+            className={`${circleSize} rounded-full flex items-center justify-center text-white font-bold transition-all duration-150 ${
+              isWatching
+                ? 'ring-4 ring-app-accent shadow-[0_0_16px_rgba(88,101,242,0.4)]'
+                : speaking
+                  ? 'ring-4 ring-[#23a559] shadow-[0_0_16px_rgba(35,165,89,0.55)] scale-105'
+                  : 'ring-2 ring-white/10'
+            } ${avatarUrl ? 'bg-transparent' : 'bg-app-accent'}`}
+          >
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={participant.username}
+                className="w-full h-full rounded-full object-cover"
+              />
+            ) : (
+              (participant.username || '?').charAt(0).toUpperCase()
+            )}
+          </div>
+          {showMuted && (
             <div
-              className={`relative w-20 h-20 sm:w-28 sm:h-28 rounded-full flex items-center justify-center text-white font-bold text-2xl sm:text-4xl transition-all duration-150 overflow-hidden ${
-                speaking
-                  ? 'ring-4 ring-[#23a559] shadow-[0_0_16px_rgba(35,165,89,0.6)] scale-105'
-                  : 'ring-2 ring-transparent'
-              } ${avatarUrl ? 'bg-transparent' : 'bg-app-accent'}`}
+              className={`absolute -bottom-0.5 -right-0.5 ${muteBadgeSize} rounded-full bg-[#ed4245] flex items-center justify-center ring-[3px] ring-app-darker shadow-md`}
+              title="Muted"
             >
-              {avatarUrl ? (
-                <img src={avatarUrl} alt={participant.username} className="w-full h-full object-cover" />
-              ) : (
-                participant.username.charAt(0).toUpperCase()
-              )}
-              {isLocal && isMuted && (
-                <div className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-red-600 flex items-center justify-center">
-                  <MicOffIcon size={12} className="text-white" />
-                </div>
-              )}
+              <MicOffIcon size={muteIconSize} className="text-white" />
             </div>
-          </div>
-          <div className="w-full px-3 pb-3 text-center">
-            <div className="font-semibold text-app-text text-sm truncate">
-              {participant.username}
-              {participant.userId === currentUserId && <span className="text-app-muted font-normal"> (you)</span>}
-            </div>
-            <div className="text-app-muted text-xs">
-              {isLocal
-                ? (isMuted ? 'Muted' : speaking ? 'Speaking' : 'Connected')
-                : (participant.stream ? 'Connected' : 'Connecting...')}
-            </div>
-          </div>
-        </>
+          )}
+        </div>
       )}
+      <div className="text-center max-w-[140px] sm:max-w-[160px]">
+        <div className="font-semibold text-app-text text-sm truncate">
+          {participant.username}
+          {participant.userId === currentUserId && (
+            <span className="text-app-muted font-normal"> (you)</span>
+          )}
+        </div>
+        <div className="text-app-muted text-xs">
+          {isLocal
+            ? (isMuted ? 'Muted' : speaking ? 'Speaking' : 'Connected')
+            : (participant.stream ? 'Connected' : 'Connecting...')}
+        </div>
+      </div>
       {!isLocal && participant.stream && (
         <RemoteAudio stream={participant.stream} muted={isDeafened} />
       )}
@@ -357,7 +377,6 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
     screenStream,
     leaveVoice,
     voiceChannelId,
-    leftUserIds,
     localStream,
     playSoundboardSound,
     error,
@@ -387,10 +406,16 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
   for (const p of participants) {
     participantByUserId.set(p.userId, p)
   }
+  // Merge presence users even if leftUserIds has them (session-replace emits peer-left
+  // before rejoin — filtering them hid participants from other clients).
   for (const vu of voiceUsersInChannel) {
-    if (leftUserIds.has(vu.userId)) continue // Exclude users who left (peer-left) — prevents ghost "Connecting..."
     if (!participantByUserId.has(vu.userId)) {
       participantByUserId.set(vu.userId, { userId: vu.userId, username: vu.username, stream: null, isSpeaking: false, streamVersion: 0 })
+    } else {
+      const existing = participantByUserId.get(vu.userId)!
+      if (vu.username && (!existing.username || existing.username === 'User' || existing.username === 'Unknown')) {
+        participantByUserId.set(vu.userId, { ...existing, username: vu.username })
+      }
     }
     if (vu.avatar_url) avatarByUserId.set(vu.userId, vu.avatar_url)
   }
@@ -424,7 +449,7 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
     }
   }
 
-  const cardProps = (p: { userId: string; username: string; stream: MediaStream | null; isSpeaking: boolean; streamVersion?: number }) => ({
+  const cardProps = (p: { userId: string; username: string; stream: MediaStream | null; isSpeaking: boolean; streamVersion?: number }, large = false) => ({
     participant: p,
     avatarUrl: avatarByUserId.get(p.userId),
     isLocal: p.userId === currentUserId,
@@ -441,51 +466,21 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
     isSharingScreen: screenShareUserIds.includes(p.userId),
     isWatching: watchingShareUserId === p.userId,
     onWatchShare: screenShareUserIds.includes(p.userId) ? handleWatchShare : undefined,
+    large,
   })
 
   const renderParticipantsArea = () => {
     if (allParticipants.length === 0) return null
-    if (isAlone) {
-      const p = allParticipants[0]
-      return (
-        <div className="flex-1 flex items-center justify-center p-4 min-h-0">
-          <div className="w-full max-w-md">
-            <ParticipantCard {...cardProps(p)} />
-          </div>
-        </div>
-      )
-    }
-    if (allParticipants.length <= 4) {
-      const defaultSize = 100 / allParticipants.length
-      const panels: ReactNode[] = []
-      allParticipants.forEach((p, i) => {
-        if (i > 0) {
-          panels.push(
-            <Separator
-              key={`handle-${p.userId}`}
-              className="w-2 bg-app-dark hover:bg-app-hover/50 transition-colors data-[resize-handle-active]:bg-app-accent/50"
-            />
-          )
-        }
-        panels.push(
-          <Panel key={p.userId} minSize={15} defaultSize={defaultSize} className="min-w-0">
-            <div className="h-full p-2 flex min-h-0">
-              <ParticipantCard {...cardProps(p)} />
-            </div>
-          </Panel>
-        )
-      })
-      return (
-        <Group orientation="horizontal" className="flex-1 min-h-0" autoSave="voice-view-participants">
-          {panels}
-        </Group>
-      )
-    }
+    // Discord-style: circle frames only — no boxed tiles / resizable card panels
     return (
-      <div className="flex-1 overflow-auto p-4">
-        <div className="grid gap-4 grid-cols-2 lg:grid-cols-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
+      <div className="flex-1 overflow-auto p-6 min-h-0 flex items-center justify-center">
+        <div
+          className={`flex flex-wrap items-start justify-center gap-6 sm:gap-8 ${
+            isAlone ? 'max-w-sm' : 'max-w-4xl'
+          }`}
+        >
           {allParticipants.map((p) => (
-            <ParticipantCard key={p.userId} {...cardProps(p)} />
+            <ParticipantCard key={p.userId} {...cardProps(p, isAlone)} />
           ))}
         </div>
       </div>
@@ -594,21 +589,16 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
               </button>
             </div>
             <button
+              type="button"
               onClick={() => setIsMuted(!isMuted)}
               className={`p-3 rounded-full transition-colors ${
-                isMuted ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-app-hover hover:bg-app-channel text-app-text'
+                isMuted ? 'bg-[#ed4245] hover:bg-[#c03537] text-white' : 'bg-app-hover hover:bg-app-channel text-app-text'
               }`}
               title={isMuted ? 'Unmute' : 'Mute'}
+              aria-pressed={isMuted}
+              aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'}
             >
-              {isMuted ? (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27 6.05 7.3C6.02 7.46 6 7.62 6 7.79v4.26c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5-2.24-5-5h1.7c0 2.25 1.83 4.08 4.06 4.08.48 0 .94-.09 1.38-.24L19.73 21 21 19.73 4.27 3z"/>
-                </svg>
-              ) : (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
-                </svg>
-              )}
+              {isMuted ? <MicOffIcon size={20} className="text-white" /> : <MicIcon size={20} />}
             </button>
             <button
               onClick={() => setIsDeafened(!isDeafened)}

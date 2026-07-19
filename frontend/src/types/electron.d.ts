@@ -23,7 +23,7 @@ export interface ElectronAPI {
   onUpdateDownloaded: (callback: (info?: UpdateInfo) => void) => (() => void) | void
   onUpdateDownloadProgress: (callback: (progress: UpdateProgress) => void) => (() => void) | void
   downloadUpdate: () => Promise<{ ok?: boolean; error?: string }>
-  quitAndInstall: () => Promise<void>
+  quitAndInstall: () => Promise<{ ok?: boolean } | void>
 }
 
 declare global {

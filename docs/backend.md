@@ -21,7 +21,7 @@ Node.js + Express + Socket.io + SQLite.
 | DELETE | `/api/messages/:id/reactions` | Remove reaction (`?userId=&emoji=`) |
 | POST | `/api/uploads` | Upload file (multipart/form-data) — returns `{url}` |
 | POST | `/api/servers/:id/join` | Join server (`userId`) |
-| GET | `/api/servers/:id/members` | List members with roles & presence |
+| GET | `/api/servers/:id/members` | List members with roles & presence. Display name: profile → `users.display_name` → `users.username` → Unknown |
 | DELETE | `/api/servers/:id/members/:userId` | Kick user (`?kickerUserId=`) — owner/admin only |
 | POST | `/api/servers/:id/members/:userId/mute-voice` | Mute user in voice (`adminUserId`) — owner/admin only; emits admin-mute to target socket |
 | POST | `/api/servers/:id/members/:userId/disconnect-voice` | Disconnect user from voice (`adminUserId`) — owner/admin only; clears presence, emits admin-disconnect-from-voice |
