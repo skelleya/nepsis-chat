@@ -6,6 +6,7 @@ export interface ServerMember {
   userId: string
   username: string
   avatarUrl?: string
+  bannerUrl?: string
   role: 'owner' | 'admin' | 'member'
   status: 'online' | 'offline' | 'in-voice'
   voiceChannelId?: string | null

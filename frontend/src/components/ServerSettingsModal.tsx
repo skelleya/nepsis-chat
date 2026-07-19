@@ -93,6 +93,8 @@ export function ServerSettingsModal({
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
   const [bannerError, setBannerError] = useState('')
   const [bannerLoading, setBannerLoading] = useState(false)
+  const [iconError, setIconError] = useState('')
+  const [iconLoading, setIconLoading] = useState(false)
 
   useEffect(() => {
     api.getServerEmojis(serverId).then(setEmojis).catch(() => setEmojis([]))
@@ -119,13 +121,24 @@ export function ServerSettingsModal({
 
   const handleIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !/^image\/(png|gif|jpeg|webp)$/.test(file.type)) return
+    if (!file) return
+    if (!/^image\/(png|gif|jpeg|webp)$/.test(file.type)) {
+      setIconError('Use PNG, GIF, JPEG, or WebP images only')
+      e.target.value = ''
+      return
+    }
+    setIconError('')
+    setIconLoading(true)
     try {
       const { url } = await api.uploadFile(file)
       await onUpdateServer({ icon_url: url })
       setIconUrl(url)
     } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Icon upload failed'
+      setIconError(msg)
       console.error('Icon upload failed:', err)
+    } finally {
+      setIconLoading(false)
     }
     e.target.value = ''
   }
@@ -592,13 +605,16 @@ export function ServerSettingsModal({
           {/* Server icon */}
           <div className="flex-shrink-0">
             <div
-              className={`w-24 h-24 rounded-full flex items-center justify-center text-white text-3xl font-bold cursor-pointer hover:opacity-80 transition-opacity overflow-hidden ${iconUrl ? 'bg-transparent' : 'bg-app-channel'}`}
-              onClick={() => iconInputRef.current?.click()}
+              className={`w-24 h-24 rounded-full flex items-center justify-center text-white text-3xl font-bold overflow-hidden transition-opacity ${
+                iconUrl ? 'bg-transparent' : 'bg-app-channel'
+              } ${iconLoading ? 'opacity-60 pointer-events-none' : 'cursor-pointer hover:opacity-80'}`}
+              onClick={() => !iconLoading && iconInputRef.current?.click()}
+              title={iconLoading ? 'Uploading…' : 'Click to upload server icon'}
             >
               {iconUrl ? (
                 <img src={iconUrl} alt="Server" className="w-full h-full object-cover" />
               ) : (
-                name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+                iconLoading ? '…' : name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
               )}
             </div>
             <input
@@ -609,8 +625,9 @@ export function ServerSettingsModal({
               onChange={handleIconUpload}
             />
             <p className="text-xs text-app-muted text-center mt-2">
-              Click to upload icon (min 128x128)
+              {iconLoading ? 'Uploading…' : 'Click to upload icon (min 128x128)'}
             </p>
+            {iconError && <p className="mt-1 text-sm text-red-400 text-center max-w-[8rem]">{iconError}</p>}
           </div>
 
           {/* Server details */}

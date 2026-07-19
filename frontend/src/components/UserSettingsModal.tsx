@@ -493,6 +493,11 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setError('Use an image file for your profile picture')
+      e.target.value = ''
+      return
+    }
     setSaving(true)
     setError('')
     try {
@@ -500,6 +505,15 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
       await api.updateUserProfile(user.id, { avatar_url: url })
       setAvatarUrl(url)
       onUserUpdate?.({ avatar_url: url })
+      // Keep My Account preview + Profiles cache aligned with active default
+      if (!isGuest) {
+        const next = {
+          ...profilePreviews,
+          [defaultProfile]: { ...profilePreviews[defaultProfile], avatar_url: url },
+        }
+        setProfilePreviews(next)
+        persistProfilesCache(next, defaultProfile)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed')
     } finally {
@@ -511,6 +525,11 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
   const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setError('Use an image file for your banner')
+      e.target.value = ''
+      return
+    }
     setSaving(true)
     setError('')
     try {
@@ -518,6 +537,14 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
       await api.updateUserProfile(user.id, { banner_url: url })
       setBannerUrl(url)
       onUserUpdate?.({ banner_url: url })
+      if (!isGuest) {
+        const next = {
+          ...profilePreviews,
+          [defaultProfile]: { ...profilePreviews[defaultProfile], banner_url: url },
+        }
+        setProfilePreviews(next)
+        persistProfilesCache(next, defaultProfile)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed')
     } finally {
