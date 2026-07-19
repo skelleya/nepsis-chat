@@ -94,10 +94,18 @@ jobs:
       - name: Build macOS DMG + ZIP
         working-directory: electron
         env:
-          # Unsigned public build — users may need right-click → Open once (Gatekeeper)
+          # package.json mac.identity = "-" → ad-hoc codesign (fixes "damaged and cannot be opened")
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run build:frontend && npx electron-builder --mac -p never
+      - name: Verify ad-hoc signature
+        working-directory: electron
+        run: |
+          set -euo pipefail
+          APP="$(find dist -name '*.app' | head -n 1)"
+          echo "App: $APP"
+          codesign --verify --verbose=2 "$APP" || true
+          codesign -dv --verbose=4 "$APP" 2>&1 | head -40 || true
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:

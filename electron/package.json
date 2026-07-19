@@ -1,6 +1,6 @@
 {
   "name": "nepsis-chat",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Nepsis Chat - WebRTC voice chat",
   "main": "main.js",
   "scripts": {
@@ -67,7 +67,7 @@
       "icon": "icon.png",
       "hardenedRuntime": false,
       "gatekeeperAssess": false,
-      "identity": null,
+      "identity": "-",
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "artifactName": "NepsisChat-${version}-${arch}.${ext}",

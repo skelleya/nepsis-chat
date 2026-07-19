@@ -317,6 +317,22 @@ export function DownloadPage() {
         <p className="text-app-muted text-sm mt-6">
           Your browser will download the installer — open it to finish installing.
         </p>
+
+        {(platform === 'mac' || showOther) && (
+          <div className="mt-5 text-left rounded-lg border border-app-hover/40 bg-app-channel/60 px-4 py-3">
+            <p className="text-sm font-semibold text-app-text mb-1">Mac: “damaged and cannot be opened”?</p>
+            <p className="text-xs text-app-muted mb-2 leading-relaxed">
+              macOS Gatekeeper blocks unsigned downloads. After dragging Nepsis Chat to Applications, run this in Terminal, then open the app again:
+            </p>
+            <code className="block text-[11px] sm:text-xs text-app-text bg-app-darker rounded px-3 py-2 break-all select-all">
+              xattr -cr &quot;/Applications/Nepsis Chat.app&quot;
+            </code>
+            <p className="text-xs text-app-muted mt-2">
+              Or right-click the app → <span className="text-app-text">Open</span> → Open.
+            </p>
+          </div>
+        )}
+
         <p className="text-app-muted text-sm mt-4">Or use the web app in your browser.</p>
         <Link
           to="/"
