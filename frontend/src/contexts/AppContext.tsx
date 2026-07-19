@@ -87,6 +87,7 @@ interface AppContextValue {
   loginWithEmail: (email: string, password: string) => Promise<void>
   loginWithUsername: (username: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  deleteAccount: () => Promise<void>
   setCurrentServer: (id: string) => void
   setCurrentChannel: (id: string) => void
   loadChannels: (serverId: string) => Promise<void>
@@ -340,6 +341,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [loadServers])
 
+  const clearSessionLocal = useCallback((userId?: string | null) => {
+    setUser(null)
+    localStorage.removeItem('nepsis_user')
+    localStorage.removeItem(LAST_CHANNEL_KEY)
+    localStorage.removeItem('nepsis_last_view')
+    clearSettingsProfilesCache(userId || undefined)
+    clearLayoutCache()
+    setServers([])
+    setChannels([])
+    setCategories([])
+    setMessages({})
+    setCurrentServerId(null)
+    setCurrentChannelId(null)
+    setDMConversations([])
+    setDMMessages({})
+    setCurrentDMId(null)
+    setDMUnreadCounts({})
+    setChannelUnreadCounts({})
+    setChannelMentionCounts({})
+  }, [])
+
   const logout = useCallback(async () => {
     const wasGuest = user?.is_guest
     const guestId = user?.id
@@ -354,24 +376,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Clear state FIRST so polling/realtime stops before the backend delete runs.
     // This prevents race conditions where loadServers auto-re-joins community servers
     // between server_members deletion and users deletion.
-    setUser(null)
-    localStorage.removeItem('nepsis_user')
-    localStorage.removeItem(LAST_CHANNEL_KEY)
-    localStorage.removeItem('nepsis_last_view')
-    clearSettingsProfilesCache(guestId || undefined)
-    clearLayoutCache()
-    setServers([])
-    setChannels([])
-    setCategories([])
-    setMessages({})
-    setCurrentServerId(null)
-    setCurrentChannelId(null)
-    setDMConversations([])
-    setDMMessages({})
-    setCurrentDMId(null)
-    setDMUnreadCounts({})
-    setChannelUnreadCounts({})
-    setChannelMentionCounts({})
+    clearSessionLocal(guestId)
 
     // Now safely delete on the backend (no frontend polling can race)
     if (wasGuest && guestId) {
@@ -383,7 +388,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } else {
       supabase?.auth.signOut()
     }
-  }, [user])
+  }, [user, clearSessionLocal])
+
+  /** User Settings → Delete Account: purge backend data, then clear local session. */
+  const deleteAccount = useCallback(async () => {
+    const id = user?.id
+    const wasGuest = user?.is_guest
+    if (!id) return
+
+    try {
+      await api.updatePresence(id, 'offline', null)
+    } catch { /* ignore */ }
+
+    // Delete on the server first so the modal can show errors if purge fails.
+    await api.deleteAccount(id)
+
+    clearSessionLocal(id)
+    if (!wasGuest) {
+      try {
+        await supabase?.auth.signOut()
+      } catch { /* ignore */ }
+    }
+  }, [user, clearSessionLocal])
 
   const loadChannels = useCallback(async (serverId: string) => {
     try {
@@ -1187,6 +1213,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         loginWithEmail,
         loginWithUsername,
         logout,
+        deleteAccount,
         setCurrentServer,
         setCurrentChannel,
       }}

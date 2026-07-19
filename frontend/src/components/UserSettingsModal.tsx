@@ -6,6 +6,7 @@ import {
   loadSettingsProfilesCache,
   saveSettingsProfilesCache,
 } from '../services/settingsCache'
+import { useApp } from '../contexts/AppContext'
 import { PrivacySettingsTab } from './settings/PrivacySettingsTab'
 import { ProfilesSettingsTab } from './settings/ProfilesSettingsTab'
 import { AppearanceSettingsTab } from './settings/AppearanceSettingsTab'
@@ -137,6 +138,7 @@ interface UserSettingsModalProps {
 }
 
 export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: UserSettingsModalProps) {
+  const { deleteAccount } = useApp()
   const isGuest = user.is_guest ?? true
   const cachedProfiles = !isGuest ? loadSettingsProfilesCache(user.id) : null
 
@@ -149,6 +151,10 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
   const [bannerUrl, setBannerUrl] = useState(user.banner_url || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deletingAccount, setDeletingAccount] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
   const [profilesReady, setProfilesReady] = useState(() => Boolean(cachedProfiles))
   const [defaultProfile, setDefaultProfile] = useState<ProfileType>(() => {
     if (!cachedProfiles) return 'personal'
@@ -811,6 +817,97 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
                     {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
                   </div>
                 </div>
+
+                <div className="mt-8">
+                  <h4 className="text-xs font-bold text-red-400 uppercase tracking-wide mb-2">Danger Zone</h4>
+                  <div className="rounded-lg border border-red-500/40 bg-[#111214] p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-white">Delete Account</p>
+                        <p className="text-xs text-app-muted mt-1">
+                          Permanently delete your account, messages, DMs, and any servers you own.
+                          This cannot be undone.
+                          {isGuest ? ' Guests are also removed automatically on Log Out.' : ''}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDeleteConfirmText('')
+                          setDeleteError('')
+                          setShowDeleteConfirm(true)
+                        }}
+                        className="shrink-0 px-4 py-2 bg-red-600 hover:bg-red-700 rounded text-sm text-white font-medium"
+                      >
+                        Delete Account
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {showDeleteConfirm && (
+                  <div
+                    className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60]"
+                    onClick={() => !deletingAccount && setShowDeleteConfirm(false)}
+                  >
+                    <div
+                      className="bg-[#313338] rounded-xl w-[min(440px,92vw)] shadow-2xl"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="p-4">
+                        <h3 className="text-xl font-bold text-white">Delete Account</h3>
+                        <p className="text-sm text-app-muted mt-2">
+                          This will permanently remove <strong className="text-app-text">{user.username}</strong> and
+                          all associated data, including servers you own. Type your username to confirm.
+                        </p>
+                        <label className="block text-xs font-bold text-app-muted uppercase mt-4 mb-1">
+                          Username
+                        </label>
+                        <input
+                          type="text"
+                          value={deleteConfirmText}
+                          onChange={(e) => setDeleteConfirmText(e.target.value)}
+                          placeholder={user.username}
+                          disabled={deletingAccount}
+                          autoFocus
+                          className="w-full px-3 py-2 bg-[#1e1f22] rounded text-app-text border border-transparent focus:border-red-500 focus:outline-none placeholder:text-app-muted/60 disabled:opacity-60"
+                        />
+                        {deleteError && <p className="text-red-400 text-sm mt-2">{deleteError}</p>}
+                      </div>
+                      <div className="bg-[#2b2d31] p-4 flex justify-end gap-3 rounded-b-xl">
+                        <button
+                          type="button"
+                          onClick={() => setShowDeleteConfirm(false)}
+                          disabled={deletingAccount}
+                          className="px-4 py-2 text-sm text-app-text hover:underline disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          disabled={
+                            deletingAccount ||
+                            deleteConfirmText.trim().toLowerCase() !== user.username.trim().toLowerCase()
+                          }
+                          onClick={async () => {
+                            setDeletingAccount(true)
+                            setDeleteError('')
+                            try {
+                              await deleteAccount()
+                              // Session cleared — modal unmounts with user
+                            } catch (err) {
+                              setDeleteError(err instanceof Error ? err.message : 'Failed to delete account')
+                              setDeletingAccount(false)
+                            }
+                          }}
+                          className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-[3px] text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {deletingAccount ? 'Deleting…' : 'Delete Account'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
               )}
 

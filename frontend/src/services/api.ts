@@ -76,6 +76,18 @@ export async function deleteGuestAccount(userId: string) {
   return res.json()
 }
 
+/** Permanently delete any account (guest or registered) and related data. */
+export async function deleteAccount(userId: string) {
+  const res = await fetch(`${API_BASE}/auth/account/${encodeURIComponent(userId)}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to delete account')
+  }
+  return res.json()
+}
+
 // ─── Servers ───────────────────────────────────────────
 
 export async function getServers(userId: string) {
