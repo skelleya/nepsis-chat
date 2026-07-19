@@ -59,6 +59,7 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | **Call glitches on page refresh** | No leave-on-unload / rejoin; ringing callee disconnect left caller stuck. | **Fix**: `pagehide` ends call + `sessionStorage` rejoin; peer auto-accepts rebound call for 15s; server ends ringing when party fully offline. Voice channel same pattern. |
 | **Screen share not visible to peers** | `track.onmute` removed video during renegotiation; glare ignored remote offers; remote tracks lack `displaySurface`. | **Fix**: Don’t remove on mute; always rollback glare; emit `screen-share` socket events; auto-watch remote share; better track heuristics. |
 | **Camera stayed in circle frame** | Voice UI v7 used circles for camera too. | **Fix**: Camera-on tiles are square (`rounded-xl`); click maximizes camera stage. |
+| **DM stayed open when clicking a channel** | Main view prioritized `currentDMId` over channel selection; channel click did not clear DM. | **Fix**: `handleSelectChannel` (text/voice) and server switch clear `currentDM` / friends view so the channel opens. |
 
 ---
 

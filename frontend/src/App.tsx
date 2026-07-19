@@ -675,18 +675,27 @@ function MainLayout({
     }).catch(() => {})
   }, [currentServerId, user?.id, rulesChannelId])
 
-  // Handle channel selection - one-click join for voice; respect rules lock
+  // Handle channel selection - close DM, open channel; voice also joins
   const handleSelectChannel = useCallback((channel: { id: string; name: string; type: string }) => {
     if (mustAcceptRules && rulesAcceptanceKnown && !hasAcceptedRules && channel.type !== 'rules' && channel.id !== rulesChannelId) {
+      setCurrentDM(null)
+      setShowFriends(false)
       setCurrentChannel(rulesChannelId)
       showNotification('Accept the rules first to access other channels')
       return
     }
+    // Leaving a DM for a text/voice/rules channel
+    setCurrentDM(null)
+    setShowFriends(false)
+    setShowCommunity(false)
     setCurrentChannel(channel.id)
+    try {
+      localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'server' }))
+    } catch { /* ignore */ }
     if (channel.type === 'voice') {
       voice.joinVoice(channel.id, channel.name)
     }
-  }, [setCurrentChannel, voice, mustAcceptRules, rulesAcceptanceKnown, hasAcceptedRules, rulesChannelId])
+  }, [setCurrentChannel, setCurrentDM, voice, mustAcceptRules, rulesAcceptanceKnown, hasAcceptedRules, rulesChannelId])
 
   // Build voice users map from ALL server members' presence — so users see who's in
   // each voice channel BEFORE entering (not just when they're already in one).
@@ -810,6 +819,7 @@ function MainLayout({
         onSelectServer={(id) => {
           setShowCommunity(false)
           setShowFriends(false)
+          setCurrentDM(null)
           setCurrentServer(id)
           try {
             localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'server' }))
@@ -867,7 +877,11 @@ function MainLayout({
           onWatchScreenShare={(userId) => {
             voice.setWatchingShareUserId(userId)
             // Open the voice channel view so the resizable stage is visible
-            if (voice.voiceChannelId) setCurrentChannel(voice.voiceChannelId)
+            if (voice.voiceChannelId) {
+              setCurrentDM(null)
+              setShowFriends(false)
+              setCurrentChannel(voice.voiceChannelId)
+            }
           }}
           onOpenServerSettings={() => setShowServerSettings(true)}
           onInvitePeople={handleInvitePeople}
