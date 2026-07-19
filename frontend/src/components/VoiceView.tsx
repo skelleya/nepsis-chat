@@ -168,6 +168,7 @@ function ParticipantCard({
   isSharingScreen,
   isWatching,
   onWatchShare,
+  onMaximizeCamera,
   large = false,
 }: {
   participant: { userId: string; username: string; stream: MediaStream | null; isSpeaking: boolean; streamVersion?: number }
@@ -186,6 +187,8 @@ function ParticipantCard({
   isSharingScreen?: boolean
   isWatching?: boolean
   onWatchShare?: (userId: string) => void
+  /** Click camera face to maximize */
+  onMaximizeCamera?: (userId: string) => void
   /** Larger circle when alone in the channel */
   large?: boolean
 }) {
@@ -211,16 +214,24 @@ function ParticipantCard({
   const circleSize = large
     ? 'w-36 h-36 sm:w-44 sm:h-44 text-4xl sm:text-5xl'
     : 'w-24 h-24 sm:w-28 sm:h-28 text-2xl sm:text-3xl'
+  // Camera on → square tile so the full face is visible
+  const videoTileSize = large
+    ? 'w-48 h-48 sm:w-56 sm:h-56'
+    : 'w-36 h-36 sm:w-40 sm:h-40'
   const muteBadgeSize = large ? 'w-9 h-9' : 'w-7 h-7'
   const muteIconSize = large ? 16 : 14
 
   return (
     <div
       className={`relative flex flex-col items-center justify-center gap-2 px-2 py-3 select-none ${
-        isSharingScreen && onWatchShare ? 'cursor-pointer' : ''
+        (isSharingScreen && onWatchShare) || (showVideo && onMaximizeCamera) ? 'cursor-pointer' : ''
       }`}
       onClick={() => {
-        if (isSharingScreen && onWatchShare) onWatchShare(participant.userId)
+        if (isSharingScreen && onWatchShare) {
+          onWatchShare(participant.userId)
+          return
+        }
+        if (showVideo && onMaximizeCamera) onMaximizeCamera(participant.userId)
       }}
       onContextMenu={(e) => {
         if (showAdminMenu) {
@@ -281,13 +292,14 @@ function ParticipantCard({
       )}
       {showVideo ? (
         <div
-          className={`relative ${circleSize} rounded-full overflow-hidden bg-black ring-2 ${
+          className={`relative ${videoTileSize} rounded-xl overflow-hidden bg-black ring-2 ${
             isWatching
               ? 'ring-app-accent shadow-[0_0_16px_rgba(88,101,242,0.4)]'
               : speaking
                 ? 'ring-[#23a559] shadow-[0_0_16px_rgba(35,165,89,0.55)]'
                 : 'ring-white/10'
           }`}
+          title="Click to maximize"
         >
           {isLocal && localVideoStream ? (
             <video
@@ -302,7 +314,7 @@ function ParticipantCard({
           ) : null}
           {showMuted && (
             <div
-              className={`absolute bottom-0.5 right-0.5 ${muteBadgeSize} rounded-full bg-[#ed4245] flex items-center justify-center ring-2 ring-app-darker shadow-md z-10`}
+              className={`absolute bottom-1.5 right-1.5 ${muteBadgeSize} rounded-full bg-[#ed4245] flex items-center justify-center ring-2 ring-app-darker shadow-md z-10`}
               title="Muted"
             >
               <MicOffIcon size={muteIconSize} className="text-white" />
@@ -387,8 +399,24 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
 
   const [soundboardOpen, setSoundboardOpen] = useState(false)
   const soundboardButtonRef = useRef<HTMLButtonElement>(null)
+  const [maximizedCameraUserId, setMaximizedCameraUserId] = useState<string | null>(null)
 
   const isInThisChannel = voiceChannelId === channel.id
+
+  // Clear maximized camera if that user turned camera off / left
+  useEffect(() => {
+    if (!maximizedCameraUserId) return
+    if (maximizedCameraUserId === currentUserId && !isCameraOn) {
+      setMaximizedCameraUserId(null)
+      return
+    }
+    if (maximizedCameraUserId !== currentUserId) {
+      const p = participants.find((x) => x.userId === maximizedCameraUserId)
+      if (!p?.stream || !getParticipantVideoStream(p.stream)) {
+        setMaximizedCameraUserId(null)
+      }
+    }
+  }, [maximizedCameraUserId, currentUserId, isCameraOn, participants])
 
   const localParticipant = {
     userId: currentUserId,
@@ -442,12 +470,30 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
   const isAlone = allParticipants.length === 1
 
   const handleWatchShare = (userId: string) => {
+    setMaximizedCameraUserId(null)
     if (watchingShareUserId === userId) {
       setWatchingShareUserId(null)
     } else {
       setWatchingShareUserId(userId)
     }
   }
+
+  const handleMaximizeCamera = (userId: string) => {
+    setWatchingShareUserId(null)
+    setMaximizedCameraUserId((prev) => (prev === userId ? null : userId))
+  }
+
+  const maximizedCameraStream =
+    maximizedCameraUserId === currentUserId
+      ? videoStream
+      : (() => {
+          const p = allParticipants.find((x) => x.userId === maximizedCameraUserId)
+          return p?.stream ? getParticipantVideoStream(p.stream) : null
+        })()
+  const maximizedCameraUsername =
+    maximizedCameraUserId === currentUserId
+      ? currentUsername
+      : allParticipants.find((p) => p.userId === maximizedCameraUserId)?.username ?? 'Camera'
 
   const cardProps = (p: { userId: string; username: string; stream: MediaStream | null; isSpeaking: boolean; streamVersion?: number }, large = false) => ({
     participant: p,
@@ -464,14 +510,15 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
     onMuteMember,
     onDisconnectMember,
     isSharingScreen: screenShareUserIds.includes(p.userId),
-    isWatching: watchingShareUserId === p.userId,
+    isWatching: watchingShareUserId === p.userId || maximizedCameraUserId === p.userId,
     onWatchShare: screenShareUserIds.includes(p.userId) ? handleWatchShare : undefined,
+    onMaximizeCamera: handleMaximizeCamera,
     large,
   })
 
   const renderParticipantsArea = () => {
     if (allParticipants.length === 0) return null
-    // Discord-style: circle frames only — no boxed tiles / resizable card panels
+    // Avatars stay circular; camera-on tiles become square (see ParticipantCard)
     return (
       <div className="flex-1 overflow-auto p-6 min-h-0 flex items-center justify-center">
         <div
@@ -558,6 +605,28 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
                 {renderParticipantsArea()}
               </Panel>
             </Group>
+          ) : maximizedCameraUserId && maximizedCameraStream ? (
+            <Group orientation="vertical" autoSave="voice-view-camera-participants" className="flex-1 min-h-0">
+              <Panel defaultSize={70} minSize={30} maxSize={90} className="min-h-0">
+                <div className="h-full p-3 flex flex-col min-h-0">
+                  <VideoElement
+                    stream={maximizedCameraStream}
+                    muted
+                    label={`${maximizedCameraUsername} — Camera`}
+                    onClose={() => setMaximizedCameraUserId(null)}
+                  />
+                </div>
+              </Panel>
+              <Separator
+                className="h-3.5 bg-app-dark hover:bg-app-hover transition-colors data-[resize-handle-active]:bg-app-accent/60 flex items-center justify-center cursor-ns-resize"
+                title="Drag to resize camera"
+              >
+                <div className="w-20 h-1.5 rounded-full bg-app-muted/60" />
+              </Separator>
+              <Panel defaultSize={30} minSize={10} maxSize={70} className="min-h-0">
+                {renderParticipantsArea()}
+              </Panel>
+            </Group>
           ) : (
             renderParticipantsArea()
           )
@@ -639,7 +708,7 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
               </svg>
             </button>
             <button
-              onClick={leaveVoice}
+              onClick={() => leaveVoice()}
               className="p-3 rounded-full bg-red-600 hover:bg-red-700 transition-colors text-white"
               title="End Call"
             >

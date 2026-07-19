@@ -153,6 +153,16 @@ export function registerVoiceHandlers(io) {
       })
     })
 
+    // Explicit screen-share state — remote tracks often lack displaySurface/label
+    socket.on('screen-share', ({ active }) => {
+      if (!socket.voiceChannel || !socket.userId) return
+      socket.screenSharing = !!active
+      socket.to(`voice:${socket.voiceChannel}`).emit('screen-share', {
+        userId: socket.userId,
+        active: !!active,
+      })
+    })
+
     socket.on('disconnect', () => {
       const room = socket.voiceChannel ? `voice:${socket.voiceChannel}` : null
       const uid = socket.userId

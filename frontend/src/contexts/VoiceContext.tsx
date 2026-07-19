@@ -39,7 +39,7 @@ interface VoiceContextValue {
   isSpeaking: boolean      // local user speaking detection
   ping: number | null       // latency in ms
   joinVoice: (channelId: string, channelName: string) => Promise<void>
-  leaveVoice: () => void
+  leaveVoice: (opts?: { preserveRejoin?: boolean }) => void
   /** Play soundboard sound to all peers (Socket.io only; no-op when using BroadcastChannel) */
   playSoundboardSound: (soundUrl: string) => void
   error: string | null
@@ -77,9 +77,19 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   const [ping, setPing] = useState<number | null>(null)
   const [leftUserIds, setLeftUserIds] = useState<Set<string>>(new Set())
   const [watchingShareUserId, setWatchingShareUserId] = useState<string | null>(null)
+  /** Explicit screen-share signals from peers (remote tracks often lack labels) */
+  const [remoteScreenShareIds, setRemoteScreenShareIds] = useState<Set<string>>(new Set())
 
   const webrtcRef = useRef<ReturnType<typeof createWebRTCClient> | null>(null)
   const signalingRef = useRef<ReturnType<typeof createBroadcastSignaling> | ReturnType<typeof createSocketSignaling> | null>(null)
+  const voiceChannelIdRef = useRef<string | null>(null)
+  const voiceChannelNameRef = useRef<string | null>(null)
+  const leaveVoiceRef = useRef<(opts?: { preserveRejoin?: boolean }) => void>(() => {})
+  const joinVoiceRef = useRef<(id: string, name: string) => Promise<void>>(async () => {})
+  voiceChannelIdRef.current = voiceChannelId
+  voiceChannelNameRef.current = voiceChannelName
+
+  const VOICE_REJOIN_KEY = 'nepsis_voice_rejoin'
   const isMutedRef = useRef(false)
   const isDeafenedRef = useRef(false)
   const mutedBeforeDeafenRef = useRef(false)
@@ -165,8 +175,14 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     setParticipants((prev) => prev.filter((p) => p.userId !== peerId))
   }, [])
 
-  const leaveVoice = useCallback(() => {
+  const leaveVoice = useCallback((opts?: { preserveRejoin?: boolean }) => {
     if (voiceChannelId) sounds.voiceDisconnected()
+    const sig = signalingRef.current as { emitScreenShare?: (active: boolean) => void } | null
+    try {
+      sig?.emitScreenShare?.(false)
+    } catch {
+      /* ignore */
+    }
     webrtcRef.current?.leave()
     webrtcRef.current = null
     signalingRef.current = null
@@ -178,6 +194,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     setScreenStream(null)
     setParticipants([])
     setLeftUserIds(new Set())
+    setRemoteScreenShareIds(new Set())
     setVoiceChannelId(null)
     setVoiceChannelName(null)
     setIsCameraOn(false)
@@ -190,7 +207,16 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     setPing(null)
     setError(null)
     setWatchingShareUserId(null)
-  }, [localStream, videoStream, screenStream])
+    if (!opts?.preserveRejoin) {
+      try {
+        sessionStorage.removeItem(VOICE_REJOIN_KEY)
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [localStream, videoStream, screenStream, voiceChannelId])
+
+  leaveVoiceRef.current = leaveVoice
 
   const joinVoice = useCallback(async (channelId: string, channelName: string) => {
     if (voiceChannelId === channelId) return
@@ -211,8 +237,14 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
       setLocalStream(stream)
       setVoiceChannelId(channelId)
       setVoiceChannelName(channelName)
+      try {
+        sessionStorage.setItem(VOICE_REJOIN_KEY, JSON.stringify({ channelId, channelName }))
+      } catch {
+        /* ignore */
+      }
       setParticipants([])
       setLeftUserIds(new Set())
+      setRemoteScreenShareIds(new Set())
 
       const signaling = USE_SOCKET
         ? createSocketSignaling(channelId, userId, username)
@@ -258,8 +290,57 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
       setVoiceChannelId(null)
       setVoiceChannelName(null)
       setLocalStream(null)
+      try {
+        sessionStorage.removeItem(VOICE_REJOIN_KEY)
+      } catch {
+        /* ignore */
+      }
     }
   }, [voiceChannelId, userId, username, leaveVoice, addOrUpdateParticipant, removeParticipant])
+
+  joinVoiceRef.current = joinVoice
+
+  // Refresh / close tab: clean leave, then auto-rejoin on next load
+  useEffect(() => {
+    const onPageHide = () => {
+      if (!voiceChannelIdRef.current) return
+      try {
+        sessionStorage.setItem(
+          VOICE_REJOIN_KEY,
+          JSON.stringify({
+            channelId: voiceChannelIdRef.current,
+            channelName: voiceChannelNameRef.current || 'Voice',
+          })
+        )
+      } catch {
+        /* ignore */
+      }
+      leaveVoiceRef.current({ preserveRejoin: true })
+    }
+    window.addEventListener('pagehide', onPageHide)
+    return () => window.removeEventListener('pagehide', onPageHide)
+  }, [])
+
+  // Auto-rejoin voice after refresh
+  useEffect(() => {
+    let cancelled = false
+    try {
+      const raw = sessionStorage.getItem(VOICE_REJOIN_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as { channelId?: string; channelName?: string }
+      if (!parsed.channelId) return
+      const t = window.setTimeout(() => {
+        if (cancelled) return
+        void joinVoiceRef.current(parsed.channelId!, parsed.channelName || 'Voice')
+      }, 400)
+      return () => {
+        cancelled = true
+        window.clearTimeout(t)
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [userId])
 
   // ─── Mute sync ────────────────────────────────────────────────────
   useEffect(() => {
@@ -431,6 +512,15 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     }
   }, [isCameraOn, videoStream])
 
+  const emitScreenShareState = useCallback((active: boolean) => {
+    const sig = signalingRef.current as { emitScreenShare?: (a: boolean) => void } | null
+    try {
+      sig?.emitScreenShare?.(active)
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
   // ─── Screen share toggle (sends screen over WebRTC) ───────────────
   const toggleScreenShare = useCallback(async () => {
     if (isScreenSharing && screenStream) {
@@ -438,6 +528,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         await webrtcRef.current?.removeTrackFromAllPeers(track)
         track.stop()
       }
+      emitScreenShareState(false)
       setScreenStream(null)
       setIsScreenSharing(false)
       setWatchingShareUserId((prev) => (prev === userId ? null : prev))
@@ -457,12 +548,14 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
           stream.getTracks().forEach(async (track) => {
             await webrtcRef.current?.removeTrackFromAllPeers(track)
           })
+          emitScreenShareState(false)
           setScreenStream(null)
           setIsScreenSharing(false)
           setWatchingShareUserId((prev) => (prev === userId ? null : prev))
         })
         setScreenStream(stream)
         setIsScreenSharing(true)
+        emitScreenShareState(true)
         // Discord-like: sharer focuses their own share; others click to watch
         setWatchingShareUserId(userId)
         for (const track of stream.getTracks()) {
@@ -474,17 +567,41 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         }
       }
     }
-  }, [isScreenSharing, screenStream, userId])
+  }, [isScreenSharing, screenStream, userId, emitScreenShareState])
+
+  // Listen for peer screen-share start/stop (explicit signal)
+  useEffect(() => {
+    const signaling = signalingRef.current
+    if (!signaling || !voiceChannelId) return
+    const unsub = (
+      signaling as {
+        onScreenShare?: (cb: (d: { userId: string; active: boolean }) => void) => () => void
+      }
+    ).onScreenShare?.(({ userId: fromId, active }) => {
+      if (!fromId || fromId === userId) return
+      setRemoteScreenShareIds((prev) => {
+        const next = new Set(prev)
+        if (active) next.add(fromId)
+        else next.delete(fromId)
+        return next
+      })
+      // Auto-show remote share so the other user actually sees it
+      if (active) setWatchingShareUserId(fromId)
+      else setWatchingShareUserId((prev) => (prev === fromId ? null : prev))
+    })
+    return () => unsub?.()
+  }, [voiceChannelId, userId])
 
   // Clear watch target if that user stopped sharing / left
   const screenShareUserIds = useMemo(() => {
-    const ids: string[] = []
-    if (isScreenSharing) ids.push(userId)
+    const ids = new Set<string>()
+    if (isScreenSharing) ids.add(userId)
+    for (const id of remoteScreenShareIds) ids.add(id)
     for (const p of participants) {
-      if (p.stream && getScreenShareStream(p.stream)) ids.push(p.userId)
+      if (p.stream && getScreenShareStream(p.stream)) ids.add(p.userId)
     }
-    return ids
-  }, [isScreenSharing, userId, participants])
+    return Array.from(ids)
+  }, [isScreenSharing, userId, participants, remoteScreenShareIds])
 
   useEffect(() => {
     if (watchingShareUserId && !screenShareUserIds.includes(watchingShareUserId)) {

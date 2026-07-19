@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
 import { EMOJI_SHORTCODES } from '../data/emojis'
 
 interface MentionableUser {
@@ -20,12 +20,19 @@ interface ChatInputProps {
   disabled?: boolean
   members: MentionableUser[]
   serverEmojis?: ServerEmoji[]
-  onOpenEmojiPicker?: () => void
-  onFileClick?: () => void
+  /** Discord-style + button inside the field (left) */
+  onAttachClick?: () => void
+  attachMenu?: ReactNode
+  attachOpen?: boolean
   uploading?: boolean
-  leftButtons?: React.ReactNode
+  /** Optional control on the right inside the field (e.g. emoji) */
+  rightSlot?: ReactNode
 }
 
+/**
+ * Discord-like message composer: rounded bar, + inside the field, Enter to send.
+ * No external send button.
+ */
 export function ChatInput({
   value,
   onChange,
@@ -34,7 +41,11 @@ export function ChatInput({
   disabled = false,
   members,
   serverEmojis = [],
-  leftButtons,
+  onAttachClick,
+  attachMenu,
+  attachOpen = false,
+  uploading = false,
+  rightSlot,
 }: ChatInputProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const cursorPosRef = useRef(0)
@@ -45,7 +56,6 @@ export function ChatInput({
     end: number
     selectedIndex: number
   } | null>(null)
-
 
   const getEmojiMatches = useCallback((query: string) => {
     const q = query.toLowerCase()
@@ -81,7 +91,6 @@ export function ChatInput({
     const pos = cursorPosRef.current
     const textBefore = value.slice(0, pos)
 
-    // Check for @mention
     const atMatch = textBefore.match(/@(\w*)$/)
     if (atMatch) {
       const query = atMatch[1]
@@ -98,7 +107,6 @@ export function ChatInput({
       }
     }
 
-    // Check for :emoji:
     const colonMatch = textBefore.match(/:([a-zA-Z0-9_]*)$/)
     if (colonMatch) {
       const query = colonMatch[1]
@@ -122,12 +130,12 @@ export function ChatInput({
     if (!autocomplete) return
     const before = value.slice(0, autocomplete.start)
     const after = value.slice(autocomplete.end)
-    const newValue = before + replacement + after
+    const newValue = before + replacement + ' ' + after
     onChange(newValue)
     setAutocomplete(null)
     setTimeout(() => {
       inputRef.current?.focus()
-      const newPos = autocomplete.start + replacement.length
+      const newPos = autocomplete.start + replacement.length + 1
       inputRef.current?.setSelectionRange(newPos, newPos)
     }, 0)
   }, [autocomplete, value, onChange])
@@ -157,10 +165,7 @@ export function ChatInput({
     if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault()
       const item = matches[autocomplete.selectedIndex]
-      if (item) {
-        const replacement = isMention ? (item as { display: string }).display : (item as { display: string }).display
-        applySuggestion(replacement)
-      }
+      if (item) applySuggestion((item as { display: string }).display)
       return
     }
     if (e.key === 'Escape') {
@@ -174,9 +179,34 @@ export function ChatInput({
   const selectedIndex = autocomplete?.selectedIndex ?? 0
 
   return (
-    <div className="flex-1 flex gap-2 relative min-w-0">
-      {leftButtons}
-      <div className="flex-1 relative">
+    <div className="relative w-full min-w-0">
+      <div className="flex items-center gap-1 bg-[#383a40] rounded-lg min-h-[44px] px-1.5 focus-within:ring-1 focus-within:ring-white/10">
+        {onAttachClick && (
+          <div className="relative flex-shrink-0">
+            <button
+              type="button"
+              onClick={onAttachClick}
+              disabled={disabled || uploading}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-[#b5bac1] hover:text-white hover:bg-white/10 transition-colors disabled:opacity-50"
+              title={attachOpen ? 'Close' : 'Upload a file'}
+              aria-label={attachOpen ? 'Close attach menu' : 'Attach file'}
+            >
+              {uploading ? (
+                <span className="text-xs">…</span>
+              ) : attachOpen ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18.4 4L12 10.4L5.6 4L4 5.6L10.4 12L4 18.4L5.6 20L12 13.6L18.4 20L20 18.4L13.6 12L20 5.6L18.4 4Z" />
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z" />
+                </svg>
+              )}
+            </button>
+            {attachMenu}
+          </div>
+        )}
+
         <input
           ref={inputRef}
           type="text"
@@ -189,46 +219,44 @@ export function ChatInput({
           onSelect={(e) => { cursorPosRef.current = (e.target as HTMLInputElement).selectionStart ?? 0 }}
           placeholder={placeholder}
           disabled={disabled}
-          className="w-full min-h-[48px] bg-app-dark rounded-lg px-4 py-4 text-app-text placeholder-app-muted focus:outline-none focus:ring-2 focus:ring-app-accent"
+          className="flex-1 min-w-0 bg-transparent border-0 outline-none text-[15px] text-[#dbdee1] placeholder:text-[#949ba4] py-2.5 px-1"
         />
-        {autocomplete && matches.length > 0 && (
-          <div className="absolute bottom-full left-0 mb-1 w-full max-w-xs bg-[#2b2d31] rounded-lg shadow-xl border border-app-hover/50 overflow-hidden z-50 max-h-48 overflow-y-auto">
-            {matches.map((item, i) => (
-              <button
-                key={autocomplete.type === 'mention' ? (item as { id: string }).id : (item as { shortcode: string }).shortcode}
-                type="button"
-                onClick={() => {
-                  const repl = autocomplete.type === 'mention'
-                    ? (item as { display: string }).display
-                    : (item as { display: string }).display
-                  applySuggestion(repl)
-                }}
-                className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${
-                  i === selectedIndex ? 'bg-app-accent/30' : 'hover:bg-app-hover/60'
-                }`}
-              >
-                {autocomplete.type === 'mention' ? (
-                  <>
-                    <span className="text-app-muted text-sm">@</span>
-                    <span className="text-app-text font-medium">
-                      {(item as { username: string }).username}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    {(item as { imageUrl?: string }).imageUrl ? (
-                      <img src={(item as { imageUrl: string }).imageUrl} alt="" className="w-6 h-6 object-contain" />
-                    ) : (
-                      <span className="text-xl">{(item as { display: string }).display}</span>
-                    )}
-                    <span className="text-app-muted text-sm">:{(item as { shortcode: string }).shortcode}:</span>
-                  </>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
+
+        {rightSlot && <div className="flex-shrink-0 flex items-center pr-0.5">{rightSlot}</div>}
       </div>
+
+      {autocomplete && matches.length > 0 && (
+        <div className="absolute bottom-full left-0 mb-2 w-full max-w-sm bg-[#2b2d31] rounded-lg shadow-xl border border-white/10 overflow-hidden z-50 max-h-52 overflow-y-auto">
+          {matches.map((item, i) => (
+            <button
+              key={autocomplete.type === 'mention' ? (item as { id: string }).id : (item as { shortcode: string }).shortcode}
+              type="button"
+              onClick={() => applySuggestion((item as { display: string }).display)}
+              className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${
+                i === selectedIndex ? 'bg-[#404249]' : 'hover:bg-[#35373c]'
+              }`}
+            >
+              {autocomplete.type === 'mention' ? (
+                <>
+                  <span className="text-[#949ba4] text-sm">@</span>
+                  <span className="text-[#f2f3f5] font-medium text-sm">
+                    {(item as { username: string }).username}
+                  </span>
+                </>
+              ) : (
+                <>
+                  {(item as { imageUrl?: string }).imageUrl ? (
+                    <img src={(item as { imageUrl: string }).imageUrl} alt="" className="w-5 h-5 object-contain" />
+                  ) : (
+                    <span className="text-lg leading-none">{(item as { display: string }).display}</span>
+                  )}
+                  <span className="text-[#949ba4] text-sm">:{(item as { shortcode: string }).shortcode}:</span>
+                </>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

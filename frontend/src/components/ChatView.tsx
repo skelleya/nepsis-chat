@@ -139,17 +139,6 @@ export function ChatView({
   const getUser = (userId: string) => users.find((u) => u.id === userId) ?? { username: 'Unknown', id: userId }
   const getMemberAvatar = (userId: string) => members.find((m) => m.id === userId)?.avatarUrl
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const text = input.trim()
-    if (text && onSendMessage) {
-      onSendMessage(text, { replyToId: replyTo?.id, attachments: attachments.length ? attachments : undefined })
-      setInput('')
-      setReplyTo(null)
-      setAttachments([])
-    }
-  }
-
   const handleEdit = (msg: Message) => {
     setEditingId(msg.id)
     setEditContent(msg.content)
@@ -204,210 +193,234 @@ export function ChatView({
     return Array.from(map.entries()).map(([emoji, { count, userIds }]) => ({ emoji, count, userIds }))
   }
 
+  const [showAttachMenu, setShowAttachMenu] = useState(false)
+
+  const formatChatTime = (iso: string) => {
+    const d = new Date(iso)
+    const now = new Date()
+    const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    if (d.toDateString() === now.toDateString()) return time
+    const yesterday = new Date(now)
+    yesterday.setDate(yesterday.getDate() - 1)
+    if (d.toDateString() === yesterday.toDateString()) return `Yesterday at ${time}`
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ` at ${time}`
+  }
+
   return (
-    <div className="flex-1 flex flex-col bg-app-darker">
-      <div className="h-12 px-4 flex items-center border-b border-app-dark shadow-sm">
+    <div className="flex-1 flex flex-col min-w-0 bg-[#313338]">
+      <div className="h-12 px-4 flex items-center gap-2 border-b border-[#1f2023] shadow-sm flex-shrink-0 z-10">
         {channel.type === 'rules' ? (
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-app-muted">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-[#80848e]">
             <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/>
             <path d="M9 15h6v2H9zm0-4h6v2H9zm0-4h3v2H9z"/>
           </svg>
         ) : (
-          <span className="text-xl text-app-muted">#</span>
+          <span className="text-2xl font-semibold text-[#80848e] leading-none">#</span>
         )}
-        <span className="ml-2 font-semibold text-app-text">{channel.name}</span>
+        <span className="font-semibold text-[#f2f3f5] text-[16px]">{channel.name}</span>
         {channel.type === 'rules' && (
-          <span className="ml-2 text-xs text-app-muted">(read-only — react to accept)</span>
+          <span className="ml-1 text-xs text-[#949ba4]">(read-only — react to accept)</span>
         )}
       </div>
 
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-4 relative"
+        className="flex-1 overflow-y-auto relative min-h-0 py-4"
         onScroll={handleScroll}
       >
-        {messages.map((message) => {
+        {messages.map((message, idx) => {
           const user = getUser(message.userId)
           const username = message.username ?? user.username
           const isEditing = editingId === message.id
+          const prev = messages[idx - 1]
+          const isGrouped =
+            !!prev &&
+            prev.userId === message.userId &&
+            new Date(message.createdAt).toDateString() === new Date(prev.createdAt).toDateString() &&
+            new Date(message.createdAt).getTime() - new Date(prev.createdAt).getTime() < 7 * 60 * 1000
+          const showDateSep =
+            !prev || new Date(message.createdAt).toDateString() !== new Date(prev.createdAt).toDateString()
 
           return (
-            <div
-              id={`msg-${message.id}`}
-              key={message.id}
-              className="group flex gap-3 chat-msg-row hover:bg-app-dark/50 rounded px-2 -mx-2 transition-all"
-            >
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 overflow-hidden ${getMemberAvatar(message.userId) ? 'bg-transparent' : 'bg-app-accent'}`}>
-                {getMemberAvatar(message.userId) ? (
-                  <img src={getMemberAvatar(message.userId)} alt={username} className="w-full h-full object-cover" />
-                ) : (
-                  username.charAt(0)
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-baseline gap-2 flex-wrap">
-                  <span className="font-semibold text-app-text">{username}</span>
-                  <span className="text-xs text-app-muted">
-                    {new Date(message.createdAt).toLocaleString()}
-                    {message.editedAt && ' (edited)'}
+            <div key={message.id}>
+              {showDateSep && (
+                <div className="flex items-center gap-2 mx-4 my-3">
+                  <div className="flex-1 h-px bg-[#3f4147]" />
+                  <span className="text-[12px] font-semibold text-[#949ba4] uppercase tracking-wide">
+                    {new Date(message.createdAt).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })}
                   </span>
-                  <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
-                    <button
-                      onClick={() => setReplyTo(message)}
-                      className="text-xs text-app-muted hover:text-app-text"
-                    >
-                      Reply
-                    </button>
-                    {canEditOrDelete(message) && (
-                      <>
-                        <button
-                          onClick={() => handleEdit(message)}
-                          className="text-xs text-app-muted hover:text-app-text"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => deleteMessage(message.id)}
-                          className="text-xs text-red-400 hover:text-red-300"
-                        >
-                          Delete
-                        </button>
-                      </>
-                    )}
-                  </div>
+                  <div className="flex-1 h-px bg-[#3f4147]" />
+                </div>
+              )}
+              <div
+                id={`msg-${message.id}`}
+                className={`group relative flex gap-4 px-4 hover:bg-[#2e3035]/60 ${
+                  isGrouped ? 'py-0.5 min-h-[1.375rem]' : 'mt-4 py-0.5'
+                }`}
+              >
+                {/* Hover action bar */}
+                <div className="absolute right-4 -top-3 opacity-0 group-hover:opacity-100 z-10 flex items-center bg-[#313338] border border-[#1e1f22] rounded shadow-lg overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setReplyTo(message)}
+                    className="px-2 py-1 text-xs text-[#b5bac1] hover:bg-[#2e3035] hover:text-white"
+                  >
+                    Reply
+                  </button>
+                  {canEditOrDelete(message) && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleEdit(message)}
+                        className="px-2 py-1 text-xs text-[#b5bac1] hover:bg-[#2e3035] hover:text-white"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteMessage(message.id)}
+                        className="px-2 py-1 text-xs text-[#f23f43] hover:bg-[#2e3035]"
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
                 </div>
 
-                {message.replyTo && (
-                  <div
-                    className="mt-1 pl-3 border-l-2 border-app-accent/50 text-sm text-app-muted cursor-pointer hover:bg-app-dark/30 rounded-r -ml-2 pl-4 py-1 transition-colors"
-                    onClick={() => {
-                      const el = document.getElementById(`msg-${message.replyToId}`)
-                      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                      el?.classList.add('ring-2', 'ring-app-accent', 'ring-opacity-50')
-                      setTimeout(() => el?.classList.remove('ring-2', 'ring-app-accent', 'ring-opacity-50'), 1500)
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLElement).click()}
-                  >
-                    <span className="font-medium text-app-accent">Reply to {message.replyTo.username ?? 'Unknown'}</span>
-                    <span className="block mt-0.5 text-app-muted truncate max-w-md">
-                      {message.replyTo.content || '[deleted message]'}
+                {isGrouped ? (
+                  <div className="w-10 flex-shrink-0 flex justify-center pt-0.5">
+                    <span className="text-[10px] text-[#949ba4] opacity-0 group-hover:opacity-100 leading-5">
+                      {new Date(message.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                     </span>
                   </div>
-                )}
-
-                {isEditing ? (
-                  <div className="mt-1">
-                    <input
-                      value={editContent}
-                      onChange={(e) => setEditContent(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && saveEdit()}
-                      className="w-full bg-app-dark rounded px-2 py-1 text-app-text"
-                      autoFocus
-                    />
-                    <div className="mt-1 flex gap-2">
-                      <button
-                        onClick={saveEdit}
-                        className="text-xs px-2 py-1 rounded bg-app-accent text-white hover:bg-app-accent-hover"
-                      >
-                        Save
-                      </button>
-                      <button
-                        onClick={() => { setEditingId(null); setEditContent('') }}
-                        className="text-xs px-2 py-1 rounded bg-app-channel text-app-muted hover:bg-app-hover"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
                 ) : (
-                  <p className="text-app-text mt-0.5 whitespace-pre-wrap">{renderContentWithMentions(message.content, currentUsername)}</p>
-                )}
-
-                {message.attachments?.length ? (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {message.attachments.map((a, i) =>
-                      a.type === 'video' || a.url.match(/\.(mp4|webm|mov|avi)$/i) ? (
-                        <video
-                          key={i}
-                          src={a.url}
-                          controls
-                          className="max-w-[300px] max-h-[200px] rounded"
-                          preload="metadata"
-                        />
-                      ) : a.type === 'image' || a.url.match(/\.(gif|jpe?g|png|webp|svg)$/i) ? (
-                        <a key={i} href={a.url} target="_blank" rel="noreferrer">
-                          <img src={a.url} alt="" className="max-w-[300px] max-h-[200px] rounded object-contain" />
-                        </a>
-                      ) : (
-                        <a
-                          key={i}
-                          href={a.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-sm text-app-accent hover:underline"
-                        >
-                          📎 {a.filename || 'attachment'}
-                        </a>
-                      )
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 overflow-hidden mt-0.5 ${getMemberAvatar(message.userId) ? 'bg-transparent' : 'bg-[#5865f2]'}`}>
+                    {getMemberAvatar(message.userId) ? (
+                      <img src={getMemberAvatar(message.userId)} alt={username} className="w-full h-full object-cover" />
+                    ) : (
+                      username.charAt(0)
                     )}
                   </div>
-                ) : null}
+                )}
+                <div className="flex-1 min-w-0">
+                  {!isGrouped && (
+                    <div className="flex items-baseline gap-2 flex-wrap leading-tight">
+                      <span className="font-medium text-[#f2f3f5] text-[16px]">{username}</span>
+                      <span className="text-[12px] text-[#949ba4]">
+                        {formatChatTime(message.createdAt)}
+                        {message.editedAt && ' (edited)'}
+                      </span>
+                    </div>
+                  )}
 
-                {/* Reactions */}
-                <div className="mt-1 flex flex-wrap gap-1 flex items-center">
-                  {groupedReactions(message.reactions).map(({ emoji, count, userIds }) => {
-                    const customEmoji = emoji.startsWith(':') && emoji.endsWith(':')
-                      ? serverEmojis.find((e) => `:${e.name}:` === emoji)
-                      : null
-                    return (
-                      <button
-                        key={emoji}
-                        onClick={async () => {
+                  {message.replyTo && (
+                    <div
+                      className="mt-1 mb-0.5 flex items-center gap-1 text-sm text-[#b5bac1] cursor-pointer hover:text-[#dbdee1] before:content-[''] before:block before:w-0.5 before:h-3 before:bg-[#4e5058] before:rounded before:mr-1"
+                      onClick={() => {
+                        const el = document.getElementById(`msg-${message.replyToId}`)
+                        el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                      }}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <span className="font-medium text-[#c9cdfb]">{message.replyTo.username ?? 'Unknown'}</span>
+                      <span className="truncate max-w-md">{message.replyTo.content || '[deleted]'}</span>
+                    </div>
+                  )}
+
+                  {isEditing ? (
+                    <div className="mt-1">
+                      <input
+                        value={editContent}
+                        onChange={(e) => setEditContent(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && saveEdit()}
+                        className="w-full bg-[#383a40] rounded px-2 py-1.5 text-[#dbdee1] outline-none"
+                        autoFocus
+                      />
+                      <div className="mt-1 flex gap-2 text-xs">
+                        <button onClick={saveEdit} className="text-[#00a8fc] hover:underline">save</button>
+                        <button onClick={() => { setEditingId(null); setEditContent('') }} className="text-[#00a8fc] hover:underline">cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className={`text-[#dbdee1] text-[16px] leading-[1.375] whitespace-pre-wrap break-words ${isGrouped ? '' : 'mt-0.5'}`}>
+                      {renderContentWithMentions(message.content, currentUsername)}
+                    </p>
+                  )}
+
+                  {message.attachments?.length ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {message.attachments.map((a, i) =>
+                        a.type === 'video' || a.url.match(/\.(mp4|webm|mov|avi)$/i) ? (
+                          <video key={i} src={a.url} controls className="max-w-[300px] max-h-[200px] rounded" preload="metadata" />
+                        ) : a.type === 'image' || a.url.match(/\.(gif|jpe?g|png|webp|svg)$/i) ? (
+                          <a key={i} href={a.url} target="_blank" rel="noreferrer">
+                            <img src={a.url} alt="" className="max-w-[300px] max-h-[200px] rounded object-contain" />
+                          </a>
+                        ) : (
+                          <a key={i} href={a.url} target="_blank" rel="noreferrer" className="text-sm text-[#00a8fc] hover:underline">
+                            📎 {a.filename || 'attachment'}
+                          </a>
+                        )
+                      )}
+                    </div>
+                  ) : null}
+
+                  <div className="mt-1 flex flex-wrap gap-1 items-center">
+                    {groupedReactions(message.reactions).map(({ emoji, count, userIds }) => {
+                      const customEmoji = emoji.startsWith(':') && emoji.endsWith(':')
+                        ? serverEmojis.find((e) => `:${e.name}:` === emoji)
+                        : null
+                      return (
+                        <button
+                          key={emoji}
+                          onClick={async () => {
+                            await toggleReaction(message.id, emoji)
+                            onAfterReaction?.()
+                          }}
+                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-sm border ${
+                            userIds.includes(currentUserId)
+                              ? 'bg-[#5865f2]/25 border-[#5865f2]/50 text-[#c9cdfb]'
+                              : 'bg-[#2b2d31] border-transparent text-[#b5bac1] hover:border-[#3f4147]'
+                          }`}
+                        >
+                          {customEmoji ? (
+                            <img src={customEmoji.image_url} alt={customEmoji.name} className="w-4 h-4 object-contain" />
+                          ) : (
+                            emoji
+                          )}
+                          {count > 1 && <span className="text-xs">{count}</span>}
+                        </button>
+                      )
+                    })}
+                    <button
+                      onClick={(e) => {
+                        if (showEmojiPicker === message.id) {
+                          setShowEmojiPicker(null)
+                          setEmojiAnchorRect(null)
+                        } else {
+                          setShowEmojiPicker(message.id)
+                          setEmojiAnchorRect(e.currentTarget.getBoundingClientRect())
+                        }
+                      }}
+                      className="opacity-0 group-hover:opacity-100 text-[#b5bac1] hover:text-white text-sm px-1"
+                    >
+                      🙂
+                    </button>
+                    {showEmojiPicker === message.id && (
+                      <EmojiPicker
+                        anchorRect={emojiAnchorRect ?? undefined}
+                        serverEmojis={serverEmojis}
+                        onSelect={async (emoji) => {
                           await toggleReaction(message.id, emoji)
                           onAfterReaction?.()
+                          setShowEmojiPicker(null)
+                          setEmojiAnchorRect(null)
                         }}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-sm ${
-                          userIds.includes(currentUserId) ? 'bg-app-accent/30 text-app-accent' : 'bg-app-dark text-app-muted hover:bg-app-hover'
-                        }`}
-                      >
-                        {customEmoji ? (
-                          <img src={customEmoji.image_url} alt={customEmoji.name} className="w-4 h-4 object-contain" />
-                        ) : (
-                          emoji
-                        )}
-                        {count > 1 && <span>{count}</span>}
-                      </button>
-                    )
-                  })}
-                  <button
-                    onClick={(e) => {
-                      if (showEmojiPicker === message.id) {
-                        setShowEmojiPicker(null)
-                        setEmojiAnchorRect(null)
-                      } else {
-                        setShowEmojiPicker(message.id)
-                        setEmojiAnchorRect(e.currentTarget.getBoundingClientRect())
-                      }
-                    }}
-                    className="opacity-0 group-hover:opacity-100 text-app-muted hover:text-app-text transition-opacity"
-                  >
-                    +
-                  </button>
-                  {showEmojiPicker === message.id && (
-                    <EmojiPicker
-                      anchorRect={emojiAnchorRect ?? undefined}
-                      serverEmojis={serverEmojis}
-                      onSelect={async (emoji) => {
-                        await toggleReaction(message.id, emoji)
-                        onAfterReaction?.()
-                        setShowEmojiPicker(null)
-                        setEmojiAnchorRect(null)
-                      }}
-                      onClose={() => { setShowEmojiPicker(null); setEmojiAnchorRect(null) }}
-                    />
-                  )}
+                        onClose={() => { setShowEmojiPicker(null); setEmojiAnchorRect(null) }}
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -417,7 +430,7 @@ export function ChatView({
         {hasNewMessages && (
           <button
             onClick={jumpToNewMessages}
-            className="sticky bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-app-accent text-white text-sm font-medium shadow-lg hover:bg-app-accent-hover transition-colors flex items-center gap-2"
+            className="sticky bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-[#5865f2] text-white text-sm font-medium shadow-lg hover:bg-[#4752c4] transition-colors flex items-center gap-2"
           >
             <span>New messages</span>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -428,30 +441,44 @@ export function ChatView({
       </div>
 
       {canSendMessages && (
-      <form className="p-4 border-t border-app-dark" onSubmit={handleSubmit}>
+      <form
+        className="px-4 pb-6 pt-2 flex-shrink-0"
+        onSubmit={(e) => {
+          e.preventDefault()
+          const text = input.trim()
+          const hasAttach = attachments.length > 0
+          if ((text || hasAttach) && onSendMessage) {
+            onSendMessage(text || ' ', { replyToId: replyTo?.id, attachments: attachments.length ? attachments : undefined })
+            setInput('')
+            setReplyTo(null)
+            setAttachments([])
+          }
+        }}
+      >
         {replyTo && (
-          <div className="mb-2 flex items-start gap-2 p-2 rounded bg-app-dark/50 border-l-2 border-app-accent text-sm">
+          <div className="mb-2 flex items-start gap-2 px-3 py-2 rounded-t-lg bg-[#2b2d31] border-l-2 border-[#5865f2] text-sm">
             <div className="flex-1 min-w-0">
-              <span className="text-app-accent font-medium">Replying to {replyTo.username ?? getUser(replyTo.userId).username}</span>
-              <p className="text-app-muted mt-0.5 truncate max-w-md">{replyTo.content || '[no preview]'}</p>
+              <span className="text-[#c9cdfb] font-medium">Replying to {replyTo.username ?? getUser(replyTo.userId).username}</span>
+              <p className="text-[#949ba4] mt-0.5 truncate max-w-md">{replyTo.content || '[no preview]'}</p>
             </div>
-            <button onClick={() => setReplyTo(null)} className="text-red-400 hover:text-red-300 p-1">×</button>
+            <button type="button" onClick={() => setReplyTo(null)} className="text-[#b5bac1] hover:text-white p-1">×</button>
           </div>
         )}
         {attachments.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-2">
+          <div className="mb-2 flex flex-wrap gap-2 px-1">
             {attachments.map((a, i) => (
-              <div key={i} className="relative">
+              <div key={i} className="relative bg-[#2b2d31] rounded-lg p-2">
                 {a.type === 'image' ? (
                   <img src={a.url} alt="" className="max-w-[80px] max-h-[60px] rounded object-cover" />
                 ) : a.type === 'video' ? (
-                  <span className="text-xs text-app-muted">🎬 {a.filename}</span>
+                  <span className="text-xs text-[#b5bac1]">🎬 {a.filename}</span>
                 ) : (
-                  <span className="text-xs text-app-muted">📎 {a.filename}</span>
+                  <span className="text-xs text-[#b5bac1]">📎 {a.filename}</span>
                 )}
                 <button
+                  type="button"
                   onClick={() => removeAttachment(i)}
-                  className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-xs"
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#1e1f22] border border-[#3f4147] text-[#dbdee1] text-xs"
                 >
                   ×
                 </button>
@@ -459,84 +486,89 @@ export function ChatView({
             ))}
           </div>
         )}
-        <div className="flex gap-2 items-center">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*,.gif,.webp,.pdf,.txt,video/mp4,video/webm,video/quicktime,video/*"
-            multiple
-            className="hidden"
-            onChange={handleFileSelect}
-          />
-          <ChatInput
-            value={input}
-            onChange={setInput}
-            onSubmit={() => {
-              const text = input.trim()
-              if (text && onSendMessage) {
-                onSendMessage(text, { replyToId: replyTo?.id, attachments: attachments.length ? attachments : undefined })
-                setInput('')
-                setReplyTo(null)
-                setAttachments([])
-              }
-            }}
-            placeholder={channel.type === 'rules' ? 'Add server rules...' : `Message #${channel.name}`}
-            disabled={!onSendMessage}
-            members={members}
-            serverEmojis={serverEmojis}
-            leftButtons={
-              <>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                  className="p-2 text-app-muted hover:text-app-text disabled:opacity-50"
-                  title="Upload file"
-                >
-                  {uploading ? '⏳' : '📎'}
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    if (showInputEmojiPicker) {
-                      setShowInputEmojiPicker(false)
-                      setInputEmojiAnchorRect(null)
-                    } else {
-                      setShowInputEmojiPicker(true)
-                      setInputEmojiAnchorRect(e.currentTarget.getBoundingClientRect())
-                    }
-                  }}
-                  className="p-2 text-app-muted hover:text-app-text"
-                  title="Add emoji"
-                >
-                  😀
-                </button>
-                {showInputEmojiPicker && (
-                  <EmojiPicker
-                    anchorRect={inputEmojiAnchorRect ?? undefined}
-                    serverEmojis={serverEmojis}
-                    onSelect={(emoji) => { setInput((i) => i + emoji); setShowInputEmojiPicker(false); setInputEmojiAnchorRect(null) }}
-                    onClose={() => { setShowInputEmojiPicker(false); setInputEmojiAnchorRect(null) }}
-                  />
-                )}
-              </>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,.gif,.webp,.pdf,.txt,video/mp4,video/webm,video/quicktime,video/*"
+          multiple
+          className="hidden"
+          onChange={handleFileSelect}
+        />
+        <ChatInput
+          value={input}
+          onChange={setInput}
+          onSubmit={() => {
+            const text = input.trim()
+            const hasAttach = attachments.length > 0
+            if ((text || hasAttach) && onSendMessage) {
+              onSendMessage(text || ' ', { replyToId: replyTo?.id, attachments: attachments.length ? attachments : undefined })
+              setInput('')
+              setReplyTo(null)
+              setAttachments([])
             }
-          />
-          <button
-            type="submit"
-            disabled={!input.trim()}
-            className="p-2 rounded-lg bg-app-accent text-white hover:bg-app-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
-            title="Send"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-            </svg>
-          </button>
-        </div>
+          }}
+          placeholder={channel.type === 'rules' ? 'Add server rules...' : `Message #${channel.name}`}
+          disabled={!onSendMessage}
+          members={members}
+          serverEmojis={serverEmojis}
+          uploading={uploading}
+          onAttachClick={() => setShowAttachMenu((v) => !v)}
+          attachOpen={showAttachMenu}
+          attachMenu={
+            showAttachMenu ? (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowAttachMenu(false)} />
+                <div className="absolute left-0 bottom-full mb-2 py-2 z-50 bg-[#111214] rounded-lg shadow-xl border border-white/10 min-w-[180px]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      fileInputRef.current?.click()
+                      setShowAttachMenu(false)
+                    }}
+                    disabled={uploading}
+                    className="w-full px-3 py-2 text-left text-sm text-[#dbdee1] hover:bg-[#5865f2] hover:text-white"
+                  >
+                    Upload a File
+                  </button>
+                </div>
+              </>
+            ) : null
+          }
+          rightSlot={
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  if (showInputEmojiPicker) {
+                    setShowInputEmojiPicker(false)
+                    setInputEmojiAnchorRect(null)
+                  } else {
+                    setShowInputEmojiPicker(true)
+                    setInputEmojiAnchorRect(e.currentTarget.getBoundingClientRect())
+                  }
+                }}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-[#b5bac1] hover:text-white"
+                title="Emoji"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-4.5-7.5c.83 0 1.5-.67 1.5-1.5S8.33 9.5 7.5 9.5 6 10.17 6 11s.67 1.5 1.5 1.5zm9 0c.83 0 1.5-.67 1.5-1.5s-.67-1.5-1.5-1.5-1.5.67-1.5 1.5.67 1.5 1.5 1.5zM12 17.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" />
+                </svg>
+              </button>
+              {showInputEmojiPicker && (
+                <EmojiPicker
+                  anchorRect={inputEmojiAnchorRect ?? undefined}
+                  serverEmojis={serverEmojis}
+                  onSelect={(emoji) => { setInput((i) => i + emoji); setShowInputEmojiPicker(false); setInputEmojiAnchorRect(null) }}
+                  onClose={() => { setShowInputEmojiPicker(false); setInputEmojiAnchorRect(null) }}
+                />
+              )}
+            </>
+          }
+        />
       </form>
       )}
       {!canSendMessages && channel.type === 'rules' && messages.length === 0 && (
-        <div className="p-4 border-t border-app-dark text-center text-app-muted text-sm">
+        <div className="px-4 pb-6 text-center text-[#949ba4] text-sm">
           No rules have been set up yet. Contact the server owner or admin to add rules.
         </div>
       )}

@@ -107,6 +107,10 @@ Node.js + Express + Socket.io + SQLite.
 
 Handlers are registered with the **Namespace** (`io.of('/voice')`, etc.), not the root Server. On a Namespace, `namespace.sockets` is already `Map<socketId, Socket>`. Do not use `namespace.sockets.sockets` (that double path only exists on the root Server via `server.sockets.sockets`).
 
+**Voice:** `screen-share` `{ active }` → broadcast to room so peers show LIVE / auto-watch even when remote track metadata is missing.
+
+**Calls:** disconnect ends active calls and stuck ringing when the party fully goes offline (refresh mid-ring).
+
 ### `/chat`
 
 | Event | Direction | Payload |

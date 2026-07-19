@@ -128,6 +128,15 @@ export function createSocketSignaling(
     return () => socket.off('soundboard-play', callback)
   }
 
+  const emitScreenShare = (active: boolean) => {
+    socket.emit('screen-share', { active: !!active })
+  }
+
+  const onScreenShare = (callback: (data: { userId: string; active: boolean }) => void) => {
+    socket.on('screen-share', callback)
+    return () => socket.off('screen-share', callback)
+  }
+
   /** Round-trip ms to the signaling server (fallback when no WebRTC peers). */
   const measureLatency = () =>
     new Promise<number | null>((resolve) => {
@@ -164,6 +173,8 @@ export function createSocketSignaling(
     onVoiceSessionReplaced,
     emitSoundboardPlay,
     onSoundboardPlay,
+    emitScreenShare,
+    onScreenShare,
     measureLatency,
   }
 }

@@ -108,10 +108,16 @@ export function createWebRTCClient(
           }
         }
       }
+      // Only ended means the track is gone. Browsers briefly mute video during
+      // renegotiation (camera/screen add) — treating mute as remove hid screen share.
       e.track.onended = handleTrackGone
-      e.track.onmute = () => {
-        if (e.track.kind === 'video') {
-          handleTrackGone()
+      e.track.onunmute = () => {
+        if (!remoteStream.getTrackById(e.track.id)) {
+          remoteStream.addTrack(e.track)
+        }
+        const display = getDisplayMeta()
+        if (display) {
+          handlers.onRemoteStream(remotePeerId, display.userId, display.username, remoteStream)
         }
       }
 
@@ -184,17 +190,10 @@ export function createWebRTCClient(
     }
 
     try {
-      // If we also sent an offer (glare), roll back our local offer first.
-      // The "polite peer" pattern: the peer with the lower ID yields.
+      // Glare during screen/camera renegotiation: always roll back our local offer
+      // and accept theirs. Ignoring remote offers dropped screen-share tracks.
       if (entry.pc.signalingState === 'have-local-offer') {
-        const mySocketId = signaling.getSocketId?.() ?? localId
-        const isPolite = mySocketId > from // lower ID is polite → yields to remote offer
-        if (isPolite) {
-          await entry.pc.setLocalDescription({ type: 'rollback' })
-        } else {
-          // We're impolite — ignore their offer, keep ours
-          return
-        }
+        await entry.pc.setLocalDescription({ type: 'rollback' })
       }
 
       await entry.pc.setRemoteDescription(new RTCSessionDescription(sdp))
