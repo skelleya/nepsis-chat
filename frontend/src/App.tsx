@@ -452,7 +452,8 @@ function MainLayout({
       load()
     })
 
-    // Instant presence updates (online / in-voice) for everyone already in this server
+    // Instant presence updates (online / in-voice) for everyone already in this server.
+    // Presence is global — ignore userIds not in this server's member list (members INSERT reloads).
     const presenceChannel = subscribeToUserPresence((payload) => {
       const uid = payload.new?.user_id || payload.old?.user_id
       if (!uid) return
