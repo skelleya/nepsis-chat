@@ -214,6 +214,8 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | Call rings forever / doesn't auto-decline | Timeout not firing | Both caller and callee have 30s timeouts. Check browser console for errors in CallContext |
 | **Avatar/banner updates in My Account but others still see old photo** | Members API prefers `user_profiles.avatar_url` over `users.avatar_url`. My Account only PATCHed `users`. | **Fix**: `PATCH /users/:id` syncs avatar/banner onto the active `user_profiles` row. Profiles tab auto-persists media on upload. Files: `users.js`, `ProfilesSettingsTab.tsx`, `UserSettingsModal.tsx`. |
 | **Server icon upload fails silently** | Icon handler only `console.error`; banner had UI errors. | **Fix**: `iconError` / `iconLoading` in Server Settings Overview (same pattern as banner). |
+| **I look Offline in the members list while I'm in the server** | Presence was poll-only (up to 15s); no optimistic self status; `user_presence` not in Realtime. | **Fix**: Patch self in `serverMembers` immediately on presence change; subscribe to `user_presence` Realtime; overlay live voice/status when loading members. Migration `20250211000017_user_presence_realtime.sql`. |
+| **Ping bars look wrong / always gray / no ms** | Bars lit from the tall side; alone in voice had no WebRTC RTT so stayed muted gray; only native `title`. | **Fix**: 1 short bar = red (high), 2 = yellow, 3 = green; socket `latency-ping` fallback; hover tooltip shows `Nms`. |
 
 **Files:** `backend/src/socket/calls.js`, `frontend/src/contexts/CallContext.tsx`, `frontend/src/components/CallOverlay.tsx`
 

@@ -89,6 +89,11 @@ export function registerVoiceHandlers(io) {
       })
     })
 
+    // Client RTT probe (used when alone in voice — no WebRTC peer stats yet)
+    socket.on('latency-ping', (clientTs) => {
+      socket.emit('latency-pong', clientTs)
+    })
+
     socket.on('leave-voice', ({ channelId }) => {
       const room = channelId
         ? `voice:${channelId}`

@@ -128,6 +128,26 @@ export function createSocketSignaling(
     return () => socket.off('soundboard-play', callback)
   }
 
+  /** Round-trip ms to the signaling server (fallback when no WebRTC peers). */
+  const measureLatency = () =>
+    new Promise<number | null>((resolve) => {
+      if (!socket.connected) {
+        resolve(null)
+        return
+      }
+      const t0 = Date.now()
+      const timer = setTimeout(() => {
+        socket.off('latency-pong', onPong)
+        resolve(null)
+      }, 2500)
+      const onPong = () => {
+        clearTimeout(timer)
+        resolve(Math.max(0, Date.now() - t0))
+      }
+      socket.once('latency-pong', onPong)
+      socket.emit('latency-ping', t0)
+    })
+
   return {
     sendOffer,
     sendAnswer,
@@ -144,5 +164,6 @@ export function createSocketSignaling(
     onVoiceSessionReplaced,
     emitSoundboardPlay,
     onSoundboardPlay,
+    measureLatency,
   }
 }

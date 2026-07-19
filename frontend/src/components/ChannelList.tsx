@@ -996,20 +996,30 @@ export function ChannelList({
           <div className="border-t border-app-dark/80 bg-[#232428] px-3 py-2">
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
-                {/* Connection bars on top; Voice Connected + channel name below */}
+                {/* Ping bars: 3 green (<100ms), 2 yellow (<200ms), 1 red (≥200ms). Hover shows ms. */}
                 <div
-                  className="flex items-end gap-0.5 h-4 w-fit cursor-default mb-1"
-                  title={voiceConnection.ping != null ? `${voiceConnection.ping}ms` : 'Latency'}
+                  className="relative group flex items-end gap-0.5 h-4 w-fit cursor-default mb-1"
+                  title={voiceConnection.ping != null ? `${voiceConnection.ping}ms` : 'Measuring ping…'}
+                  aria-label={voiceConnection.ping != null ? `Ping ${voiceConnection.ping} milliseconds` : 'Measuring ping'}
                 >
                   {(() => {
                     const ping = voiceConnection.ping
-                    const barColor = ping == null ? 'bg-app-muted' : ping < 100 ? 'bg-[#23a559]' : ping < 200 ? 'bg-yellow-400' : 'bg-red-400'
-                    const bars = ping == null ? 1 : ping < 100 ? 3 : ping < 200 ? 2 : 1
+                    // 3 bars green = good, 2 yellow = ok, 1 red = high
+                    const bars = ping == null ? 0 : ping < 100 ? 3 : ping < 200 ? 2 : 1
+                    const barColor =
+                      bars === 3 ? 'bg-[#23a559]' : bars === 2 ? 'bg-[#f0b232]' : bars === 1 ? 'bg-[#f23f43]' : 'bg-app-muted/50'
+                    const inactive = 'bg-[#4e5058]'
                     return (
                       <>
-                        <div className={`w-1 rounded-sm ${bars >= 3 ? barColor : 'bg-app-hover/40'}`} style={{ height: 6 }} />
-                        <div className={`w-1 rounded-sm ${bars >= 2 ? barColor : 'bg-app-hover/40'}`} style={{ height: 10 }} />
-                        <div className={`w-1 rounded-sm ${bars >= 1 ? barColor : 'bg-app-hover/40'}`} style={{ height: 14 }} />
+                        <div className={`w-1 rounded-sm ${bars >= 1 ? barColor : inactive}`} style={{ height: 6 }} />
+                        <div className={`w-1 rounded-sm ${bars >= 2 ? barColor : inactive}`} style={{ height: 10 }} />
+                        <div className={`w-1 rounded-sm ${bars >= 3 ? barColor : inactive}`} style={{ height: 14 }} />
+                        <span
+                          role="tooltip"
+                          className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 whitespace-nowrap rounded bg-[#111214] px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 z-20"
+                        >
+                          {ping != null ? `${ping}ms` : 'Measuring…'}
+                        </span>
                       </>
                     )
                   })()}

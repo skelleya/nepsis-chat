@@ -8,7 +8,7 @@ export interface ServerMember {
   avatarUrl?: string
   bannerUrl?: string
   role: 'owner' | 'admin' | 'member'
-  status: 'online' | 'offline' | 'in-voice'
+  status: 'online' | 'offline' | 'in-voice' | 'away' | 'dnd'
   voiceChannelId?: string | null
 }
 
@@ -165,7 +165,11 @@ export function MembersSidebar({
               member.status === 'in-voice' &&
               member.voiceChannelId &&
               voiceChannels.some((ch) => ch.id === member.voiceChannelId)
-            const displayStatus = isInVoiceOnThisServer ? 'in-voice' : member.status === 'online' ? 'online' : 'offline'
+            const displayStatus = isInVoiceOnThisServer
+              ? 'in-voice'
+              : member.status === 'online' || member.status === 'away' || member.status === 'dnd'
+                ? member.status
+                : 'offline'
             return (
             <div
               key={member.userId}
@@ -188,7 +192,11 @@ export function MembersSidebar({
                 </div>
                 <div
                   className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-app-channel ${
-                    displayStatus === 'online' ? 'bg-green-500' : displayStatus === 'in-voice' ? 'bg-yellow-500' : 'bg-gray-500'
+                    displayStatus === 'online' ? 'bg-green-500'
+                      : displayStatus === 'in-voice' ? 'bg-yellow-500'
+                      : displayStatus === 'away' ? 'bg-amber-400'
+                      : displayStatus === 'dnd' ? 'bg-red-500'
+                      : 'bg-gray-500'
                   }`}
                 />
               </div>
@@ -198,7 +206,11 @@ export function MembersSidebar({
                   {roleBadge(member.role)}
                 </div>
                 <div className="text-[10px] text-app-muted">
-                  {displayStatus === 'in-voice' ? 'In voice' : displayStatus === 'online' ? 'Online' : 'Offline'}
+                  {displayStatus === 'in-voice' ? 'In voice'
+                    : displayStatus === 'online' ? 'Online'
+                    : displayStatus === 'away' ? 'Away'
+                    : displayStatus === 'dnd' ? 'Do Not Disturb'
+                    : 'Offline'}
                 </div>
               </div>
               {canKick(member) && (

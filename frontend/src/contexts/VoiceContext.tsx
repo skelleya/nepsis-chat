@@ -364,21 +364,33 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     return () => unsub?.()
   }, [voiceChannelId])
 
-  // ─── Ping measurement ─────────────────────────────────────────────
+  // ─── Ping measurement (WebRTC RTT, else socket RTT) ───────────────
   useEffect(() => {
     const connected = !!localStream && !!voiceChannelId
-    if (!connected || !webrtcRef.current) {
+    if (!connected) {
       setPing(null)
       return
     }
-    const webrtc = webrtcRef.current
-    const interval = setInterval(async () => {
+    let cancelled = false
+    const sample = async () => {
       try {
-        const rtt = await webrtc.getPing()
-        setPing(rtt)
+        const webrtcRtt = await webrtcRef.current?.getPing()
+        if (cancelled) return
+        if (webrtcRtt != null) {
+          setPing(webrtcRtt)
+          return
+        }
+        const sig = signalingRef.current as { measureLatency?: () => Promise<number | null> } | null
+        const sockRtt = await sig?.measureLatency?.()
+        if (!cancelled && sockRtt != null) setPing(sockRtt)
       } catch { /* ignore */ }
-    }, 3000)
-    return () => clearInterval(interval)
+    }
+    sample()
+    const interval = setInterval(sample, 2000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
   }, [localStream, voiceChannelId])
 
   // ─── Camera toggle (sends video over WebRTC) ─────────────────────
