@@ -1,26 +1,47 @@
-import { useState, useEffect, useLayoutEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import gsap from 'gsap'
-import { detectPlatform } from '../utils/detectPlatform'
+import { detectPlatform, type DetectedOs } from '../utils/detectPlatform'
 
 const GITHUB_WIN =
   'https://github.com/skelleya/nepsis-chat/releases/latest/download/NepsisChat-Setup.exe'
 const GITHUB_RELEASES_API = 'https://api.github.com/repos/skelleya/nepsis-chat/releases/latest'
 const GITHUB_RELEASES_PAGE = 'https://github.com/skelleya/nepsis-chat/releases/latest'
 
-function AppleLogo({ className = 'w-7 h-7' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.22-1.98 1.08-3.13-1.05.04-2.31.7-3.06 1.58-.67.78-1.25 2.05-1.1 3.25 1.16.09 2.35-.66 3.08-1.7z" />
-    </svg>
-  )
+type InstallerId = 'mac' | 'windows' | 'linux'
+
+/** Start the installer file download immediately (no new tab). */
+function startInstallerDownload(url: string) {
+  const a = document.createElement('a')
+  a.href = url
+  a.rel = 'noopener'
+  a.style.display = 'none'
+  // Helps same-origin; GitHub still sends Content-Disposition: attachment
+  a.setAttribute('download', '')
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
 }
 
-function WindowsLogo({ className = 'w-7 h-7' }: { className?: string }) {
+function PlatformLogo({
+  os,
+  className = 'w-7 h-7',
+  invert = false,
+}: {
+  os: InstallerId
+  className?: string
+  invert?: boolean
+}) {
+  const src =
+    os === 'mac' ? './icons/apple.svg' : os === 'windows' ? './icons/windows.svg' : './icons/linux.svg'
+  const alt = os === 'mac' ? 'Apple' : os === 'windows' ? 'Windows' : 'Linux'
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M3 5.5L11 4.3v7.2H3V5.5zm0 13L11 19.7v-7.2H3v6zm8.5 1.1L21 21V12.5h-9.5v7.1zM12.5 11.5H21V3l-8.5 1.2v7.3z" />
-    </svg>
+    <img
+      src={src}
+      alt={alt}
+      className={`${className} object-contain shrink-0 ${invert ? 'brightness-0 invert' : ''}`}
+      draggable={false}
+    />
   )
 }
 
@@ -29,11 +50,14 @@ export function DownloadPage() {
   const [availableMac, setAvailableMac] = useState<boolean | null>(null)
   const [macUrl, setMacUrl] = useState<string | null>(null)
   const [winUrl, setWinUrl] = useState<string | null>(null)
+  const platform = detectPlatform()
+  const [showOther, setShowOther] = useState(() => platform === 'other')
+  const [downloading, setDownloading] = useState<InstallerId | null>(null)
   const navigate = useNavigate()
   const pageRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
+  const otherRef = useRef<HTMLDivElement>(null)
   const [leaving, setLeaving] = useState(false)
-  const platform = detectPlatform()
 
   useEffect(() => {
     const controller = new AbortController()
@@ -99,6 +123,18 @@ export function DownloadPage() {
     return () => ctx.revert()
   }, [])
 
+  useLayoutEffect(() => {
+    const el = otherRef.current
+    if (!el) return
+    if (showOther) {
+      gsap.fromTo(
+        el,
+        { height: 0, opacity: 0 },
+        { height: 'auto', opacity: 1, duration: 0.35, ease: 'power2.out' }
+      )
+    }
+  }, [showOther])
+
   const goHome = async (e: React.MouseEvent) => {
     e.preventDefault()
     if (leaving) return
@@ -119,9 +155,48 @@ export function DownloadPage() {
     navigate('/')
   }
 
+  const primaryOs: InstallerId | null =
+    platform === 'mac' ? 'mac' : platform === 'windows' ? 'windows' : null
+
+  const urlFor = useCallback(
+    (os: InstallerId): string | null => {
+      if (os === 'mac') return macUrl
+      if (os === 'windows') return winUrl || GITHUB_WIN
+      return null
+    },
+    [macUrl, winUrl]
+  )
+
+  const availableFor = (os: InstallerId): boolean | null => {
+    if (os === 'mac') return availableMac
+    if (os === 'windows') return availableWin
+    return false
+  }
+
+  const labelFor = (os: InstallerId) =>
+    os === 'mac' ? 'Install for Mac' : os === 'windows' ? 'Install for Windows' : 'Install for Linux'
+
+  const handleInstall = (os: InstallerId) => {
+    if (os === 'linux') return
+    const url = urlFor(os)
+    if (!url || !availableFor(os)) return
+    setDownloading(os)
+    startInstallerDownload(url)
+    // Clear “Downloading…” after the browser has taken the download
+    window.setTimeout(() => setDownloading(null), 2500)
+  }
+
   const checking = availableWin === null && availableMac === null
-  const order: Array<'mac' | 'windows'> =
-    platform === 'mac' ? ['mac', 'windows'] : ['windows', 'mac']
+  const primaryAvailable = primaryOs ? availableFor(primaryOs) : null
+  const otherInstallers: InstallerId[] = primaryOs
+    ? (['windows', 'mac', 'linux'] as InstallerId[]).filter((os) => os !== primaryOs)
+    : (['windows', 'mac', 'linux'] as InstallerId[])
+
+  const detectedHint = (p: DetectedOs) => {
+    if (p === 'mac') return 'We detected macOS — your installer will download when you click Install.'
+    if (p === 'windows') return 'We detected Windows — your installer will download when you click Install.'
+    return 'Pick an installer below. Linux support is coming soon.'
+  }
 
   return (
     <div
@@ -134,72 +209,113 @@ export function DownloadPage() {
         <p className="text-app-muted mb-2">
           Same experience as the web app — voice, chat, and servers — as a native desktop app.
         </p>
-        <p className="text-app-muted text-sm mb-6">
-          {platform === 'mac'
-            ? 'We detected macOS — install for Mac is recommended.'
-            : platform === 'windows'
-              ? 'We detected Windows — install for Windows is recommended.'
-              : 'Choose your platform below.'}
-        </p>
+        <p className="text-app-muted text-sm mb-6">{detectedHint(platform)}</p>
 
         {checking ? (
           <div className="inline-block px-8 py-4 rounded-lg bg-app-channel text-app-muted">
             Checking availability...
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
-            {order.map((os, index) => {
-              const isMac = os === 'mac'
-              const available = isMac ? availableMac : availableWin
-              const href = isMac ? macUrl || GITHUB_RELEASES_PAGE : winUrl || GITHUB_WIN
-              const isPrimary = index === 0 && platform !== 'other'
-              const label = isMac ? 'Install for Mac' : 'Install for Windows'
-              const Logo = isMac ? AppleLogo : WindowsLogo
-
-              if (!available) {
-                return (
-                  <div
-                    key={os}
-                    className="w-full px-6 py-4 rounded-lg bg-app-channel text-app-muted text-sm flex items-center justify-center gap-3"
-                  >
-                    <Logo className="w-5 h-5 opacity-50" />
-                    <span>
-                      {label} — coming soon on{' '}
-                      <a
-                        href={GITHUB_RELEASES_PAGE}
-                        className="text-app-accent hover:underline"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        GitHub Releases
-                      </a>
-                    </span>
-                  </div>
-                )
-              }
-
-              return (
-                <a
-                  key={os}
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`w-full px-6 py-4 rounded-lg font-semibold transition-colors flex items-center justify-center gap-3 ${
-                    isPrimary
-                      ? 'bg-app-accent hover:bg-app-accent-hover text-white'
-                      : 'bg-app-channel hover:bg-app-hover text-app-text border border-app-hover/40'
-                  }`}
+          <div className="flex flex-col items-stretch gap-2">
+            {/* Primary: detected Mac/Windows only */}
+            {primaryOs && (
+              primaryAvailable ? (
+                <button
+                  type="button"
+                  onClick={() => handleInstall(primaryOs)}
+                  disabled={downloading === primaryOs}
+                  className="w-full px-6 py-4 rounded-lg font-semibold transition-colors flex items-center justify-center gap-3 bg-app-accent hover:bg-app-accent-hover text-white disabled:opacity-80"
                 >
-                  <Logo className="w-7 h-7 shrink-0" />
-                  <span className="text-base">{label}</span>
-                </a>
+                  <PlatformLogo os={primaryOs} className="w-7 h-7" invert />
+                  <span className="text-base">
+                    {downloading === primaryOs ? 'Downloading…' : labelFor(primaryOs)}
+                  </span>
+                </button>
+              ) : (
+                <div className="w-full px-6 py-4 rounded-lg bg-app-channel text-app-muted text-sm flex items-center justify-center gap-3">
+                  <PlatformLogo os={primaryOs} className="w-5 h-5 opacity-60" invert />
+                  <span>
+                    {labelFor(primaryOs)} — coming soon on{' '}
+                    <a
+                      href={GITHUB_RELEASES_PAGE}
+                      className="text-app-accent hover:underline"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      GitHub Releases
+                    </a>
+                  </span>
+                </div>
               )
-            })}
+            )}
+
+            <button
+              type="button"
+              onClick={() => setShowOther((v) => !v)}
+              className="text-xs text-app-muted hover:text-app-text transition-colors py-1.5 underline-offset-2 hover:underline"
+              aria-expanded={showOther}
+            >
+              Other Installers
+            </button>
+
+            {showOther && (
+              <div ref={otherRef} className="overflow-hidden flex flex-col gap-2 pt-1">
+                {otherInstallers.map((os) => {
+                  if (os === 'linux') {
+                    return (
+                      <div
+                        key={os}
+                        className="w-full px-5 py-3.5 rounded-lg bg-app-channel/80 border border-app-hover/30 text-app-muted flex items-center justify-center gap-3"
+                      >
+                        <PlatformLogo os="linux" className="w-6 h-6 opacity-80" invert />
+                        <span className="text-sm font-medium">
+                          Install for Linux <span className="font-normal opacity-80">— Coming soon</span>
+                        </span>
+                      </div>
+                    )
+                  }
+
+                  const available = availableFor(os)
+                  if (!available) {
+                    return (
+                      <div
+                        key={os}
+                        className="w-full px-5 py-3.5 rounded-lg bg-app-channel text-app-muted text-sm flex items-center justify-center gap-3"
+                      >
+                        <PlatformLogo os={os} className="w-6 h-6 opacity-60" invert />
+                        <span>
+                          {labelFor(os)} — coming soon
+                        </span>
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <button
+                      key={os}
+                      type="button"
+                      onClick={() => handleInstall(os)}
+                      disabled={downloading === os}
+                      className={`w-full px-5 py-3.5 rounded-lg font-semibold transition-colors flex items-center justify-center gap-3 disabled:opacity-80 ${
+                        !primaryOs
+                          ? 'bg-app-accent hover:bg-app-accent-hover text-white'
+                          : 'bg-app-channel hover:bg-app-hover text-app-text border border-app-hover/40'
+                      }`}
+                    >
+                      <PlatformLogo os={os} className="w-6 h-6" invert />
+                      <span className="text-sm">
+                        {downloading === os ? 'Downloading…' : labelFor(os)}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
 
         <p className="text-app-muted text-sm mt-6">
-          Desktop updates show a Nepsis badge at the top of the app when a new version is ready.
+          Your browser will download the installer — open it to finish installing.
         </p>
         <p className="text-app-muted text-sm mt-4">Or use the web app in your browser.</p>
         <Link
