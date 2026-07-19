@@ -48,6 +48,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Deployment — Self-hosted backend, GitHub, Docker, env-based config |
 | + | Supabase migration — Postgres DB + email auth (guest + email login) |
 | + | Guest logout — delete guest account + leave all servers on logout |
+| + | Delete Account — User Settings → My Account Danger Zone; `DELETE /api/auth/account/:userId` purges owned servers, DMs, messages, memberships, and Supabase Auth user when linked |
 | + | Discord-like UI overhaul — server creation, channel categories, voice user display, user panel, server settings, camera/screen share |
 | + | Messaging v3 — edit/delete messages, reply, emoji reactions, file/image uploads, owner/admin can delete any message |
 | + | Roles & members — server members list with roles (owner/admin/member), activity status, kick (owner/admin only) |
@@ -294,7 +295,7 @@ A major UI overhaul to match Discord's layout and interaction patterns.
 | **Create Category** | Via server dropdown menu. Adds a new collapsible section to organize channels. |
 | **Server Settings** | Click the server name header to open dropdown → "Server Settings". Full-screen modal with rename and delete. Only visible to server owner. |
 | **User Panel** | Bottom-left panel showing: avatar, username, online status, mute button, deafen button, settings gear. Exactly like Discord. |
-| **User Settings** | Gear icon in user panel opens full-screen settings: My Account, Profiles, Appearance, Voice & Video, Notifications, Log Out. |
+| **User Settings** | Gear icon in user panel opens full-screen settings: My Account, Profiles, Appearance, Voice & Video, Notifications, Log Out. **My Account → Danger Zone** deletes the account after username confirmation (servers you own are removed). |
 | **One-Click Voice Join** | Clicking a voice channel in the channel list instantly joins voice (no "Join Voice" button needed). |
 | **Voice Users in Channels** | Users connected to a voice channel are shown nested under that channel in the channel list. |
 | **Voice Connection Bar** | When connected to voice and viewing a different channel, a compact bar shows: green "Voice Connected" indicator, channel name, disconnect button, camera toggle, screen share toggle. |

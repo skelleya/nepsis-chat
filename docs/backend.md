@@ -10,6 +10,8 @@ Node.js + Express + Socket.io + SQLite.
 |--------|------|-------------|
 | POST | `/api/auth/login` | Guest login with username, returns user |
 | POST | `/api/auth/signin-username` | Sign in with username + password (registered users; returns session tokens) |
+| DELETE | `/api/auth/account/:userId` | Permanently delete any account (guest or registered): owned servers, DMs, messages, memberships, then `users` row; also `auth.admin.deleteUser` when `auth_id` is set |
+| DELETE | `/api/auth/guest/:userId` | Guest-only account purge (same cleanup as `/account`; used on guest Log Out) |
 | GET | `/api/servers` | List servers (ordered by user's `display_order` in `server_members`) |
 | PUT | `/api/servers/reorder` | Reorder user's server list (`userId`, `updates: [{ serverId, order }]`) |
 | GET | `/api/servers/:id/channels` | List channels for server |
