@@ -4,6 +4,17 @@ React + Vite + TypeScript + Tailwind CSS.
 
 ---
 
+## Typography
+
+| Role | Font | How |
+|------|------|-----|
+| Headers (`h1`–`h6`, `.font-display`, landing wordmark/headline) | **TWK Everett** | Self-hosted `@font-face` from `public/fonts/TWKEverett-*.woff2` (licensed). Falls back to Space Grotesk until files are present. |
+| Paragraphs / body / UI (`.font-sans`) | **Poppins** | Google Fonts in `index.html` |
+
+CSS vars: `--font-header`, `--font-body` in `index.css`.
+
+---
+
 ## Branding — Logo
 
 The Nepsis logo is used everywhere:
@@ -82,7 +93,7 @@ frontend/src/
 | AppContent auth gate | `showApp` / `showLogin` initialize from current `user` so remounting `/` after `/invite/:code` (session already set) opens the main app instead of a stuck login shell. |
 | UpdateButton | Green update (Electron only) |
 | DownloadBanner | Centered top tab: short prompt (“Prefer the desktop app?”) + clear Download button + subtle dismiss; `rounded-b-xl`; dismissible (localStorage); sets `--download-banner-height`; hidden on `/download` and in Electron. **GSAP:** slide/fade in/out |
-| WelcomeLanding | Pre-auth home (white split): large Nepsis logo left (`mix-blend-multiply` drops black square), **Use Web App** / **Download App** right. Syne + Figtree; GSAP entrance. |
+| WelcomeLanding | Pre-auth home (white split): large Nepsis logo left (`mix-blend-multiply` drops black square), **Use Web App** / **Download App** right. TWK Everett headers + Poppins body; GSAP entrance. |
 | LoginPage | After Use Web App: Guest / Sign In / Sign Up. **GSAP:** soft page/card enter; tab glide; fields collapse on submit; logo coin spin. Back returns to WelcomeLanding. |
 | AppContent (login transition) | Keeps LoginPage mounted until GSAP exit finishes after auth, then fades main app in (`gsap`) |
 

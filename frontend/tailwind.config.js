@@ -7,8 +7,10 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Figtree', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        display: ['Syne', 'Figtree', 'ui-sans-serif', 'sans-serif'],
+        // Paragraphs / body / UI
+        sans: ['Poppins', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // All headers / display
+        display: ['"TWK Everett"', 'Space Grotesk', 'Poppins', 'ui-sans-serif', 'sans-serif'],
       },
       colors: {
         app: {
