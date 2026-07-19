@@ -27,6 +27,9 @@ export function createSocketSignaling(
       else socket.once('connect', () => resolve())
     })
 
+  /** Wait until the socket has an id (needed before creating the WebRTC client). */
+  const ready = () => waitForConnect()
+
   const sendOffer = (to: string, sdp: RTCSessionDescriptionInit) => {
     socket.emit('offer', { to, sdp })
   }
@@ -110,6 +113,12 @@ export function createSocketSignaling(
     return () => socket.off('admin-disconnect-from-voice', callback)
   }
 
+  /** Another device of this user joined voice — leave quietly on this client. */
+  const onVoiceSessionReplaced = (callback: (data: { reason?: string; channelId?: string }) => void) => {
+    socket.on('voice-session-replaced', callback)
+    return () => socket.off('voice-session-replaced', callback)
+  }
+
   const emitSoundboardPlay = (soundUrl: string) => {
     socket.emit('soundboard-play', { soundUrl, userId, username })
   }
@@ -119,5 +128,42 @@ export function createSocketSignaling(
     return () => socket.off('soundboard-play', callback)
   }
 
-  return { sendOffer, sendAnswer, sendIceCandidate, onMessage, join, leave, close, getSocketId, onAdminMove, onAdminMute, onAdminDisconnect, emitSoundboardPlay, onSoundboardPlay }
+  /** Round-trip ms to the signaling server (fallback when no WebRTC peers). */
+  const measureLatency = () =>
+    new Promise<number | null>((resolve) => {
+      if (!socket.connected) {
+        resolve(null)
+        return
+      }
+      const t0 = Date.now()
+      const timer = setTimeout(() => {
+        socket.off('latency-pong', onPong)
+        resolve(null)
+      }, 2500)
+      const onPong = () => {
+        clearTimeout(timer)
+        resolve(Math.max(0, Date.now() - t0))
+      }
+      socket.once('latency-pong', onPong)
+      socket.emit('latency-ping', t0)
+    })
+
+  return {
+    sendOffer,
+    sendAnswer,
+    sendIceCandidate,
+    onMessage,
+    ready,
+    join,
+    leave,
+    close,
+    getSocketId,
+    onAdminMove,
+    onAdminMute,
+    onAdminDisconnect,
+    onVoiceSessionReplaced,
+    emitSoundboardPlay,
+    onSoundboardPlay,
+    measureLatency,
+  }
 }

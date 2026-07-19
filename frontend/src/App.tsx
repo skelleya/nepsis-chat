@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react'
 import gsap from 'gsap'
 import * as api from './services/api'
-import { subscribeToServerMembers, unsubscribe } from './services/realtime'
+import { subscribeToServerMembers, subscribeToUserPresence, unsubscribe } from './services/realtime'
 import { AppProvider, useApp } from './contexts/AppContext'
 import { VoiceProvider, useVoice } from './contexts/VoiceContext'
 import { CallProvider, useCall } from './contexts/CallContext'
@@ -362,8 +362,34 @@ function MainLayout({
     api.getServerEmojis(currentServerId).then(setServerEmojis).catch(() => setServerEmojis([]))
   }, [currentServerId])
 
-  // Track if a full refresh is already in progress to avoid duplicate fetches
+  // Track in-flight refresh; allow a follow-up load if presence changed mid-fetch
   const membersRefreshRef = useRef(false)
+  const membersNeedsReloadRef = useRef(false)
+  const voiceChannelIdRef = useRef(voice.voiceChannelId)
+  const userStatusRef = useRef(userStatus)
+  voiceChannelIdRef.current = voice.voiceChannelId
+  userStatusRef.current = userStatus
+
+  /** Overlay live self-presence so we never look Offline while connected. */
+  const withLiveSelfPresence = useCallback((members: ServerMember[]): ServerMember[] => {
+    if (!user) return members
+    const liveVoice = voiceChannelIdRef.current
+    const liveStatus = liveVoice
+      ? 'in-voice'
+      : userStatusRef.current === 'offline'
+        ? 'offline'
+        : userStatusRef.current === 'away' || userStatusRef.current === 'dnd'
+          ? userStatusRef.current
+          : 'online'
+    return members.map((m) => {
+      if (m.userId !== user.id) return m
+      return {
+        ...m,
+        status: liveStatus,
+        voiceChannelId: liveVoice ?? null,
+      }
+    })
+  }, [user])
 
   useEffect(() => {
     if (!currentServerId || !user) {
@@ -372,16 +398,22 @@ function MainLayout({
     }
 
     const load = async () => {
-      if (membersRefreshRef.current) return
+      if (membersRefreshRef.current) {
+        membersNeedsReloadRef.current = true
+        return
+      }
       membersRefreshRef.current = true
       try {
-        const members = await api.getServerMembers(currentServerId)
-        const isMember = members.some((m: ServerMember) => m.userId === user.id)
-        if (!isMember) {
-          setServerMembers([])
-          return
-        }
-        setServerMembers(members)
+        do {
+          membersNeedsReloadRef.current = false
+          const members = await api.getServerMembers(currentServerId)
+          const isMember = members.some((m: ServerMember) => m.userId === user.id)
+          if (!isMember) {
+            setServerMembers([])
+            break
+          }
+          setServerMembers(withLiveSelfPresence(members))
+        } while (membersNeedsReloadRef.current)
       } catch {
         setServerMembers([])
       } finally {
@@ -389,33 +421,92 @@ function MainLayout({
       }
     }
 
-    // Initial fetch
     load()
 
-    // Subscribe to realtime changes on server_members for INSTANT join/leave updates
-    const channel = subscribeToServerMembers(currentServerId, (_payload) => {
-      // Any member change (join/leave/role update) → refetch full member list
-      // (includes presence, voice state, avatar, etc. that realtime payload doesn't carry)
+    const membersChannel = subscribeToServerMembers(currentServerId, () => {
       load()
     })
 
-    // Light fallback poll for presence/voice status changes (not in realtime publication).
-    // Faster when in voice so sidebar voice indicators stay responsive.
-    const ms = voice.voiceChannelId ? 2000 : 15000
+    // Instant presence updates (online / in-voice) for everyone already in this server
+    const presenceChannel = subscribeToUserPresence((payload) => {
+      const uid = payload.new?.user_id || payload.old?.user_id
+      if (!uid) return
+      setServerMembers((prev) => {
+        if (!prev.some((m) => m.userId === uid)) return prev
+        if (payload.eventType === 'DELETE' || !payload.new?.user_id) {
+          return prev.map((m) =>
+            m.userId === uid ? { ...m, status: 'offline', voiceChannelId: null } : m
+          )
+        }
+        const st = payload.new.status
+        const mapped: ServerMember['status'] =
+          st === 'in-voice' ? 'in-voice'
+            : st === 'online' ? 'online'
+              : st === 'away' ? 'away'
+                : st === 'dnd' ? 'dnd'
+                  : 'offline'
+        return withLiveSelfPresence(
+          prev.map((m) =>
+            m.userId === uid
+              ? { ...m, status: mapped, voiceChannelId: payload.new.voice_channel_id ?? null }
+              : m
+          )
+        )
+      })
+    })
+
+    // Fallback poll (presence realtime covers most cases)
+    const ms = voice.voiceChannelId ? 3000 : 10000
     const interval = setInterval(load, ms)
 
     return () => {
       clearInterval(interval)
-      unsubscribe(channel)
+      unsubscribe(membersChannel)
+      unsubscribe(presenceChannel)
     }
-  }, [currentServerId, user?.id, user?.avatar_url, voice.voiceChannelId])
+  }, [currentServerId, user?.id, user?.avatar_url, voice.voiceChannelId, withLiveSelfPresence])
 
-  // Update presence (online / in-voice / away / dnd) — in-voice overrides when in voice
+  // Update presence (online / in-voice / away / dnd) — optimistic local patch first
   useEffect(() => {
     if (!user) return
     const status = voice.voiceChannelId ? 'in-voice' : userStatus
-    api.updatePresence(user.id, status, voice.voiceChannelId ?? null).catch(() => {})
+    const voiceChannelId = voice.voiceChannelId ?? null
+
+    setServerMembers((prev) => {
+      if (!prev.some((m) => m.userId === user.id)) return prev
+      return prev.map((m) =>
+        m.userId === user.id
+          ? {
+              ...m,
+              status: status === 'offline' ? 'offline'
+                : status === 'away' || status === 'dnd' || status === 'in-voice' ? status
+                  : 'online',
+              voiceChannelId,
+            }
+          : m
+      )
+    })
+
+    api.updatePresence(user.id, status, voiceChannelId).catch(() => {})
   }, [user?.id, voice.voiceChannelId, userStatus])
+
+  // Mark offline when tab closes / refreshes (keepalive survives unload)
+  useEffect(() => {
+    if (!user) return
+    const markOffline = () => {
+      const base = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+      try {
+        fetch(`${base}/users/${user.id}/presence`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'offline', voiceChannelId: null }),
+          keepalive: true,
+        }).catch(() => {})
+      } catch { /* ignore */ }
+    }
+    window.addEventListener('pagehide', markOffline)
+    return () => window.removeEventListener('pagehide', markOffline)
+  }, [user?.id])
 
   const handleKick = useCallback(
     async (targetUserId: string) => {

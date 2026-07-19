@@ -42,47 +42,73 @@ export function createWebRTCClient(
   const isSocketMode = !!signaling.getSocketId
   const resolvedIceServers = iceServers.length > 0 ? iceServers : DEFAULT_ICE_SERVERS
 
+  /** Drop an old PC for the same user when their socket id changes (session replace). */
+  const retireSocketPeer = (socketId: string, notifyLeft: boolean) => {
+    const entry = peers.get(socketId)
+    if (!entry) return
+    try {
+      entry.pc.close()
+    } catch {
+      /* ignore */
+    }
+    peers.delete(socketId)
+    pendingCandidates.delete(socketId)
+    if (entry.userId && userIdToSocketId.get(entry.userId) === socketId) {
+      userIdToSocketId.delete(entry.userId)
+    }
+    if (notifyLeft && entry.userId) handlers.onPeerLeft(entry.userId)
+  }
+
   const createPeerConnection = (remotePeerId: string, userId?: string, username?: string): RTCPeerConnection => {
+    // Same user reconnecting with a new socket — close the stale PC first
+    if (userId) {
+      const prevSocket = userIdToSocketId.get(userId)
+      if (prevSocket && prevSocket !== remotePeerId) {
+        retireSocketPeer(prevSocket, false)
+      }
+    }
+
     const pc = new RTCPeerConnection({ iceServers: resolvedIceServers })
 
     // Create a single combined remote stream per peer so audio + video tracks coexist
     const remoteStream = new MediaStream()
 
     pc.ontrack = (e) => {
-      // Add the incoming track to our combined stream
-      // Remove duplicate tracks first
       const existingTrack = remoteStream.getTrackById(e.track.id)
       if (!existingTrack) {
         remoteStream.addTrack(e.track)
       }
 
-      // Clean up when track ends (e.g. remote stops camera/screen share)
+      // Never invent socketId as userId — that created phantom "Connecting..." tiles
       const getDisplayMeta = () => {
         const meta = peers.get(remotePeerId)
+        if (!meta?.userId) return null
         return {
-          userId: meta?.userId || remotePeerId,
-          username: meta?.username || 'Connecting...',
+          userId: meta.userId,
+          username: meta.username || 'User',
         }
       }
 
       const handleTrackGone = () => {
         if (remoteStream.getTrackById(e.track.id)) {
           remoteStream.removeTrack(e.track)
-          const { userId: dUserId, username: dUsername } = getDisplayMeta()
-          handlers.onRemoteStream(remotePeerId, dUserId, dUsername, remoteStream)
+          const display = getDisplayMeta()
+          if (display) {
+            handlers.onRemoteStream(remotePeerId, display.userId, display.username, remoteStream)
+          }
         }
       }
       e.track.onended = handleTrackGone
-      // Some browsers fire 'mute' instead of 'ended' for remote track removal
       e.track.onmute = () => {
-        // Only remove video tracks on mute (audio tracks get muted normally)
         if (e.track.kind === 'video') {
           handleTrackGone()
         }
       }
 
-      const { userId: dUserId, username: dUsername } = getDisplayMeta()
-      handlers.onRemoteStream(remotePeerId, dUserId, dUsername, remoteStream)
+      const display = getDisplayMeta()
+      if (display) {
+        handlers.onRemoteStream(remotePeerId, display.userId, display.username, remoteStream)
+      }
     }
 
     pc.onicecandidate = (e) => {
@@ -90,11 +116,11 @@ export function createWebRTCClient(
     }
 
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+      // Ignore transient "disconnected" (ICE restart may recover). Always close PC when removing.
+      if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
         const entry = peers.get(remotePeerId)
-        if (entry?.userId) userIdToSocketId.delete(entry.userId)
-        peers.delete(remotePeerId)
-        handlers.onPeerLeft(entry?.userId ?? remotePeerId)
+        if (!entry || entry.pc !== pc) return
+        retireSocketPeer(remotePeerId, true)
       }
     }
 
