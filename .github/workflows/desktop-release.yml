@@ -9,6 +9,10 @@ on:
         description: 'Publish to GitHub Releases (uncheck to only build artifacts)'
         type: boolean
         default: true
+  # Allow releasing by pushing a version tag (e.g. v0.1.0) when workflow_dispatch API is unavailable
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
