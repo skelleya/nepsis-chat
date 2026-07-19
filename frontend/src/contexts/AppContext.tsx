@@ -212,9 +212,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } else {
         setCurrentServerId(null)
       }
-    } catch {
-      setServers([])
-      setCurrentServerId(null)
+    } catch (err) {
+      // Transient failures must not wipe the server list (that closes Server Settings mid-edit)
+      console.warn('loadServers failed; keeping previous servers', err)
     }
   }, [user?.id])
 
