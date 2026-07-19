@@ -347,6 +347,18 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 
 ---
 
+## UI polish (Friends / Settings / DM)
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Selected Friends logo hard to see | Dark logo on orange accent | Invert logo (`brightness-0 invert`) when Friends is active / hovered |
+| User Settings invisible on open | Modal rendered inside channel rail with CSS `transform` — `fixed` trapped in sidebar | Portal `UserSettingsModal` to `document.body`; z-index `100` |
+| Can’t open profile from DM | Header name was plain text | Clickable name/avatar opens `MemberProfilePanel` (`placement="below"`) |
+| Friends tabs felt static | No tab indicator / content slide | GSAP pill + directional content slide (All / Pending / Online / Add) |
+| “+ Add a Friend” filled the All tab | Full-width dashed CTA | Compact `+ Add` next to the All header; Add tab is a slim search form |
+
+---
+
 ## Full audit fix pass (2026-07)
 
 | Issue | Cause | Solution |
