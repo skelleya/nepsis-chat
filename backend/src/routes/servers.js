@@ -161,25 +161,34 @@ serversRouter.post('/', async (req, res) => {
     ])
     if (chError) console.error('Channel creation error:', chError)
 
-    // Add owner as member using their default active profile
+    // Add owner as member using their default active profile (required for Server Settings / admin UI)
     const { data: ownerUser } = await supabase
       .from('users')
       .select('active_profile')
       .eq('id', ownerId)
       .maybeSingle()
     const ownerProfile = ownerUser?.active_profile === 'work' ? 'work' : 'personal'
-    const { error: ownerMemberErr } = await supabase.from('server_members').insert({
+    let { error: ownerMemberErr } = await supabase.from('server_members').insert({
       server_id: serverId,
       user_id: ownerId,
       role: 'owner',
       profile_type: ownerProfile,
     })
-    if (ownerMemberErr && /profile_type/i.test(ownerMemberErr.message || '')) {
-      await supabase.from('server_members').insert({
+    if (ownerMemberErr) {
+      // Retry without profile_type for older schemas; always ensure owner membership exists
+      ;({ error: ownerMemberErr } = await supabase.from('server_members').insert({
         server_id: serverId,
         user_id: ownerId,
         role: 'owner',
-      })
+      }))
+    }
+    if (ownerMemberErr) {
+      console.error('Owner membership insert failed:', ownerMemberErr)
+      // Roll back orphan server so the client does not land in a broken owner-less state
+      await supabase.from('channels').delete().eq('server_id', serverId)
+      await supabase.from('categories').delete().eq('server_id', serverId)
+      await supabase.from('servers').delete().eq('id', serverId)
+      return res.status(500).json({ error: 'Failed to create server (owner membership)' })
     }
 
     res.status(201).json(server)

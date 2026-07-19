@@ -362,7 +362,30 @@ function MainLayout({
   }, [])
 
   const { userStatus, setUserStatus, updateUser } = useApp()
-  const currentUserRole = serverMembers.find((m) => m.userId === user.id)?.role ?? 'member'
+  const currentServer = servers.find((s) => s.id === currentServerId)
+  const memberRole = serverMembers.find((m) => m.userId === user.id)?.role
+  // owner_id is authoritative — members poll must not strip Server Settings from the real owner
+  const isServerOwner = !!currentServer && currentServer.owner_id === user.id
+  const currentUserRole: ServerMember['role'] = isServerOwner
+    ? 'owner'
+    : memberRole === 'owner' || memberRole === 'admin' || memberRole === 'member'
+      ? memberRole
+      : 'member'
+  const isAdminOrOwner =
+    isServerOwner || currentUserRole === 'owner' || currentUserRole === 'admin'
+
+  // Keep a snapshot so Server Settings stays mounted if servers briefly fails to reload
+  const settingsServerRef = useRef(currentServer)
+  if (currentServer) settingsServerRef.current = currentServer
+  const settingsServer = currentServer ?? (showServerSettings ? settingsServerRef.current : undefined)
+
+  // Close settings when leaving the server context (not on transient list clear)
+  useEffect(() => {
+    if (!showServerSettings) return
+    if (currentServerId && settingsServerRef.current && settingsServerRef.current.id !== currentServerId) {
+      setShowServerSettings(false)
+    }
+  }, [currentServerId, showServerSettings])
 
   useEffect(() => {
     if (!currentServerId) return
@@ -374,8 +397,10 @@ function MainLayout({
   const membersNeedsReloadRef = useRef(false)
   const voiceChannelIdRef = useRef(voice.voiceChannelId)
   const userStatusRef = useRef(userStatus)
+  const serverOwnerIdRef = useRef<string | null>(null)
   voiceChannelIdRef.current = voice.voiceChannelId
   userStatusRef.current = userStatus
+  serverOwnerIdRef.current = currentServer?.owner_id ?? null
 
   /** Overlay live self-presence so we never look Offline / missing while connected. */
   const withLiveSelfPresence = useCallback((members: ServerMember[]): ServerMember[] => {
@@ -388,10 +413,12 @@ function MainLayout({
         : userStatusRef.current === 'away' || userStatusRef.current === 'dnd'
           ? userStatusRef.current
           : 'online'
+    const selfIsOwner = serverOwnerIdRef.current === user.id
     const patched = members.map((m) => {
       if (m.userId !== user.id) return m
       return {
         ...m,
+        role: selfIsOwner ? 'owner' : m.role,
         status: liveStatus,
         // Prefer live voice channel; keep API value only when not in voice locally
         voiceChannelId: liveVoice ?? (liveStatus === 'in-voice' ? m.voiceChannelId : null),
@@ -405,7 +432,7 @@ function MainLayout({
         userId: user.id,
         username: currentDisplayName,
         avatarUrl: user.avatar_url,
-        role: 'member',
+        role: selfIsOwner ? 'owner' : 'member',
         status: liveStatus,
         voiceChannelId: liveVoice ?? null,
       })
@@ -430,17 +457,23 @@ function MainLayout({
           membersNeedsReloadRef.current = false
           const members = await api.getServerMembers(currentServerId)
           const isMember = members.some((m: ServerMember) => m.userId === user.id)
+          const selfIsOwner = serverOwnerIdRef.current === user.id
           if (!isMember) {
-            // Confirmed not in server_members — clear list (kicked / left).
-            // Do not invent a ghost self-row when membership is gone.
-            setServerMembers([])
+            if (selfIsOwner) {
+              // Membership row missing/raced but servers.owner_id says we own it — keep owner UI
+              setServerMembers(withLiveSelfPresence(members))
+            } else {
+              // Confirmed not in server_members — clear list (kicked / left).
+              setServerMembers([])
+            }
             break
           }
           // Always overlay live self presence so you never look Offline / missing to yourself
           setServerMembers(withLiveSelfPresence(members))
         } while (membersNeedsReloadRef.current)
-      } catch {
-        setServerMembers([])
+      } catch (err) {
+        // Transient API failures must not wipe roles (that hid Server Settings for owners)
+        console.warn('Members refresh failed; keeping previous list', err)
       } finally {
         membersRefreshRef.current = false
       }
@@ -588,7 +621,6 @@ function MainLayout({
 
   const currentChannel = displayChannels.find((c) => c.id === currentChannelId)
   const channelMessages = currentChannelId ? (messages[currentChannelId] || []) : []
-  const currentServer = servers.find((s) => s.id === currentServerId)
 
   // Rules acceptance: when server locks channels until rules accepted
   const [rulesAccepted, setRulesAccepted] = useState<Record<string, boolean>>({})
@@ -819,8 +851,8 @@ function MainLayout({
           onInvitePeople={handleInvitePeople}
           onOpenCommunity={openCommunityView}
           serverId={currentServerId ?? undefined}
-          isOwner={currentServer?.owner_id === user.id || currentUserRole === 'owner'}
-          isAdminOrOwner={currentUserRole === 'owner' || currentUserRole === 'admin'}
+          isOwner={isServerOwner || currentUserRole === 'owner'}
+          isAdminOrOwner={isAdminOrOwner}
           hasNoServers={servers.length === 0}
           isFriendsView={showFriends}
           dmConversations={dmConversations}
@@ -940,8 +972,8 @@ function MainLayout({
           users={[{ id: user.id, username: currentDisplayName, status: 'online' as const }]}
           onSendMessage={(content, options) => sendMessage(currentChannel.id, content, options)}
           currentUserId={user.id}
-          isAdminOrOwner={currentUserRole === 'owner' || currentUserRole === 'admin'}
-          canSendMessages={currentChannel.type === 'text' || (currentChannel.type === 'rules' && (currentUserRole === 'owner' || currentUserRole === 'admin'))}
+          isAdminOrOwner={isAdminOrOwner}
+          canSendMessages={currentChannel.type === 'text' || (currentChannel.type === 'rules' && isAdminOrOwner)}
           onAfterReaction={currentChannel.type === 'rules' ? refreshRulesAccepted : undefined}
         />
       ) : currentChannel && currentChannel.type === 'voice' ? (
@@ -952,7 +984,7 @@ function MainLayout({
           currentUserAvatarUrl={user.avatar_url}
           voiceUsersInChannel={voiceUsers[currentChannel.id] || []}
           onInvitePeople={handleInvitePeople}
-          isAdminOrOwner={currentUserRole === 'owner' || currentUserRole === 'admin'}
+          isAdminOrOwner={isAdminOrOwner}
           serverId={currentServerId ?? undefined}
           onMuteMember={async (targetUserId) => {
             if (!currentServerId) return
@@ -1068,28 +1100,32 @@ function MainLayout({
         </div>
       )}
 
-      {/* Server Settings Modal */}
-      {showServerSettings && currentServer && (
+      {/* Server Settings Modal — use settingsServer snapshot so a brief servers reload cannot unmount it */}
+      {showServerSettings && settingsServer && (
         <ServerSettingsModal
-          serverName={currentServer.name}
-          serverId={currentServer.id}
+          serverName={settingsServer.name}
+          serverId={settingsServer.id}
           userId={user.id}
-          canManageEmojis={currentUserRole === 'owner' || currentUserRole === 'admin'}
-          canManageMembers={currentUserRole === 'owner' || currentUserRole === 'admin'}
-          canManageRules={currentUserRole === 'owner' || currentUserRole === 'admin'}
-          rulesChannelId={currentServer?.rules_channel_id}
-          lockChannelsUntilRulesAccepted={!!currentServer?.lock_channels_until_rules_accepted}
-          rulesAcceptEmoji={currentServer?.rules_accept_emoji ?? '👍'}
+          canManageEmojis={isAdminOrOwner}
+          canManageMembers={isAdminOrOwner}
+          canManageRules={isAdminOrOwner}
+          rulesChannelId={settingsServer?.rules_channel_id}
+          lockChannelsUntilRulesAccepted={!!settingsServer?.lock_channels_until_rules_accepted}
+          rulesAcceptEmoji={settingsServer?.rules_accept_emoji ?? '👍'}
           onClose={() => setShowServerSettings(false)}
-          onUpdateServer={(data) => updateServer(currentServer.id, data)}
-          serverIconUrl={currentServer.icon_url}
-          serverBannerUrl={currentServer.banner_url}
-          onDeleteServer={() => deleteServer(currentServer.id)}
+          onUpdateServer={(data) => updateServer(settingsServer.id, data)}
+          serverIconUrl={settingsServer.icon_url}
+          serverBannerUrl={settingsServer.banner_url}
+          onDeleteServer={() => deleteServer(settingsServer.id)}
           onKickMember={handleKick}
           onMembersChange={async () => {
             if (currentServerId) {
-              const updated = await api.getServerMembers(currentServerId)
-              setServerMembers(withLiveSelfPresence(updated))
+              try {
+                const updated = await api.getServerMembers(currentServerId)
+                setServerMembers(withLiveSelfPresence(updated))
+              } catch (err) {
+                console.warn('Members refresh after settings change failed', err)
+              }
             }
           }}
         />

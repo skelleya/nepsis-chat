@@ -49,6 +49,14 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 
 ---
 
+## Server Settings / Ownership
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| **Server Settings disappears after ~30s / owner can’t update server** | Admin UI used only `serverMembers[].role`. Members poll (3–10s) on fetch error did `setServerMembers([])`, so `isAdminOrOwner` became false and the menu item vanished. A failed `loadServers()` also cleared `servers` and unmounted the modal (`showServerSettings && currentServer`). | **Fix**: Treat `servers.owner_id === user.id` as owner regardless of members poll. Keep previous members/servers on fetch errors. Snapshot server for the open modal. Create-server rolls back if owner membership insert fails. |
+
+---
+
 ## Electron
 
 | Error | Cause | Solution |
