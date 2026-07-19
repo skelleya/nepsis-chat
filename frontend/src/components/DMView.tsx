@@ -9,6 +9,8 @@ import { useCall } from '../contexts/CallContext'
 import { ChatInput } from './ChatInput'
 import { EmojiPicker } from './EmojiPicker'
 import { FileAttachment, isImageUrl, isVideoUrl, isFileUrl } from './FileAttachment'
+import { MemberProfilePanel } from './MemberProfilePanel'
+import type { ServerMember } from './MembersSidebar'
 
 interface DMViewProps {
   conversation: DMConversation
@@ -86,8 +88,10 @@ export function DMView({
   const [inputEmojiRect, setInputEmojiRect] = useState<DOMRect | null>(null)
   const [replyTo, setReplyTo] = useState<DMMessage | null>(null)
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const [profileAnchor, setProfileAnchor] = useState<DOMRect | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const nameBtnRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -102,6 +106,21 @@ export function DMView({
   const otherAvatarUrl = conversation.other_user?.avatar_url
   const inCallWithThem =
     call.callState === 'in-call' && call.remoteUserId === otherUserId
+
+  const profileMember: ServerMember | null = otherUserId
+    ? {
+        userId: otherUserId,
+        username,
+        avatarUrl: otherAvatarUrl,
+        role: 'member',
+        status: 'online',
+      }
+    : null
+
+  const openProfile = (el?: HTMLElement | null) => {
+    const rect = (el ?? nameBtnRef.current)?.getBoundingClientRect()
+    if (rect) setProfileAnchor(rect)
+  }
 
   const doSend = async () => {
     const text = input.trim()
@@ -157,14 +176,22 @@ export function DMView({
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-app-offline flex-shrink-0">
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c1.19 0 2.34-.21 3.41-.6.3-.11.49-.4.49-.72v-.28c0-.32-.19-.61-.48-.73A8.96 8.96 0 0112 20c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8c0 .66-.08 1.3-.23 1.91-.07.3.02.61.24.82l.2.2c.28.28.75.2.91-.16.4-.9.63-1.9.63-2.96C22 6.48 17.52 2 12 2zm0 4c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3zm0 14c-2.67 0-5.33-.84-7.2-2.4.03-1.99 4.8-3.1 7.2-3.1 2.4 0 7.17 1.1 7.2 3.1A11.94 11.94 0 0112 20z" />
         </svg>
-        <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 bg-app-accent flex items-center justify-center text-white text-[10px] font-bold">
-          {otherAvatarUrl ? (
-            <img src={otherAvatarUrl} alt="" className="w-full h-full object-cover" />
-          ) : (
-            username.charAt(0).toUpperCase()
-          )}
-        </div>
-        <h2 className="font-semibold text-app-text text-[16px] truncate flex-1">{username}</h2>
+        <button
+          ref={nameBtnRef}
+          type="button"
+          onClick={(e) => openProfile(e.currentTarget)}
+          className="flex items-center gap-2 min-w-0 flex-1 text-left rounded-md px-1.5 py-1 -mx-1.5 hover:bg-app-hover/50 transition-colors"
+          title={`View ${username}'s profile`}
+        >
+          <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 bg-app-accent flex items-center justify-center text-white text-[10px] font-bold">
+            {otherAvatarUrl ? (
+              <img src={otherAvatarUrl} alt="" className="w-full h-full object-cover" />
+            ) : (
+              username.charAt(0).toUpperCase()
+            )}
+          </div>
+          <h2 className="font-semibold text-app-text text-[16px] truncate">{username}</h2>
+        </button>
 
         <div className="flex items-center gap-1">
           {inCallWithThem ? (
@@ -249,14 +276,21 @@ export function DMView({
       <div className="flex-1 overflow-y-auto min-h-0 px-0 py-4">
         {messages.length === 0 ? (
           <div className="flex flex-col justify-end h-full px-4 pb-4">
-            <div className="w-20 h-20 rounded-full bg-app-accent flex items-center justify-center text-white text-3xl font-bold mb-3 overflow-hidden">
-              {otherAvatarUrl ? (
-                <img src={otherAvatarUrl} alt="" className="w-full h-full object-cover" />
-              ) : (
-                username.charAt(0).toUpperCase()
-              )}
-            </div>
-            <h3 className="text-2xl font-bold text-white mb-1">{username}</h3>
+            <button
+              type="button"
+              onClick={(e) => openProfile(e.currentTarget)}
+              className="text-left rounded-xl hover:bg-app-hover/30 p-2 -m-2 transition-colors w-fit"
+              title={`View ${username}'s profile`}
+            >
+              <div className="w-20 h-20 rounded-full bg-app-accent flex items-center justify-center text-white text-3xl font-bold mb-3 overflow-hidden">
+                {otherAvatarUrl ? (
+                  <img src={otherAvatarUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  username.charAt(0).toUpperCase()
+                )}
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-1">{username}</h3>
+            </button>
             <p className="text-app-muted text-sm max-w-md">
               This is the beginning of your direct message history with <strong className="text-app-text">@{username}</strong>.
             </p>
@@ -539,6 +573,31 @@ export function DMView({
           }
         />
       </div>
+
+      {profileMember && profileAnchor && (
+        <MemberProfilePanel
+          member={profileMember}
+          currentUserId={currentUserId}
+          anchorRect={profileAnchor}
+          placement="below"
+          onClose={() => setProfileAnchor(null)}
+          onCall={
+            otherUserId
+              ? (userId, name, avatar) => {
+                  if (call.callState === 'idle') call.initiateCall(userId, name, avatar)
+                  else if (inCallWithThem) call.expandCall()
+                }
+              : undefined
+          }
+          onAddFriend={async (userId) => {
+            try {
+              await api.sendFriendRequest(currentUserId, userId, 'personal', 'personal')
+            } catch (err) {
+              console.error('Add friend failed:', err)
+            }
+          }}
+        />
+      )}
     </div>
   )
 }

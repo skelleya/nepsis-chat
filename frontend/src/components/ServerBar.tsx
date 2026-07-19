@@ -189,7 +189,16 @@ export function ServerBar({ servers, currentServerId, onSelectServer, onCreateSe
             }`}
             title="Friends"
           >
-            <img src="./logo.png" alt="Nepsis" className="w-7 h-7 object-contain" />
+            {/* Logo is dark-on-transparent; invert when on orange so it stays visible */}
+            <img
+              src="./logo.png"
+              alt="Nepsis"
+              className={`w-7 h-7 object-contain transition-[filter] duration-200 ${
+                isFriendsActive
+                  ? 'brightness-0 invert'
+                  : 'group-hover:brightness-0 group-hover:invert'
+              }`}
+            />
           </button>
         </div>
 

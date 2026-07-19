@@ -10,6 +10,13 @@ type FriendRequest = FriendRequestItem
 
 type FriendsTab = 'all' | 'pending' | 'online' | 'add'
 
+const TAB_ORDER: Record<FriendsTab, number> = {
+  all: 0,
+  pending: 1,
+  online: 2,
+  add: 3,
+}
+
 interface FriendsPageProps {
   onClose?: () => void
   onOpenDM: (userId: string, username: string) => Promise<void>
@@ -42,6 +49,8 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
   const [error, setError] = useState<string | null>(null)
   const [actioning, setActioning] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<FriendsTab>('all')
+  const [displayedTab, setDisplayedTab] = useState<FriendsTab>('all')
+  const [switching, setSwitching] = useState(false)
   const [addFriendInput, setAddFriendInput] = useState('')
   const [addAsProfile, setAddAsProfile] = useState<ProfileType>('personal')
   const [acceptAsProfile, setAcceptAsProfile] = useState<ProfileType>('personal')
@@ -50,6 +59,15 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
   const [addFriendError, setAddFriendError] = useState<string | null>(null)
   const [addFriendSuccess, setAddFriendSuccess] = useState<string | null>(null)
   const isGuest = user?.is_guest ?? true
+  const tabsNavRef = useRef<HTMLDivElement>(null)
+  const tabIndicatorRef = useRef<HTMLDivElement>(null)
+  const tabBtnRefs = useRef<Partial<Record<FriendsTab, HTMLButtonElement | null>>>({})
+  const tabContentRef = useRef<HTMLDivElement>(null)
+  const tabContentTweenRef = useRef<gsap.core.Tween | null>(null)
+  const tabIndicatorReadyRef = useRef(false)
+  const slideDirectionRef = useRef(1)
+  const pendingTabEnterRef = useRef(false)
+  const targetTabRef = useRef<FriendsTab>('all')
 
   useLayoutEffect(() => {
     const page = pageRef.current
@@ -71,6 +89,79 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
       gsap.killTweensOf(page)
     }
   }, [])
+
+  const moveTabIndicator = useCallback((animate: boolean) => {
+    const track = tabsNavRef.current
+    const indicator = tabIndicatorRef.current
+    const btn = tabBtnRefs.current[activeTab]
+    if (!track || !indicator || !btn) return
+    const x = btn.offsetLeft
+    const width = btn.offsetWidth
+    gsap.killTweensOf(indicator)
+    if (!animate || !tabIndicatorReadyRef.current) {
+      gsap.set(indicator, { x, width, opacity: 1 })
+      tabIndicatorReadyRef.current = true
+      return
+    }
+    gsap.to(indicator, {
+      x,
+      width,
+      duration: 0.35,
+      ease: 'power3.inOut',
+      force3D: false,
+    })
+  }, [activeTab])
+
+  useLayoutEffect(() => {
+    moveTabIndicator(true)
+  }, [moveTabIndicator, friends.length, requests.length])
+
+  useLayoutEffect(() => {
+    const content = tabContentRef.current
+    if (!content || !pendingTabEnterRef.current) return
+    pendingTabEnterRef.current = false
+    const direction = slideDirectionRef.current
+    tabContentTweenRef.current?.kill()
+    tabContentTweenRef.current = gsap.fromTo(
+      content,
+      { x: 40 * direction, opacity: 0 },
+      {
+        x: 0,
+        opacity: 1,
+        duration: 0.35,
+        ease: 'power3.out',
+        overwrite: true,
+        onComplete: () => setSwitching(false),
+      }
+    )
+  }, [displayedTab])
+
+  const switchTab = (next: FriendsTab) => {
+    if (next === activeTab || switching) return
+    const direction = TAB_ORDER[next] > TAB_ORDER[activeTab] ? 1 : -1
+    slideDirectionRef.current = direction
+    targetTabRef.current = next
+    setActiveTab(next)
+    const content = tabContentRef.current
+    if (!content || next === displayedTab) {
+      setDisplayedTab(next)
+      setSwitching(false)
+      return
+    }
+    setSwitching(true)
+    tabContentTweenRef.current?.kill()
+    tabContentTweenRef.current = gsap.to(content, {
+      x: -40 * direction,
+      opacity: 0,
+      duration: 0.22,
+      ease: 'power3.in',
+      overwrite: true,
+      onComplete: () => {
+        pendingTabEnterRef.current = true
+        setDisplayedTab(targetTabRef.current)
+      },
+    })
+  }
 
   const requestClose = useCallback((afterClose?: () => void) => {
     if (closingRef.current) return
@@ -249,26 +340,35 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
         <h2 className="font-display text-xl font-bold text-white">Friends</h2>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 px-4 pt-3 pb-2 border-b border-app-dark/50 flex-shrink-0">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === tab.id
-                ? 'bg-app-hover/60 text-white'
-                : 'text-app-muted hover:text-app-text hover:bg-app-hover/30'
-            }`}
-          >
-            {tab.label}
-            {tab.count != null && tab.count > 0 && (
-              <span className="ml-1.5 px-1.5 py-0.5 rounded bg-app-accent/30 text-app-accent text-xs">
-                {tab.count}
-              </span>
-            )}
-          </button>
-        ))}
+      {/* Tabs — GSAP pill + content slide (same rhythm as User Settings) */}
+      <div className="px-4 pt-3 pb-2 border-b border-app-dark/50 flex-shrink-0">
+        <div ref={tabsNavRef} className="relative flex gap-1 w-fit max-w-full">
+          <div
+            ref={tabIndicatorRef}
+            className="absolute top-0 bottom-0 rounded-lg bg-app-hover/70 pointer-events-none opacity-0 will-change-transform"
+            aria-hidden
+          />
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              ref={(el) => { tabBtnRefs.current[tab.id] = el }}
+              onClick={() => switchTab(tab.id)}
+              className={`relative z-10 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === tab.id
+                  ? 'text-white'
+                  : 'text-app-muted hover:text-app-text'
+              }`}
+            >
+              {tab.label}
+              {tab.count != null && tab.count > 0 && (
+                <span className="ml-1.5 px-1.5 py-0.5 rounded bg-app-accent/30 text-app-accent text-xs">
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Content */}
@@ -279,51 +379,52 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
 
         {loading ? (
           <div className="flex justify-center py-12 text-app-muted">Loading...</div>
-        ) : activeTab === 'add' ? (
-          /* Add Friend tab — search public profile display names */
-          <div>
-            <h3 className="text-sm font-semibold text-app-text mb-3">Find by display name</h3>
-            <p className="text-xs text-app-muted mb-3">
-              Search public identities — not login usernames. Personal and Work can appear as separate people.
+        ) : (
+        <div ref={tabContentRef} className="will-change-transform">
+        {displayedTab === 'add' ? (
+          /* Add Friend — compact search */
+          <div className="max-w-lg">
+            <h3 className="text-sm font-semibold text-app-text mb-1">Add a friend</h3>
+            <p className="text-xs text-app-muted mb-4">
+              Search by public display name — not login username.
             </p>
-            {!isGuest && (
-              <div className="mb-3">
-                <p className="text-xs text-app-muted mb-2">Add them from which of your profiles?</p>
-                <div className="flex gap-2">
-                  {(['personal', 'work'] as ProfileType[]).map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => setAddAsProfile(type)}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
-                        addAsProfile === type
-                          ? 'bg-app-accent text-white'
-                          : 'bg-app-channel text-app-muted hover:text-app-text'
-                      }`}
-                    >
-                      {type === 'personal' ? 'Personal' : 'Work'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="flex gap-2 mb-4">
+            <div className="flex gap-2 items-center mb-3">
               <input
                 type="text"
                 value={addFriendInput}
                 onChange={(e) => setAddFriendInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearchProfiles()}
-                placeholder="Search display name…"
-                className="flex-1 px-3 py-2 rounded-lg bg-app-channel text-app-text placeholder-app-muted border border-app-hover/30 focus:border-app-accent focus:outline-none"
+                placeholder="Display name…"
+                className="flex-1 min-w-0 px-3 py-2 rounded-md bg-app-channel text-app-text text-sm placeholder-app-muted border border-transparent focus:border-app-accent focus:outline-none"
               />
               <button
+                type="button"
                 onClick={handleSearchProfiles}
                 disabled={addFriendLoading || addFriendInput.trim().length < 2}
-                className="px-4 py-2 bg-app-accent hover:bg-app-accent-hover text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-2 bg-app-accent hover:bg-app-accent-hover text-white rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
               >
-                {addFriendLoading ? 'Searching…' : 'Search'}
+                {addFriendLoading ? '…' : 'Search'}
               </button>
             </div>
+            {!isGuest && (
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs text-app-muted">From</span>
+                {(['personal', 'work'] as ProfileType[]).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setAddAsProfile(type)}
+                    className={`px-2 py-0.5 rounded text-xs font-medium ${
+                      addAsProfile === type
+                        ? 'bg-app-accent/20 text-app-accent'
+                        : 'text-app-muted hover:text-app-text'
+                    }`}
+                  >
+                    {type === 'personal' ? 'Personal' : 'Work'}
+                  </button>
+                ))}
+              </div>
+            )}
             {addFriendError && (
               <p className="text-sm text-red-400 mb-2">{addFriendError}</p>
             )}
@@ -331,11 +432,11 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
               <p className="text-sm text-[#23a559] mb-2">{addFriendSuccess}</p>
             )}
             {searchResults.length > 0 && (
-              <div className="space-y-2 mb-3">
+              <div className="divide-y divide-app-hover/40 border-t border-app-hover/40">
                 {searchResults.map((result) => (
                   <div
                     key={result.profile_id}
-                    className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-app-channel"
+                    className="flex items-center justify-between gap-3 py-2.5"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       {result.avatar_url ? (
@@ -366,7 +467,7 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
               </div>
             )}
           </div>
-        ) : activeTab === 'pending' ? (
+        ) : displayedTab === 'pending' ? (
           /* Pending requests */
           <div>
             <h3 className="text-sm font-semibold text-app-text mb-3">Friend requests</h3>
@@ -437,7 +538,7 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
               </div>
             )}
           </div>
-        ) : activeTab === 'online' ? (
+        ) : displayedTab === 'online' ? (
           /* Online friends */
           <div>
             <h3 className="text-sm font-semibold text-app-text mb-3">Online — {onlineFriends.length}</h3>
@@ -496,47 +597,56 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
         ) : (
           /* All friends */
           <div>
-            <h3 className="text-sm font-semibold text-app-text mb-3">All friends — {friends.length}</h3>
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h3 className="text-sm font-semibold text-app-text">All friends — {friends.length}</h3>
+              <button
+                type="button"
+                onClick={() => switchTab('add')}
+                className="text-xs font-medium text-app-accent hover:text-white px-2 py-1 rounded-md hover:bg-app-accent/20 transition-colors shrink-0"
+              >
+                + Add
+              </button>
+            </div>
             {friends.length === 0 && requests.length === 0 ? (
-              <p className="text-sm text-app-muted mb-4">No friends yet. Add friends by display name or accept friend requests.</p>
+              <p className="text-sm text-app-muted">No friends yet. Use + Add to search by display name.</p>
             ) : friends.length === 0 ? (
-              <p className="text-sm text-app-muted mb-4">No friends yet.</p>
+              <p className="text-sm text-app-muted">No friends yet.</p>
             ) : (
-              <div className="space-y-2 mb-4">
+              <div className="space-y-1">
                 {friends.map((friend) => (
                   <div
                     key={friend.id}
-                    className="flex items-center justify-between px-4 py-3 rounded-xl bg-app-channel hover:bg-app-hover"
+                    className="flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-app-channel"
                   >
                     <div className="flex items-center gap-3">
                       <div className="relative">
-                        <div className="w-10 h-10 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-sm overflow-hidden">
+                        <div className="w-9 h-9 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-sm overflow-hidden">
                           {friend.avatar_url ? (
                             <img src={friend.avatar_url} alt="" className="w-full h-full object-cover" />
                           ) : (
                             friend.username?.charAt(0).toUpperCase()
                           )}
                         </div>
-                        <div className="absolute bottom-0 right-0 ring-2 ring-app-channel rounded-full">
+                        <div className="absolute bottom-0 right-0 ring-2 ring-app-dark rounded-full">
                           <StatusDot status={friend.status} />
                         </div>
                       </div>
-                      <span className="font-medium text-app-text">{friend.username}</span>
+                      <span className="font-medium text-app-text text-sm">{friend.username}</span>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-1">
                       <button
                         onClick={() => handleMessage(friend)}
-                        className="px-3 py-1.5 text-sm text-app-accent hover:bg-app-accent/20 rounded-lg"
+                        className="px-2.5 py-1 text-xs text-app-accent hover:bg-app-accent/20 rounded-md"
                         title="Message"
                       >
                         Message
                       </button>
                       <button
                         onClick={() => handleCall(friend)}
-                        className="p-2 rounded-lg text-app-muted hover:text-app-accent hover:bg-app-accent/20 transition-colors"
+                        className="p-1.5 rounded-md text-app-muted hover:text-app-accent hover:bg-app-accent/20 transition-colors"
                         title="Call"
                       >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                           <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
                         </svg>
                       </button>
@@ -545,14 +655,9 @@ export function FriendsPage({ onClose, onOpenDM, stayOnFriendsWhenOpeningDM = tr
                 ))}
               </div>
             )}
-            <button
-              type="button"
-              onClick={() => setActiveTab('add')}
-              className="w-full px-4 py-3 rounded-xl border border-dashed border-app-accent/40 text-app-accent hover:bg-app-accent/10 hover:border-app-accent/60 text-sm font-medium transition-colors"
-            >
-              + Add a Friend
-            </button>
           </div>
+        )}
+        </div>
         )}
       </div>
     </div>

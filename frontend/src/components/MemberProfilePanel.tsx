@@ -8,13 +8,15 @@ interface MemberProfilePanelProps {
   member: ServerMember
   currentUserId: string
   voiceChannels?: Channel[]
-  /** Clicked member row — popout anchors to the left of this rect */
+  /** Clicked member row — popout anchors relative to this rect */
   anchorRect: DOMRect
+  /** Prefer left of row (members list) or below (DM header) */
+  placement?: 'left' | 'below'
   canKick?: boolean
   canBan?: boolean
   onClose: () => void
-  onMessage: (userId: string, username: string) => void
-  onAddFriend: (userId: string, username: string) => void
+  onMessage?: (userId: string, username: string) => void
+  onAddFriend?: (userId: string, username: string) => void
   onCall?: (userId: string, username: string, avatarUrl?: string) => void
   onKick?: (userId: string) => Promise<void>
   onBan?: (userId: string) => Promise<void>
@@ -29,6 +31,7 @@ export function MemberProfilePanel({
   currentUserId,
   voiceChannels = [],
   anchorRect,
+  placement = 'left',
   canKick = false,
   canBan = false,
   onClose,
@@ -78,17 +81,26 @@ export function MemberProfilePanel({
 
   const position = useMemo(() => {
     const heightEstimate = 420
+    const maxTop = window.innerHeight - heightEstimate - VIEW_PAD
+    const maxLeft = window.innerWidth - POPOUT_WIDTH - VIEW_PAD
+
+    if (placement === 'below') {
+      let left = Math.min(Math.max(VIEW_PAD, anchorRect.left), maxLeft)
+      let top = anchorRect.bottom + POPOUT_GAP
+      if (top > maxTop) top = Math.max(VIEW_PAD, anchorRect.top - heightEstimate - POPOUT_GAP)
+      return { left, top }
+    }
+
     let left = anchorRect.left - POPOUT_WIDTH - POPOUT_GAP
     if (left < VIEW_PAD) {
-      // Not enough room on the left — place just inside the members column edge
-      left = Math.max(VIEW_PAD, anchorRect.left - POPOUT_WIDTH - 4)
+      // Not enough room on the left — try right of anchor, else clamp
+      left = Math.min(maxLeft, Math.max(VIEW_PAD, anchorRect.right + POPOUT_GAP))
     }
     let top = anchorRect.top - 8
-    const maxTop = window.innerHeight - heightEstimate - VIEW_PAD
     if (top > maxTop) top = Math.max(VIEW_PAD, maxTop)
     if (top < VIEW_PAD) top = VIEW_PAD
     return { left, top }
-  }, [anchorRect])
+  }, [anchorRect, placement])
 
   const requestClose = useCallback((afterClose?: () => void) => {
     if (closingRef.current) return
@@ -236,18 +248,20 @@ export function MemberProfilePanel({
             <p className="text-sm text-app-muted mt-0.5">{statusLabel}</p>
           </div>
 
-          {!isCurrentUser && (
+          {!isCurrentUser && (onMessage || onCall || onAddFriend) && (
             <div className="flex flex-col gap-1.5 pt-1 border-t border-white/5">
-              <button
-                type="button"
-                onClick={() => requestClose(() => onMessage(member.userId, member.username))}
-                className="w-full px-3 py-2 rounded-md bg-app-accent hover:bg-app-accent-hover text-white text-sm font-medium flex items-center justify-center gap-2 transition-colors"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
-                </svg>
-                Message
-              </button>
+              {onMessage && (
+                <button
+                  type="button"
+                  onClick={() => requestClose(() => onMessage(member.userId, member.username))}
+                  className="w-full px-3 py-2 rounded-md bg-app-accent hover:bg-app-accent-hover text-white text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
+                  </svg>
+                  Message
+                </button>
+              )}
               {onCall && (
                 <button
                   type="button"
@@ -260,16 +274,18 @@ export function MemberProfilePanel({
                   Call
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => requestClose(() => onAddFriend(member.userId, member.username))}
-                className="w-full px-3 py-2 rounded-md bg-app-channel hover:bg-app-hover text-app-text text-sm font-medium flex items-center justify-center gap-2 transition-colors"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                </svg>
-                Add Friend
-              </button>
+              {onAddFriend && (
+                <button
+                  type="button"
+                  onClick={() => requestClose(() => onAddFriend(member.userId, member.username))}
+                  className="w-full px-3 py-2 rounded-md bg-app-channel hover:bg-app-hover text-app-text text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                  </svg>
+                  Add Friend
+                </button>
+              )}
             </div>
           )}
 
