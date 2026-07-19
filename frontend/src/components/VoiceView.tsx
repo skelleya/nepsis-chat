@@ -361,9 +361,6 @@ function ParticipantCard({
             <MicOffIcon size={10} className="text-white" />
           </div>
         )}
-        {!isLocal && participant.stream && (
-          <RemoteAudio stream={participant.stream} muted={isDeafened} />
-        )}
       </div>
     )
   }
@@ -521,9 +518,6 @@ function ParticipantCard({
             : (participant.stream ? 'Connected' : 'Connecting...')}
         </div>
       </div>
-      {!isLocal && participant.stream && (
-        <RemoteAudio stream={participant.stream} muted={isDeafened} />
-      )}
     </div>
   )
 }
@@ -624,8 +618,16 @@ export function VoiceView({
     if (watchingShareUserId === currentUserId && isScreenSharing && screenStream) return screenStream
     if (!watchingShareUserId) return null
     const p = allParticipants.find((x) => x.userId === watchingShareUserId)
-    return p?.stream ? getScreenShareStream(p.stream) : null
-  }, [watchingShareUserId, currentUserId, isScreenSharing, screenStream, allParticipants])
+    const known = screenShareUserIds.includes(watchingShareUserId)
+    return p?.stream ? getScreenShareStream(p.stream, { knownScreenSharing: known }) : null
+  }, [
+    watchingShareUserId,
+    currentUserId,
+    isScreenSharing,
+    screenStream,
+    allParticipants,
+    screenShareUserIds,
+  ])
 
   const watchingUsername =
     watchingShareUserId === currentUserId
@@ -639,8 +641,9 @@ export function VoiceView({
     if (!maximizedCameraUserId) return null
     if (maximizedCameraUserId === currentUserId) return videoStream
     const p = allParticipants.find((x) => x.userId === maximizedCameraUserId)
-    return p?.stream ? getParticipantVideoStream(p.stream) : null
-  }, [maximizedCameraUserId, currentUserId, videoStream, allParticipants])
+    const known = screenShareUserIds.includes(maximizedCameraUserId)
+    return p?.stream ? getParticipantVideoStream(p.stream, { knownScreenSharing: known }) : null
+  }, [maximizedCameraUserId, currentUserId, videoStream, allParticipants, screenShareUserIds])
 
   const maximizedCameraUsername =
     maximizedCameraUserId === currentUserId
@@ -669,11 +672,12 @@ export function VoiceView({
     }
     if (maximizedCameraUserId !== currentUserId) {
       const p = allParticipants.find((x) => x.userId === maximizedCameraUserId)
-      if (!p?.stream || !getParticipantVideoStream(p.stream)) {
+      const known = screenShareUserIds.includes(maximizedCameraUserId)
+      if (!p?.stream || !getParticipantVideoStream(p.stream, { knownScreenSharing: known })) {
         setMaximizedCameraUserId(null)
       }
     }
-  }, [maximizedCameraUserId, currentUserId, isCameraOn, allParticipants])
+  }, [maximizedCameraUserId, currentUserId, isCameraOn, allParticipants, screenShareUserIds])
 
   const handleWatchShare = useCallback(
     (userId: string) => {
@@ -704,7 +708,12 @@ export function VoiceView({
       isLocal: p.userId === currentUserId,
       localStream,
       localVideoStream: videoStream,
-      participantVideoStream: p.userId === currentUserId ? null : getParticipantVideoStream(p.stream),
+      participantVideoStream:
+        p.userId === currentUserId
+          ? null
+          : getParticipantVideoStream(p.stream, {
+              knownScreenSharing: screenShareUserIds.includes(p.userId),
+            }),
       isMuted,
       isDeafened,
       isCameraOn,
@@ -727,10 +736,10 @@ export function VoiceView({
       isMuted,
       isDeafened,
       isCameraOn,
+      screenShareUserIds,
       isAdminOrOwner,
       onMuteMember,
       onDisconnectMember,
-      screenShareUserIds,
       watchingShareUserId,
       maximizedCameraUserId,
       handleWatchShare,
@@ -909,6 +918,17 @@ export function VoiceView({
 
       {error && (
         <div className="mx-4 mt-2 p-2 rounded bg-red-900/50 text-red-200 text-sm shrink-0">{error}</div>
+      )}
+
+      {/* Persistent remote audio — outside focus/filmstrip so layout remounts don't kill playback */}
+      {isInThisChannel && (
+        <div aria-hidden className="contents">
+          {allParticipants
+            .filter((p) => p.userId !== currentUserId && p.stream)
+            .map((p) => (
+              <RemoteAudio key={`audio-${p.userId}`} stream={p.stream} muted={isDeafened} />
+            ))}
+        </div>
       )}
 
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">

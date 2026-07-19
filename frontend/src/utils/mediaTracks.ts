@@ -1,4 +1,8 @@
-/** Detect if a video track is from screen share (getDisplayMedia) vs camera (getUserMedia) */
+/** Detect if a video track is from screen share (getDisplayMedia) vs camera (getUserMedia).
+ * Prefer explicit signaling (`screenShareUserIds`) over heuristics — remote WebRTC tracks
+ * often lack displaySurface/label, and contentHint must NOT be used (cameras were wrongly
+ * stamped as 'detail' and then treated as screens).
+ */
 export function isScreenShareTrack(track: MediaStreamTrack): boolean {
   try {
     const settings = track.getSettings?.() as {
@@ -8,11 +12,8 @@ export function isScreenShareTrack(track: MediaStreamTrack): boolean {
     }
     const surface = settings?.displaySurface
     if (surface === 'monitor' || surface === 'window' || surface === 'browser') return true
-    // Remote tracks often lack displaySurface; use label (Chrome/Firefox set "screen" etc.)
     const label = (track.label || '').toLowerCase()
     if (/screen|display|window|monitor|capture|tab/.test(label)) return true
-    // contentHint is set locally for screen; some browsers expose it remotely
-    if ((track as MediaStreamTrack & { contentHint?: string }).contentHint === 'detail') return true
     return false
   } catch {
     return false
@@ -42,31 +43,48 @@ function getOrCreateSubset(source: MediaStream, tracks: MediaStreamTrack[]): Med
   return out
 }
 
+export type MediaTrackOpts = {
+  /** True when signaling says this peer is screen-sharing (authoritative). */
+  knownScreenSharing?: boolean
+}
+
 /** Extract screen-share-only stream from a peer/local MediaStream */
-export function getScreenShareStream(stream: MediaStream | null): MediaStream | null {
+export function getScreenShareStream(
+  stream: MediaStream | null,
+  opts?: MediaTrackOpts
+): MediaStream | null {
   if (!stream) return null
   const videoTracks = stream.getVideoTracks().filter((t) => t.readyState !== 'ended')
   if (videoTracks.length === 0) return null
 
   let screenTracks = videoTracks.filter(isScreenShareTrack)
 
-  // Fallback when remote metadata is missing:
-  // - 2+ videos → largest dimension is usually the screen
-  // - 1 video with large resolution (≥1280) and no camera label → treat as screen
+  // Explicit screen-share signal: if metadata is missing, use track count heuristics.
+  if (screenTracks.length === 0 && opts?.knownScreenSharing) {
+    if (videoTracks.length === 1) {
+      screenTracks = [videoTracks[0]]
+    } else if (videoTracks.length >= 2) {
+      const withWidth = videoTracks.map((t) => ({
+        t,
+        w: (t.getSettings?.() as { width?: number })?.width ?? 0,
+      }))
+      const byWidth = [...withWidth].sort((a, b) => b.w - a.w)
+      screenTracks = [byWidth[0].t]
+    }
+  }
+
+  // Without a signal, only trust explicit metadata — never treat a lone large
+  // camera (1080p) as a screen share.
   if (screenTracks.length === 0 && videoTracks.length >= 2) {
     const withWidth = videoTracks.map((t) => ({
       t,
       w: (t.getSettings?.() as { width?: number })?.width ?? 0,
     }))
     const byWidth = [...withWidth].sort((a, b) => b.w - a.w)
-    if (byWidth[0].w > 1280) screenTracks = [byWidth[0].t]
-  }
-  if (screenTracks.length === 0 && videoTracks.length === 1) {
-    const t = videoTracks[0]
-    const w = (t.getSettings?.() as { width?: number })?.width ?? 0
-    const label = (t.label || '').toLowerCase()
-    const looksLikeCamera = /camera|webcam|facetime|integrated/.test(label)
-    if (!looksLikeCamera && w >= 1280) screenTracks = [t]
+    // Only if one track is clearly larger and labeled/hinted as screen
+    if (byWidth[0].w > byWidth[1].w + 200 && isScreenShareTrack(byWidth[0].t)) {
+      screenTracks = [byWidth[0].t]
+    }
   }
 
   if (screenTracks.length === 0) return null
@@ -74,27 +92,44 @@ export function getScreenShareStream(stream: MediaStream | null): MediaStream | 
 }
 
 /** Extract camera-only stream (exclude screen share tracks) */
-export function getCameraStream(stream: MediaStream | null): MediaStream | null {
+export function getCameraStream(
+  stream: MediaStream | null,
+  opts?: MediaTrackOpts
+): MediaStream | null {
   if (!stream) return null
-  const cameraTracks = stream.getVideoTracks().filter((t) => !isScreenShareTrack(t) && t.readyState !== 'ended')
+  const videoTracks = stream.getVideoTracks().filter((t) => t.readyState !== 'ended')
+  if (videoTracks.length === 0) return null
+
+  const screen = getScreenShareStream(stream, opts)
+  const screenIds = new Set(screen?.getVideoTracks().map((t) => t.id) ?? [])
+  const cameraTracks = videoTracks.filter((t) => !screenIds.has(t.id) && !isScreenShareTrack(t))
+
+  // Not screen-sharing: all video tracks are camera
+  if (!opts?.knownScreenSharing && !screen) {
+    return getOrCreateSubset(stream, videoTracks)
+  }
+
   if (cameraTracks.length === 0) return null
   return getOrCreateSubset(stream, cameraTracks)
 }
 
-/** Prefer camera when both exist; else any video for participant tiles */
-export function getParticipantVideoStream(stream: MediaStream | null): MediaStream | null {
+/** Prefer camera when both exist; else any non-screen video for participant tiles */
+export function getParticipantVideoStream(
+  stream: MediaStream | null,
+  opts?: MediaTrackOpts
+): MediaStream | null {
   if (!stream) return null
-  const cam = getCameraStream(stream)
+  const cam = getCameraStream(stream, opts)
   if (cam && cam.getVideoTracks().length > 0) return cam
   // If the only video is a screen share, do not show it in the face tile
-  if (getScreenShareStream(stream)) return null
+  if (getScreenShareStream(stream, opts)) return null
   const videoTracks = stream.getVideoTracks().filter((t) => t.readyState !== 'ended')
   if (videoTracks.length === 0) return null
   return getOrCreateSubset(stream, videoTracks)
 }
 
-/** True when a video track is live and not muted (avoids mounting black tiles mid-renegotiation). */
+/** Track exists and is live. Do NOT require !muted — WebRTC video often stays muted until RTP. */
 export function hasLiveVideo(stream: MediaStream | null): boolean {
   if (!stream) return false
-  return stream.getVideoTracks().some((t) => t.readyState === 'live' && !t.muted)
+  return stream.getVideoTracks().some((t) => t.readyState === 'live')
 }
