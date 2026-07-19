@@ -50,6 +50,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Guest logout — delete guest account + leave all servers on logout |
 | + | Delete Account — User Settings → My Account Danger Zone; `DELETE /api/auth/account/:userId` purges owned servers, DMs, messages, memberships, and Supabase Auth user when linked |
 | + | Invite join remount fix — After joining via `/#/invite/:code`, home remounts `AppContent` with session intact (`showApp` from existing user); pending invite survives “Log In to Join” |
+| + | Voice focus layouts — Camera auto-maximizes to a large stage + filmstrip; screen + camera dual stage; self PiP; avatar placeholder instead of black tiles; cached MediaStream subsets |
 | + | Discord-like UI overhaul — server creation, channel categories, voice user display, user panel, server settings, camera/screen share |
 | + | Messaging v3 — edit/delete messages, reply, emoji reactions, file/image uploads, owner/admin can delete any message |
 | + | Roles & members — server members list with roles (owner/admin/member), activity status, kick (owner/admin only) |
@@ -303,8 +304,8 @@ A major UI overhaul to match Discord's layout and interaction patterns.
 | **One-Click Voice Join** | Clicking a voice channel in the channel list instantly joins voice (no "Join Voice" button needed). |
 | **Voice Users in Channels** | Users connected to a voice channel are shown nested under that channel in the channel list. |
 | **Voice Connection Bar** | When connected to voice and viewing a different channel, a compact bar shows: green "Voice Connected" indicator, channel name, disconnect button, camera toggle, screen share toggle. |
-| **Camera** | Toggle camera on/off in voice view or voice connection bar. Video shows in a grid. |
-| **Screen Share** | Discord-style: sharers get a LIVE badge; others click LIVE (sidebar or tile) to watch. Watching opens a resizable stage (drag divider). Auto-focus only for your own share. Late joiners still receive the track. Auto-stops when user cancels via browser UI. |
+| **Camera** | Toggle camera on/off in voice view or voice connection bar. Turns on a large focus stage (cover) with a participant filmstrip; click a tile to switch focus. Avatar shows until the first frame. |
+| **Screen Share** | Discord-style: sharers get a LIVE badge; others click LIVE (sidebar or tile) to watch. Full-width focus stage + filmstrip; dual stage when a camera is also maximized; self-camera PiP when watching someone else. Auto-focus own share. Late joiners still receive the track. |
 | **Voice participant grid** | Participants in a voice call appear in a Discord-style square grid that fills the center of the screen. Avatar tiles with speaking indicator ring. |
 | **Server Tooltips** | Hover over server icons to see server name tooltip (like Discord). Active indicator pill on left side. |
 
