@@ -52,10 +52,15 @@ export function MemberProfilePanel({
           </svg>
         </button>
       </div>
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="flex flex-col items-center gap-4">
+      <div className="flex-1 overflow-y-auto">
+        <div className="relative h-20 bg-app-accent">
+          {member.bannerUrl ? (
+            <img src={member.bannerUrl} alt="" className="w-full h-full object-cover" />
+          ) : null}
+        </div>
+        <div className="flex flex-col items-center gap-4 px-4 pb-4 -mt-10">
           <div className="relative">
-            <div className="w-20 h-20 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-2xl overflow-hidden">
+            <div className="w-20 h-20 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-2xl overflow-hidden ring-4 ring-app-channel">
               {member.avatarUrl ? (
                 <img src={member.avatarUrl} alt={member.username} className="w-full h-full object-cover" />
               ) : (

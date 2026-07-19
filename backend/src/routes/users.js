@@ -185,6 +185,44 @@ usersRouter.patch('/:id', async (req, res) => {
 
     const { data, error } = await supabase.from('users').update(updates).eq('id', id).select().single()
     if (error) throw error
+
+    // Keep active user_profiles row in sync when My Account changes avatar/banner.
+    // Members list prefers profile.avatar_url over users.avatar_url — without this,
+    // others keep seeing the old photo after a My Account upload.
+    if (typeof avatar_url === 'string' || typeof banner_url === 'string') {
+      const profileType = data.active_profile === 'work' ? 'work' : 'personal'
+      const profileId = `${id}-${profileType}`
+      const { data: existingProfile } = await supabase
+        .from('user_profiles')
+        .select('id, display_name, avatar_url, banner_url, bio, discoverable')
+        .eq('user_id', id)
+        .eq('profile_type', profileType)
+        .maybeSingle()
+
+      const profileRow = {
+        id: existingProfile?.id || profileId,
+        user_id: id,
+        profile_type: profileType,
+        display_name: (existingProfile?.display_name && existingProfile.display_name.trim())
+          || data.display_name
+          || data.username
+          || '',
+        avatar_url: typeof avatar_url === 'string' ? (avatar_url || null) : (existingProfile?.avatar_url ?? data.avatar_url ?? null),
+        banner_url: typeof banner_url === 'string' ? (banner_url || null) : (existingProfile?.banner_url ?? data.banner_url ?? null),
+        bio: existingProfile?.bio || '',
+        discoverable: existingProfile?.discoverable !== undefined
+          ? existingProfile.discoverable
+          : profileType === 'personal',
+      }
+
+      const { error: profileErr } = await supabase
+        .from('user_profiles')
+        .upsert(profileRow, { onConflict: 'id' })
+      if (profileErr) {
+        console.error('Active profile media sync error:', profileErr)
+      }
+    }
+
     res.json(data)
   } catch (err) {
     console.error('Profile update error:', err)

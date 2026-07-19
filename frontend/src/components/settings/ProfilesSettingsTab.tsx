@@ -175,12 +175,49 @@ export function ProfilesSettingsTab({
   }
 
   const handleUpload = async (file: File, kind: 'avatar' | 'banner') => {
+    if (!/^image\/(png|gif|jpeg|webp|svg\+xml)$/.test(file.type) && !file.type.startsWith('image/')) {
+      setError('Use an image file (PNG, GIF, JPEG, or WebP)')
+      return
+    }
     setSaving(true)
     setError(null)
+    setMessage(null)
     try {
       const { url } = await api.uploadFile(file)
-      if (kind === 'avatar') patchCurrent({ avatar_url: url })
-      else patchCurrent({ banner_url: url })
+      const mediaPatch = kind === 'avatar' ? { avatar_url: url } : { banner_url: url }
+      const nextCurrent = { ...current, ...mediaPatch }
+      patchCurrent(mediaPatch)
+
+      // Persist immediately so Change Avatar/Banner works without a second Save click
+      if (nextCurrent.display_name.trim()) {
+        const saved = await api.saveUserProfile(user.id, editing, {
+          display_name: nextCurrent.display_name.trim(),
+          avatar_url: nextCurrent.avatar_url || undefined,
+          banner_url: nextCurrent.banner_url || undefined,
+          bio: nextCurrent.bio || '',
+          discoverable: !!nextCurrent.discoverable,
+        })
+        const updatedRow: ProfileRow = {
+          id: saved.id,
+          profile_type: editing,
+          display_name: saved.display_name,
+          bio: saved.bio || '',
+          avatar_url: saved.avatar_url,
+          banner_url: saved.banner_url,
+          discoverable: saved.discoverable !== false,
+        }
+        const nextProfiles = { ...profiles, [editing]: updatedRow }
+        setProfiles(nextProfiles)
+        onProfilesChange?.(toPreviews(nextProfiles), activeServerProfile)
+        if (editing === activeServerProfile) {
+          onUserUpdate?.({
+            display_name: saved.display_name,
+            avatar_url: saved.avatar_url || undefined,
+            banner_url: saved.banner_url || undefined,
+          })
+        }
+        setMessage(`${kind === 'avatar' ? 'Photo' : 'Banner'} updated`)
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Upload failed')
     } finally {

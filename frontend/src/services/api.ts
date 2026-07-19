@@ -882,7 +882,10 @@ export async function saveUserProfile(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ profile_type: profileType, ...data }),
   })
-  if (!res.ok) throw new Error('Failed to save profile')
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to save profile')
+  }
   return res.json()
 }
 

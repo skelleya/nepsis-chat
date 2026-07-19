@@ -353,8 +353,6 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
     setIsMuted,
     isDeafened,
     setIsDeafened,
-    isSoundboardMuted,
-    setIsSoundboardMuted,
     isCameraOn,
     isScreenSharing,
     toggleCamera,
@@ -602,17 +600,6 @@ export function VoiceView({ channel, currentUserId, currentUsername, currentUser
                 </svg>
               </button>
             </div>
-            <button
-              onClick={() => setIsSoundboardMuted(!isSoundboardMuted)}
-              className={`p-3 rounded-full transition-colors ${
-                isSoundboardMuted ? 'bg-amber-600/80 hover:bg-amber-600 text-white' : 'bg-app-hover hover:bg-app-channel text-app-text'
-              }`}
-              title={isSoundboardMuted ? 'Unmute soundboard' : 'Mute soundboard'}
-            >
-              <span className="text-lg" title={isSoundboardMuted ? 'Soundboard muted' : 'Soundboard on'}>
-                {isSoundboardMuted ? '🔇' : '🔊'}
-              </span>
-            </button>
             <button
               onClick={() => setIsMuted(!isMuted)}
               className={`p-3 rounded-full transition-colors ${
