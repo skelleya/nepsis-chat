@@ -337,10 +337,12 @@ function MainLayout({
         } else if (v.view === 'friends') {
           setShowFriends(true)
           setShowCommunity(false)
-        } else if ((v.view === 'dm' || v.view === 'friends') && v.dmId) {
+          if (v.dmId) setCurrentDM(v.dmId)
+        } else if (v.view === 'server') {
           setShowCommunity(false)
-          setShowFriends(true)
-          setCurrentDM(v.dmId)
+          setShowFriends(false)
+          // Restore open DM over the server rail (voice presence stays visible)
+          if (v.dmId) setCurrentDM(v.dmId)
         } else {
           setShowCommunity(false)
           setShowFriends(false)
@@ -1009,6 +1011,26 @@ function MainLayout({
             try {
               await api.moveMemberToVoiceChannel(currentServerId, targetUserId, channelId, user.id)
               showNotification('User moved to voice channel')
+              const updated = await api.getServerMembers(currentServerId)
+              setServerMembers(withLiveSelfPresence(updated))
+            } catch (e) {
+              showNotification((e as Error).message, 'error')
+            }
+          }}
+          onMuteInVoice={async (targetUserId) => {
+            if (!currentServerId) return
+            try {
+              await api.muteMemberInVoice(currentServerId, targetUserId, user.id)
+              showNotification('User muted in voice')
+            } catch (e) {
+              showNotification((e as Error).message, 'error')
+            }
+          }}
+          onDisconnectFromVoice={async (targetUserId) => {
+            if (!currentServerId) return
+            try {
+              await api.disconnectMemberFromVoice(currentServerId, targetUserId, user.id)
+              showNotification('User disconnected from voice')
               const updated = await api.getServerMembers(currentServerId)
               setServerMembers(withLiveSelfPresence(updated))
             } catch (e) {

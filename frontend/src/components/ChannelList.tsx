@@ -90,24 +90,64 @@ interface ChannelListProps {
   onSelectDM?: (conversationId: string) => void
   // Admin: drop user onto voice channel to move them
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
+  onMuteInVoice?: (userId: string) => Promise<void>
+  onDisconnectFromVoice?: (userId: string) => Promise<void>
   /** Owner/admin: can create rules channel and see rules option in modal */
   isAdminOrOwner?: boolean
 }
 
-function HashIcon({ className }: { className?: string }) {
+/** Soft chat glyph — not Discord # */
+function ChatIcon({ className }: { className?: string }) {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M5.88657 21C5.57547 21 5.3399 20.7189 5.39427 20.4126L6.00001 17H2.59511C2.28449 17 2.04905 16.7198 2.10259 16.4138L2.27759 15.4138C2.31946 15.1746 2.52722 15 2.77011 15H6.35001L7.41001 9H4.00511C3.69449 9 3.45905 8.71977 3.51259 8.41381L3.68759 7.41381C3.72946 7.17456 3.93722 7 4.18011 7H7.76001L8.39677 3.41262C8.43914 3.17391 8.64664 3 8.88907 3H9.87344C10.1845 3 10.4201 3.28107 10.3657 3.58738L9.76001 7H15.76L16.3968 3.41262C16.4391 3.17391 16.6466 3 16.8891 3H17.8734C18.1845 3 18.4201 3.28107 18.3657 3.58738L17.76 7H21.1649C21.4755 7 21.711 7.28023 21.6574 7.58619L21.4824 8.58619C21.4406 8.82544 21.2328 9 20.9899 9H17.41L16.35 15H19.7549C20.0655 15 20.301 15.2802 20.2474 15.5862L20.0724 16.5862C20.0306 16.8254 19.8228 17 19.5799 17H16L15.3632 20.5874C15.3209 20.8261 15.1134 21 14.8709 21H13.8866C13.5755 21 13.3399 20.7189 13.3943 20.4126L14 17H8.00001L7.36325 20.5874C7.32088 20.8261 7.11337 21 6.87094 21H5.88657ZM9.41001 9L8.35001 15H14.35L15.41 9H9.41001Z"/>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
+      <path
+        d="M8 10.5h8M8 14h5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+      <path
+        d="M12 3.5c-4.7 0-8.5 3.13-8.5 7 0 2.12 1.12 4.02 2.9 5.3L5.5 20l3.4-1.7c.97.28 2 .43 3.1.43 4.7 0 8.5-3.13 8.5-7s-3.8-7-8.5-7z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
 
 function VoiceIcon({ className }: { className?: string }) {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M11.383 3.07904C11.009 2.92504 10.579 3.01004 10.293 3.29604L6.586 7.00304H4C3.45 7.00304 3 7.45304 3 8.00304V16.003C3 16.553 3.45 17.003 4 17.003H6.586L10.293 20.71C10.579 20.996 11.009 21.082 11.383 20.927C11.757 20.772 12 20.407 12 20.003V4.00304C12 3.59904 11.757 3.23404 11.383 3.07904Z"/>
-      <path d="M14 9.00304C14 9.00304 16 10.003 16 12.003C16 14.003 14 15.003 14 15.003" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/>
-      <path d="M17 7.00304C17 7.00304 20 9.00304 20 12.003C20 15.003 17 17.003 17 17.003" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
+      <rect x="3.5" y="8" width="2.5" height="8" rx="1.25" fill="currentColor" />
+      <rect x="8.25" y="5" width="2.5" height="14" rx="1.25" fill="currentColor" />
+      <rect x="13" y="7" width="2.5" height="10" rx="1.25" fill="currentColor" />
+      <rect x="17.75" y="4" width="2.5" height="16" rx="1.25" fill="currentColor" />
+    </svg>
+  )
+}
+
+function RulesIcon({ className }: { className?: string }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
+      <path
+        d="M7 4.5h7.5L19 9v10.5a1 1 0 01-1 1H7a1 1 0 01-1-1v-14a1 1 0 011-1z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <path d="M14.5 4.5V9H19" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
+      <path d="M9 13h6M9 16.5h4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function MoreIcon({ className }: { className?: string }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
+      <circle cx="5" cy="12" r="2" />
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="19" cy="12" r="2" />
     </svg>
   )
 }
@@ -131,81 +171,198 @@ function categoryAwareCollisionDetection(args: Parameters<typeof closestCenter>[
   return closestCenter(args)
 }
 
-function DraggableVoiceUser({
+function VoiceUserRow({
   vu,
-  canMove,
+  currentChannelId,
+  voiceChannels,
+  canModerate,
+  isSelf,
+  onMoveToChannel,
+  onMuteInVoice,
+  onDisconnectFromVoice,
   onWatchScreenShare,
 }: {
   vu: VoiceUserInfo
-  canMove: boolean
+  currentChannelId: string
+  voiceChannels: Channel[]
+  canModerate: boolean
+  isSelf: boolean
+  onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
+  onMuteInVoice?: (userId: string) => Promise<void>
+  onDisconnectFromVoice?: (userId: string) => Promise<void>
   onWatchScreenShare?: (userId: string) => void
 }) {
+  const [showMenu, setShowMenu] = useState(false)
+  const [showMoveSub, setShowMoveSub] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const shouldRenderMenu = useGsapMenu(showMenu, menuRef, {
+    enterY: -4,
+    exitY: -2,
+    transformOrigin: 'top right',
+  })
+
+  const canDrag = canModerate && !!onMoveToChannel
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `${USER_PREFIX}${vu.userId}`,
-    disabled: !canMove,
+    disabled: !canDrag,
   })
-  const liveBadge = vu.isScreenSharing ? (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation()
-        onWatchScreenShare?.(vu.userId)
-      }}
-      className="bg-[#ed4245] text-white text-[9px] font-bold uppercase tracking-wide px-1 py-0.5 rounded-sm hover:bg-[#f04747] flex-shrink-0"
-      title="Watch screen share"
-    >
-      Live
-    </button>
-  ) : null
 
-  if (!canMove) {
-    return (
-      <div
-        className={`flex items-center gap-2 px-1.5 py-1 rounded text-app-muted hover:bg-app-hover/30 ${vu.isScreenSharing ? 'cursor-pointer' : ''}`}
-        onClick={() => {
-          if (vu.isScreenSharing) onWatchScreenShare?.(vu.userId)
-        }}
-      >
-        <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 ring-1.5 transition-all overflow-hidden ${
-          vu.isSpeaking ? 'ring-2 ring-[#23a559] shadow-[0_0_8px_rgba(35,165,89,0.7)]' : 'ring-transparent'
-        } ${vu.avatar_url ? 'bg-transparent' : 'bg-app-accent/80'}`}>
-          {vu.avatar_url ? (
-            <img src={vu.avatar_url} alt="" className="w-full h-full object-cover" />
-          ) : (
-            vu.username.charAt(0).toUpperCase()
-          )}
-        </div>
-        <span className="text-xs truncate flex-1 min-w-0">{vu.username}</span>
-        <div className="flex items-center gap-0.5 ml-auto flex-shrink-0">
-          {liveBadge}
-          {vu.isMuted && <MicOffIcon size={12} className="text-red-400" />}
-          {vu.isDeafened && <HeadphonesOffIcon size={12} className="text-red-400" />}
-        </div>
-      </div>
-    )
+  const otherVoice = voiceChannels.filter((ch) => ch.id !== currentChannelId && ch.type === 'voice')
+  const canMove = canModerate && !!onMoveToChannel && otherVoice.length > 0
+  const canMute = canModerate && !!onMuteInVoice && !isSelf
+  const canDisconnect = canModerate && !!onDisconnectFromVoice && !isSelf
+  const canWatch = !!vu.isScreenSharing && !!onWatchScreenShare
+  const hasOptions = canMove || canMute || canDisconnect || canWatch
+
+  const closeMenu = () => {
+    setShowMenu(false)
+    setShowMoveSub(false)
   }
+
   return (
-    <div ref={setNodeRef} className={isDragging ? 'opacity-50' : ''}>
+    <div
+      ref={setNodeRef}
+      className={`group/vu relative flex items-center gap-1.5 pl-1.5 pr-0.5 py-1 rounded-lg text-app-muted transition-colors ${
+        isDragging ? 'opacity-40' : 'hover:bg-white/[0.04]'
+      } ${vu.isScreenSharing && !hasOptions ? 'cursor-pointer' : ''}`}
+      onClick={() => {
+        if (vu.isScreenSharing && !hasOptions) onWatchScreenShare?.(vu.userId)
+      }}
+    >
       <div
-        {...attributes}
-        {...listeners}
-        className="flex items-center gap-2 px-1.5 py-1 rounded text-app-muted hover:bg-app-hover/30 cursor-grab active:cursor-grabbing touch-none"
+        {...(canDrag ? { ...attributes, ...listeners } : {})}
+        className={`flex items-center gap-2 min-w-0 flex-1 ${canDrag ? 'cursor-grab active:cursor-grabbing touch-none' : ''}`}
+        title={canDrag ? 'Drag to another voice room' : undefined}
       >
-        <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 ring-1.5 transition-all overflow-hidden ${
-          vu.isSpeaking ? 'ring-2 ring-[#23a559] shadow-[0_0_8px_rgba(35,165,89,0.7)]' : 'ring-transparent'
-        } ${vu.avatar_url ? 'bg-transparent' : 'bg-app-accent/80'}`}>
+        <div
+          className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0 ring-2 transition-all overflow-hidden ${
+            vu.isSpeaking
+              ? 'ring-[#23a559] shadow-[0_0_10px_rgba(35,165,89,0.45)]'
+              : 'ring-transparent'
+          } ${vu.avatar_url ? 'bg-transparent' : 'bg-app-accent/80'}`}
+        >
           {vu.avatar_url ? (
             <img src={vu.avatar_url} alt="" className="w-full h-full object-cover" />
           ) : (
             vu.username.charAt(0).toUpperCase()
           )}
         </div>
-        <span className="text-xs truncate flex-1 min-w-0">{vu.username}</span>
-        <div className="flex items-center gap-0.5 ml-auto flex-shrink-0">
-          {liveBadge}
-          {vu.isMuted && <MicOffIcon size={12} className="text-red-400" />}
-          {vu.isDeafened && <HeadphonesOffIcon size={12} className="text-red-400" />}
-        </div>
+        <span className="text-[12px] font-medium truncate min-w-0 text-app-text/85">{vu.username}</span>
+      </div>
+
+      <div className="flex items-center gap-0.5 flex-shrink-0">
+        {vu.isScreenSharing && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onWatchScreenShare?.(vu.userId)
+            }}
+            className="text-[9px] font-semibold tracking-wide px-1.5 py-0.5 rounded-md bg-red-500/90 text-white hover:bg-red-500 flex-shrink-0"
+            title="Watch screen share"
+          >
+            Live
+          </button>
+        )}
+        {vu.isMuted && <MicOffIcon size={12} className="text-red-400" />}
+        {vu.isDeafened && <HeadphonesOffIcon size={12} className="text-red-400" />}
+
+        {hasOptions && (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowMenu((v) => !v)
+                setShowMoveSub(false)
+              }}
+              className="p-1 rounded-md text-app-muted hover:text-app-text hover:bg-white/[0.06] opacity-70 group-hover/vu:opacity-100 max-lg:opacity-100 transition-opacity"
+              title="User options"
+              aria-label={`Options for ${vu.username}`}
+            >
+              <MoreIcon />
+            </button>
+            {shouldRenderMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={closeMenu} />
+                <div
+                  ref={menuRef}
+                  className="absolute right-0 top-full mt-1 z-50 min-w-[168px] rounded-xl border border-white/[0.08] bg-[#16171a] p-1 shadow-2xl"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {canWatch && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onWatchScreenShare?.(vu.userId)
+                        closeMenu()
+                      }}
+                      className="w-full px-2.5 py-1.5 rounded-lg text-[13px] text-left text-app-text hover:bg-app-accent hover:text-white"
+                    >
+                      Watch Live
+                    </button>
+                  )}
+                  {canMove && (
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setShowMoveSub((v) => !v)}
+                        className="w-full px-2.5 py-1.5 rounded-lg text-[13px] text-left text-app-text hover:bg-app-accent hover:text-white flex items-center justify-between gap-2"
+                      >
+                        <span>Move to…</span>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className={showMoveSub ? 'rotate-90' : ''}>
+                          <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+                        </svg>
+                      </button>
+                      {showMoveSub && (
+                        <div className="mt-0.5 ml-1 rounded-lg border border-white/[0.06] bg-[#111214] p-0.5 max-h-40 overflow-y-auto">
+                          {otherVoice.map((ch) => (
+                            <button
+                              key={ch.id}
+                              type="button"
+                              onClick={async () => {
+                                await onMoveToChannel?.(vu.userId, ch.id)
+                                closeMenu()
+                              }}
+                              className="w-full px-2.5 py-1.5 rounded-md text-[12px] text-left text-app-text hover:bg-app-accent hover:text-white flex items-center gap-2"
+                            >
+                              <VoiceIcon className="opacity-70 flex-shrink-0" />
+                              <span className="truncate">{ch.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {canMute && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await onMuteInVoice?.(vu.userId)
+                        closeMenu()
+                      }}
+                      className="w-full px-2.5 py-1.5 rounded-lg text-[13px] text-left text-app-text hover:bg-app-accent hover:text-white"
+                    >
+                      Server Mute
+                    </button>
+                  )}
+                  {canDisconnect && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await onDisconnectFromVoice?.(vu.userId)
+                        closeMenu()
+                      }}
+                      className="w-full px-2.5 py-1.5 rounded-lg text-[13px] text-left text-red-400 hover:bg-red-500/20"
+                    >
+                      Disconnect
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -216,29 +373,35 @@ function SortableChannelItem({
   currentChannelId,
   onSelectChannel,
   voiceUsers,
+  voiceChannels,
   hasUnread,
   hasMention,
-  HashIcon,
-  VoiceIcon,
   onUpdateChannel,
   onDeleteChannel,
   onMoveToChannel,
+  onMuteInVoice,
+  onDisconnectFromVoice,
   onWatchScreenShare,
   canEdit,
+  canModerate,
+  currentUserId,
 }: {
   channel: Channel
   currentChannelId: string | null
   onSelectChannel: (ch: Channel) => void
   voiceUsers: Record<string, VoiceUserInfo[]>
+  voiceChannels: Channel[]
   hasUnread?: boolean
   hasMention?: boolean
-  HashIcon: React.ComponentType<{ className?: string }>
-  VoiceIcon: React.ComponentType<{ className?: string }>
   onUpdateChannel?: (channelId: string, data: { name?: string; order?: number; categoryId?: string | null }) => Promise<void>
   onDeleteChannel?: (channelId: string) => Promise<void>
   onWatchScreenShare?: (userId: string) => void
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
+  onMuteInVoice?: (userId: string) => Promise<void>
+  onDisconnectFromVoice?: (userId: string) => Promise<void>
   canEdit?: boolean
+  canModerate?: boolean
+  currentUserId?: string
 }) {
   const [showMenu, setShowMenu] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -266,22 +429,26 @@ function SortableChannelItem({
     setEditing(false)
   }, [channel.id, channel.name, editName, onUpdateChannel])
 
-  const voiceUsersList = (voiceUsers[channel.id] || [])
+  const voiceUsersList = voiceUsers[channel.id] || []
+  const isSelected = currentChannelId === channel.id
+  const isVoice = channel.type === 'voice'
 
   return (
     <div ref={setNodeRef} style={style} className={isDragging ? 'opacity-50' : ''}>
-      <div className="flex items-center gap-0.5 group/ch">
-        <button
-          {...attributes}
-          {...listeners}
-          className="p-1 rounded text-app-muted hover:text-app-text hover:bg-app-hover/40 cursor-grab active:cursor-grabbing flex-shrink-0 opacity-0 group-hover/ch:opacity-100 group-focus-within/ch:opacity-100 max-lg:opacity-100 transition-opacity touch-none"
-          title="Drag to reorder"
-          onClick={(e) => e.preventDefault()}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M8 6h2v2H8V6zm0 5h2v2H8v-2zm0 5h2v2H8v-2zm5-10h2v2h-2V6zm0 5h2v2h-2v-2zm0 5h2v2h-2v-2z"/>
-          </svg>
-        </button>
+      <div className="group/ch flex items-stretch gap-0.5">
+        {canEdit && (
+          <button
+            {...attributes}
+            {...listeners}
+            className="self-start mt-2 p-0.5 rounded-md text-app-muted/50 hover:text-app-text hover:bg-white/[0.05] cursor-grab active:cursor-grabbing flex-shrink-0 opacity-0 group-hover/ch:opacity-100 group-focus-within/ch:opacity-100 max-lg:opacity-100 transition-opacity touch-none"
+            title="Drag to reorder"
+            onClick={(e) => e.preventDefault()}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M8 6h2v2H8V6zm0 5h2v2H8v-2zm0 5h2v2H8v-2zm5-10h2v2h-2V6zm0 5h2v2h-2v-2zm0 5h2v2h-2v-2z" />
+            </svg>
+          </button>
+        )}
         <div className="flex-1 min-w-0 relative">
           {editing ? (
             <div className="flex items-center gap-1 px-2 py-1">
@@ -289,60 +456,96 @@ function SortableChannelItem({
                 autoFocus
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') { setEditName(channel.name); setEditing(false) } }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveEdit()
+                  if (e.key === 'Escape') {
+                    setEditName(channel.name)
+                    setEditing(false)
+                  }
+                }}
                 onBlur={handleSaveEdit}
-                className="flex-1 px-1.5 py-0.5 rounded bg-app-dark text-sm text-app-text border border-app-hover/50"
+                className="flex-1 px-2 py-1 rounded-lg bg-app-dark text-sm text-app-text border border-white/10"
               />
             </div>
           ) : (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
               <button
                 onClick={() => onSelectChannel(channel)}
-                className={`flex-1 px-2 py-1.5 rounded flex items-center gap-1.5 text-left ${
-                  currentChannelId === channel.id
-                    ? 'bg-app-hover/60 text-white'
+                className={`relative flex-1 min-w-0 flex items-center gap-2.5 text-left rounded-xl px-2.5 py-2 transition-colors ${
+                  isSelected
+                    ? isVoice
+                      ? 'bg-app-accent/15 text-white'
+                      : 'bg-white/[0.08] text-white'
                     : channel.type === 'text' && hasMention
-                      ? 'bg-red-500/15 text-white font-semibold hover:bg-red-500/20'
+                      ? 'bg-red-500/12 text-white font-semibold hover:bg-red-500/18'
                       : channel.type === 'text' && hasUnread
-                        ? 'bg-white/10 text-white hover:bg-white/15 font-medium'
-                        : 'text-app-muted hover:bg-app-hover/40 hover:text-app-text'
+                        ? 'bg-white/[0.05] text-white hover:bg-white/[0.08] font-medium'
+                        : 'text-app-muted hover:bg-white/[0.04] hover:text-app-text'
                 }`}
               >
-                {channel.type === 'text' ? (
-                  <HashIcon className={`w-5 h-5 flex-shrink-0 ${hasUnread || hasMention ? 'opacity-100' : 'opacity-60'}`} />
-                ) : channel.type === 'rules' ? (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 flex-shrink-0 opacity-60">
-                    <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/>
-                    <path d="M9 15h6v2H9zm0-4h6v2H9zm0-4h3v2H9z"/>
-                  </svg>
-                ) : (
-                  <VoiceIcon className="w-5 h-5 flex-shrink-0 opacity-60" />
+                {isSelected && (
+                  <span
+                    className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-app-accent"
+                    aria-hidden
+                  />
                 )}
-                <span className="text-sm truncate flex-1">{channel.name}</span>
+                <span
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                    isVoice
+                      ? isSelected
+                        ? 'bg-app-accent/25 text-app-accent'
+                        : 'bg-white/[0.04] text-app-muted'
+                      : isSelected
+                        ? 'bg-white/[0.08] text-app-text'
+                        : 'bg-white/[0.03] text-app-muted'
+                  }`}
+                >
+                  {channel.type === 'text' ? (
+                    <ChatIcon />
+                  ) : channel.type === 'rules' ? (
+                    <RulesIcon />
+                  ) : (
+                    <VoiceIcon />
+                  )}
+                </span>
+                <span className="text-[13px] font-medium truncate flex-1 min-w-0 tracking-tight">
+                  {channel.name}
+                </span>
+                {isVoice && voiceUsersList.length > 0 && (
+                  <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded-md bg-white/[0.06] text-app-muted flex-shrink-0">
+                    {voiceUsersList.length}
+                  </span>
+                )}
                 {hasMention && (
-                  <span className="ml-auto w-5 h-5 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold flex-shrink-0">@</span>
+                  <span className="w-5 h-5 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold flex-shrink-0">
+                    @
+                  </span>
                 )}
               </button>
               {canEdit && (
                 <div className="relative">
                   <button
                     onClick={() => setShowMenu(!showMenu)}
-                    className="p-1 rounded text-app-muted hover:text-app-text hover:bg-app-hover/40 opacity-0 group-hover/ch:opacity-100 group-focus-within/ch:opacity-100 max-lg:opacity-100 transition-opacity"
+                    className="p-1.5 rounded-lg text-app-muted hover:text-app-text hover:bg-white/[0.05] opacity-0 group-hover/ch:opacity-100 group-focus-within/ch:opacity-100 max-lg:opacity-100 transition-opacity"
                     title="Channel options"
                   >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-                    </svg>
+                    <MoreIcon />
                   </button>
                   {shouldRenderMenu && (
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-                      <div ref={menuRef} className="absolute right-0 top-full mt-0.5 z-50 bg-[#111214] rounded-lg shadow-xl p-1 border border-app-hover/30 min-w-[120px]">
+                      <div
+                        ref={menuRef}
+                        className="absolute right-0 top-full mt-1 z-50 min-w-[132px] rounded-xl border border-white/[0.08] bg-[#16171a] p-1 shadow-2xl"
+                      >
                         <button
-                          onClick={() => { setEditing(true); setShowMenu(false) }}
-                          className="w-full px-2 py-1.5 rounded text-sm text-app-text hover:bg-app-accent hover:text-white text-left"
+                          onClick={() => {
+                            setEditing(true)
+                            setShowMenu(false)
+                          }}
+                          className="w-full px-2.5 py-1.5 rounded-lg text-[13px] text-app-text hover:bg-app-accent hover:text-white text-left"
                         >
-                          Edit Channel
+                          Rename
                         </button>
                         <button
                           onClick={async () => {
@@ -351,9 +554,9 @@ function SortableChannelItem({
                             }
                             setShowMenu(false)
                           }}
-                          className="w-full px-2 py-1.5 rounded text-sm text-red-400 hover:bg-red-500/20 text-left"
+                          className="w-full px-2.5 py-1.5 rounded-lg text-[13px] text-red-400 hover:bg-red-500/20 text-left"
                         >
-                          Delete Channel
+                          Delete
                         </button>
                       </div>
                     </>
@@ -362,16 +565,33 @@ function SortableChannelItem({
               )}
             </div>
           )}
-          {channel.type === 'voice' && voiceUsersList.length > 0 && (
+          {isVoice && (
             <div
               ref={setDropRef}
-              className={`ml-7 space-y-0.5 mt-0.5 p-1 rounded transition-colors ${isOver ? 'bg-app-accent/20 ring-1 ring-app-accent/50' : ''}`}
+              className={
+                voiceUsersList.length > 0 || isOver
+                  ? `mt-1 ml-1 pl-2 border-l space-y-0.5 transition-colors ${
+                      isOver
+                        ? 'border-app-accent/60 bg-app-accent/10 rounded-r-xl py-1'
+                        : 'border-white/[0.06] py-0.5'
+                    }`
+                  : 'min-h-[2px]'
+              }
             >
+              {voiceUsersList.length === 0 && isOver && (
+                <div className="px-2 py-2 text-[11px] text-app-accent/90 font-medium">Drop to move here</div>
+              )}
               {voiceUsersList.map((vu) => (
-                <DraggableVoiceUser
+                <VoiceUserRow
                   key={vu.userId}
                   vu={vu}
-                  canMove={!!onMoveToChannel}
+                  currentChannelId={channel.id}
+                  voiceChannels={voiceChannels}
+                  canModerate={!!canModerate}
+                  isSelf={vu.userId === currentUserId}
+                  onMoveToChannel={onMoveToChannel}
+                  onMuteInVoice={onMuteInVoice}
+                  onDisconnectFromVoice={onDisconnectFromVoice}
                   onWatchScreenShare={onWatchScreenShare}
                 />
               ))}
@@ -398,27 +618,30 @@ function UncategorizedHeader({
   return (
     <div
       ref={setNodeRef}
-      className={`flex items-center px-1 group cursor-pointer ${isOver ? 'bg-app-accent/15 rounded' : ''}`}
+      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg group cursor-pointer ${isOver ? 'bg-app-accent/15' : ''}`}
       onClick={onToggle}
     >
       <svg
         width="10"
         height="10"
         viewBox="0 0 10 10"
-        className={`mr-0.5 text-app-muted transition-transform flex-shrink-0 ${collapsed ? '-rotate-90' : ''}`}
+        className={`text-app-muted/80 transition-transform flex-shrink-0 ${collapsed ? '-rotate-90' : ''}`}
       >
-        <path d="M2 3L5 6L8 3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+        <path d="M2 3L5 6L8 3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
       </svg>
-      <span className="text-[11px] font-bold text-app-muted uppercase tracking-wider truncate flex-1 hover:text-app-text transition-colors">
+      <span className="font-display text-[12px] font-semibold text-app-muted/90 tracking-tight truncate flex-1 hover:text-app-text transition-colors">
         Channels
       </span>
       <button
-        onClick={(e) => { e.stopPropagation(); onAddChannel() }}
-        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 text-app-muted hover:text-app-text transition-all p-0.5"
+        onClick={(e) => {
+          e.stopPropagation()
+          onAddChannel()
+        }}
+        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 text-app-muted hover:text-app-text transition-all p-1 rounded-md hover:bg-white/[0.05]"
         title="Create Channel"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-          <path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+          <path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
         </svg>
       </button>
     </div>
@@ -476,77 +699,95 @@ function SortableCategoryHeader({
           onChange={(e) => setEditName(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') { setEditName(category.name); setEditing(false) } }}
           onBlur={handleSaveEdit}
-          className="flex-1 px-1.5 py-0.5 rounded bg-app-dark text-[11px] font-bold text-app-muted uppercase tracking-wider border border-app-hover/50"
+          className="flex-1 px-2 py-1 rounded-lg bg-app-dark text-[12px] font-display font-semibold text-app-text border border-white/10"
         />
       </div>
     )
   }
 
   return (
-    <div ref={setNodeRef} style={style} className={`flex items-center px-1 group cursor-pointer rounded ${isDragging ? 'opacity-50' : ''} ${isOver ? 'bg-app-accent/15' : ''}`} onClick={onToggle}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg group cursor-pointer ${isDragging ? 'opacity-50' : ''} ${isOver ? 'bg-app-accent/15' : ''}`}
+      onClick={onToggle}
+    >
       <button
         {...attributes}
         {...listeners}
         onClick={(e) => e.stopPropagation()}
-        className="p-0.5 rounded text-app-muted hover:text-app-text hover:bg-app-hover/40 cursor-grab active:cursor-grabbing flex-shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 transition-opacity touch-none"
+        className="p-0.5 rounded-md text-app-muted/50 hover:text-app-text hover:bg-white/[0.05] cursor-grab active:cursor-grabbing flex-shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 transition-opacity touch-none"
         title="Drag to reorder"
       >
         <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M8 6h2v2H8V6zm0 5h2v2H8v-2zm0 5h2v2H8v-2zm5-10h2v2h-2V6zm0 5h2v2h-2v-2zm0 5h2v2h-2v-2z"/>
+          <path d="M8 6h2v2H8V6zm0 5h2v2H8v-2zm0 5h2v2H8v-2zm5-10h2v2h-2V6zm0 5h2v2h-2v-2zm0 5h2v2h-2v-2z" />
         </svg>
       </button>
       <svg
         width="10"
         height="10"
         viewBox="0 0 10 10"
-        className={`mr-0.5 text-app-muted transition-transform flex-shrink-0 ${collapsed ? '-rotate-90' : ''}`}
+        className={`text-app-muted/80 transition-transform flex-shrink-0 ${collapsed ? '-rotate-90' : ''}`}
       >
-        <path d="M2 3L5 6L8 3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+        <path d="M2 3L5 6L8 3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
       </svg>
-      <span className="text-[11px] font-bold text-app-muted uppercase tracking-wider truncate flex-1 hover:text-app-text transition-colors">
+      <span className="font-display text-[12px] font-semibold text-app-muted/90 tracking-tight truncate flex-1 hover:text-app-text transition-colors">
         {category.name}
       </span>
       <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 transition-all">
         <button
-          onClick={(e) => { e.stopPropagation(); onAddChannel(category.id) }}
-          className="p-0.5 text-app-muted hover:text-app-text"
+          onClick={(e) => {
+            e.stopPropagation()
+            onAddChannel(category.id)
+          }}
+          className="p-1 rounded-md text-app-muted hover:text-app-text hover:bg-white/[0.05]"
           title="Create Channel"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-            <path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+            <path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
           </svg>
         </button>
         {canEdit && (
           <div className="relative">
             <button
-              onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu) }}
-              className="p-0.5 text-app-muted hover:text-app-text"
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowMenu(!showMenu)
+              }}
+              className="p-1 rounded-md text-app-muted hover:text-app-text hover:bg-white/[0.05]"
               title="Category options"
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-              </svg>
+              <MoreIcon />
             </button>
             {shouldRenderMenu && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-                <div ref={menuRef} className="absolute left-0 top-full mt-0.5 z-50 bg-[#111214] rounded-lg shadow-xl p-1 border border-app-hover/30 min-w-[120px]">
+                <div
+                  ref={menuRef}
+                  className="absolute left-0 top-full mt-1 z-50 min-w-[132px] rounded-xl border border-white/[0.08] bg-[#16171a] p-1 shadow-2xl"
+                >
                   <button
-                    onClick={() => { setEditing(true); setShowMenu(false) }}
-                    className="w-full px-2 py-1.5 rounded text-sm text-app-text hover:bg-app-accent hover:text-white text-left"
+                    onClick={() => {
+                      setEditing(true)
+                      setShowMenu(false)
+                    }}
+                    className="w-full px-2.5 py-1.5 rounded-lg text-[13px] text-app-text hover:bg-app-accent hover:text-white text-left"
                   >
-                    Edit Category
+                    Rename
                   </button>
                   <button
                     onClick={async () => {
-                      if (onDeleteCategory && confirm(`Delete category "${category.name}"? Channels will become uncategorized.`)) {
+                      if (
+                        onDeleteCategory &&
+                        confirm(`Delete category "${category.name}"? Channels will become uncategorized.`)
+                      ) {
                         await onDeleteCategory(category.id)
                       }
                       setShowMenu(false)
                     }}
-                    className="w-full px-2 py-1.5 rounded text-sm text-red-400 hover:bg-red-500/20 text-left"
+                    className="w-full px-2.5 py-1.5 rounded-lg text-[13px] text-red-400 hover:bg-red-500/20 text-left"
                   >
-                    Delete Category
+                    Delete
                   </button>
                 </div>
               </>
@@ -561,6 +802,7 @@ function SortableCategoryHeader({
 function CategorySection({
   category,
   channels,
+  allVoiceChannels,
   currentChannelId,
   onSelectChannel,
   onAddChannel,
@@ -569,14 +811,19 @@ function CategorySection({
   onDeleteChannel,
   onDeleteCategory,
   onMoveToChannel,
+  onMuteInVoice,
+  onDisconnectFromVoice,
   onWatchScreenShare,
   voiceUsers,
   channelUnreadCounts,
   channelMentionCounts,
   canEdit,
+  canModerate,
+  currentUserId,
 }: {
   category: Category | null
   channels: Channel[]
+  allVoiceChannels: Channel[]
   currentChannelId: string | null
   onSelectChannel: (ch: Channel) => void
   onAddChannel: (catId?: string) => void
@@ -585,16 +832,20 @@ function CategorySection({
   onDeleteChannel?: (channelId: string) => Promise<void>
   onDeleteCategory?: (catId: string) => Promise<void>
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
+  onMuteInVoice?: (userId: string) => Promise<void>
+  onDisconnectFromVoice?: (userId: string) => Promise<void>
   onWatchScreenShare?: (userId: string) => void
   voiceUsers: Record<string, VoiceUserInfo[]>
   channelUnreadCounts?: Record<string, number>
   channelMentionCounts?: Record<string, number>
   canEdit?: boolean
+  canModerate?: boolean
+  currentUserId?: string
 }) {
   const [collapsed, setCollapsed] = useState(false)
 
   return (
-    <div className="mt-4 first:mt-1">
+    <div className="mt-5 first:mt-2">
       {category && (
         <SortableCategoryHeader
           category={category}
@@ -619,7 +870,7 @@ function CategorySection({
           items={channels.map((c) => `${CHANNEL_PREFIX}${c.id}`)}
           strategy={verticalListSortingStrategy}
         >
-          <div className="mt-0.5 space-y-0.5 px-2">
+          <div className="mt-1 space-y-1 px-1.5">
             {channels.map((channel) => (
               <SortableChannelItem
                 key={channel.id}
@@ -627,15 +878,18 @@ function CategorySection({
                 currentChannelId={currentChannelId}
                 onSelectChannel={onSelectChannel}
                 voiceUsers={voiceUsers}
+                voiceChannels={allVoiceChannels}
                 hasUnread={channel.type === 'text' && (channelUnreadCounts?.[channel.id] ?? 0) > 0}
                 hasMention={channel.type === 'text' && (channelMentionCounts?.[channel.id] ?? 0) > 0}
-                HashIcon={HashIcon}
-                VoiceIcon={VoiceIcon}
                 onUpdateChannel={onUpdateChannel}
                 onDeleteChannel={onDeleteChannel}
                 onMoveToChannel={onMoveToChannel}
+                onMuteInVoice={onMuteInVoice}
+                onDisconnectFromVoice={onDisconnectFromVoice}
                 onWatchScreenShare={onWatchScreenShare}
                 canEdit={canEdit}
+                canModerate={canModerate}
+                currentUserId={currentUserId}
               />
             ))}
           </div>
@@ -661,6 +915,8 @@ export function ChannelList({
   onDeleteChannel,
   onDeleteCategory,
   onMoveToChannel,
+  onMuteInVoice,
+  onDisconnectFromVoice,
   onWatchScreenShare,
   isAdminOrOwner = false,
   voiceConnection,
@@ -680,6 +936,7 @@ export function ChannelList({
   onSelectDM,
 }: ChannelListProps) {
   const { user } = useApp()
+  const allVoiceChannels = channels.filter((c) => c.type === 'voice')
   const [showCreateChannel, setShowCreateChannel] = useState(false)
   const [createChannelCategoryId, setCreateChannelCategoryId] = useState<string | undefined>()
   const [showServerMenu, setShowServerMenu] = useState(false)
@@ -1002,6 +1259,7 @@ export function ChannelList({
                   key={category.id}
                   category={category}
                   channels={catChannels}
+                  allVoiceChannels={allVoiceChannels}
                   currentChannelId={currentChannelId}
                   onSelectChannel={onSelectChannel}
                   onAddChannel={(catId) => {
@@ -1013,11 +1271,15 @@ export function ChannelList({
                   onDeleteChannel={onDeleteChannel}
                   onDeleteCategory={onDeleteCategory}
                   onMoveToChannel={onMoveToChannel}
+                  onMuteInVoice={onMuteInVoice}
+                  onDisconnectFromVoice={onDisconnectFromVoice}
                   onWatchScreenShare={onWatchScreenShare}
                   voiceUsers={voiceUsers}
                   channelUnreadCounts={channelUnreadCounts}
                   channelMentionCounts={channelMentionCounts}
                   canEdit={isOwner}
+                  canModerate={isAdminOrOwner}
+                  currentUserId={user?.id}
                 />
               ))}
 
@@ -1026,6 +1288,7 @@ export function ChannelList({
                 <CategorySection
                   category={null}
                   channels={uncategorizedChannels}
+                  allVoiceChannels={allVoiceChannels}
                   currentChannelId={currentChannelId}
                   onSelectChannel={onSelectChannel}
                   onAddChannel={() => {
@@ -1037,11 +1300,15 @@ export function ChannelList({
                   onDeleteChannel={onDeleteChannel}
                   onDeleteCategory={onDeleteCategory}
                   onMoveToChannel={onMoveToChannel}
+                  onMuteInVoice={onMuteInVoice}
+                  onDisconnectFromVoice={onDisconnectFromVoice}
                   onWatchScreenShare={onWatchScreenShare}
                   voiceUsers={voiceUsers}
                   channelUnreadCounts={channelUnreadCounts}
                   channelMentionCounts={channelMentionCounts}
                   canEdit={isOwner}
+                  canModerate={isAdminOrOwner}
+                  currentUserId={user?.id}
                 />
               )}
             </SortableContext>
