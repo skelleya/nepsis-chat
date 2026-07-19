@@ -21,6 +21,8 @@ Node.js + Express + Socket.io + SQLite.
 | DELETE | `/api/messages/:id/reactions` | Remove reaction (`?userId=&emoji=`) |
 | POST | `/api/uploads` | Upload file (multipart/form-data) — returns `{url}` |
 | POST | `/api/servers/:id/join` | Join server (`userId`) |
+| GET | `/api/servers/community` | Discoverable servers + `memberCount` / `onlineCount` / `ownerName` |
+| GET | `/api/servers/:id/preview` | Public community server details (members, online, channels, owner, rules flag) |
 | GET | `/api/servers/:id/members` | List members with roles & presence. Display name: profile → `users.display_name` → `users.username` → Unknown |
 | DELETE | `/api/servers/:id/members/:userId` | Kick user (`?kickerUserId=`) — owner/admin only |
 | POST | `/api/servers/:id/members/:userId/mute-voice` | Mute user in voice (`adminUserId`) — owner/admin only; emits admin-mute to target socket |
@@ -45,7 +47,7 @@ Node.js + Express + Socket.io + SQLite.
 | POST | `/api/friends/decline` | Decline friend request (`userId`, `requesterId`) |
 | POST | `/api/friends/request` | Send friend request (`userId`, `targetUserId`, `profile?` personal\|work) — respects target `who_can_add_friend` |
 | PATCH | `/api/friends/visibility` | Update per-friend profile visibility (`userId`, `friendId`, `visibleProfiles?`, `friendshipProfile?`) |
-| GET | `/api/invites/:code` | Public invite details (server name, icon, inviter) — for join page |
+| GET | `/api/invites/:code` | Public invite details (server name, icon, inviter, **memberCount**) — for join page |
 | POST | `/api/invites/:code/join` | Join server via invite (`userId`) |
 | POST | `/api/servers/:id/invites` | Create invite (`createdBy`) — any member |
 | GET | `/api/servers/:id/invites` | List server invites |

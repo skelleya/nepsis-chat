@@ -1,27 +1,31 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import gsap from 'gsap'
 import * as api from '../services/api'
+import type { CommunityServer, ServerPreview } from '../services/api'
 import { useApp } from '../contexts/AppContext'
-
-interface ServerItem {
-  id: string
-  name: string
-  icon_url?: string
-  owner_id: string
-}
 
 interface CommunityPageProps {
   onJoinServer?: (serverId: string) => void
   onClose?: () => void
 }
 
+function formatCount(n: number) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  return String(n)
+}
+
 export function CommunityPage({ onJoinServer, onClose }: CommunityPageProps) {
   const { user, servers, loadServers, setCurrentServer } = useApp()
   const pageRef = useRef<HTMLDivElement>(null)
-  const [communityServers, setCommunityServers] = useState<ServerItem[]>([])
+  const [communityServers, setCommunityServers] = useState<CommunityServer[]>([])
   const [inviteCode, setInviteCode] = useState('')
   const [joining, setJoining] = useState(false)
   const [joinError, setJoinError] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [preview, setPreview] = useState<ServerPreview | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
 
   useLayoutEffect(() => {
     const page = pageRef.current
@@ -44,7 +48,36 @@ export function CommunityPage({ onJoinServer, onClose }: CommunityPageProps) {
     api.getCommunityServers().then(setCommunityServers).catch(() => setCommunityServers([]))
   }, [])
 
+  useEffect(() => {
+    if (!selectedId) {
+      setPreview(null)
+      setPreviewError(null)
+      return
+    }
+    let cancelled = false
+    setPreviewLoading(true)
+    setPreviewError(null)
+    api
+      .getServerPreview(selectedId)
+      .then((data) => {
+        if (!cancelled) setPreview(data)
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setPreview(null)
+          setPreviewError(e instanceof Error ? e.message : 'Failed to load details')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setPreviewLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedId])
+
   const memberServerIds = new Set(servers.map((s) => s.id))
+  const selectedListItem = communityServers.find((s) => s.id === selectedId) || null
 
   const handleJoinViaCode = async () => {
     const code = inviteCode.trim().replace(/^.*\/invite\//, '').trim()
@@ -158,12 +191,18 @@ export function CommunityPage({ onJoinServer, onClose }: CommunityPageProps) {
             <div className="space-y-2">
               {communityServers.map((s) => {
                 const isMember = memberServerIds.has(s.id)
+                const members = s.memberCount ?? 0
+                const online = s.onlineCount ?? 0
                 return (
-                  <div
+                  <button
                     key={s.id}
-                    className="flex items-center justify-between px-4 py-3.5 rounded-xl bg-[#2b2d31] hover:bg-[#36373d] border border-transparent hover:border-app-hover/30 transition-all"
+                    type="button"
+                    onClick={() => setSelectedId(s.id)}
+                    className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl bg-[#2b2d31] hover:bg-[#36373d] border text-left transition-all ${
+                      selectedId === s.id ? 'border-app-accent/50 ring-1 ring-app-accent/30' : 'border-transparent hover:border-app-hover/30'
+                    }`}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
                       <div className="w-11 h-11 rounded-xl bg-app-channel flex items-center justify-center text-white font-bold text-sm overflow-hidden flex-shrink-0">
                         {s.icon_url ? (
                           <img src={s.icon_url} alt="" className="w-full h-full object-cover" />
@@ -171,31 +210,156 @@ export function CommunityPage({ onJoinServer, onClose }: CommunityPageProps) {
                           s.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
                         )}
                       </div>
-                      <span className="font-medium text-app-text">{s.name}</span>
+                      <div className="min-w-0">
+                        <div className="font-medium text-app-text truncate">{s.name}</div>
+                        <div className="flex items-center gap-3 mt-0.5 text-xs text-app-muted">
+                          <span className="inline-flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#23a559]" />
+                            {formatCount(online)} Online
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-app-muted/70" />
+                            {formatCount(members)} Members
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    {isMember ? (
-                      <button
-                        onClick={() => setCurrentServer(s.id)}
-                        className="px-4 py-2 text-sm text-app-accent hover:bg-app-accent/20 rounded-lg font-medium transition-colors"
-                      >
-                        Open
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleJoinCommunity(s.id)}
-                        disabled={joining}
-                        className="px-4 py-2 text-sm bg-app-accent hover:bg-app-accent-hover text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      >
-                        Join
-                      </button>
-                    )}
-                  </div>
+                    <span className="text-xs text-app-muted flex-shrink-0 ml-3">
+                      {isMember ? 'Member' : 'View'}
+                    </span>
+                  </button>
                 )
               })}
             </div>
           )}
         </section>
       </div>
+
+      {/* Server details panel */}
+      {selectedId && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-black/50"
+            onClick={() => setSelectedId(null)}
+            aria-hidden
+          />
+          <div
+            className="fixed z-50 inset-x-4 top-[12%] bottom-auto max-h-[76vh] overflow-y-auto mx-auto max-w-md rounded-2xl bg-[#2b2d31] shadow-2xl border border-white/5"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="community-server-title"
+          >
+            {(preview?.bannerUrl || selectedListItem?.banner_url) && (
+              <div className="h-28 bg-app-channel overflow-hidden">
+                <img
+                  src={preview?.bannerUrl || selectedListItem?.banner_url}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+            <div className="p-6">
+              <div className="flex items-start gap-4">
+                <div
+                  className={`w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-bold text-white overflow-hidden flex-shrink-0 ${
+                    preview?.bannerUrl || selectedListItem?.banner_url ? '-mt-10 ring-4 ring-[#2b2d31]' : ''
+                  } ${preview?.iconUrl || selectedListItem?.icon_url ? 'bg-transparent' : 'bg-app-channel'}`}
+                >
+                  {(preview?.iconUrl || selectedListItem?.icon_url) ? (
+                    <img
+                      src={preview?.iconUrl || selectedListItem?.icon_url}
+                      alt=""
+                      className="w-full h-full object-cover rounded-2xl"
+                    />
+                  ) : (
+                    (preview?.name || selectedListItem?.name || '?')
+                      .split(' ')
+                      .map((w) => w[0])
+                      .join('')
+                      .slice(0, 2)
+                      .toUpperCase()
+                  )}
+                </div>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <h3 id="community-server-title" className="text-xl font-bold text-white truncate">
+                    {preview?.name || selectedListItem?.name || 'Server'}
+                  </h3>
+                  <p className="text-sm text-app-muted mt-0.5">
+                    Owned by {preview?.ownerName || selectedListItem?.ownerName || '…'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedId(null)}
+                  className="p-1.5 rounded-lg text-app-muted hover:text-app-text hover:bg-app-hover/50"
+                  aria-label="Close"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {previewLoading && (
+                <p className="mt-6 text-sm text-app-muted animate-pulse">Loading details…</p>
+              )}
+              {previewError && (
+                <p className="mt-6 text-sm text-red-400">{previewError}</p>
+              )}
+
+              {preview && !previewLoading && (
+                <div className="mt-6 space-y-4">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-xl bg-[#1e1f22] px-3 py-3 text-center">
+                      <div className="text-lg font-semibold text-white">{formatCount(preview.memberCount)}</div>
+                      <div className="text-[11px] text-app-muted uppercase tracking-wide">Members</div>
+                    </div>
+                    <div className="rounded-xl bg-[#1e1f22] px-3 py-3 text-center">
+                      <div className="text-lg font-semibold text-[#23a559]">{formatCount(preview.onlineCount)}</div>
+                      <div className="text-[11px] text-app-muted uppercase tracking-wide">Online</div>
+                    </div>
+                    <div className="rounded-xl bg-[#1e1f22] px-3 py-3 text-center">
+                      <div className="text-lg font-semibold text-white">{formatCount(preview.channelCount)}</div>
+                      <div className="text-[11px] text-app-muted uppercase tracking-wide">Channels</div>
+                    </div>
+                  </div>
+
+                  {preview.requiresRules && (
+                    <p className="text-xs text-amber-200/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+                      This server requires accepting the rules before using channels.
+                    </p>
+                  )}
+
+                  <div className="flex gap-2 pt-1">
+                    {memberServerIds.has(preview.id) ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCurrentServer(preview.id)
+                          setSelectedId(null)
+                          onJoinServer?.(preview.id)
+                        }}
+                        className="flex-1 px-4 py-3 bg-app-accent hover:bg-app-accent-hover text-white rounded-xl font-semibold transition-colors"
+                      >
+                        Open Server
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleJoinCommunity(preview.id)}
+                        disabled={joining}
+                        className="flex-1 px-4 py-3 bg-[#23a559] hover:bg-[#1e8c4a] disabled:opacity-50 text-white rounded-xl font-semibold transition-colors"
+                      >
+                        {joining ? 'Joining…' : 'Join Server'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
