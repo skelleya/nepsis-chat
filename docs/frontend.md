@@ -52,7 +52,7 @@ frontend/src/
 | DMView | Discord-style DM stream (left-aligned, grouped, date separators). Composer: + inside field, Enter to send, no send button. |
 | ChatView | Same Discord chat chrome for server channels — grouped messages, hover actions, integrated + composer. |
 | ChatInput | Shared Discord composer bar (`#383a40`): attach +, text, optional emoji; Enter submits. |
-| VoiceView | Avatar circles; **camera = square tile** (click to maximize); screen share stage + LIVE badges. |
+| VoiceView | Avatar circles when cam off. **Camera/screen:** focus stage (auto-maximize camera) + top filmstrip; dual stage when screen + camera; self PiP when watching others. Tiles show avatar until first video frame (no black squares). Stream subsets cached in `mediaTracks.ts`. |
 | RemoteAudio | Plays remote WebRTC stream |
 | CallOverlay | DM call UI: outgoing/incoming/in-call states |
 | DMView | Direct message chat; modern UI with gradient header, rounded bubbles, relative timestamps; groups consecutive messages from same sender (avatar/name shown only on first in group); spacing: 1.5 between same-sender, 5 between different senders |
