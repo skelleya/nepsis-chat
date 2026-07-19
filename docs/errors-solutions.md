@@ -347,6 +347,14 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 
 ---
 
+## Voice + DM sidebar
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Opening a DM while in a server voice channel switched the left rail to Friends and hid voice users | `onSelectDM` always set `showFriends=true` | Keep the current sidebar: server stays on channels (voice presence visible); Friends home stays on friends. Clicking a text/voice channel clears the DM and returns to that view. |
+
+---
+
 ## UI polish (Friends / Settings / DM)
 
 | Issue | Cause | Solution |

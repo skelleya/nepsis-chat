@@ -750,11 +750,18 @@ function MainLayout({
         return undefined
       }
       const dmId = await openDM(targetUserId, targetUsername)
+      // From a server (member Message / voice), keep channel list + voice presence visible
+      if (currentServerId && !showFriends) {
+        setShowFriends(false)
+        try {
+          localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'server', dmId }))
+        } catch { /* ignore */ }
+      }
       setChannelNavOpen(false)
       setMembersOpen(false)
       return dmId
     },
-    [openDM]
+    [openDM, currentServerId, showFriends]
   )
 
   const handleBlockUser = useCallback(
@@ -979,7 +986,7 @@ function MainLayout({
         <ChannelList
           channels={displayChannels.map((c) => ({ id: c.id, name: c.name, type: c.type as 'text' | 'voice' | 'rules', serverId: c.server_id, order: c.order, categoryId: c.category_id }))}
           categories={categories.map((cat) => ({ id: cat.id, name: cat.name, serverId: cat.server_id, order: cat.order }))}
-          currentChannelId={currentChannelId}
+          currentChannelId={currentDMId ? null : currentChannelId}
           onSelectChannel={(ch) => handleSelectChannel(ch)}
           serverName={currentServer?.name}
           serverBannerUrl={currentServer?.banner_url}
@@ -1034,12 +1041,21 @@ function MainLayout({
           channelUnreadCounts={channelUnreadCounts}
           channelMentionCounts={channelMentionCounts}
           onSelectDM={(id) => {
+            // Discord-like: opening a DM keeps the current sidebar.
+            // On a server (e.g. while in voice), stay on server channels so you still see
+            // yourself in the voice channel; Friends home keeps the friends sidebar.
             setCurrentDM(id)
             setShowCommunity(false)
-            setShowFriends(true)
             setChannelNavOpen(false)
             try {
-              localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'friends', dmId: id }))
+              localStorage.setItem(
+                'nepsis_last_view',
+                JSON.stringify(
+                  showFriends
+                    ? { view: 'friends', dmId: id }
+                    : { view: 'server', dmId: id }
+                )
+              )
             } catch { /* ignore */ }
           }}
         />
@@ -1126,7 +1142,10 @@ function MainLayout({
               onClose={() => {
                 setCurrentDM(null)
                 try {
-                  localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'friends' }))
+                  localStorage.setItem(
+                    'nepsis_last_view',
+                    JSON.stringify({ view: showFriends ? 'friends' : 'server' })
+                  )
                 } catch { /* ignore */ }
               }}
               onBlockUser={handleBlockUser}
@@ -1235,7 +1254,8 @@ function MainLayout({
         />
       )}
 
-      {!showCommunity && !showFriends && !showOnboarding && (
+      {/* Hide members while a DM is open (Discord-like); server channels stay in the left rail */}
+      {!showCommunity && !showFriends && !showOnboarding && !currentDMId && (
       <div
         className={`fixed xl:relative z-40 inset-y-0 right-0 transition-transform duration-200 ease-out ${
           membersOpen ? 'translate-x-0' : 'translate-x-full xl:translate-x-0'
