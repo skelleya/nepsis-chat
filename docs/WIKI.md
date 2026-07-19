@@ -105,6 +105,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Blank-screen fix — Login GSAP fade could leave `showLogin`/`showApp` both false after logout; always show login when logged out; ErrorBoundary for render crashes |
 | + | Prod “Load failed” — Vercel still pointed at removed Fly.io API; login now maps Safari “Load failed” to a clear API unreachable message; fix is set live `VITE_API_URL` + redeploy |
 | + | Railway deploy guide — Backend root `backend`, `npm start`, generate domain, set Supabase + CORS; point Vercel `VITE_API_URL` at `https://…railway.app/api` |
+| + | Voice single-session — Joining voice from another device kicks the old socket (`voice-session-replaced`); fixes duplicate “Connecting…” ghosts (listen before join, no socketId userIds) |
 | + | Private DM calling — 1-on-1 voice calls via WebRTC; new `/calls` socket namespace; incoming/outgoing call overlays with ringing; in-call bar with mute/deafen/end; auto-decline after 30s timeout; busy/offline detection; Call button in member profile and right-click context menu |
 | + | Call notifications — Browser Notification when incoming call received while app is in another tab; permission requested on socket connect |
 | + | Friends page — Click Nepsis logo to open Friends page; list friends and pending friend requests; accept/decline requests; Message and Call buttons for friends |
