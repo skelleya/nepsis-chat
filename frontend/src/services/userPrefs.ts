@@ -3,7 +3,7 @@
  * Persisted in localStorage; applied at runtime via CSS vars + media constraints.
  */
 
-export type ThemeId = 'dark' | 'midnight' | 'amoled'
+export type ThemeId = 'dark' | 'midnight' | 'amoled' | 'white'
 export type AccentId = 'orange' | 'blurple' | 'green' | 'teal' | 'rose' | 'gold'
 export type DensityId = 'comfortable' | 'compact'
 export type FontSizeId = 'small' | 'default' | 'large'
@@ -86,6 +86,8 @@ const THEMES: Record<ThemeId, Record<string, string>> = {
     '--app-hover': hexToRgbChannels('#35373c'),
     '--app-text': hexToRgbChannels('#dbdee1'),
     '--app-muted': hexToRgbChannels('#b5bac1'),
+    '--app-glass': hexToRgbChannels('#ffffff'),
+    '--app-panel': hexToRgbChannels('#16171a'),
   },
   midnight: {
     '--app-dark': hexToRgbChannels('#1a1b2e'),
@@ -94,6 +96,8 @@ const THEMES: Record<ThemeId, Record<string, string>> = {
     '--app-hover': hexToRgbChannels('#2e3150'),
     '--app-text': hexToRgbChannels('#e2e4f0'),
     '--app-muted': hexToRgbChannels('#a8adc4'),
+    '--app-glass': hexToRgbChannels('#ffffff'),
+    '--app-panel': hexToRgbChannels('#16171a'),
   },
   amoled: {
     '--app-dark': hexToRgbChannels('#0a0a0a'),
@@ -102,6 +106,19 @@ const THEMES: Record<ThemeId, Record<string, string>> = {
     '--app-hover': hexToRgbChannels('#1c1c1c'),
     '--app-text': hexToRgbChannels('#e8e8e8'),
     '--app-muted': hexToRgbChannels('#9a9a9a'),
+    '--app-glass': hexToRgbChannels('#ffffff'),
+    '--app-panel': hexToRgbChannels('#0a0a0a'),
+  },
+  /** Bright white / light surfaces — glass overlays use black ink */
+  white: {
+    '--app-dark': hexToRgbChannels('#f2f3f5'),
+    '--app-darker': hexToRgbChannels('#e3e5e8'),
+    '--app-channel': hexToRgbChannels('#ffffff'),
+    '--app-hover': hexToRgbChannels('#e8e9ed'),
+    '--app-text': hexToRgbChannels('#1e1f22'),
+    '--app-muted': hexToRgbChannels('#5c5e66'),
+    '--app-glass': hexToRgbChannels('#000000'),
+    '--app-panel': hexToRgbChannels('#ffffff'),
   },
 }
 
@@ -123,12 +140,18 @@ const FONT_SIZES: Record<FontSizeId, string> = {
 type Listener = (prefs: UserPrefs) => void
 const listeners = new Set<Listener>()
 
+const VALID_THEMES = new Set<ThemeId>(['dark', 'midnight', 'amoled', 'white'])
+
 function mergePrefs(raw: unknown): UserPrefs {
   const base = structuredClone(DEFAULT_PREFS)
   if (!raw || typeof raw !== 'object') return base
   const r = raw as Partial<UserPrefs>
+  const appearance = { ...base.appearance, ...(r.appearance || {}) }
+  if (!VALID_THEMES.has(appearance.theme)) {
+    appearance.theme = base.appearance.theme
+  }
   return {
-    appearance: { ...base.appearance, ...(r.appearance || {}) },
+    appearance,
     voice: { ...base.voice, ...(r.voice || {}) },
     notifications: { ...base.notifications, ...(r.notifications || {}) },
   }
@@ -190,6 +213,7 @@ export function applyAppearancePrefs(appearance: AppearancePrefs = loadPrefs().a
   root.dataset.theme = appearance.theme
   root.dataset.density = appearance.density
   root.dataset.fontSize = appearance.fontSize
+  root.style.colorScheme = appearance.theme === 'white' ? 'light' : 'dark'
 }
 
 /** Media constraints for mic capture from saved prefs */

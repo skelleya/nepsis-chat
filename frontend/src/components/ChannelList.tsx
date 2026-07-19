@@ -223,7 +223,7 @@ function VoiceUserRow({
     <div
       ref={setNodeRef}
       className={`group/vu relative flex items-center gap-1.5 pl-1.5 pr-0.5 py-1 rounded-lg text-app-muted transition-colors ${
-        isDragging ? 'opacity-40' : 'hover:bg-white/[0.04]'
+        isDragging ? 'opacity-40' : 'hover:bg-app-glass/[0.04]'
       } ${vu.isScreenSharing && !hasOptions ? 'cursor-pointer' : ''}`}
       onClick={() => {
         if (vu.isScreenSharing && !hasOptions) onWatchScreenShare?.(vu.userId)
@@ -276,7 +276,7 @@ function VoiceUserRow({
                 setShowMenu((v) => !v)
                 setShowMoveSub(false)
               }}
-              className="p-1 rounded-md text-app-muted hover:text-app-text hover:bg-white/[0.06] opacity-70 group-hover/vu:opacity-100 max-lg:opacity-100 transition-opacity"
+              className="p-1 rounded-md text-app-muted hover:text-app-text hover:bg-app-glass/[0.06] opacity-70 group-hover/vu:opacity-100 max-lg:opacity-100 transition-opacity"
               title="User options"
               aria-label={`Options for ${vu.username}`}
             >
@@ -287,7 +287,7 @@ function VoiceUserRow({
                 <div className="fixed inset-0 z-40" onClick={closeMenu} />
                 <div
                   ref={menuRef}
-                  className="absolute right-0 top-full mt-1 z-50 min-w-[168px] rounded-xl border border-white/[0.08] bg-[#16171a] p-1 shadow-2xl"
+                  className="absolute right-0 top-full mt-1 z-50 min-w-[168px] rounded-xl border border-app-glass/[0.08] bg-app-panel p-1 shadow-2xl"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {canWatch && (
@@ -315,7 +315,7 @@ function VoiceUserRow({
                         </svg>
                       </button>
                       {showMoveSub && (
-                        <div className="mt-0.5 ml-1 rounded-lg border border-white/[0.06] bg-[#111214] p-0.5 max-h-40 overflow-y-auto">
+                        <div className="mt-0.5 ml-1 rounded-lg border border-app-glass/[0.06] bg-app-panel p-0.5 max-h-40 overflow-y-auto">
                           {otherVoice.map((ch) => (
                             <button
                               key={ch.id}
@@ -440,7 +440,7 @@ function SortableChannelItem({
           <button
             {...attributes}
             {...listeners}
-            className="self-start mt-2 p-0.5 rounded-md text-app-muted/50 hover:text-app-text hover:bg-white/[0.05] cursor-grab active:cursor-grabbing flex-shrink-0 opacity-0 group-hover/ch:opacity-100 group-focus-within/ch:opacity-100 max-lg:opacity-100 transition-opacity touch-none"
+            className="self-start mt-2 p-0.5 rounded-md text-app-muted/50 hover:text-app-text hover:bg-app-glass/[0.05] cursor-grab active:cursor-grabbing flex-shrink-0 opacity-0 group-hover/ch:opacity-100 group-focus-within/ch:opacity-100 max-lg:opacity-100 transition-opacity touch-none"
             title="Drag to reorder"
             onClick={(e) => e.preventDefault()}
           >
@@ -464,7 +464,7 @@ function SortableChannelItem({
                   }
                 }}
                 onBlur={handleSaveEdit}
-                className="flex-1 px-2 py-1 rounded-lg bg-app-dark text-sm text-app-text border border-white/10"
+                className="flex-1 px-2 py-1 rounded-lg bg-app-dark text-sm text-app-text border border-app-glass/10"
               />
             </div>
           ) : (
@@ -474,13 +474,13 @@ function SortableChannelItem({
                 className={`relative flex-1 min-w-0 flex items-center gap-2.5 text-left rounded-xl px-2.5 py-2 transition-colors ${
                   isSelected
                     ? isVoice
-                      ? 'bg-app-accent/15 text-white'
-                      : 'bg-white/[0.08] text-white'
+                      ? 'bg-app-accent/15 text-app-text'
+                      : 'bg-app-glass/[0.08] text-app-text'
                     : channel.type === 'text' && hasMention
-                      ? 'bg-red-500/12 text-white font-semibold hover:bg-red-500/18'
+                      ? 'bg-red-500/12 text-app-text font-semibold hover:bg-red-500/18'
                       : channel.type === 'text' && hasUnread
-                        ? 'bg-white/[0.05] text-white hover:bg-white/[0.08] font-medium'
-                        : 'text-app-muted hover:bg-white/[0.04] hover:text-app-text'
+                        ? 'bg-app-glass/[0.05] text-app-text hover:bg-app-glass/[0.08] font-medium'
+                        : 'text-app-muted hover:bg-app-glass/[0.04] hover:text-app-text'
                 }`}
               >
                 {isSelected && (
@@ -494,10 +494,10 @@ function SortableChannelItem({
                     isVoice
                       ? isSelected
                         ? 'bg-app-accent/25 text-app-accent'
-                        : 'bg-white/[0.04] text-app-muted'
+                        : 'bg-app-glass/[0.04] text-app-muted'
                       : isSelected
-                        ? 'bg-white/[0.08] text-app-text'
-                        : 'bg-white/[0.03] text-app-muted'
+                        ? 'bg-app-glass/[0.08] text-app-text'
+                        : 'bg-app-glass/[0.03] text-app-muted'
                   }`}
                 >
                   {channel.type === 'text' ? (
@@ -512,7 +512,7 @@ function SortableChannelItem({
                   {channel.name}
                 </span>
                 {isVoice && voiceUsersList.length > 0 && (
-                  <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded-md bg-white/[0.06] text-app-muted flex-shrink-0">
+                  <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded-md bg-app-glass/[0.06] text-app-muted flex-shrink-0">
                     {voiceUsersList.length}
                   </span>
                 )}
@@ -526,7 +526,7 @@ function SortableChannelItem({
                 <div className="relative">
                   <button
                     onClick={() => setShowMenu(!showMenu)}
-                    className="p-1.5 rounded-lg text-app-muted hover:text-app-text hover:bg-white/[0.05] opacity-0 group-hover/ch:opacity-100 group-focus-within/ch:opacity-100 max-lg:opacity-100 transition-opacity"
+                    className="p-1.5 rounded-lg text-app-muted hover:text-app-text hover:bg-app-glass/[0.05] opacity-0 group-hover/ch:opacity-100 group-focus-within/ch:opacity-100 max-lg:opacity-100 transition-opacity"
                     title="Channel options"
                   >
                     <MoreIcon />
@@ -536,7 +536,7 @@ function SortableChannelItem({
                       <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
                       <div
                         ref={menuRef}
-                        className="absolute right-0 top-full mt-1 z-50 min-w-[132px] rounded-xl border border-white/[0.08] bg-[#16171a] p-1 shadow-2xl"
+                        className="absolute right-0 top-full mt-1 z-50 min-w-[132px] rounded-xl border border-app-glass/[0.08] bg-app-panel p-1 shadow-2xl"
                       >
                         <button
                           onClick={() => {
@@ -573,7 +573,7 @@ function SortableChannelItem({
                   ? `mt-1 ml-1 pl-2 border-l space-y-0.5 transition-colors ${
                       isOver
                         ? 'border-app-accent/60 bg-app-accent/10 rounded-r-xl py-1'
-                        : 'border-white/[0.06] py-0.5'
+                        : 'border-app-glass/[0.06] py-0.5'
                     }`
                   : 'min-h-[2px]'
               }
@@ -637,7 +637,7 @@ function UncategorizedHeader({
           e.stopPropagation()
           onAddChannel()
         }}
-        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 text-app-muted hover:text-app-text transition-all p-1 rounded-md hover:bg-white/[0.05]"
+        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 text-app-muted hover:text-app-text transition-all p-1 rounded-md hover:bg-app-glass/[0.05]"
         title="Create Channel"
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
@@ -699,7 +699,7 @@ function SortableCategoryHeader({
           onChange={(e) => setEditName(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') { setEditName(category.name); setEditing(false) } }}
           onBlur={handleSaveEdit}
-          className="flex-1 px-2 py-1 rounded-lg bg-app-dark text-[12px] font-display font-semibold text-app-text border border-white/10"
+          className="flex-1 px-2 py-1 rounded-lg bg-app-dark text-[12px] font-display font-semibold text-app-text border border-app-glass/10"
         />
       </div>
     )
@@ -716,7 +716,7 @@ function SortableCategoryHeader({
         {...attributes}
         {...listeners}
         onClick={(e) => e.stopPropagation()}
-        className="p-0.5 rounded-md text-app-muted/50 hover:text-app-text hover:bg-white/[0.05] cursor-grab active:cursor-grabbing flex-shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 transition-opacity touch-none"
+        className="p-0.5 rounded-md text-app-muted/50 hover:text-app-text hover:bg-app-glass/[0.05] cursor-grab active:cursor-grabbing flex-shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 transition-opacity touch-none"
         title="Drag to reorder"
       >
         <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
@@ -740,7 +740,7 @@ function SortableCategoryHeader({
             e.stopPropagation()
             onAddChannel(category.id)
           }}
-          className="p-1 rounded-md text-app-muted hover:text-app-text hover:bg-white/[0.05]"
+          className="p-1 rounded-md text-app-muted hover:text-app-text hover:bg-app-glass/[0.05]"
           title="Create Channel"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
@@ -754,7 +754,7 @@ function SortableCategoryHeader({
                 e.stopPropagation()
                 setShowMenu(!showMenu)
               }}
-              className="p-1 rounded-md text-app-muted hover:text-app-text hover:bg-white/[0.05]"
+              className="p-1 rounded-md text-app-muted hover:text-app-text hover:bg-app-glass/[0.05]"
               title="Category options"
             >
               <MoreIcon />
@@ -764,7 +764,7 @@ function SortableCategoryHeader({
                 <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
                 <div
                   ref={menuRef}
-                  className="absolute left-0 top-full mt-1 z-50 min-w-[132px] rounded-xl border border-white/[0.08] bg-[#16171a] p-1 shadow-2xl"
+                  className="absolute left-0 top-full mt-1 z-50 min-w-[132px] rounded-xl border border-app-glass/[0.08] bg-app-panel p-1 shadow-2xl"
                 >
                   <button
                     onClick={() => {
@@ -1078,7 +1078,7 @@ export function ChannelList({
           {shouldRenderServerMenu && !hasNoServers && !isFriendsView && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowServerMenu(false)} />
-              <div ref={serverMenuRef} className="absolute top-12 left-2 right-2 z-50 bg-[#111214] rounded-lg shadow-xl p-1.5 border border-app-hover/30">
+              <div ref={serverMenuRef} className="absolute top-12 left-2 right-2 z-50 bg-app-panel rounded-lg shadow-xl p-1.5 border border-app-hover/30">
                 <button
                   onClick={() => {
                     setCreateChannelCategoryId(undefined)
@@ -1190,7 +1190,7 @@ export function ChannelList({
                     onClick={() => onSelectDM(conv.id)}
                     className={`w-full px-2 py-1.5 rounded flex items-center gap-2 text-left transition-all ${
                       currentDMId === conv.id
-                        ? 'bg-app-hover/60 text-white'
+                        ? 'bg-app-hover/60 text-app-text'
                         : hasUnread
                           ? 'bg-app-accent/15 text-app-text hover:bg-app-accent/25 animate-dm-glow'
                           : 'text-app-muted hover:bg-app-hover/40 hover:text-app-text'
@@ -1318,7 +1318,7 @@ export function ChannelList({
 
         {/* Voice Connection Bar (shown only when in voice on THIS server) */}
         {voiceConnection && channels.some((c) => c.id === voiceConnection.channelId) && (
-          <div className="border-t border-app-dark/80 bg-[#232428] px-3 py-2">
+          <div className="border-t border-app-dark/80 bg-app-dark px-3 py-2">
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
                 {/* Ping bars: 3 green (<100ms), 2 yellow (<200ms), 1 red (≥200ms). Hover shows ms. */}
@@ -1341,7 +1341,7 @@ export function ChannelList({
                         <div className={`w-1 rounded-sm ${bars >= 3 ? barColor : inactive}`} style={{ height: 14 }} />
                         <span
                           role="tooltip"
-                          className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 whitespace-nowrap rounded bg-[#111214] px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 z-20"
+                          className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 whitespace-nowrap rounded bg-app-panel px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 z-20"
                         >
                           {ping != null ? `${ping}ms` : 'Measuring…'}
                         </span>
@@ -1358,7 +1358,7 @@ export function ChannelList({
                   onClick={voiceConnection.onToggleCamera}
                   className={`p-1.5 rounded transition-colors ${
                     voiceConnection.isCameraOn
-                      ? 'bg-white/10 text-white'
+                      ? 'bg-app-glass/10 text-app-text'
                       : 'text-app-muted hover:bg-app-hover/50 hover:text-app-text'
                   }`}
                   title={voiceConnection.isCameraOn ? 'Turn Off Camera' : 'Turn On Camera'}
@@ -1377,7 +1377,7 @@ export function ChannelList({
                   onClick={voiceConnection.onToggleScreenShare}
                   className={`p-1.5 rounded transition-colors ${
                     voiceConnection.isScreenSharing
-                      ? 'bg-white/10 text-white'
+                      ? 'bg-app-glass/10 text-app-text'
                       : 'text-app-muted hover:bg-app-hover/50 hover:text-app-text'
                   }`}
                   title={voiceConnection.isScreenSharing ? 'Stop Sharing' : 'Share Your Screen'}

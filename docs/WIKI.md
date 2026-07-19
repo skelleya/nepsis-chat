@@ -65,6 +65,7 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Admin voice controls — Owner/admin can mute users in voice (force-mute) and disconnect them from voice. Right-click participant in VoiceView or member in MembersSidebar; backend emits admin-mute and admin-disconnect-from-voice via Socket.io. |
 | + | Category & channel management — Server owners can: reorder categories (drag); reorder channels within/between categories (drag); edit/delete categories and channels (3-dot menu); drag voice users from one voice channel to another (admin only) |
 | + | Channel rail v2 — Non-Discord layout: rounded channel rows, chat/wave icons, title-case section headers, orange selected accent. Voice users show a side **⋯** menu (Move to… / Server Mute / Disconnect for admins; Watch Live when sharing); drag-drop move kept as secondary. |
+| + | White theme — Appearance → Color theme includes **White** (light surfaces). CSS tokens `--app-glass` / `--app-panel` keep overlays and menus readable across dark and light. |
 | + | Split deployment — Frontend on Vercel (git push, ~1 min), backend self-hosted (API + Socket.io). Download page links to GitHub Releases |
 | + | Voice status server-scoped — "In voice" and voice connection bar only show for the server where the user is actually in voice; no cross-server confusion |
 | + | Layout cache — Channels and categories cached in localStorage; instant server preview on switch; background refresh when tab becomes visible; preload for other servers |

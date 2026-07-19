@@ -330,7 +330,7 @@ export function ProfilesSettingsTab({
   if (isGuest) {
     return (
       <div>
-        <h3 className="text-xl font-bold text-white mb-4">Profiles</h3>
+        <h3 className="text-xl font-bold text-app-text mb-4">Profiles</h3>
         <p className="text-app-muted">
           Create an account to use Personal and Work profiles. Guests have a single public identity.
         </p>
@@ -341,7 +341,7 @@ export function ProfilesSettingsTab({
   if (loading) {
     return (
       <div>
-        <h3 className="text-xl font-bold text-white mb-4">Profiles</h3>
+        <h3 className="text-xl font-bold text-app-text mb-4">Profiles</h3>
         <p className="text-app-muted text-sm">Loading…</p>
       </div>
     )
@@ -349,7 +349,7 @@ export function ProfilesSettingsTab({
 
   return (
     <div>
-      <h3 className="text-xl font-bold text-white mb-1">Profiles</h3>
+      <h3 className="text-xl font-bold text-app-text mb-1">Profiles</h3>
       <p className="text-app-muted text-sm mb-4">
         Personal and Work are separate public identities — display name, bio, photo, and banner.
         Your login username is private and never shown to others.
@@ -455,7 +455,7 @@ export function ProfilesSettingsTab({
 
           <div className="flex items-start justify-between gap-4 mb-4 py-2">
             <div>
-              <div className="text-sm font-medium text-white">Discoverable in search</div>
+              <div className="text-sm font-medium text-app-text">Discoverable in search</div>
               <p className="text-xs text-app-muted mt-0.5">
                 When on, others can find this identity by display name when adding friends.
                 Work is off by default.
@@ -480,7 +480,7 @@ export function ProfilesSettingsTab({
       </div>
 
       <div className="bg-app-channel rounded-lg p-4 mb-4">
-        <h4 className="font-semibold text-white mb-1">Default for new servers</h4>
+        <h4 className="font-semibold text-app-text mb-1">Default for new servers</h4>
         <p className="text-xs text-app-muted mb-3">
           First time you join a server, this identity is used. You can change the preset per server later.
         </p>
@@ -511,7 +511,7 @@ export function ProfilesSettingsTab({
       </div>
 
       <div className="bg-app-channel rounded-lg p-4">
-        <h4 className="font-semibold text-white mb-1">Friend profile visibility</h4>
+        <h4 className="font-semibold text-app-text mb-1">Friend profile visibility</h4>
         <p className="text-xs text-app-muted mb-3">
           {hasBothProfiles
             ? 'Choose which friends see Personal, Work, or both. Also pick which list each friend belongs to.'
@@ -535,7 +535,7 @@ export function ProfilesSettingsTab({
                       {(friend.display_name || friend.username).charAt(0).toUpperCase()}
                     </div>
                   )}
-                  <span className="text-sm text-white truncate">{friend.display_name || friend.username}</span>
+                  <span className="text-sm text-app-text truncate">{friend.display_name || friend.username}</span>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <label className="text-[10px] uppercase text-app-muted">Under</label>

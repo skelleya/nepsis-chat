@@ -375,6 +375,7 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 |-------|-------|----------|
 | Brand felt like Discord after landing | Default accent blurple; hardcoded `#5865f2` / Discord greys | Default accent `#FF5A1F`; Appearance tab wired; Chat/DM/modals use `--app-*` tokens |
 | Appearance “Coming soon” | UI stub while `userPrefs` already applied themes | `AppearanceSettingsTab` controls theme/accent/density/fontSize |
+| No light / white theme | Only dark/midnight/amoled | Added `white` theme + `--app-glass` / `--app-panel` tokens; settings + channel rail use theme text/overlays |
 | Create Channel / Server Settings popped | Only Create Server + User Settings used GSAP | GSAP enter/exit (+ Escape/dialog roles) on Create Channel & Server Settings; shared `useGsapMenu` |
 | Friends/Community vanished on close | Enter tween only | Exit tween then `onClose` |
 | Profile vanished on Message/Call | Parent hard-unmounted before exit | Exit completes, then action runs |

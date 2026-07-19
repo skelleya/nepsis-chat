@@ -41,7 +41,7 @@ function SelectRow({
   return (
     <div className="flex items-start justify-between gap-4 py-3 border-b border-app-hover/30 last:border-0">
       <div className="min-w-0">
-        <div className="text-sm font-medium text-white">{label}</div>
+        <div className="text-sm font-medium text-app-text">{label}</div>
         <p className="text-xs text-app-muted mt-0.5">{description}</p>
       </div>
       <SettingsDropdown
@@ -106,7 +106,7 @@ export function PrivacySettingsTab({ userId }: { userId: string }) {
   if (loading) {
     return (
       <div>
-        <h3 className="text-xl font-bold text-white mb-4">Privacy & Safety</h3>
+        <h3 className="text-xl font-bold text-app-text mb-4">Privacy & Safety</h3>
         <p className="text-app-muted text-sm">Loading…</p>
       </div>
     )
@@ -115,7 +115,7 @@ export function PrivacySettingsTab({ userId }: { userId: string }) {
   if (!settings) {
     return (
       <div>
-        <h3 className="text-xl font-bold text-white mb-4">Privacy & Safety</h3>
+        <h3 className="text-xl font-bold text-app-text mb-4">Privacy & Safety</h3>
         <p className="text-red-400 text-sm">{error || 'Could not load settings'}</p>
       </div>
     )
@@ -123,13 +123,13 @@ export function PrivacySettingsTab({ userId }: { userId: string }) {
 
   return (
     <div>
-      <h3 className="text-xl font-bold text-white mb-1">Privacy & Safety</h3>
+      <h3 className="text-xl font-bold text-app-text mb-1">Privacy & Safety</h3>
       <p className="text-app-muted text-sm mb-4">
         Control who can reach you in chat and voice, and what others see about your activity.
       </p>
 
       <div className="bg-app-channel rounded-lg px-4 mb-4">
-        <h4 className="font-semibold text-white pt-4 pb-1">Communication</h4>
+        <h4 className="font-semibold text-app-text pt-4 pb-1">Communication</h4>
         <SelectRow
           label="Direct messages"
           description="Who can send you DMs"
@@ -154,7 +154,7 @@ export function PrivacySettingsTab({ userId }: { userId: string }) {
       </div>
 
       <div className="bg-app-channel rounded-lg px-4 mb-4">
-        <h4 className="font-semibold text-white pt-4 pb-1">Voice presence</h4>
+        <h4 className="font-semibold text-app-text pt-4 pb-1">Voice presence</h4>
         <SelectRow
           label="Show voice channel"
           description="Who can see which voice channel you are in"
@@ -171,7 +171,7 @@ export function PrivacySettingsTab({ userId }: { userId: string }) {
         />
         <div className="flex items-start justify-between gap-4 py-3">
           <div className="min-w-0">
-            <div className="text-sm font-medium text-white">Speaking indicator</div>
+            <div className="text-sm font-medium text-app-text">Speaking indicator</div>
             <p className="text-xs text-app-muted mt-0.5">
               Show the green speaking glow when your mic is active in voice
             </p>
@@ -185,7 +185,7 @@ export function PrivacySettingsTab({ userId }: { userId: string }) {
       </div>
 
       <div className="bg-app-channel rounded-lg px-4 mb-4">
-        <h4 className="font-semibold text-white pt-4 pb-1">Blocked users</h4>
+        <h4 className="font-semibold text-app-text pt-4 pb-1">Blocked users</h4>
         <p className="text-xs text-app-muted pb-2">
           Blocked people are hidden from your DM list on this device. Unblock anytime below.
         </p>
