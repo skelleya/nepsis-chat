@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import gsap from 'gsap'
 
 // Installer is on GitHub Releases — fixed artifact name for stable URL
 const GITHUB_DOWNLOAD_URL = 'https://github.com/skelleya/nepsis-chat/releases/latest/download/NepsisChat-Setup.exe'
@@ -7,6 +8,10 @@ const GITHUB_RELEASES_API = 'https://api.github.com/repos/skelleya/nepsis-chat/r
 
 export function DownloadPage() {
   const [available, setAvailable] = useState<boolean | null>(null)
+  const navigate = useNavigate()
+  const pageRef = useRef<HTMLDivElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const [leaving, setLeaving] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -34,9 +39,60 @@ export function DownloadPage() {
       })
   }, [])
 
+  useLayoutEffect(() => {
+    const page = pageRef.current
+    const card = cardRef.current
+    if (!page || !card) return
+
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        page,
+        { opacity: 0, y: 64 },
+        { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out', force3D: false }
+      )
+      gsap.fromTo(
+        card,
+        { opacity: 0, y: 36 },
+        {
+          opacity: 1,
+          y: 0,
+          duration: 0.58,
+          ease: 'power3.out',
+          delay: 0.06,
+          force3D: false,
+        }
+      )
+    }, page)
+
+    return () => ctx.revert()
+  }, [])
+
+  const goHome = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    if (leaving) return
+    setLeaving(true)
+    const page = pageRef.current
+    if (page) {
+      await new Promise<void>((resolve) => {
+        gsap.to(page, {
+          opacity: 0,
+          y: 48,
+          duration: 0.35,
+          ease: 'power2.in',
+          force3D: false,
+          onComplete: () => resolve(),
+        })
+      })
+    }
+    navigate('/')
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-app-darker">
-      <div className="w-full max-w-lg p-8 rounded-xl bg-app-dark text-center">
+    <div
+      ref={pageRef}
+      className="min-h-screen flex items-center justify-center bg-app-darker will-change-transform"
+    >
+      <div ref={cardRef} className="w-full max-w-lg p-8 rounded-xl bg-app-dark text-center">
         <img src="./logo.png" alt="Nepsis" className="h-14 mx-auto mb-4 object-contain bg-white rounded-full p-1" />
         <h1 className="text-2xl font-bold text-white mb-2">Download Nepsis Chat</h1>
         <p className="text-app-muted mb-6">
@@ -83,6 +139,7 @@ export function DownloadPage() {
         </p>
         <Link
           to="/"
+          onClick={goHome}
           className="inline-block mt-4 text-app-accent hover:underline"
         >
           Open web app

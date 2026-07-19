@@ -1,9 +1,10 @@
 import { useState, useLayoutEffect, useRef, useCallback, type RefObject } from 'react'
+import { useNavigate } from 'react-router-dom'
 import gsap from 'gsap'
 import { useApp } from '../contexts/AppContext'
 import { toApiError } from '../services/api'
 import { supabase } from '../services/supabase'
-import { WelcomeLanding } from './WelcomeLanding'
+import { WelcomeLanding, type WelcomeLandingHandle } from './WelcomeLanding'
 
 type AuthMode = 'guest' | 'login' | 'signup'
 
@@ -69,6 +70,7 @@ function NepsisCoin({ coinRef }: { coinRef: RefObject<HTMLDivElement | null> }) 
 }
 
 export function LoginPage() {
+  const navigate = useNavigate()
   const [phase, setPhase] = useState<'welcome' | 'auth'>('welcome')
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
@@ -79,7 +81,9 @@ export function LoginPage() {
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [switching, setSwitching] = useState(false)
+  const [navBusy, setNavBusy] = useState(false)
   const { login, loginWithEmail, loginWithUsername } = useApp()
+  const welcomeRef = useRef<WelcomeLandingHandle>(null)
   const pageRef = useRef<HTMLDivElement>(null)
   const cardRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -271,7 +275,16 @@ export function LoginPage() {
     })
   }, [tab])
 
+  const moveTabIndicatorRef = useRef(moveTabIndicator)
+  moveTabIndicatorRef.current = moveTabIndicator
+
+  // Auth enter: slide in from the right once when leaving the welcome screen.
+  // (Previously empty-deps effects ran while WelcomeLanding was mounted, so the Guest pill never appeared.)
   useLayoutEffect(() => {
+    if (phase !== 'auth') return
+
+    tabIndicatorReadyRef.current = false
+
     const page = pageRef.current
     const card = cardRef.current
     if (!page || !card) return
@@ -279,36 +292,93 @@ export function LoginPage() {
     const ctx = gsap.context(() => {
       gsap.fromTo(
         page,
-        { opacity: 0 },
-        { opacity: 1, duration: 0.45, ease: 'sine.out' }
+        { opacity: 0, x: 72 },
+        { opacity: 1, x: 0, duration: 0.5, ease: 'power3.out', force3D: false }
       )
       gsap.fromTo(
         card,
-        { opacity: 0, y: 20 },
+        { opacity: 0, x: 40, y: 12 },
         {
           opacity: 1,
+          x: 0,
           y: 0,
-          duration: 0.65,
+          duration: 0.58,
           ease: 'power3.out',
           delay: 0.04,
           force3D: false,
-          clearProps: 'transform',
         }
       )
     }, page)
 
-    return () => ctx.revert()
-  }, [])
+    const id = requestAnimationFrame(() => {
+      moveTabIndicatorRef.current(false)
+      requestAnimationFrame(() => moveTabIndicatorRef.current(false))
+    })
+
+    return () => {
+      cancelAnimationFrame(id)
+      ctx.revert()
+    }
+  }, [phase])
 
   useLayoutEffect(() => {
-    moveTabIndicator(true)
-  }, [moveTabIndicator])
+    if (phase !== 'auth') return
+    // First paint for Guest: snap. Later tab changes: animate.
+    moveTabIndicator(tabIndicatorReadyRef.current)
+  }, [phase, tab, moveTabIndicator])
 
   useLayoutEffect(() => {
-    const onResize = () => moveTabIndicator(false)
+    if (phase !== 'auth') return
+    const onResize = () => moveTabIndicatorRef.current(false)
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
-  }, [moveTabIndicator])
+  }, [phase])
+
+  const goToAuth = useCallback(async () => {
+    if (navBusy || phase !== 'welcome') return
+    setNavBusy(true)
+    setError('')
+    setMessage('')
+    setMode('guest')
+    setTab('guest')
+    try {
+      await welcomeRef.current?.exit('left')
+      setPhase('auth')
+    } finally {
+      setNavBusy(false)
+    }
+  }, [navBusy, phase])
+
+  const goToDownload = useCallback(async () => {
+    if (navBusy || phase !== 'welcome') return
+    setNavBusy(true)
+    try {
+      await welcomeRef.current?.exit('up')
+      navigate('/download')
+    } finally {
+      setNavBusy(false)
+    }
+  }, [navBusy, phase, navigate])
+
+  const goToWelcome = useCallback(async () => {
+    if (navBusy || phase !== 'auth') return
+    setNavBusy(true)
+    const page = pageRef.current
+    if (page) {
+      await new Promise<void>((resolve) => {
+        gsap.to(page, {
+          opacity: 0,
+          x: 64,
+          duration: 0.35,
+          ease: 'power2.in',
+          force3D: false,
+          onComplete: () => resolve(),
+        })
+      })
+    }
+    setPhase('welcome')
+    setNavBusy(false)
+  }, [navBusy, phase])
 
   useLayoutEffect(() => {
     const panel = panelRef.current
@@ -421,19 +491,26 @@ export function LoginPage() {
   }
 
   if (phase === 'welcome') {
-    return <WelcomeLanding onUseWebApp={() => setPhase('auth')} />
+    return (
+      <WelcomeLanding
+        ref={welcomeRef}
+        onUseWebApp={goToAuth}
+        onDownloadApp={goToDownload}
+      />
+    )
   }
 
   return (
     <div
       ref={pageRef}
-      className="fixed inset-0 flex items-center justify-center bg-app-darker"
+      className="fixed inset-0 flex items-center justify-center bg-app-darker will-change-transform"
     >
       <div ref={cardRef} className="w-full max-w-md p-10 rounded-xl bg-app-dark">
         <button
           type="button"
-          onClick={() => setPhase('welcome')}
-          className="mb-4 text-sm text-app-muted hover:text-app-text transition-colors"
+          onClick={goToWelcome}
+          disabled={navBusy}
+          className="mb-4 text-sm text-app-muted hover:text-app-text transition-colors disabled:opacity-50"
         >
           ← Back
         </button>
@@ -476,7 +553,8 @@ export function LoginPage() {
         >
           <div
             ref={indicatorRef}
-            className="absolute top-1 bottom-1 left-0 rounded-md bg-app-accent shadow-sm will-change-transform pointer-events-none opacity-0"
+            className="absolute top-1 bottom-1 left-0 rounded-md bg-app-accent shadow-sm will-change-transform pointer-events-none"
+            style={{ opacity: 0 }}
             aria-hidden
           />
           {TABS.map(({ id, label }) => (
