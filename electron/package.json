@@ -42,7 +42,8 @@
     "publish": {
       "provider": "github",
       "owner": "skelleya",
-      "repo": "nepsis-chat"
+      "repo": "nepsis-chat",
+      "releaseType": "release"
     },
     "win": {
       "target": [
@@ -64,8 +65,9 @@
       ],
       "category": "public.app-category.social-networking",
       "icon": "icon.png",
-      "hardenedRuntime": true,
+      "hardenedRuntime": false,
       "gatekeeperAssess": false,
+      "identity": null,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "artifactName": "NepsisChat-${version}-${arch}.${ext}",

@@ -59,8 +59,12 @@ Flow: check on launch (+ every 30 min) → badge “Update available” → user
 ## First release checklist
 
 1. Set `frontend/.env.desktop` to live Railway + Supabase (already wired for production).
-2. On a machine with Node: `cd electron && npm ci`
-3. Windows: `npm run package:win` (or `npm run release:win` with `GH_TOKEN`)
-4. macOS (on a Mac): `npm run package:mac` / `npm run release:mac`
-5. Confirm GitHub Release has `NepsisChat-Setup.exe`, `latest.yml`, and for Mac `*.dmg` / `*.zip` + `latest-mac.yml`
-6. Install older version → publish newer → confirm top badge appears
+2. **Preferred:** GitHub → Actions → **Desktop Release** → Run workflow (`publish` checked). Builds Win on `windows-latest`, Mac on `macos-latest`, then publishes tag `v{electron/package.json version}` with both installers.
+3. Local alternative: `cd electron && npm ci`, then `npm run release:win` / `npm run release:mac` with `GH_TOKEN` (Mac must run on macOS).
+4. Confirm the GitHub Release has `NepsisChat-Setup.exe`, `latest.yml`, and for Mac `*.dmg` / `*.zip` + `latest-mac.yml`.
+5. Download page (`/download`) auto-detects OS and shows **Install for Mac** / **Install for Windows** with platform logos.
+6. Install older version → publish newer → confirm top update badge appears.
+
+### Unsigned macOS note
+
+CI builds set `CSC_IDENTITY_AUTO_DISCOVERY=false` (no Apple Developer cert). Users may need **right-click → Open** the first time. Add notarization env vars later for frictionless installs.
