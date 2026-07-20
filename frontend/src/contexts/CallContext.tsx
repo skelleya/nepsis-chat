@@ -23,7 +23,7 @@ import { io, type Socket } from 'socket.io-client'
 import { sounds } from '../services/sounds'
 import { ensureIceServers } from '../services/iceConfig'
 import { useVoice } from './VoiceContext'
-import { applyAudioOutputDevice, getAudioConstraints, loadPrefs } from '../services/userPrefs'
+import { applyAudioOutputDevice, getAudioConstraints, getVideoConstraints, loadPrefs } from '../services/userPrefs'
 import { setCallBusy } from '../services/mediaSessionGate'
 
 const SOCKET_URL =
@@ -213,9 +213,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           audio: getAudioConstraints(),
-          video: withVideo
-            ? { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
-            : false,
+          video: withVideo ? getVideoConstraints() : false,
         })
       } catch (err) {
         setUnavailableReason(
@@ -229,13 +227,33 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
       }
       localStreamRef.current = stream
       setLocalVideoStream(withVideo ? stream : null)
+      for (const track of stream.getTracks()) {
+        try {
+          if (track.kind === 'audio') {
+            ;(track as MediaStreamTrack & { contentHint?: string }).contentHint = 'speech'
+          } else if (track.kind === 'video') {
+            track.contentHint = 'motion'
+          }
+        } catch {
+          /* ignore */
+        }
+      }
 
       const iceServers = await ensureIceServers()
-      const pc = new RTCPeerConnection({ iceServers })
+      const pc = new RTCPeerConnection({
+        iceServers,
+        bundlePolicy: 'max-bundle',
+        rtcpMuxPolicy: 'require',
+      })
       pcRef.current = pc
 
-      // Add local media
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream))
+      // Add local media at high bitrate
+      const { applySenderQuality, applyPeerConnectionQuality } = await import('../services/mediaQuality')
+      for (const track of stream.getTracks()) {
+        const sender = pc.addTrack(track, stream)
+        void applySenderQuality(sender)
+      }
+      void applyPeerConnectionQuality(pc)
 
       // Handle remote audio (+ video for video calls)
       const remoteStream = new MediaStream()

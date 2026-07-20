@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 import gsap from 'gsap'
 import { UserSettingsModal } from './UserSettingsModal'
 import { MicIcon, MicOffIcon, HeadphonesIcon, HeadphonesOffIcon } from './icons/VoiceIcons'
@@ -257,14 +258,17 @@ export function UserPanel({
         </div>
       </div>
 
-      {showSettings && (
-        <UserSettingsModal
-          user={user}
-          onClose={() => setShowSettings(false)}
-          onLogout={onLogout}
-          onUserUpdate={onUserUpdate}
-        />
-      )}
+      {/* Portal out of the transformed channel rail so fixed overlay covers the viewport */}
+      {showSettings &&
+        createPortal(
+          <UserSettingsModal
+            user={user}
+            onClose={() => setShowSettings(false)}
+            onLogout={onLogout}
+            onUserUpdate={onUserUpdate}
+          />,
+          document.body
+        )}
     </>
   )
 }

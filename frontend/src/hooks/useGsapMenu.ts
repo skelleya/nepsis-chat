@@ -47,6 +47,7 @@ export function useGsapMenu(
           duration: 0.22,
           ease: 'power3.out',
           force3D: false,
+          clearProps: 'opacity,transform',
         }
       )
       return () => {

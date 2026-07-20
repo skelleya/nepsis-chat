@@ -16,7 +16,7 @@ function Toggle({
   return (
     <div className="flex items-start justify-between gap-4 py-3 border-b border-app-hover/30 last:border-0">
       <div className="min-w-0">
-        <div className="text-sm font-medium text-white">{label}</div>
+        <div className="text-sm font-medium text-app-text">{label}</div>
         <p className="text-xs text-app-muted mt-0.5">{description}</p>
       </div>
       <SettingsToggle checked={checked} onChange={onChange} aria-label={label} />
@@ -50,13 +50,13 @@ export function NotificationsSettingsTab() {
 
   return (
     <div>
-      <h3 className="text-xl font-bold text-white mb-1">Notifications</h3>
+      <h3 className="text-xl font-bold text-app-text mb-1">Notifications</h3>
       <p className="text-app-muted text-sm mb-4">
         Control sounds and desktop alerts on this device.
       </p>
 
       <div className="bg-app-channel rounded-lg px-4 mb-4">
-        <h4 className="font-semibold text-white pt-4 pb-1">Sounds</h4>
+        <h4 className="font-semibold text-app-text pt-4 pb-1">Sounds</h4>
         <Toggle
           label="Message sounds"
           description="Play a sound for new messages in the channel you are viewing"
@@ -84,7 +84,7 @@ export function NotificationsSettingsTab() {
       </div>
 
       <div className="bg-app-channel rounded-lg px-4 mb-4">
-        <h4 className="font-semibold text-white pt-4 pb-1">Desktop notifications</h4>
+        <h4 className="font-semibold text-app-text pt-4 pb-1">Desktop notifications</h4>
         <Toggle
           label="Incoming call alerts"
           description="Show a system notification when someone calls and the tab is in the background"

@@ -347,12 +347,40 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 
 ---
 
+## Voice + DM sidebar
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Opening a DM while in a server voice channel switched the left rail to Friends and hid voice users | `onSelectDM` always set `showFriends=true` | Keep the current sidebar: server stays on channels (voice presence visible); Friends home stays on friends. Clicking a text/voice channel clears the DM and returns to that view. |
+| Moving voice users required drag-only (easy to miss) | Channel list had no per-user menu | Right-click voice user for Profile / Roles / Move to / Mute / Deafen / Kick / Ban; drag-drop into other voice rooms for moves |
+| Channel rail looked like Discord | `#` / speaker icons, uppercase category labels | Rounded channel rows, chat/wave glyphs, title-case section headers, orange selected bar |
+| Create channel modal stuck in skinny rail | Modal rendered inside transformed channel panel (`fixed` trapped) | `CreateChannelModal` portaled to `document.body` |
+| Server dropdown looked transparent | Menu inside rail + GSAP opacity / weak panel bg | Portaled server menu with solid `bg-app-darker`; clear GSAP props after enter |
+| Create channel always asked for type | Single + opened full type picker | Chat + / Voice + (and server menu entries) lock type and only ask for name |
+| Voice/video sounded/looked soft vs Discord | Default getUserMedia + no bitrate/codec prefs | `mediaQuality.ts`: 48 kHz Opus prefs, 128 kbps audio, 720p+/2.5 Mbps camera, 4 Mbps screen; applied on PC senders |
+| Members minimized rail looked sparse | Vertical text + lone chevron | Avatar stack preview, CoolIcons, count badge |
+
+---
+
+## UI polish (Friends / Settings / DM)
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Selected Friends logo hard to see | Dark logo on orange accent | Invert logo (`brightness-0 invert`) when Friends is active / hovered |
+| User Settings invisible on open | Modal rendered inside channel rail with CSS `transform` — `fixed` trapped in sidebar | Portal `UserSettingsModal` to `document.body`; z-index `100` |
+| Can’t open profile from DM | Header name was plain text | Clickable name/avatar opens `MemberProfilePanel` (`placement="below"`) |
+| Friends tabs felt static | No tab indicator / content slide | GSAP pill + directional content slide (All / Pending / Online / Add) |
+| “+ Add a Friend” filled the All tab | Full-width dashed CTA | Compact `+ Add` next to the All header; Add tab is a slim search form |
+
+---
+
 ## Full audit fix pass (2026-07)
 
 | Issue | Cause | Solution |
 |-------|-------|----------|
 | Brand felt like Discord after landing | Default accent blurple; hardcoded `#5865f2` / Discord greys | Default accent `#FF5A1F`; Appearance tab wired; Chat/DM/modals use `--app-*` tokens |
 | Appearance “Coming soon” | UI stub while `userPrefs` already applied themes | `AppearanceSettingsTab` controls theme/accent/density/fontSize |
+| No light / white theme | Only dark/midnight/amoled | Added `white` theme + `--app-glass` / `--app-panel` tokens; settings + channel rail use theme text/overlays |
 | Create Channel / Server Settings popped | Only Create Server + User Settings used GSAP | GSAP enter/exit (+ Escape/dialog roles) on Create Channel & Server Settings; shared `useGsapMenu` |
 | Friends/Community vanished on close | Enter tween only | Exit tween then `onClose` |
 | Profile vanished on Message/Call | Parent hard-unmounted before exit | Exit completes, then action runs |

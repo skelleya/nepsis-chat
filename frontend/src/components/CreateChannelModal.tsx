@@ -1,16 +1,26 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import gsap from 'gsap'
 
 interface CreateChannelModalProps {
   onClose: () => void
   onCreate: (name: string, type: 'text' | 'voice' | 'rules') => Promise<void>
   defaultType?: 'text' | 'voice' | 'rules'
+  /** When true, type is fixed from the + that was clicked — only ask for a name */
+  lockType?: boolean
   categoryName?: string
-  /** When true, shows the Rules channel option (owner/admin only) */
+  /** When true (and not lockType), shows the Rules channel option (owner/admin only) */
   canCreateRules?: boolean
 }
 
-export function CreateChannelModal({ onClose, onCreate, defaultType = 'text', categoryName, canCreateRules = false }: CreateChannelModalProps) {
+export function CreateChannelModal({
+  onClose,
+  onCreate,
+  defaultType = 'text',
+  lockType = false,
+  categoryName,
+  canCreateRules = false,
+}: CreateChannelModalProps) {
   const [name, setName] = useState('')
   const [type, setType] = useState<'text' | 'voice' | 'rules'>(defaultType)
   const [loading, setLoading] = useState(false)
@@ -18,6 +28,10 @@ export function CreateChannelModal({ onClose, onCreate, defaultType = 'text', ca
   const overlayRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const closingRef = useRef(false)
+
+  useEffect(() => {
+    setType(defaultType)
+  }, [defaultType])
 
   useLayoutEffect(() => {
     const overlay = overlayRef.current
@@ -90,10 +104,12 @@ export function CreateChannelModal({ onClose, onCreate, defaultType = 'text', ca
     }
   }
 
-  return (
+  const typeLabel = type === 'voice' ? 'Voice' : type === 'rules' ? 'Rules' : 'Text'
+
+  const modal = (
     <div
       ref={overlayRef}
-      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black/70 flex items-center justify-center z-[200] p-4"
       onClick={(e) => e.target === e.currentTarget && !loading && requestClose()}
       role="dialog"
       aria-modal="true"
@@ -101,13 +117,14 @@ export function CreateChannelModal({ onClose, onCreate, defaultType = 'text', ca
     >
       <div
         ref={panelRef}
-        className="bg-app-dark rounded-xl w-[460px] shadow-2xl overflow-hidden will-change-transform"
+        className="bg-app-dark rounded-xl w-full max-w-[460px] shadow-2xl overflow-hidden will-change-transform border border-app-hover/40"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="p-4 pb-0 flex items-center justify-between">
           <div>
-            <h2 id="create-channel-title" className="text-xl font-bold text-white">Create Channel</h2>
+            <h2 id="create-channel-title" className="text-xl font-bold text-app-text font-display">
+              {lockType ? `Create ${typeLabel} Channel` : 'Create Channel'}
+            </h2>
             {categoryName && (
               <p className="text-app-muted text-xs mt-0.5">in {categoryName}</p>
             )}
@@ -125,121 +142,112 @@ export function CreateChannelModal({ onClose, onCreate, defaultType = 'text', ca
           </button>
         </div>
 
-        {/* Channel Type Selection */}
-        <div className="p-4">
-          <label className="block text-xs font-bold text-app-muted uppercase tracking-wider mb-2">
-            Channel Type
-          </label>
-          <div className="space-y-2">
-            {/* Text Channel Option */}
-            <label
-              className={`flex items-center gap-3 p-2.5 rounded-md cursor-pointer transition-colors ${
-                type === 'text' ? 'bg-app-hover/80' : 'bg-app-channel hover:bg-app-hover/50'
-              }`}
-            >
-              <input
-                type="radio"
-                name="channelType"
-                checked={type === 'text'}
-                onChange={() => setType('text')}
-                className="hidden"
-              />
-              <div className="w-10 h-10 rounded-full bg-app-dark/50 flex items-center justify-center flex-shrink-0">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-app-muted">
-                  <path d="M5.88657 21C5.57547 21 5.3399 20.7189 5.39427 20.4126L6.00001 17H2.59511C2.28449 17 2.04905 16.7198 2.10259 16.4138L2.27759 15.4138C2.31946 15.1746 2.52722 15 2.77011 15H6.35001L7.41001 9H4.00511C3.69449 9 3.45905 8.71977 3.51259 8.41381L3.68759 7.41381C3.72946 7.17456 3.93722 7 4.18011 7H7.76001L8.39677 3.41262C8.43914 3.17391 8.64664 3 8.88907 3H9.87344C10.1845 3 10.4201 3.28107 10.3657 3.58738L9.76001 7H15.76L16.3968 3.41262C16.4391 3.17391 16.6466 3 16.8891 3H17.8734C18.1845 3 18.4201 3.28107 18.3657 3.58738L17.76 7H21.1649C21.4755 7 21.711 7.28023 21.6574 7.58619L21.4824 8.58619C21.4406 8.82544 21.2328 9 20.9899 9H17.41L16.35 15H19.7549C20.0655 15 20.301 15.2802 20.2474 15.5862L20.0724 16.5862C20.0306 16.8254 19.8228 17 19.5799 17H16L15.3632 20.5874C15.3209 20.8261 15.1134 21 14.8709 21H13.8866C13.5755 21 13.3399 20.7189 13.3943 20.4126L14 17H8.00001L7.36325 20.5874C7.32088 20.8261 7.11337 21 6.87094 21H5.88657ZM9.41001 9L8.35001 15H14.35L15.41 9H9.41001Z"/>
-                </svg>
-              </div>
-              <div className="flex-1">
-                <div className="text-app-text font-medium text-sm">Text</div>
-                <div className="text-app-muted text-xs">Send messages, images, GIFs, emoji, opinions, and puns</div>
-              </div>
-              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                type === 'text' ? 'border-white' : 'border-app-muted'
-              }`}>
-                {type === 'text' && <div className="w-2.5 h-2.5 rounded-full bg-white" />}
-              </div>
+        {!lockType && (
+          <div className="p-4">
+            <label className="block text-xs font-bold text-app-muted uppercase tracking-wider mb-2">
+              Channel Type
             </label>
-
-            {/* Voice Channel Option */}
-            <label
-              className={`flex items-center gap-3 p-2.5 rounded-md cursor-pointer transition-colors ${
-                type === 'voice' ? 'bg-app-hover/80' : 'bg-app-channel hover:bg-app-hover/50'
-              }`}
-            >
-              <input
-                type="radio"
-                name="channelType"
-                checked={type === 'voice'}
-                onChange={() => setType('voice')}
-                className="hidden"
-              />
-              <div className="w-10 h-10 rounded-full bg-app-dark/50 flex items-center justify-center flex-shrink-0">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-app-muted">
-                  <path d="M12 3C10.34 3 9 4.37 9 6.07V12C9 13.66 10.34 15 12 15C13.66 15 15 13.66 15 12V6.07C15 4.37 13.66 3 12 3ZM5.5 11C5.5 14.59 8.36 17.5 12 17.5C15.64 17.5 18.5 14.59 18.5 11H20C20 15.08 16.93 18.44 13 18.93V22H11V18.93C7.07 18.44 4 15.08 4 11H5.5Z"/>
-                </svg>
-              </div>
-              <div className="flex-1">
-                <div className="text-app-text font-medium text-sm">Voice</div>
-                <div className="text-app-muted text-xs">Hang out together with voice, video, and screen share</div>
-              </div>
-              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                type === 'voice' ? 'border-white' : 'border-app-muted'
-              }`}>
-                {type === 'voice' && <div className="w-2.5 h-2.5 rounded-full bg-white" />}
-              </div>
-            </label>
-
-            {/* Rules Channel Option (owner/admin only) */}
-            {canCreateRules && (
+            <div className="space-y-2">
               <label
                 className={`flex items-center gap-3 p-2.5 rounded-md cursor-pointer transition-colors ${
-                  type === 'rules' ? 'bg-app-hover/80' : 'bg-app-channel hover:bg-app-hover/50'
+                  type === 'text' ? 'bg-app-hover/80' : 'bg-app-channel hover:bg-app-hover/50'
                 }`}
               >
                 <input
                   type="radio"
                   name="channelType"
-                  checked={type === 'rules'}
-                  onChange={() => setType('rules')}
+                  checked={type === 'text'}
+                  onChange={() => setType('text')}
                   className="hidden"
                 />
-                <div className="w-10 h-10 rounded-full bg-app-dark/50 flex items-center justify-center flex-shrink-0">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-app-muted">
-                    <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/>
-                    <path d="M9 15h6v2H9zm0-4h6v2H9zm0-4h3v2H9z"/>
+                <div className="w-10 h-10 rounded-full bg-app-darker/50 flex items-center justify-center flex-shrink-0 text-app-muted">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                    <path d="M8 10.5h8M8 14h5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+                    <path d="M12 3.5c-4.7 0-8.5 3.13-8.5 7 0 2.12 1.12 4.02 2.9 5.3L5.5 20l3.4-1.7c.97.28 2 .43 3.1.43 4.7 0 8.5-3.13 8.5-7s-3.8-7-8.5-7z" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
                   </svg>
                 </div>
                 <div className="flex-1">
-                  <div className="text-app-text font-medium text-sm">Rules</div>
-                  <div className="text-app-muted text-xs">Server rules — read-only; members react to accept</div>
-                </div>
-                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                  type === 'rules' ? 'border-white' : 'border-app-muted'
-                }`}>
-                  {type === 'rules' && <div className="w-2.5 h-2.5 rounded-full bg-white" />}
+                  <div className="text-app-text font-medium text-sm">Text</div>
+                  <div className="text-app-muted text-xs">Messages, images, and replies</div>
                 </div>
               </label>
-            )}
-          </div>
-        </div>
 
-        {/* Channel Name */}
-        <form onSubmit={handleSubmit} className="px-4 pb-4">
+              <label
+                className={`flex items-center gap-3 p-2.5 rounded-md cursor-pointer transition-colors ${
+                  type === 'voice' ? 'bg-app-hover/80' : 'bg-app-channel hover:bg-app-hover/50'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="channelType"
+                  checked={type === 'voice'}
+                  onChange={() => setType('voice')}
+                  className="hidden"
+                />
+                <div className="w-10 h-10 rounded-full bg-app-darker/50 flex items-center justify-center flex-shrink-0 text-app-muted">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="3.5" y="8" width="2.5" height="8" rx="1.25" />
+                    <rect x="8.25" y="5" width="2.5" height="14" rx="1.25" />
+                    <rect x="13" y="7" width="2.5" height="10" rx="1.25" />
+                    <rect x="17.75" y="4" width="2.5" height="16" rx="1.25" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <div className="text-app-text font-medium text-sm">Voice</div>
+                  <div className="text-app-muted text-xs">Voice, video, and screen share</div>
+                </div>
+              </label>
+
+              {canCreateRules && (
+                <label
+                  className={`flex items-center gap-3 p-2.5 rounded-md cursor-pointer transition-colors ${
+                    type === 'rules' ? 'bg-app-hover/80' : 'bg-app-channel hover:bg-app-hover/50'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="channelType"
+                    checked={type === 'rules'}
+                    onChange={() => setType('rules')}
+                    className="hidden"
+                  />
+                  <div className="flex-1">
+                    <div className="text-app-text font-medium text-sm">Rules</div>
+                    <div className="text-app-muted text-xs">Read-only server rules</div>
+                  </div>
+                </label>
+              )}
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className={`px-4 pb-4 ${lockType ? 'pt-4' : ''}`}>
           <label className="block text-xs font-bold text-app-muted uppercase tracking-wider mb-2">
             Channel Name
           </label>
+          {lockType && (
+            <p className="text-xs text-app-muted mb-2">
+              Creating a {typeLabel.toLowerCase()} channel
+              {categoryName ? ` in ${categoryName}` : ''}.
+            </p>
+          )}
           {error && (
             <div className="mb-3 p-2 rounded bg-red-900/50 text-red-200 text-sm">{error}</div>
           )}
-          <div className="flex items-center bg-app-darker rounded-[3px] px-3">
-            <span className="text-app-muted text-lg mr-1.5">
-              {type === 'text' ? '#' : type === 'rules' ? (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="inline">
-                  <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6z"/>
+          <div className="flex items-center bg-app-darker rounded-[3px] px-3 border border-app-hover/30">
+            <span className="text-app-muted text-lg mr-1.5 flex items-center">
+              {type === 'text' ? (
+                '#'
+              ) : type === 'rules' ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6z" />
                 </svg>
               ) : (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="inline">
-                  <path d="M12 3C10.34 3 9 4.37 9 6.07V12C9 13.66 10.34 15 12 15C13.66 15 15 13.66 15 12V6.07C15 4.37 13.66 3 12 3ZM5.5 11C5.5 14.59 8.36 17.5 12 17.5C15.64 17.5 18.5 14.59 18.5 11H20C20 15.08 16.93 18.44 13 18.93V22H11V18.93C7.07 18.44 4 15.08 4 11H5.5Z"/>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="3.5" y="8" width="2.5" height="8" rx="1.25" />
+                  <rect x="8.25" y="5" width="2.5" height="14" rx="1.25" />
+                  <rect x="13" y="7" width="2.5" height="10" rx="1.25" />
+                  <rect x="17.75" y="4" width="2.5" height="16" rx="1.25" />
                 </svg>
               )}
             </span>
@@ -253,7 +261,6 @@ export function CreateChannelModal({ onClose, onCreate, defaultType = 'text', ca
             />
           </div>
 
-          {/* Buttons */}
           <div className="flex justify-end items-center gap-3 mt-4">
             <button
               type="button"
@@ -275,4 +282,6 @@ export function CreateChannelModal({ onClose, onCreate, defaultType = 'text', ca
       </div>
     </div>
   )
+
+  return createPortal(modal, document.body)
 }

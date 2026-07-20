@@ -182,14 +182,27 @@ export function ServerBar({ servers, currentServerId, onSelectServer, onCreateSe
             ref={friendsBtnRef}
             type="button"
             onClick={handleOpenFriends}
-            className={`w-12 h-12 flex items-center justify-center cursor-pointer transition-all duration-200 ${
+            className={`group/friends w-12 h-12 flex items-center justify-center cursor-pointer transition-all duration-200 ${
               isFriendsActive
                 ? 'bg-app-accent rounded-[16px]'
                 : 'rounded-[24px] hover:rounded-[16px] bg-app-channel hover:bg-app-accent'
             }`}
             title="Friends"
+            aria-pressed={isFriendsActive}
           >
-            <img src="./logo.png" alt="Nepsis" className="w-7 h-7 object-contain" />
+            {/*
+              Logo PNG is orange on black. Selected/hover: keep orange square (bg-app-accent),
+              force the mark to white so it stays readable — never change the square to blue.
+            */}
+            <img
+              src="./logo.png"
+              alt="Nepsis"
+              className={`w-7 h-7 object-contain transition-[filter] duration-200 ${
+                isFriendsActive
+                  ? '[filter:brightness(0)_invert(1)]'
+                  : 'group-hover/friends:[filter:brightness(0)_invert(1)]'
+              }`}
+            />
           </button>
         </div>
 

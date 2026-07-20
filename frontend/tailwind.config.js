@@ -7,8 +7,10 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Figtree', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        display: ['Syne', 'Figtree', 'ui-sans-serif', 'sans-serif'],
+        // Paragraphs / body / UI
+        sans: ['Poppins', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // All headers / display
+        display: ['"TWK Everett"', 'Space Grotesk', 'Poppins', 'ui-sans-serif', 'sans-serif'],
       },
       colors: {
         app: {
@@ -22,6 +24,10 @@ export default {
           'accent-hover': 'rgb(var(--app-accent-hover) / <alpha-value>)',
           text: 'rgb(var(--app-text) / <alpha-value>)',
           muted: 'rgb(var(--app-muted) / <alpha-value>)',
+          /** Soft overlays — white on dark themes, black on White theme */
+          glass: 'rgb(var(--app-glass) / <alpha-value>)',
+          /** Elevated panels / menus */
+          panel: 'rgb(var(--app-panel) / <alpha-value>)',
           online: '#23a559',
           offline: '#80848e',
         }

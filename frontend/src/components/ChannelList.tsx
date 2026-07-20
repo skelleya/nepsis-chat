@@ -1,4 +1,5 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   DndContext,
   closestCenter,
@@ -26,6 +27,9 @@ import { useApp } from '../contexts/AppContext'
 import * as api from '../services/api'
 import type { ProfileType } from '../services/api'
 import { useGsapMenu } from '../hooks/useGsapMenu'
+import { MemberProfilePanel } from './MemberProfilePanel'
+import type { ServerMember } from './MembersSidebar'
+import { CoolIcon } from './icons/CoolIcon'
 
 interface VoiceUserInfo {
   userId: string
@@ -90,26 +94,75 @@ interface ChannelListProps {
   onSelectDM?: (conversationId: string) => void
   // Admin: drop user onto voice channel to move them
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
+  onMuteInVoice?: (userId: string) => Promise<void>
+  onDeafenInVoice?: (userId: string) => Promise<void>
+  onDisconnectFromVoice?: (userId: string) => Promise<void>
+  onKick?: (userId: string) => Promise<void>
+  onBan?: (userId: string) => Promise<void>
+  onMessageUser?: (userId: string, username: string) => void
+  onCallUser?: (userId: string, username: string, avatarUrl?: string) => void
+  onAddFriend?: (userId: string, username: string) => void
+  onSetMemberRole?: (userId: string, role: 'admin' | 'member') => Promise<void>
+  serverMembers?: ServerMember[]
+  currentUserRole?: ServerMember['role']
   /** Owner/admin: can create rules channel and see rules option in modal */
   isAdminOrOwner?: boolean
 }
 
-function HashIcon({ className }: { className?: string }) {
+/** Soft chat glyph — not Discord # */
+function ChatIcon({ className }: { className?: string }) {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M5.88657 21C5.57547 21 5.3399 20.7189 5.39427 20.4126L6.00001 17H2.59511C2.28449 17 2.04905 16.7198 2.10259 16.4138L2.27759 15.4138C2.31946 15.1746 2.52722 15 2.77011 15H6.35001L7.41001 9H4.00511C3.69449 9 3.45905 8.71977 3.51259 8.41381L3.68759 7.41381C3.72946 7.17456 3.93722 7 4.18011 7H7.76001L8.39677 3.41262C8.43914 3.17391 8.64664 3 8.88907 3H9.87344C10.1845 3 10.4201 3.28107 10.3657 3.58738L9.76001 7H15.76L16.3968 3.41262C16.4391 3.17391 16.6466 3 16.8891 3H17.8734C18.1845 3 18.4201 3.28107 18.3657 3.58738L17.76 7H21.1649C21.4755 7 21.711 7.28023 21.6574 7.58619L21.4824 8.58619C21.4406 8.82544 21.2328 9 20.9899 9H17.41L16.35 15H19.7549C20.0655 15 20.301 15.2802 20.2474 15.5862L20.0724 16.5862C20.0306 16.8254 19.8228 17 19.5799 17H16L15.3632 20.5874C15.3209 20.8261 15.1134 21 14.8709 21H13.8866C13.5755 21 13.3399 20.7189 13.3943 20.4126L14 17H8.00001L7.36325 20.5874C7.32088 20.8261 7.11337 21 6.87094 21H5.88657ZM9.41001 9L8.35001 15H14.35L15.41 9H9.41001Z"/>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
+      <path
+        d="M8 10.5h8M8 14h5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+      <path
+        d="M12 3.5c-4.7 0-8.5 3.13-8.5 7 0 2.12 1.12 4.02 2.9 5.3L5.5 20l3.4-1.7c.97.28 2 .43 3.1.43 4.7 0 8.5-3.13 8.5-7s-3.8-7-8.5-7z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
 
 function VoiceIcon({ className }: { className?: string }) {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M11.383 3.07904C11.009 2.92504 10.579 3.01004 10.293 3.29604L6.586 7.00304H4C3.45 7.00304 3 7.45304 3 8.00304V16.003C3 16.553 3.45 17.003 4 17.003H6.586L10.293 20.71C10.579 20.996 11.009 21.082 11.383 20.927C11.757 20.772 12 20.407 12 20.003V4.00304C12 3.59904 11.757 3.23404 11.383 3.07904Z"/>
-      <path d="M14 9.00304C14 9.00304 16 10.003 16 12.003C16 14.003 14 15.003 14 15.003" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/>
-      <path d="M17 7.00304C17 7.00304 20 9.00304 20 12.003C20 15.003 17 17.003 17 17.003" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
+      <rect x="3.5" y="8" width="2.5" height="8" rx="1.25" fill="currentColor" />
+      <rect x="8.25" y="5" width="2.5" height="14" rx="1.25" fill="currentColor" />
+      <rect x="13" y="7" width="2.5" height="10" rx="1.25" fill="currentColor" />
+      <rect x="17.75" y="4" width="2.5" height="16" rx="1.25" fill="currentColor" />
     </svg>
   )
+}
+
+function RulesIcon({ className }: { className?: string }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
+      <path
+        d="M7 4.5h7.5L19 9v10.5a1 1 0 01-1 1H7a1 1 0 01-1-1v-14a1 1 0 011-1z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <path d="M14.5 4.5V9H19" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
+      <path d="M9 13h6M9 16.5h4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function GearIcon({ className }: { className?: string }) {
+  return <CoolIcon name="settings" size={14} className={className} />
+}
+
+function menuItemClass(danger = false) {
+  return danger
+    ? 'w-full px-3 py-1.5 rounded-md text-[13px] text-left text-red-400 hover:bg-red-500/20'
+    : 'w-full px-3 py-1.5 rounded-md text-[13px] text-left text-app-text hover:bg-app-accent hover:text-white'
 }
 
 const CHANNEL_PREFIX = 'ch-'
@@ -131,116 +184,460 @@ function categoryAwareCollisionDetection(args: Parameters<typeof closestCenter>[
   return closestCenter(args)
 }
 
-function DraggableVoiceUser({
+function VoiceUserRow({
   vu,
-  canMove,
+  currentChannelId,
+  voiceChannels,
+  member,
+  currentUserId,
+  currentUserRole = 'member',
+  canModerate,
+  isSelf,
+  onMoveToChannel,
+  onMuteInVoice,
+  onDeafenInVoice,
+  onDisconnectFromVoice,
   onWatchScreenShare,
+  onKick,
+  onBan,
+  onMessageUser,
+  onCallUser,
+  onAddFriend,
+  onSetMemberRole,
 }: {
   vu: VoiceUserInfo
-  canMove: boolean
+  currentChannelId: string
+  voiceChannels: Channel[]
+  member?: ServerMember
+  currentUserId?: string
+  currentUserRole?: ServerMember['role']
+  canModerate: boolean
+  isSelf: boolean
+  onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
+  onMuteInVoice?: (userId: string) => Promise<void>
+  onDeafenInVoice?: (userId: string) => Promise<void>
+  onDisconnectFromVoice?: (userId: string) => Promise<void>
   onWatchScreenShare?: (userId: string) => void
+  onKick?: (userId: string) => Promise<void>
+  onBan?: (userId: string) => Promise<void>
+  onMessageUser?: (userId: string, username: string) => void
+  onCallUser?: (userId: string, username: string, avatarUrl?: string) => void
+  onAddFriend?: (userId: string, username: string) => void
+  onSetMemberRole?: (userId: string, role: 'admin' | 'member') => Promise<void>
 }) {
+  const [ctx, setCtx] = useState<{ x: number; y: number } | null>(null)
+  const [sub, setSub] = useState<'move' | 'roles' | null>(null)
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [profileAnchor, setProfileAnchor] = useState<DOMRect | null>(null)
+  const rowRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const shouldRenderMenu = useGsapMenu(!!ctx, menuRef, {
+    enterY: -4,
+    exitY: -2,
+    transformOrigin: 'top left',
+  })
+
+  const canDrag = canModerate && !!onMoveToChannel
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `${USER_PREFIX}${vu.userId}`,
-    disabled: !canMove,
+    disabled: !canDrag,
   })
-  const liveBadge = vu.isScreenSharing ? (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation()
-        onWatchScreenShare?.(vu.userId)
-      }}
-      className="bg-[#ed4245] text-white text-[9px] font-bold uppercase tracking-wide px-1 py-0.5 rounded-sm hover:bg-[#f04747] flex-shrink-0"
-      title="Watch screen share"
-    >
-      Live
-    </button>
-  ) : null
 
-  if (!canMove) {
-    return (
+  const otherVoice = voiceChannels.filter((ch) => ch.id !== currentChannelId && ch.type === 'voice')
+  const targetRole = member?.role ?? 'member'
+  const canModTarget =
+    canModerate &&
+    !isSelf &&
+    targetRole !== 'owner' &&
+    (currentUserRole === 'owner' || targetRole === 'member')
+
+  const closeMenu = () => {
+    setCtx(null)
+    setSub(null)
+  }
+
+  useEffect(() => {
+    if (!ctx) return
+    const close = () => closeMenu()
+    window.addEventListener('click', close)
+    window.addEventListener('scroll', close, true)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('scroll', close, true)
+    }
+  }, [ctx])
+
+  const profileMember: ServerMember = member ?? {
+    userId: vu.userId,
+    username: vu.username,
+    avatarUrl: vu.avatar_url,
+    role: 'member',
+    status: 'in-voice',
+    voiceChannelId: currentChannelId,
+  }
+
+  const setRefs = (node: HTMLDivElement | null) => {
+    setNodeRef(node)
+    rowRef.current = node
+  }
+
+  return (
+    <>
       <div
-        className={`flex items-center gap-2 px-1.5 py-1 rounded text-app-muted hover:bg-app-hover/30 ${vu.isScreenSharing ? 'cursor-pointer' : ''}`}
-        onClick={() => {
-          if (vu.isScreenSharing) onWatchScreenShare?.(vu.userId)
+        ref={setRefs}
+        className={`group/vu relative flex items-center gap-1.5 pl-1.5 pr-1 py-1 rounded-lg text-app-muted transition-colors ${
+          isDragging ? 'opacity-40' : 'hover:bg-app-glass/[0.04]'
+        }`}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setSub(null)
+          setCtx({ x: e.clientX, y: e.clientY })
         }}
       >
-        <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 ring-1.5 transition-all overflow-hidden ${
-          vu.isSpeaking ? 'ring-2 ring-[#23a559] shadow-[0_0_8px_rgba(35,165,89,0.7)]' : 'ring-transparent'
-        } ${vu.avatar_url ? 'bg-transparent' : 'bg-app-accent/80'}`}>
-          {vu.avatar_url ? (
-            <img src={vu.avatar_url} alt="" className="w-full h-full object-cover" />
-          ) : (
-            vu.username.charAt(0).toUpperCase()
-          )}
+        <div
+          {...(canDrag ? { ...attributes, ...listeners } : {})}
+          className={`flex items-center gap-2 min-w-0 flex-1 ${canDrag ? 'cursor-grab active:cursor-grabbing touch-none' : ''}`}
+          title={canDrag ? 'Drag into another voice channel to move' : 'Right-click for options'}
+        >
+          <div
+            className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0 ring-2 transition-all overflow-hidden ${
+              vu.isSpeaking
+                ? 'ring-[#23a559] shadow-[0_0_10px_rgba(35,165,89,0.45)]'
+                : 'ring-transparent'
+            } ${vu.avatar_url ? 'bg-transparent' : 'bg-app-accent/80'}`}
+          >
+            {vu.avatar_url ? (
+              <img src={vu.avatar_url} alt="" className="w-full h-full object-cover" />
+            ) : (
+              vu.username.charAt(0).toUpperCase()
+            )}
+          </div>
+          <span className="text-[12px] font-medium truncate min-w-0 text-app-text/85 select-none">
+            {vu.username}
+          </span>
         </div>
-        <span className="text-xs truncate flex-1 min-w-0">{vu.username}</span>
-        <div className="flex items-center gap-0.5 ml-auto flex-shrink-0">
-          {liveBadge}
-          {vu.isMuted && <MicOffIcon size={12} className="text-red-400" />}
-          {vu.isDeafened && <HeadphonesOffIcon size={12} className="text-red-400" />}
+
+        <div className="flex items-center gap-0.5 flex-shrink-0">
+          {vu.isScreenSharing && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onWatchScreenShare?.(vu.userId)
+              }}
+              className="text-[9px] font-semibold tracking-wide px-1.5 py-0.5 rounded-md bg-red-500/90 text-white hover:bg-red-500"
+              title="Watch screen share"
+            >
+              Live
+            </button>
+          )}
+          {vu.isMuted && <MicOffIcon size={12} className="text-red-400 pointer-events-none" />}
+          {vu.isDeafened && <HeadphonesOffIcon size={12} className="text-red-400 pointer-events-none" />}
         </div>
       </div>
-    )
-  }
-  return (
-    <div ref={setNodeRef} className={isDragging ? 'opacity-50' : ''}>
-      <div
-        {...attributes}
-        {...listeners}
-        className="flex items-center gap-2 px-1.5 py-1 rounded text-app-muted hover:bg-app-hover/30 cursor-grab active:cursor-grabbing touch-none"
-      >
-        <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 ring-1.5 transition-all overflow-hidden ${
-          vu.isSpeaking ? 'ring-2 ring-[#23a559] shadow-[0_0_8px_rgba(35,165,89,0.7)]' : 'ring-transparent'
-        } ${vu.avatar_url ? 'bg-transparent' : 'bg-app-accent/80'}`}>
-          {vu.avatar_url ? (
-            <img src={vu.avatar_url} alt="" className="w-full h-full object-cover" />
-          ) : (
-            vu.username.charAt(0).toUpperCase()
-          )}
-        </div>
-        <span className="text-xs truncate flex-1 min-w-0">{vu.username}</span>
-        <div className="flex items-center gap-0.5 ml-auto flex-shrink-0">
-          {liveBadge}
-          {vu.isMuted && <MicOffIcon size={12} className="text-red-400" />}
-          {vu.isDeafened && <HeadphonesOffIcon size={12} className="text-red-400" />}
-        </div>
-      </div>
-    </div>
+
+      {shouldRenderMenu &&
+        ctx &&
+        createPortal(
+          <div
+            ref={menuRef}
+            className="fixed z-[220] min-w-[200px] rounded-xl border border-app-hover/50 bg-app-darker p-1 shadow-2xl"
+            style={{ left: Math.min(ctx.x, window.innerWidth - 220), top: Math.min(ctx.y, window.innerHeight - 320) }}
+            onClick={(e) => e.stopPropagation()}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            <button
+              type="button"
+              className={menuItemClass()}
+              onClick={() => {
+                setProfileAnchor(rowRef.current?.getBoundingClientRect() ?? new DOMRect(ctx.x, ctx.y, 0, 0))
+                setProfileOpen(true)
+                closeMenu()
+              }}
+            >
+              Profile
+            </button>
+            {!isSelf && onMessageUser && (
+              <button
+                type="button"
+                className={menuItemClass()}
+                onClick={() => {
+                  onMessageUser(vu.userId, vu.username)
+                  closeMenu()
+                }}
+              >
+                Message
+              </button>
+            )}
+            {!isSelf && onCallUser && (
+              <button
+                type="button"
+                className={menuItemClass()}
+                onClick={() => {
+                  onCallUser(vu.userId, vu.username, vu.avatar_url)
+                  closeMenu()
+                }}
+              >
+                Call
+              </button>
+            )}
+            {!isSelf && onAddFriend && (
+              <button
+                type="button"
+                className={menuItemClass()}
+                onClick={() => {
+                  onAddFriend(vu.userId, vu.username)
+                  closeMenu()
+                }}
+              >
+                Add Friend
+              </button>
+            )}
+            {vu.isScreenSharing && onWatchScreenShare && (
+              <button
+                type="button"
+                className={menuItemClass()}
+                onClick={() => {
+                  onWatchScreenShare(vu.userId)
+                  closeMenu()
+                }}
+              >
+                Watch Live
+              </button>
+            )}
+
+            <div className="h-px bg-app-hover/50 my-1" />
+
+            <div className="relative">
+              <button
+                type="button"
+                className={`${menuItemClass()} flex items-center justify-between gap-2`}
+                onClick={() => setSub(sub === 'roles' ? null : 'roles')}
+              >
+                <span>Roles</span>
+                <span className="text-[11px] text-app-muted capitalize">{targetRole}</span>
+              </button>
+              {sub === 'roles' && (
+                <div className="mt-0.5 ml-1 rounded-lg border border-app-hover/40 bg-app-dark p-0.5">
+                  {currentUserRole === 'owner' && !isSelf && targetRole !== 'owner' && onSetMemberRole ? (
+                    <>
+                      {targetRole !== 'admin' && (
+                        <button
+                          type="button"
+                          className={menuItemClass()}
+                          onClick={async () => {
+                            await onSetMemberRole(vu.userId, 'admin')
+                            closeMenu()
+                          }}
+                        >
+                          Make Admin
+                        </button>
+                      )}
+                      {targetRole !== 'member' && (
+                        <button
+                          type="button"
+                          className={menuItemClass()}
+                          onClick={async () => {
+                            await onSetMemberRole(vu.userId, 'member')
+                            closeMenu()
+                          }}
+                        >
+                          Make Member
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <div className="px-3 py-1.5 text-[12px] text-app-muted capitalize">
+                      {targetRole}
+                      {currentUserRole !== 'owner' ? ' (owner can change)' : ''}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {canModTarget && otherVoice.length > 0 && onMoveToChannel && (
+              <div className="relative">
+                <button
+                  type="button"
+                  className={`${menuItemClass()} flex items-center justify-between gap-2`}
+                  onClick={() => setSub(sub === 'move' ? null : 'move')}
+                >
+                  <span>Move to</span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className={sub === 'move' ? 'rotate-90' : ''}>
+                    <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+                  </svg>
+                </button>
+                {sub === 'move' && (
+                  <div className="mt-0.5 ml-1 rounded-lg border border-app-hover/40 bg-app-dark p-0.5 max-h-40 overflow-y-auto">
+                    <p className="px-2 py-1 text-[10px] text-app-muted">Or drag them onto a voice channel</p>
+                    {otherVoice.map((ch) => (
+                      <button
+                        key={ch.id}
+                        type="button"
+                        className={`${menuItemClass()} flex items-center gap-2`}
+                        onClick={async () => {
+                          await onMoveToChannel(vu.userId, ch.id)
+                          closeMenu()
+                        }}
+                      >
+                        <VoiceIcon className="opacity-70 flex-shrink-0" />
+                        <span className="truncate">{ch.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {canModTarget && onMuteInVoice && (
+              <button
+                type="button"
+                className={menuItemClass()}
+                onClick={async () => {
+                  await onMuteInVoice(vu.userId)
+                  closeMenu()
+                }}
+              >
+                Server Mute
+              </button>
+            )}
+            {canModTarget && onDeafenInVoice && (
+              <button
+                type="button"
+                className={menuItemClass()}
+                onClick={async () => {
+                  await onDeafenInVoice(vu.userId)
+                  closeMenu()
+                }}
+              >
+                Server Deafen
+              </button>
+            )}
+            {canModTarget && onDisconnectFromVoice && (
+              <button
+                type="button"
+                className={menuItemClass()}
+                onClick={async () => {
+                  await onDisconnectFromVoice(vu.userId)
+                  closeMenu()
+                }}
+              >
+                Disconnect
+              </button>
+            )}
+
+            {canModTarget && (onKick || onBan) && <div className="h-px bg-app-hover/50 my-1" />}
+            {canModTarget && onKick && (
+              <button
+                type="button"
+                className={menuItemClass(true)}
+                onClick={async () => {
+                  if (confirm(`Kick ${vu.username} from the server?`)) await onKick(vu.userId)
+                  closeMenu()
+                }}
+              >
+                Kick
+              </button>
+            )}
+            {canModTarget && onBan && (
+              <button
+                type="button"
+                className={menuItemClass(true)}
+                onClick={async () => {
+                  if (confirm(`Ban ${vu.username} from the server?`)) await onBan(vu.userId)
+                  closeMenu()
+                }}
+              >
+                Ban
+              </button>
+            )}
+          </div>,
+          document.body
+        )}
+
+      {profileOpen && profileAnchor && currentUserId && (
+        <MemberProfilePanel
+          member={profileMember}
+          currentUserId={currentUserId}
+          voiceChannels={voiceChannels}
+          anchorRect={profileAnchor}
+          placement="left"
+          canKick={!!(canModTarget && onKick)}
+          canBan={!!(canModTarget && onBan)}
+          onClose={() => {
+            setProfileOpen(false)
+            setProfileAnchor(null)
+          }}
+          onMessage={onMessageUser}
+          onAddFriend={onAddFriend}
+          onCall={onCallUser}
+          onKick={onKick}
+          onBan={onBan}
+        />
+      )}
+    </>
   )
 }
 
 function SortableChannelItem({
   channel,
+  categories,
   currentChannelId,
   onSelectChannel,
   voiceUsers,
+  voiceChannels,
+  serverMembers,
   hasUnread,
   hasMention,
-  HashIcon,
-  VoiceIcon,
   onUpdateChannel,
   onDeleteChannel,
   onMoveToChannel,
+  onMuteInVoice,
+  onDeafenInVoice,
+  onDisconnectFromVoice,
   onWatchScreenShare,
+  onKick,
+  onBan,
+  onMessageUser,
+  onCallUser,
+  onAddFriend,
+  onSetMemberRole,
   canEdit,
+  canModerate,
+  currentUserId,
+  currentUserRole,
 }: {
   channel: Channel
+  categories: Category[]
   currentChannelId: string | null
   onSelectChannel: (ch: Channel) => void
   voiceUsers: Record<string, VoiceUserInfo[]>
+  voiceChannels: Channel[]
+  serverMembers?: ServerMember[]
   hasUnread?: boolean
   hasMention?: boolean
-  HashIcon: React.ComponentType<{ className?: string }>
-  VoiceIcon: React.ComponentType<{ className?: string }>
   onUpdateChannel?: (channelId: string, data: { name?: string; order?: number; categoryId?: string | null }) => Promise<void>
   onDeleteChannel?: (channelId: string) => Promise<void>
   onWatchScreenShare?: (userId: string) => void
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
+  onMuteInVoice?: (userId: string) => Promise<void>
+  onDeafenInVoice?: (userId: string) => Promise<void>
+  onDisconnectFromVoice?: (userId: string) => Promise<void>
+  onKick?: (userId: string) => Promise<void>
+  onBan?: (userId: string) => Promise<void>
+  onMessageUser?: (userId: string, username: string) => void
+  onCallUser?: (userId: string, username: string, avatarUrl?: string) => void
+  onAddFriend?: (userId: string, username: string) => void
+  onSetMemberRole?: (userId: string, role: 'admin' | 'member') => Promise<void>
   canEdit?: boolean
+  canModerate?: boolean
+  currentUserId?: string
+  currentUserRole?: ServerMember['role']
 }) {
   const [showMenu, setShowMenu] = useState(false)
+  const [showCatSub, setShowCatSub] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState(channel.name)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -266,22 +663,26 @@ function SortableChannelItem({
     setEditing(false)
   }, [channel.id, channel.name, editName, onUpdateChannel])
 
-  const voiceUsersList = (voiceUsers[channel.id] || [])
+  const voiceUsersList = voiceUsers[channel.id] || []
+  const isSelected = currentChannelId === channel.id
+  const isVoice = channel.type === 'voice'
 
   return (
     <div ref={setNodeRef} style={style} className={isDragging ? 'opacity-50' : ''}>
-      <div className="flex items-center gap-0.5 group/ch">
-        <button
-          {...attributes}
-          {...listeners}
-          className="p-1 rounded text-app-muted hover:text-app-text hover:bg-app-hover/40 cursor-grab active:cursor-grabbing flex-shrink-0 opacity-0 group-hover/ch:opacity-100 group-focus-within/ch:opacity-100 max-lg:opacity-100 transition-opacity touch-none"
-          title="Drag to reorder"
-          onClick={(e) => e.preventDefault()}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M8 6h2v2H8V6zm0 5h2v2H8v-2zm0 5h2v2H8v-2zm5-10h2v2h-2V6zm0 5h2v2h-2v-2zm0 5h2v2h-2v-2z"/>
-          </svg>
-        </button>
+      <div className="group/ch flex items-stretch gap-0.5">
+        {canEdit && (
+          <button
+            {...attributes}
+            {...listeners}
+            className="self-start mt-2 p-0.5 rounded-md text-app-muted/50 hover:text-app-text hover:bg-app-glass/[0.05] cursor-grab active:cursor-grabbing flex-shrink-0 opacity-0 group-hover/ch:opacity-100 group-focus-within/ch:opacity-100 max-lg:opacity-100 transition-opacity touch-none"
+            title="Drag to reorder"
+            onClick={(e) => e.preventDefault()}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M8 6h2v2H8V6zm0 5h2v2H8v-2zm0 5h2v2H8v-2zm5-10h2v2h-2V6zm0 5h2v2h-2v-2zm0 5h2v2h-2v-2z" />
+            </svg>
+          </button>
+        )}
         <div className="flex-1 min-w-0 relative">
           {editing ? (
             <div className="flex items-center gap-1 px-2 py-1">
@@ -289,61 +690,162 @@ function SortableChannelItem({
                 autoFocus
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') { setEditName(channel.name); setEditing(false) } }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveEdit()
+                  if (e.key === 'Escape') {
+                    setEditName(channel.name)
+                    setEditing(false)
+                  }
+                }}
                 onBlur={handleSaveEdit}
-                className="flex-1 px-1.5 py-0.5 rounded bg-app-dark text-sm text-app-text border border-app-hover/50"
+                className="flex-1 px-2 py-1 rounded-lg bg-app-dark text-sm text-app-text border border-app-glass/10"
               />
             </div>
           ) : (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
               <button
                 onClick={() => onSelectChannel(channel)}
-                className={`flex-1 px-2 py-1.5 rounded flex items-center gap-1.5 text-left ${
-                  currentChannelId === channel.id
-                    ? 'bg-app-hover/60 text-white'
+                className={`relative flex-1 min-w-0 flex items-center gap-2.5 text-left rounded-xl px-2.5 py-2 transition-colors ${
+                  isSelected
+                    ? isVoice
+                      ? 'bg-app-accent/15 text-app-text'
+                      : 'bg-app-glass/[0.08] text-app-text'
                     : channel.type === 'text' && hasMention
-                      ? 'bg-red-500/15 text-white font-semibold hover:bg-red-500/20'
+                      ? 'bg-red-500/12 text-app-text font-semibold hover:bg-red-500/18'
                       : channel.type === 'text' && hasUnread
-                        ? 'bg-white/10 text-white hover:bg-white/15 font-medium'
-                        : 'text-app-muted hover:bg-app-hover/40 hover:text-app-text'
+                        ? 'bg-app-glass/[0.05] text-app-text hover:bg-app-glass/[0.08] font-medium'
+                        : 'text-app-muted hover:bg-app-glass/[0.04] hover:text-app-text'
                 }`}
               >
-                {channel.type === 'text' ? (
-                  <HashIcon className={`w-5 h-5 flex-shrink-0 ${hasUnread || hasMention ? 'opacity-100' : 'opacity-60'}`} />
-                ) : channel.type === 'rules' ? (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 flex-shrink-0 opacity-60">
-                    <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/>
-                    <path d="M9 15h6v2H9zm0-4h6v2H9zm0-4h3v2H9z"/>
-                  </svg>
-                ) : (
-                  <VoiceIcon className="w-5 h-5 flex-shrink-0 opacity-60" />
+                {isSelected && (
+                  <span
+                    className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-app-accent"
+                    aria-hidden
+                  />
                 )}
-                <span className="text-sm truncate flex-1">{channel.name}</span>
+                <span
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                    isVoice
+                      ? isSelected
+                        ? 'bg-app-accent/25 text-app-accent'
+                        : 'bg-app-glass/[0.04] text-app-muted'
+                      : isSelected
+                        ? 'bg-app-glass/[0.08] text-app-text'
+                        : 'bg-app-glass/[0.03] text-app-muted'
+                  }`}
+                >
+                  {channel.type === 'text' ? (
+                    <ChatIcon />
+                  ) : channel.type === 'rules' ? (
+                    <RulesIcon />
+                  ) : (
+                    <VoiceIcon />
+                  )}
+                </span>
+                <span className="text-[13px] font-medium truncate flex-1 min-w-0 tracking-tight">
+                  {channel.name}
+                </span>
+                {isVoice && voiceUsersList.length > 0 && (
+                  <span className="text-[10px] font-semibold tabular-nums px-1.5 py-0.5 rounded-md bg-app-glass/[0.06] text-app-muted flex-shrink-0">
+                    {voiceUsersList.length}
+                  </span>
+                )}
                 {hasMention && (
-                  <span className="ml-auto w-5 h-5 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold flex-shrink-0">@</span>
+                  <span className="w-5 h-5 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold flex-shrink-0">
+                    @
+                  </span>
                 )}
               </button>
               {canEdit && (
                 <div className="relative">
                   <button
-                    onClick={() => setShowMenu(!showMenu)}
-                    className="p-1 rounded text-app-muted hover:text-app-text hover:bg-app-hover/40 opacity-0 group-hover/ch:opacity-100 group-focus-within/ch:opacity-100 max-lg:opacity-100 transition-opacity"
-                    title="Channel options"
+                    onClick={() => {
+                      setShowMenu(!showMenu)
+                      setShowCatSub(false)
+                    }}
+                    className="p-1.5 rounded-lg text-app-muted hover:text-app-text hover:bg-app-glass/[0.05] opacity-0 group-hover/ch:opacity-100 group-focus-within/ch:opacity-100 max-lg:opacity-100 transition-opacity"
+                    title="Edit channel"
+                    aria-label={`Edit ${channel.name}`}
                   >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-                    </svg>
+                    <GearIcon />
                   </button>
                   {shouldRenderMenu && (
                     <>
-                      <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-                      <div ref={menuRef} className="absolute right-0 top-full mt-0.5 z-50 bg-[#111214] rounded-lg shadow-xl p-1 border border-app-hover/30 min-w-[120px]">
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => {
+                          setShowMenu(false)
+                          setShowCatSub(false)
+                        }}
+                      />
+                      <div
+                        ref={menuRef}
+                        className="absolute right-0 top-full mt-1 z-50 min-w-[180px] rounded-xl border border-app-hover/50 bg-app-darker p-1 shadow-2xl"
+                      >
                         <button
-                          onClick={() => { setEditing(true); setShowMenu(false) }}
-                          className="w-full px-2 py-1.5 rounded text-sm text-app-text hover:bg-app-accent hover:text-white text-left"
+                          onClick={() => {
+                            setEditing(true)
+                            setShowMenu(false)
+                          }}
+                          className={menuItemClass()}
                         >
-                          Edit Channel
+                          Rename Channel
                         </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(channel.id)
+                            } catch {
+                              /* ignore */
+                            }
+                            setShowMenu(false)
+                          }}
+                          className={menuItemClass()}
+                        >
+                          Copy Channel ID
+                        </button>
+                        {categories.length > 0 && onUpdateChannel && (
+                          <div>
+                            <button
+                              type="button"
+                              onClick={() => setShowCatSub((v) => !v)}
+                              className={`${menuItemClass()} flex items-center justify-between gap-2`}
+                            >
+                              <span>Move to Category</span>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className={showCatSub ? 'rotate-90' : ''}>
+                                <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+                              </svg>
+                            </button>
+                            {showCatSub && (
+                              <div className="mt-0.5 ml-1 rounded-lg border border-app-hover/40 bg-app-dark p-0.5 max-h-36 overflow-y-auto">
+                                <button
+                                  type="button"
+                                  className={menuItemClass()}
+                                  onClick={async () => {
+                                    await onUpdateChannel(channel.id, { categoryId: null })
+                                    setShowMenu(false)
+                                  }}
+                                >
+                                  No category
+                                </button>
+                                {categories.map((cat) => (
+                                  <button
+                                    key={cat.id}
+                                    type="button"
+                                    className={menuItemClass()}
+                                    onClick={async () => {
+                                      await onUpdateChannel(channel.id, { categoryId: cat.id })
+                                      setShowMenu(false)
+                                    }}
+                                  >
+                                    {cat.name}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <div className="h-px bg-app-hover/50 my-1" />
                         <button
                           onClick={async () => {
                             if (onDeleteChannel && confirm(`Delete channel "${channel.name}"?`)) {
@@ -351,7 +853,7 @@ function SortableChannelItem({
                             }
                             setShowMenu(false)
                           }}
-                          className="w-full px-2 py-1.5 rounded text-sm text-red-400 hover:bg-red-500/20 text-left"
+                          className={menuItemClass(true)}
                         >
                           Delete Channel
                         </button>
@@ -362,17 +864,44 @@ function SortableChannelItem({
               )}
             </div>
           )}
-          {channel.type === 'voice' && voiceUsersList.length > 0 && (
+          {isVoice && (
             <div
               ref={setDropRef}
-              className={`ml-7 space-y-0.5 mt-0.5 p-1 rounded transition-colors ${isOver ? 'bg-app-accent/20 ring-1 ring-app-accent/50' : ''}`}
+              className={
+                voiceUsersList.length > 0 || isOver
+                  ? `mt-1 ml-1 pl-2 border-l space-y-0.5 transition-colors ${
+                      isOver
+                        ? 'border-app-accent/60 bg-app-accent/10 rounded-r-xl py-1'
+                        : 'border-app-glass/[0.06] py-0.5'
+                    }`
+                  : 'min-h-[2px]'
+              }
             >
+              {voiceUsersList.length === 0 && isOver && (
+                <div className="px-2 py-2 text-[11px] text-app-accent/90 font-medium">Drop to move here</div>
+              )}
               {voiceUsersList.map((vu) => (
-                <DraggableVoiceUser
+                <VoiceUserRow
                   key={vu.userId}
                   vu={vu}
-                  canMove={!!onMoveToChannel}
+                  currentChannelId={channel.id}
+                  voiceChannels={voiceChannels}
+                  member={serverMembers?.find((m) => m.userId === vu.userId)}
+                  currentUserId={currentUserId}
+                  currentUserRole={currentUserRole}
+                  canModerate={!!canModerate}
+                  isSelf={vu.userId === currentUserId}
+                  onMoveToChannel={onMoveToChannel}
+                  onMuteInVoice={onMuteInVoice}
+                  onDeafenInVoice={onDeafenInVoice}
+                  onDisconnectFromVoice={onDisconnectFromVoice}
                   onWatchScreenShare={onWatchScreenShare}
+                  onKick={onKick}
+                  onBan={onBan}
+                  onMessageUser={onMessageUser}
+                  onCallUser={onCallUser}
+                  onAddFriend={onAddFriend}
+                  onSetMemberRole={onSetMemberRole}
                 />
               ))}
             </div>
@@ -386,11 +915,13 @@ function SortableChannelItem({
 function UncategorizedHeader({
   collapsed,
   onToggle,
-  onAddChannel,
+  onAddTextChannel,
+  onAddVoiceChannel,
 }: {
   collapsed: boolean
   onToggle: () => void
-  onAddChannel: () => void
+  onAddTextChannel: () => void
+  onAddVoiceChannel: () => void
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `${CATEGORY_PREFIX}${UNCATEGORIZED_ID}`,
@@ -398,29 +929,42 @@ function UncategorizedHeader({
   return (
     <div
       ref={setNodeRef}
-      className={`flex items-center px-1 group cursor-pointer ${isOver ? 'bg-app-accent/15 rounded' : ''}`}
+      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg group cursor-pointer ${isOver ? 'bg-app-accent/15' : ''}`}
       onClick={onToggle}
     >
       <svg
         width="10"
         height="10"
         viewBox="0 0 10 10"
-        className={`mr-0.5 text-app-muted transition-transform flex-shrink-0 ${collapsed ? '-rotate-90' : ''}`}
+        className={`text-app-muted/80 transition-transform flex-shrink-0 ${collapsed ? '-rotate-90' : ''}`}
       >
-        <path d="M2 3L5 6L8 3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+        <path d="M2 3L5 6L8 3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
       </svg>
-      <span className="text-[11px] font-bold text-app-muted uppercase tracking-wider truncate flex-1 hover:text-app-text transition-colors">
+      <span className="font-display text-[12px] font-semibold text-app-muted/90 tracking-tight truncate flex-1 hover:text-app-text transition-colors">
         Channels
       </span>
-      <button
-        onClick={(e) => { e.stopPropagation(); onAddChannel() }}
-        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 text-app-muted hover:text-app-text transition-all p-0.5"
-        title="Create Channel"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-          <path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-        </svg>
-      </button>
+      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100">
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onAddTextChannel()
+          }}
+          className="text-app-muted hover:text-app-text transition-all p-1 rounded-md hover:bg-app-glass/[0.05]"
+          title="Create text channel"
+        >
+          <ChatIcon />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onAddVoiceChannel()
+          }}
+          className="text-app-muted hover:text-app-text transition-all p-1 rounded-md hover:bg-app-glass/[0.05]"
+          title="Create voice channel"
+        >
+          <VoiceIcon />
+        </button>
+      </div>
     </div>
   )
 }
@@ -429,7 +973,8 @@ function SortableCategoryHeader({
   category,
   collapsed,
   onToggle,
-  onAddChannel,
+  onAddTextChannel,
+  onAddVoiceChannel,
   onUpdateCategory,
   onDeleteCategory,
   canEdit,
@@ -437,7 +982,8 @@ function SortableCategoryHeader({
   category: Category
   collapsed: boolean
   onToggle: () => void
-  onAddChannel: (catId: string) => void
+  onAddTextChannel: (catId: string) => void
+  onAddVoiceChannel: (catId: string) => void
   onUpdateCategory?: (catId: string, data: { name?: string }) => Promise<void>
   onDeleteCategory?: (catId: string) => Promise<void>
   canEdit?: boolean
@@ -476,75 +1022,101 @@ function SortableCategoryHeader({
           onChange={(e) => setEditName(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') { setEditName(category.name); setEditing(false) } }}
           onBlur={handleSaveEdit}
-          className="flex-1 px-1.5 py-0.5 rounded bg-app-dark text-[11px] font-bold text-app-muted uppercase tracking-wider border border-app-hover/50"
+          className="flex-1 px-2 py-1 rounded-lg bg-app-dark text-[12px] font-display font-semibold text-app-text border border-app-glass/10"
         />
       </div>
     )
   }
 
   return (
-    <div ref={setNodeRef} style={style} className={`flex items-center px-1 group cursor-pointer rounded ${isDragging ? 'opacity-50' : ''} ${isOver ? 'bg-app-accent/15' : ''}`} onClick={onToggle}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg group cursor-pointer ${isDragging ? 'opacity-50' : ''} ${isOver ? 'bg-app-accent/15' : ''}`}
+      onClick={onToggle}
+    >
       <button
         {...attributes}
         {...listeners}
         onClick={(e) => e.stopPropagation()}
-        className="p-0.5 rounded text-app-muted hover:text-app-text hover:bg-app-hover/40 cursor-grab active:cursor-grabbing flex-shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 transition-opacity touch-none"
+        className="p-0.5 rounded-md text-app-muted/50 hover:text-app-text hover:bg-app-glass/[0.05] cursor-grab active:cursor-grabbing flex-shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 transition-opacity touch-none"
         title="Drag to reorder"
       >
         <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M8 6h2v2H8V6zm0 5h2v2H8v-2zm0 5h2v2H8v-2zm5-10h2v2h-2V6zm0 5h2v2h-2v-2zm0 5h2v2h-2v-2z"/>
+          <path d="M8 6h2v2H8V6zm0 5h2v2H8v-2zm0 5h2v2H8v-2zm5-10h2v2h-2V6zm0 5h2v2h-2v-2zm0 5h2v2h-2v-2z" />
         </svg>
       </button>
       <svg
         width="10"
         height="10"
         viewBox="0 0 10 10"
-        className={`mr-0.5 text-app-muted transition-transform flex-shrink-0 ${collapsed ? '-rotate-90' : ''}`}
+        className={`text-app-muted/80 transition-transform flex-shrink-0 ${collapsed ? '-rotate-90' : ''}`}
       >
-        <path d="M2 3L5 6L8 3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+        <path d="M2 3L5 6L8 3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
       </svg>
-      <span className="text-[11px] font-bold text-app-muted uppercase tracking-wider truncate flex-1 hover:text-app-text transition-colors">
+      <span className="font-display text-[12px] font-semibold text-app-muted/90 tracking-tight truncate flex-1 hover:text-app-text transition-colors">
         {category.name}
       </span>
       <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 transition-all">
         <button
-          onClick={(e) => { e.stopPropagation(); onAddChannel(category.id) }}
-          className="p-0.5 text-app-muted hover:text-app-text"
-          title="Create Channel"
+          onClick={(e) => {
+            e.stopPropagation()
+            onAddTextChannel(category.id)
+          }}
+          className="p-1 rounded-md text-app-muted hover:text-app-text hover:bg-app-glass/[0.05]"
+          title="Create text channel"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-            <path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-          </svg>
+          <ChatIcon />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onAddVoiceChannel(category.id)
+          }}
+          className="p-1 rounded-md text-app-muted hover:text-app-text hover:bg-app-glass/[0.05]"
+          title="Create voice channel"
+        >
+          <VoiceIcon />
         </button>
         {canEdit && (
           <div className="relative">
             <button
-              onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu) }}
-              className="p-0.5 text-app-muted hover:text-app-text"
-              title="Category options"
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowMenu(!showMenu)
+              }}
+              className="p-1 rounded-md text-app-muted hover:text-app-text hover:bg-app-glass/[0.05]"
+              title="Edit category"
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-              </svg>
+              <GearIcon />
             </button>
             {shouldRenderMenu && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-                <div ref={menuRef} className="absolute left-0 top-full mt-0.5 z-50 bg-[#111214] rounded-lg shadow-xl p-1 border border-app-hover/30 min-w-[120px]">
+                <div
+                  ref={menuRef}
+                  className="absolute left-0 top-full mt-1 z-50 min-w-[148px] rounded-xl border border-app-hover/50 bg-app-darker p-1 shadow-2xl"
+                >
                   <button
-                    onClick={() => { setEditing(true); setShowMenu(false) }}
-                    className="w-full px-2 py-1.5 rounded text-sm text-app-text hover:bg-app-accent hover:text-white text-left"
+                    onClick={() => {
+                      setEditing(true)
+                      setShowMenu(false)
+                    }}
+                    className={menuItemClass()}
                   >
-                    Edit Category
+                    Rename Category
                   </button>
                   <button
                     onClick={async () => {
-                      if (onDeleteCategory && confirm(`Delete category "${category.name}"? Channels will become uncategorized.`)) {
+                      if (
+                        onDeleteCategory &&
+                        confirm(`Delete category "${category.name}"? Channels will become uncategorized.`)
+                      ) {
                         await onDeleteCategory(category.id)
                       }
                       setShowMenu(false)
                     }}
-                    className="w-full px-2 py-1.5 rounded text-sm text-red-400 hover:bg-red-500/20 text-left"
+                    className={menuItemClass(true)}
                   >
                     Delete Category
                   </button>
@@ -561,46 +1133,79 @@ function SortableCategoryHeader({
 function CategorySection({
   category,
   channels,
+  categories,
+  allVoiceChannels,
+  serverMembers,
   currentChannelId,
   onSelectChannel,
-  onAddChannel,
+  onAddTextChannel,
+  onAddVoiceChannel,
   onUpdateChannel,
   onUpdateCategory,
   onDeleteChannel,
   onDeleteCategory,
   onMoveToChannel,
+  onMuteInVoice,
+  onDeafenInVoice,
+  onDisconnectFromVoice,
   onWatchScreenShare,
+  onKick,
+  onBan,
+  onMessageUser,
+  onCallUser,
+  onAddFriend,
+  onSetMemberRole,
   voiceUsers,
   channelUnreadCounts,
   channelMentionCounts,
   canEdit,
+  canModerate,
+  currentUserId,
+  currentUserRole,
 }: {
   category: Category | null
   channels: Channel[]
+  categories: Category[]
+  allVoiceChannels: Channel[]
+  serverMembers?: ServerMember[]
   currentChannelId: string | null
   onSelectChannel: (ch: Channel) => void
-  onAddChannel: (catId?: string) => void
+  onAddTextChannel: (catId?: string) => void
+  onAddVoiceChannel: (catId?: string) => void
   onUpdateChannel?: (channelId: string, data: { name?: string; order?: number; categoryId?: string | null }) => Promise<void>
   onUpdateCategory?: (catId: string, data: { name?: string }) => Promise<void>
   onDeleteChannel?: (channelId: string) => Promise<void>
   onDeleteCategory?: (catId: string) => Promise<void>
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
+  onMuteInVoice?: (userId: string) => Promise<void>
+  onDeafenInVoice?: (userId: string) => Promise<void>
+  onDisconnectFromVoice?: (userId: string) => Promise<void>
   onWatchScreenShare?: (userId: string) => void
+  onKick?: (userId: string) => Promise<void>
+  onBan?: (userId: string) => Promise<void>
+  onMessageUser?: (userId: string, username: string) => void
+  onCallUser?: (userId: string, username: string, avatarUrl?: string) => void
+  onAddFriend?: (userId: string, username: string) => void
+  onSetMemberRole?: (userId: string, role: 'admin' | 'member') => Promise<void>
   voiceUsers: Record<string, VoiceUserInfo[]>
   channelUnreadCounts?: Record<string, number>
   channelMentionCounts?: Record<string, number>
   canEdit?: boolean
+  canModerate?: boolean
+  currentUserId?: string
+  currentUserRole?: ServerMember['role']
 }) {
   const [collapsed, setCollapsed] = useState(false)
 
   return (
-    <div className="mt-4 first:mt-1">
+    <div className="mt-5 first:mt-2">
       {category && (
         <SortableCategoryHeader
           category={category}
           collapsed={collapsed}
           onToggle={() => setCollapsed(!collapsed)}
-          onAddChannel={onAddChannel}
+          onAddTextChannel={onAddTextChannel}
+          onAddVoiceChannel={onAddVoiceChannel}
           onUpdateCategory={onUpdateCategory}
           onDeleteCategory={onDeleteCategory}
           canEdit={canEdit}
@@ -610,7 +1215,8 @@ function CategorySection({
         <UncategorizedHeader
           collapsed={collapsed}
           onToggle={() => setCollapsed(!collapsed)}
-          onAddChannel={() => onAddChannel(undefined)}
+          onAddTextChannel={() => onAddTextChannel(undefined)}
+          onAddVoiceChannel={() => onAddVoiceChannel(undefined)}
         />
       )}
 
@@ -619,23 +1225,36 @@ function CategorySection({
           items={channels.map((c) => `${CHANNEL_PREFIX}${c.id}`)}
           strategy={verticalListSortingStrategy}
         >
-          <div className="mt-0.5 space-y-0.5 px-2">
+          <div className="mt-1 space-y-1 px-1.5">
             {channels.map((channel) => (
               <SortableChannelItem
                 key={channel.id}
                 channel={channel}
+                categories={categories}
                 currentChannelId={currentChannelId}
                 onSelectChannel={onSelectChannel}
                 voiceUsers={voiceUsers}
+                voiceChannels={allVoiceChannels}
+                serverMembers={serverMembers}
                 hasUnread={channel.type === 'text' && (channelUnreadCounts?.[channel.id] ?? 0) > 0}
                 hasMention={channel.type === 'text' && (channelMentionCounts?.[channel.id] ?? 0) > 0}
-                HashIcon={HashIcon}
-                VoiceIcon={VoiceIcon}
                 onUpdateChannel={onUpdateChannel}
                 onDeleteChannel={onDeleteChannel}
                 onMoveToChannel={onMoveToChannel}
+                onMuteInVoice={onMuteInVoice}
+                onDeafenInVoice={onDeafenInVoice}
+                onDisconnectFromVoice={onDisconnectFromVoice}
                 onWatchScreenShare={onWatchScreenShare}
+                onKick={onKick}
+                onBan={onBan}
+                onMessageUser={onMessageUser}
+                onCallUser={onCallUser}
+                onAddFriend={onAddFriend}
+                onSetMemberRole={onSetMemberRole}
                 canEdit={canEdit}
+                canModerate={canModerate}
+                currentUserId={currentUserId}
+                currentUserRole={currentUserRole}
               />
             ))}
           </div>
@@ -661,7 +1280,18 @@ export function ChannelList({
   onDeleteChannel,
   onDeleteCategory,
   onMoveToChannel,
+  onMuteInVoice,
+  onDeafenInVoice,
+  onDisconnectFromVoice,
+  onKick,
+  onBan,
+  onMessageUser,
+  onCallUser,
+  onAddFriend,
+  onSetMemberRole,
   onWatchScreenShare,
+  serverMembers = [],
+  currentUserRole = 'member',
   isAdminOrOwner = false,
   voiceConnection,
   voiceUsers,
@@ -680,16 +1310,40 @@ export function ChannelList({
   onSelectDM,
 }: ChannelListProps) {
   const { user } = useApp()
+  const allVoiceChannels = channels.filter((c) => c.type === 'voice')
   const [showCreateChannel, setShowCreateChannel] = useState(false)
   const [createChannelCategoryId, setCreateChannelCategoryId] = useState<string | undefined>()
+  const [createChannelType, setCreateChannelType] = useState<'text' | 'voice' | 'rules'>('text')
+  const [createChannelLockType, setCreateChannelLockType] = useState(true)
   const [showServerMenu, setShowServerMenu] = useState(false)
   const [serverProfileBusy, setServerProfileBusy] = useState(false)
+  const serverHeaderRef = useRef<HTMLDivElement>(null)
   const serverMenuRef = useRef<HTMLDivElement>(null)
+  const [serverMenuPos, setServerMenuPos] = useState<{ top: number; left: number; width: number } | null>(null)
   const shouldRenderServerMenu = useGsapMenu(showServerMenu, serverMenuRef, {
     enterY: -8,
     exitY: -6,
     transformOrigin: 'top center',
   })
+
+  const openCreateChannel = (type: 'text' | 'voice' | 'rules', catId?: string, lockType = true) => {
+    setCreateChannelType(type)
+    setCreateChannelLockType(lockType)
+    setCreateChannelCategoryId(catId)
+    setShowCreateChannel(true)
+    setShowServerMenu(false)
+  }
+
+  useEffect(() => {
+    if (!showServerMenu) {
+      setServerMenuPos(null)
+      return
+    }
+    const el = serverHeaderRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    setServerMenuPos({ top: rect.bottom + 4, left: rect.left + 8, width: Math.max(rect.width - 16, 200) })
+  }, [showServerMenu])
 
   const setMyServerProfile = async (profileType: ProfileType) => {
     if (!serverId || !user?.id) return
@@ -792,7 +1446,7 @@ export function ChannelList({
           </div>
         )}
         {/* Server / Friends Header */}
-        <div className="relative">
+        <div className="relative" ref={serverHeaderRef}>
           <button
             onClick={() => {
               if (isFriendsView) return
@@ -801,7 +1455,7 @@ export function ChannelList({
             }}
             className="w-full h-12 px-4 flex items-center justify-between border-b border-app-dark/80 text-app-text font-semibold shadow-sm hover:bg-app-hover/50 transition-colors"
           >
-            <span className="truncate">
+            <span className="font-display truncate">
               {isFriendsView ? 'Friends' : hasNoServers ? 'Explore' : (serverName ?? 'Server')}
             </span>
             {!isFriendsView && (
@@ -817,24 +1471,39 @@ export function ChannelList({
             )}
           </button>
 
-          {/* Server dropdown menu */}
-          {shouldRenderServerMenu && !hasNoServers && !isFriendsView && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowServerMenu(false)} />
-              <div ref={serverMenuRef} className="absolute top-12 left-2 right-2 z-50 bg-[#111214] rounded-lg shadow-xl p-1.5 border border-app-hover/30">
+          {/* Server dropdown — portaled so it isn't trapped/transparent in the rail */}
+          {shouldRenderServerMenu && !hasNoServers && !isFriendsView && serverMenuPos &&
+            createPortal(
+              <>
+                <div className="fixed inset-0 z-[180]" onClick={() => setShowServerMenu(false)} />
+                <div
+                  ref={serverMenuRef}
+                  className="fixed z-[190] rounded-lg bg-app-darker border border-app-hover/60 shadow-2xl p-1.5"
+                  style={{ top: serverMenuPos.top, left: serverMenuPos.left, width: serverMenuPos.width }}
+                >
                 <button
-                  onClick={() => {
-                    setCreateChannelCategoryId(undefined)
-                    setShowCreateChannel(true)
-                    setShowServerMenu(false)
-                  }}
+                  onClick={() => openCreateChannel('text', undefined, true)}
                   className="w-full px-2 py-1.5 rounded text-sm text-app-text hover:bg-app-accent hover:text-white text-left flex items-center gap-2 transition-colors"
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="flex-shrink-0">
-                    <path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                  </svg>
-                  Create Channel
+                  <ChatIcon className="flex-shrink-0" />
+                  Create Text Channel
                 </button>
+                <button
+                  onClick={() => openCreateChannel('voice', undefined, true)}
+                  className="w-full px-2 py-1.5 rounded text-sm text-app-text hover:bg-app-accent hover:text-white text-left flex items-center gap-2 transition-colors"
+                >
+                  <VoiceIcon className="flex-shrink-0" />
+                  Create Voice Channel
+                </button>
+                {isAdminOrOwner && (
+                  <button
+                    onClick={() => openCreateChannel('rules', undefined, true)}
+                    className="w-full px-2 py-1.5 rounded text-sm text-app-text hover:bg-app-accent hover:text-white text-left flex items-center gap-2 transition-colors"
+                  >
+                    <RulesIcon className="flex-shrink-0" />
+                    Create Rules Channel
+                  </button>
+                )}
                 <button
                   onClick={async () => {
                     const name = prompt('Category name:')
@@ -905,8 +1574,9 @@ export function ChannelList({
                   </>
                 )}
               </div>
-            </>
-          )}
+              </>,
+              document.body
+            )}
         </div>
 
         {/* Direct Messages */}
@@ -933,7 +1603,7 @@ export function ChannelList({
                     onClick={() => onSelectDM(conv.id)}
                     className={`w-full px-2 py-1.5 rounded flex items-center gap-2 text-left transition-all ${
                       currentDMId === conv.id
-                        ? 'bg-app-hover/60 text-white'
+                        ? 'bg-app-hover/60 text-app-text'
                         : hasUnread
                           ? 'bg-app-accent/15 text-app-text hover:bg-app-accent/25 animate-dm-glow'
                           : 'text-app-muted hover:bg-app-hover/40 hover:text-app-text'
@@ -1002,22 +1672,35 @@ export function ChannelList({
                   key={category.id}
                   category={category}
                   channels={catChannels}
+                  categories={categories}
+                  allVoiceChannels={allVoiceChannels}
+                  serverMembers={serverMembers}
                   currentChannelId={currentChannelId}
                   onSelectChannel={onSelectChannel}
-                  onAddChannel={(catId) => {
-                    setCreateChannelCategoryId(catId)
-                    setShowCreateChannel(true)
-                  }}
+                  onAddTextChannel={(catId) => openCreateChannel('text', catId, true)}
+                  onAddVoiceChannel={(catId) => openCreateChannel('voice', catId, true)}
                   onUpdateChannel={onUpdateChannel}
                   onUpdateCategory={onUpdateCategory}
                   onDeleteChannel={onDeleteChannel}
                   onDeleteCategory={onDeleteCategory}
                   onMoveToChannel={onMoveToChannel}
+                  onMuteInVoice={onMuteInVoice}
+                  onDeafenInVoice={onDeafenInVoice}
+                  onDisconnectFromVoice={onDisconnectFromVoice}
                   onWatchScreenShare={onWatchScreenShare}
+                  onKick={onKick}
+                  onBan={onBan}
+                  onMessageUser={onMessageUser}
+                  onCallUser={onCallUser}
+                  onAddFriend={onAddFriend}
+                  onSetMemberRole={onSetMemberRole}
                   voiceUsers={voiceUsers}
                   channelUnreadCounts={channelUnreadCounts}
                   channelMentionCounts={channelMentionCounts}
                   canEdit={isOwner}
+                  canModerate={isAdminOrOwner}
+                  currentUserId={user?.id}
+                  currentUserRole={currentUserRole}
                 />
               ))}
 
@@ -1026,22 +1709,35 @@ export function ChannelList({
                 <CategorySection
                   category={null}
                   channels={uncategorizedChannels}
+                  categories={categories}
+                  allVoiceChannels={allVoiceChannels}
+                  serverMembers={serverMembers}
                   currentChannelId={currentChannelId}
                   onSelectChannel={onSelectChannel}
-                  onAddChannel={() => {
-                    setCreateChannelCategoryId(undefined)
-                    setShowCreateChannel(true)
-                  }}
+                  onAddTextChannel={() => openCreateChannel('text', undefined, true)}
+                  onAddVoiceChannel={() => openCreateChannel('voice', undefined, true)}
                   onUpdateChannel={onUpdateChannel}
                   onUpdateCategory={onUpdateCategory}
                   onDeleteChannel={onDeleteChannel}
                   onDeleteCategory={onDeleteCategory}
                   onMoveToChannel={onMoveToChannel}
+                  onMuteInVoice={onMuteInVoice}
+                  onDeafenInVoice={onDeafenInVoice}
+                  onDisconnectFromVoice={onDisconnectFromVoice}
                   onWatchScreenShare={onWatchScreenShare}
+                  onKick={onKick}
+                  onBan={onBan}
+                  onMessageUser={onMessageUser}
+                  onCallUser={onCallUser}
+                  onAddFriend={onAddFriend}
+                  onSetMemberRole={onSetMemberRole}
                   voiceUsers={voiceUsers}
                   channelUnreadCounts={channelUnreadCounts}
                   channelMentionCounts={channelMentionCounts}
                   canEdit={isOwner}
+                  canModerate={isAdminOrOwner}
+                  currentUserId={user?.id}
+                  currentUserRole={currentUserRole}
                 />
               )}
             </SortableContext>
@@ -1051,7 +1747,7 @@ export function ChannelList({
 
         {/* Voice Connection Bar (shown only when in voice on THIS server) */}
         {voiceConnection && channels.some((c) => c.id === voiceConnection.channelId) && (
-          <div className="border-t border-app-dark/80 bg-[#232428] px-3 py-2">
+          <div className="border-t border-app-dark/80 bg-app-dark px-3 py-2">
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
                 {/* Ping bars: 3 green (<100ms), 2 yellow (<200ms), 1 red (≥200ms). Hover shows ms. */}
@@ -1074,7 +1770,7 @@ export function ChannelList({
                         <div className={`w-1 rounded-sm ${bars >= 3 ? barColor : inactive}`} style={{ height: 14 }} />
                         <span
                           role="tooltip"
-                          className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 whitespace-nowrap rounded bg-[#111214] px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 z-20"
+                          className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 whitespace-nowrap rounded bg-app-panel px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 z-20"
                         >
                           {ping != null ? `${ping}ms` : 'Measuring…'}
                         </span>
@@ -1091,7 +1787,7 @@ export function ChannelList({
                   onClick={voiceConnection.onToggleCamera}
                   className={`p-1.5 rounded transition-colors ${
                     voiceConnection.isCameraOn
-                      ? 'bg-white/10 text-white'
+                      ? 'bg-app-glass/10 text-app-text'
                       : 'text-app-muted hover:bg-app-hover/50 hover:text-app-text'
                   }`}
                   title={voiceConnection.isCameraOn ? 'Turn Off Camera' : 'Turn On Camera'}
@@ -1110,7 +1806,7 @@ export function ChannelList({
                   onClick={voiceConnection.onToggleScreenShare}
                   className={`p-1.5 rounded transition-colors ${
                     voiceConnection.isScreenSharing
-                      ? 'bg-white/10 text-white'
+                      ? 'bg-app-glass/10 text-app-text'
                       : 'text-app-muted hover:bg-app-hover/50 hover:text-app-text'
                   }`}
                   title={voiceConnection.isScreenSharing ? 'Stop Sharing' : 'Share Your Screen'}
@@ -1136,13 +1832,15 @@ export function ChannelList({
           </div>
         )}
 
-        {/* Create Channel Modal */}
+        {/* Create Channel Modal (portaled to body inside the modal component) */}
         {showCreateChannel && (
           <CreateChannelModal
             onClose={() => setShowCreateChannel(false)}
             onCreate={async (name, type) => {
               await onCreateChannel(name, type, createChannelCategoryId)
             }}
+            defaultType={createChannelType}
+            lockType={createChannelLockType}
             categoryName={categories.find((c) => c.id === createChannelCategoryId)?.name}
             canCreateRules={isAdminOrOwner}
           />

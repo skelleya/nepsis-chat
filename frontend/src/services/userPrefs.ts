@@ -3,7 +3,9 @@
  * Persisted in localStorage; applied at runtime via CSS vars + media constraints.
  */
 
-export type ThemeId = 'dark' | 'midnight' | 'amoled'
+import { HIGH_QUALITY_CAMERA, highQualityAudioBase } from './mediaQuality'
+
+export type ThemeId = 'dark' | 'midnight' | 'amoled' | 'white'
 export type AccentId = 'orange' | 'blurple' | 'green' | 'teal' | 'rose' | 'gold'
 export type DensityId = 'comfortable' | 'compact'
 export type FontSizeId = 'small' | 'default' | 'large'
@@ -41,6 +43,8 @@ export interface UserPrefs {
 }
 
 const STORAGE_KEY = 'nepsis_user_prefs'
+/** One-time migrate old default accent (blurple) → Nepsis orange */
+const ACCENT_MIGRATE_KEY = 'nepsis_accent_orange_v1'
 
 export const DEFAULT_PREFS: UserPrefs = {
   appearance: {
@@ -84,6 +88,8 @@ const THEMES: Record<ThemeId, Record<string, string>> = {
     '--app-hover': hexToRgbChannels('#35373c'),
     '--app-text': hexToRgbChannels('#dbdee1'),
     '--app-muted': hexToRgbChannels('#b5bac1'),
+    '--app-glass': hexToRgbChannels('#ffffff'),
+    '--app-panel': hexToRgbChannels('#16171a'),
   },
   midnight: {
     '--app-dark': hexToRgbChannels('#1a1b2e'),
@@ -92,6 +98,8 @@ const THEMES: Record<ThemeId, Record<string, string>> = {
     '--app-hover': hexToRgbChannels('#2e3150'),
     '--app-text': hexToRgbChannels('#e2e4f0'),
     '--app-muted': hexToRgbChannels('#a8adc4'),
+    '--app-glass': hexToRgbChannels('#ffffff'),
+    '--app-panel': hexToRgbChannels('#16171a'),
   },
   amoled: {
     '--app-dark': hexToRgbChannels('#0a0a0a'),
@@ -100,6 +108,19 @@ const THEMES: Record<ThemeId, Record<string, string>> = {
     '--app-hover': hexToRgbChannels('#1c1c1c'),
     '--app-text': hexToRgbChannels('#e8e8e8'),
     '--app-muted': hexToRgbChannels('#9a9a9a'),
+    '--app-glass': hexToRgbChannels('#ffffff'),
+    '--app-panel': hexToRgbChannels('#0a0a0a'),
+  },
+  /** Bright white / light surfaces — glass overlays use black ink */
+  white: {
+    '--app-dark': hexToRgbChannels('#f2f3f5'),
+    '--app-darker': hexToRgbChannels('#e3e5e8'),
+    '--app-channel': hexToRgbChannels('#ffffff'),
+    '--app-hover': hexToRgbChannels('#e8e9ed'),
+    '--app-text': hexToRgbChannels('#1e1f22'),
+    '--app-muted': hexToRgbChannels('#5c5e66'),
+    '--app-glass': hexToRgbChannels('#000000'),
+    '--app-panel': hexToRgbChannels('#ffffff'),
   },
 }
 
@@ -121,12 +142,18 @@ const FONT_SIZES: Record<FontSizeId, string> = {
 type Listener = (prefs: UserPrefs) => void
 const listeners = new Set<Listener>()
 
+const VALID_THEMES = new Set<ThemeId>(['dark', 'midnight', 'amoled', 'white'])
+
 function mergePrefs(raw: unknown): UserPrefs {
   const base = structuredClone(DEFAULT_PREFS)
   if (!raw || typeof raw !== 'object') return base
   const r = raw as Partial<UserPrefs>
+  const appearance = { ...base.appearance, ...(r.appearance || {}) }
+  if (!VALID_THEMES.has(appearance.theme)) {
+    appearance.theme = base.appearance.theme
+  }
   return {
-    appearance: { ...base.appearance, ...(r.appearance || {}) },
+    appearance,
     voice: { ...base.voice, ...(r.voice || {}) },
     notifications: { ...base.notifications, ...(r.notifications || {}) },
   }
@@ -136,7 +163,14 @@ export function loadPrefs(): UserPrefs {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return structuredClone(DEFAULT_PREFS)
-    return mergePrefs(JSON.parse(raw))
+    const prefs = mergePrefs(JSON.parse(raw))
+    // Old installs defaulted to Discord blurple — move to orange once (can re-pick Blurple in Appearance)
+    if (!localStorage.getItem(ACCENT_MIGRATE_KEY) && prefs.appearance.accent === 'blurple') {
+      prefs.appearance.accent = 'orange'
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs))
+      localStorage.setItem(ACCENT_MIGRATE_KEY, '1')
+    }
+    return prefs
   } catch {
     return structuredClone(DEFAULT_PREFS)
   }
@@ -181,11 +215,13 @@ export function applyAppearancePrefs(appearance: AppearancePrefs = loadPrefs().a
   root.dataset.theme = appearance.theme
   root.dataset.density = appearance.density
   root.dataset.fontSize = appearance.fontSize
+  root.style.colorScheme = appearance.theme === 'white' ? 'light' : 'dark'
 }
 
-/** Media constraints for mic capture from saved prefs */
+/** Media constraints for mic capture — high-quality defaults + user toggles */
 export function getAudioConstraints(prefs: VoicePrefs = loadPrefs().voice): MediaTrackConstraints {
   const c: MediaTrackConstraints = {
+    ...highQualityAudioBase(),
     echoCancellation: prefs.echoCancellation,
     noiseSuppression: prefs.noiseSuppression,
     autoGainControl: prefs.autoGainControl,
@@ -197,7 +233,7 @@ export function getAudioConstraints(prefs: VoicePrefs = loadPrefs().voice): Medi
 }
 
 export function getVideoConstraints(prefs: VoicePrefs = loadPrefs().voice): MediaTrackConstraints {
-  const c: MediaTrackConstraints = {}
+  const c: MediaTrackConstraints = { ...HIGH_QUALITY_CAMERA }
   if (prefs.videoInputId) {
     c.deviceId = { exact: prefs.videoInputId }
   }

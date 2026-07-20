@@ -179,7 +179,7 @@ export function SettingsDropdown({
           viewBox="0 0 12 12"
           fill="none"
           aria-hidden
-          className={`flex-shrink-0 text-app-muted transition-transform duration-200 ${open ? 'rotate-180 text-white' : 'group-hover:text-app-text'}`}
+          className={`flex-shrink-0 text-app-muted transition-transform duration-200 ${open ? 'rotate-180 text-app-text' : 'group-hover:text-app-text'}`}
         >
           <path d="M2.5 4.25L6 7.75L9.5 4.25" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -213,8 +213,8 @@ export function SettingsDropdown({
                 onClick={() => !opt.disabled && pick(opt.value)}
                 className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                   isSelected
-                    ? 'bg-app-accent/25 text-white'
-                    : 'text-app-text hover:bg-white/[0.06] hover:text-white'
+                    ? 'bg-app-accent/25 text-app-text'
+                    : 'text-app-text hover:bg-app-glass/[0.06] hover:text-app-text'
                 }`}
               >
                 <span className="w-3.5 flex-shrink-0 flex items-center justify-center" aria-hidden>

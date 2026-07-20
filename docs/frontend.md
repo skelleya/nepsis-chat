@@ -4,6 +4,17 @@ React + Vite + TypeScript + Tailwind CSS.
 
 ---
 
+## Typography
+
+| Role | Font | How |
+|------|------|-----|
+| Headers (`h1`–`h6`, `.font-display`, landing wordmark/headline) | **TWK Everett** | Self-hosted `@font-face` from `public/fonts/TWKEverett-*.woff2` (licensed). Falls back to Space Grotesk until files are present. |
+| Paragraphs / body / UI (`.font-sans`) | **Poppins** | Google Fonts in `index.html` |
+
+CSS vars: `--font-header`, `--font-body` in `index.css`.
+
+---
+
 ## Branding — Logo
 
 The Nepsis logo is used everywhere:
@@ -41,13 +52,14 @@ frontend/src/
 |-----------|---------|
 | VoiceIcons | Shared mic/mic-off/headphones/headphones-off SVGs (prevents clipping/snipping) |
 | ServerBar | Server list (left sidebar); click-hold-and-drag to reorder servers. **GSAP:** Friends + Community bubbles scale-punch on click |
-| ChannelList | Text + voice channels; server banner shown above header when `serverBannerUrl` set; highlights text channels with new messages (white) when user isn't viewing them. **Friends view** (`isFriendsView`): shows "Friends" header, DMs list, hides server channels. **Owner/Admin:** Server Settings (Overview: icon + banner upload); **Owner:** drag categories to reorder; drag channels to reorder or move between categories; 3-dot menu on category/channel for Edit/Delete. **Admin:** drag voice users onto another voice channel to move them |
+| ChannelList | Text + voice channels in a **Nepsis rail** (rounded rows, chat/wave icons, orange selected accent). **Voice users:** right-click for Profile / Roles / Move to / Message / Call / Server Mute / Server Deafen / Disconnect / Kick / Ban; drag-drop into other voice rooms to move. **Channels:** hover gear — Rename, Copy ID, Move to Category, Delete. **Create:** chat + / voice + (or server menu) opens centered name-only modal with type locked. Server dropdown portaled with solid background. |
 | ChatView | Messages, input; scrolls to bottom on load; shows "New messages" indicator when scrolled up and new messages arrive; click to jump to new messages |
 | VoiceView | Voice participants as **circle frames** (no boxed tiles); mute badge outside avatar clip; Mic/MicOff control bar. Soundboard + Discord screenshare (click LIVE to watch; resizable stage). Presence merge always includes channel users (even after peer-left). **Admin:** right-click for Mute / Disconnect. |
 | Server Settings ownership | `isAdminOrOwner` uses `servers.owner_id` **or** members role. Members/servers fetch errors keep prior state so the owner menu and modal do not disappear during polls. |
 | DownloadPage | OS-detect primary **Install for Mac/Windows** (Apple/Windows logos); click starts installer download immediately; **Other Installers** reveals the rest + Linux Coming soon. |
 | SoundboardDropdown | Soundboard UI: list sounds with emoji; add (pick emoji for new sound); edit emoji per sound; delete; plays to all peers. Spam-click restarts playback. |
-| MembersSidebar | Online members. Click a name for Discord-style profile popout (left of row). **Admin:** Kick/Ban in popout + context menu; right-click in-voice for Mute / Disconnect / Move. |
+| MembersSidebar | Grouped **In Voice / Online / Offline**. Click for profile popout. Minimized: avatar stack + count + CoolIcons chevron. Context menu uses CoolIcons. **Admin:** Kick/Ban / Mute / Disconnect / Move. |
+| CoolIcon | Iconify `ci` (CoolIcons Free Iconset from Figma). Use `<CoolIcon name="users" />` instead of inline SVGs. |
 | MemberProfilePanel | Floating user card (portal + GSAP); Message/Call/Add Friend; owner/admin Kick & Ban with confirm. |
 | DMView | Discord-style DM stream (left-aligned, grouped, date separators). Composer: + inside field, Enter to send, no send button. |
 | ChatView | Same Discord chat chrome for server channels — grouped messages, hover actions, integrated + composer. |
@@ -64,7 +76,7 @@ frontend/src/
 | CreateServerModal | Create server: name input, gradient accent bar, loading spinner, error display; used by ServerBar (+ button) and OnboardingPage |
 | UserPanel | Bottom bar: avatar/status, mute, deafen, settings. **GSAP:** status menu open/close (fade+rise+scale); mute/deafen buttons punch-scale on click; status dot pops on change. Mute/deafen play Web Audio cues via `VoiceContext` / `CallContext`. |
 | UserSettingsModal | User Settings modal: fixed size (`h-[min(640px,90vh)]`) so tab changes don’t resize; GSAP open/close; **sidebar** uses a shared accent pill that slides between nav buttons (compact 15px labels, Log Out pinned at bottom); **content** slides horizontally in travel direction (down the list → left, up → right); close control is a muted circular X (matches Server Settings). **My Account (non-guest):** Personal defaults to signup username until Profiles are set; Work locked until a Work display name is saved; switching Personal/Work updates name/avatar/banner immediately; Profiles saves sync labels via `onProfilesChange`. **My Account Danger Zone:** Delete Account (confirm by typing login username) → `DELETE /api/auth/account/:userId` via `AppContext.deleteAccount`. **Appearance:** theme / accent (default Nepsis orange) / density / font size via `userPrefs`. **Voice & Video / Notifications:** local prefs. Shared **SettingsDropdown** / **SettingsToggle**. |
-| AppearanceSettingsTab | Wired to `userPrefs` — theme (dark/midnight/amoled), accent (orange default + blurple/green/teal/rose/gold), density, font size; applies CSS vars live. |
+| AppearanceSettingsTab | Wired to `userPrefs` — theme (**dark / midnight / AMOLED / White**), accent (orange default + blurple/green/teal/rose/gold), density, font size; applies CSS vars live. White uses light surfaces + `--app-glass` black overlays. |
 | CreateChannelModal | Create channel dialog with GSAP open/close, Escape, `role="dialog"` (parity with CreateServerModal). |
 | ServerSettingsModal | Full-screen settings with GSAP enter/exit; tab content light fade. |
 | useGsapMenu | Shared hook for dropdown/menu enter (0.22s) / exit (0.16s) used by ChannelList menus, EmojiPicker, Soundboard. |
@@ -82,7 +94,7 @@ frontend/src/
 | AppContent auth gate | `showApp` / `showLogin` initialize from current `user` so remounting `/` after `/invite/:code` (session already set) opens the main app instead of a stuck login shell. |
 | UpdateButton | Green update (Electron only) |
 | DownloadBanner | Centered top tab: short prompt (“Prefer the desktop app?”) + clear Download button + subtle dismiss; `rounded-b-xl`; dismissible (localStorage); sets `--download-banner-height`; hidden on `/download` and in Electron. **GSAP:** slide/fade in/out |
-| WelcomeLanding | Pre-auth home (white split): large Nepsis logo left (`mix-blend-multiply` drops black square), **Use Web App** / **Download App** right. Syne + Figtree; GSAP entrance. |
+| WelcomeLanding | Pre-auth home (white split): large Nepsis logo left (`mix-blend-multiply` drops black square), **Use Web App** / **Download App** right. TWK Everett headers + Poppins body; GSAP entrance. |
 | LoginPage | After Use Web App: Guest / Sign In / Sign Up. **GSAP:** soft page/card enter; tab glide; fields collapse on submit; logo coin spin. Back returns to WelcomeLanding. |
 | AppContent (login transition) | Keeps LoginPage mounted until GSAP exit finishes after auth, then fades main app in (`gsap`) |
 

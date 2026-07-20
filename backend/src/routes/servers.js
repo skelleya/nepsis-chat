@@ -828,6 +828,59 @@ serversRouter.patch('/:id/members/:userId/profile', async (req, res) => {
   }
 })
 
+// Change member role (owner only) — admin | member
+serversRouter.patch('/:id/members/:userId/role', async (req, res) => {
+  const { id: serverId, userId: targetUserId } = req.params
+  const { adminUserId, role } = req.body || {}
+  if (!adminUserId) return res.status(400).json({ error: 'adminUserId required' })
+  if (!['admin', 'member'].includes(role)) {
+    return res.status(400).json({ error: 'role must be admin or member' })
+  }
+
+  try {
+    const { data: actor } = await supabase
+      .from('server_members')
+      .select('role')
+      .eq('server_id', serverId)
+      .eq('user_id', adminUserId)
+      .single()
+
+    if (!actor || actor.role !== 'owner') {
+      return res.status(403).json({ error: 'Only the server owner can change roles' })
+    }
+    if (adminUserId === targetUserId) {
+      return res.status(400).json({ error: 'Cannot change your own role' })
+    }
+
+    const { data: target } = await supabase
+      .from('server_members')
+      .select('role')
+      .eq('server_id', serverId)
+      .eq('user_id', targetUserId)
+      .single()
+
+    if (!target) return res.status(404).json({ error: 'User not in server' })
+    if (target.role === 'owner') {
+      return res.status(403).json({ error: 'Cannot change the owner role' })
+    }
+
+    const { data, error } = await supabase
+      .from('server_members')
+      .update({ role })
+      .eq('server_id', serverId)
+      .eq('user_id', targetUserId)
+      .select('user_id, role')
+      .single()
+
+    if (error) throw error
+    await logAudit(serverId, adminUserId, 'member_role_changed', { targetUserId, role })
+    res.json(data)
+  } catch (err) {
+    console.error('Set member role error:', err)
+    res.status(500).json({ error: 'Failed to update role' })
+  }
+})
+
 // Mute user in voice (owner/admin only, target must be in voice on this server)
 serversRouter.post('/:id/members/:userId/mute-voice', async (req, res) => {
   const { id: serverId, userId: targetUserId } = req.params
@@ -873,6 +926,54 @@ serversRouter.post('/:id/members/:userId/mute-voice', async (req, res) => {
   } catch (err) {
     console.error('Mute voice error:', err)
     res.status(500).json({ error: 'Failed to mute user' })
+  }
+})
+
+// Server-deafen user in voice (owner/admin only)
+serversRouter.post('/:id/members/:userId/deafen-voice', async (req, res) => {
+  const { id: serverId, userId: targetUserId } = req.params
+  const { adminUserId } = req.body
+  if (!adminUserId) return res.status(400).json({ error: 'adminUserId required' })
+
+  try {
+    const { data: admin } = await supabase
+      .from('server_members')
+      .select('role')
+      .eq('server_id', serverId)
+      .eq('user_id', adminUserId)
+      .single()
+
+    if (!admin || !['owner', 'admin'].includes(admin.role)) {
+      return res.status(403).json({ error: 'Only owner or admin can deafen users' })
+    }
+
+    const { data: target } = await supabase
+      .from('server_members')
+      .select('role')
+      .eq('server_id', serverId)
+      .eq('user_id', targetUserId)
+      .single()
+
+    if (!target) return res.status(404).json({ error: 'User not in server' })
+    if (target.role === 'owner') return res.status(403).json({ error: 'Cannot deafen server owner' })
+    if (admin.role === 'admin' && target.role === 'admin') {
+      return res.status(403).json({ error: 'Admins cannot deafen other admins' })
+    }
+
+    const voiceNs = req.app.get('voiceNamespace')
+    if (voiceNs) {
+      for (const [, socket] of voiceNs.sockets) {
+        if (socket.userId === targetUserId) {
+          socket.emit('admin-deafen')
+          break
+        }
+      }
+    }
+
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Deafen voice error:', err)
+    res.status(500).json({ error: 'Failed to deafen user' })
   }
 })
 

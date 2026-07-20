@@ -337,10 +337,12 @@ function MainLayout({
         } else if (v.view === 'friends') {
           setShowFriends(true)
           setShowCommunity(false)
-        } else if ((v.view === 'dm' || v.view === 'friends') && v.dmId) {
+          if (v.dmId) setCurrentDM(v.dmId)
+        } else if (v.view === 'server') {
           setShowCommunity(false)
-          setShowFriends(true)
-          setCurrentDM(v.dmId)
+          setShowFriends(false)
+          // Restore open DM over the server rail (voice presence stays visible)
+          if (v.dmId) setCurrentDM(v.dmId)
         } else {
           setShowCommunity(false)
           setShowFriends(false)
@@ -750,11 +752,18 @@ function MainLayout({
         return undefined
       }
       const dmId = await openDM(targetUserId, targetUsername)
+      // From a server (member Message / voice), keep channel list + voice presence visible
+      if (currentServerId && !showFriends) {
+        setShowFriends(false)
+        try {
+          localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'server', dmId }))
+        } catch { /* ignore */ }
+      }
       setChannelNavOpen(false)
       setMembersOpen(false)
       return dmId
     },
-    [openDM]
+    [openDM, currentServerId, showFriends]
   )
 
   const handleBlockUser = useCallback(
@@ -979,7 +988,7 @@ function MainLayout({
         <ChannelList
           channels={displayChannels.map((c) => ({ id: c.id, name: c.name, type: c.type as 'text' | 'voice' | 'rules', serverId: c.server_id, order: c.order, categoryId: c.category_id }))}
           categories={categories.map((cat) => ({ id: cat.id, name: cat.name, serverId: cat.server_id, order: cat.order }))}
-          currentChannelId={currentChannelId}
+          currentChannelId={currentDMId ? null : currentChannelId}
           onSelectChannel={(ch) => handleSelectChannel(ch)}
           serverName={currentServer?.name}
           serverBannerUrl={currentServer?.banner_url}
@@ -1008,6 +1017,68 @@ function MainLayout({
               showNotification((e as Error).message, 'error')
             }
           }}
+          onMuteInVoice={async (targetUserId) => {
+            if (!currentServerId) return
+            try {
+              await api.muteMemberInVoice(currentServerId, targetUserId, user.id)
+              showNotification('User muted in voice')
+            } catch (e) {
+              showNotification((e as Error).message, 'error')
+            }
+          }}
+          onDeafenInVoice={async (targetUserId) => {
+            if (!currentServerId) return
+            try {
+              await api.deafenMemberInVoice(currentServerId, targetUserId, user.id)
+              showNotification('User deafened in voice')
+            } catch (e) {
+              showNotification((e as Error).message, 'error')
+            }
+          }}
+          onDisconnectFromVoice={async (targetUserId) => {
+            if (!currentServerId) return
+            try {
+              await api.disconnectMemberFromVoice(currentServerId, targetUserId, user.id)
+              showNotification('User disconnected from voice')
+              const updated = await api.getServerMembers(currentServerId)
+              setServerMembers(withLiveSelfPresence(updated))
+            } catch (e) {
+              showNotification((e as Error).message, 'error')
+            }
+          }}
+          onKick={handleKick}
+          onBan={handleBan}
+          onMessageUser={async (userId, username) => {
+            try {
+              await handleOpenDM(userId, username)
+            } catch (e) {
+              showNotification((e as Error).message, 'error')
+            }
+          }}
+          onCallUser={(targetUserId, targetUsername, targetAvatarUrl) => {
+            call.initiateCall(targetUserId, targetUsername, targetAvatarUrl)
+          }}
+          onAddFriend={async (userId, username) => {
+            try {
+              await api.sendFriendRequest(user.id, userId, 'personal', 'personal')
+              showNotification(`Friend request sent to ${username}`)
+            } catch (e) {
+              showNotification((e as Error).message, 'error')
+            }
+          }}
+          onSetMemberRole={async (targetUserId, role) => {
+            if (!currentServerId) return
+            try {
+              await api.setMemberRole(currentServerId, targetUserId, user.id, role)
+              showNotification(role === 'admin' ? 'User promoted to admin' : 'User set to member')
+              const updated = await api.getServerMembers(currentServerId)
+              setServerMembers(withLiveSelfPresence(updated))
+            } catch (e) {
+              showNotification((e as Error).message, 'error')
+            }
+          }}
+          serverMembers={serverMembers}
+          currentUserRole={currentUserRole}
           voiceConnection={voiceConnection}
           voiceUsers={voiceUsers}
           onWatchScreenShare={(userId) => {
@@ -1034,12 +1105,21 @@ function MainLayout({
           channelUnreadCounts={channelUnreadCounts}
           channelMentionCounts={channelMentionCounts}
           onSelectDM={(id) => {
+            // Discord-like: opening a DM keeps the current sidebar.
+            // On a server (e.g. while in voice), stay on server channels so you still see
+            // yourself in the voice channel; Friends home keeps the friends sidebar.
             setCurrentDM(id)
             setShowCommunity(false)
-            setShowFriends(true)
             setChannelNavOpen(false)
             try {
-              localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'friends', dmId: id }))
+              localStorage.setItem(
+                'nepsis_last_view',
+                JSON.stringify(
+                  showFriends
+                    ? { view: 'friends', dmId: id }
+                    : { view: 'server', dmId: id }
+                )
+              )
             } catch { /* ignore */ }
           }}
         />
@@ -1126,7 +1206,10 @@ function MainLayout({
               onClose={() => {
                 setCurrentDM(null)
                 try {
-                  localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'friends' }))
+                  localStorage.setItem(
+                    'nepsis_last_view',
+                    JSON.stringify({ view: showFriends ? 'friends' : 'server' })
+                  )
                 } catch { /* ignore */ }
               }}
               onBlockUser={handleBlockUser}
@@ -1235,7 +1318,8 @@ function MainLayout({
         />
       )}
 
-      {!showCommunity && !showFriends && !showOnboarding && (
+      {/* Hide members while a DM is open (Discord-like); server channels stay in the left rail */}
+      {!showCommunity && !showFriends && !showOnboarding && !currentDMId && (
       <div
         className={`fixed xl:relative z-40 inset-y-0 right-0 transition-transform duration-200 ease-out ${
           membersOpen ? 'translate-x-0' : 'translate-x-full xl:translate-x-0'

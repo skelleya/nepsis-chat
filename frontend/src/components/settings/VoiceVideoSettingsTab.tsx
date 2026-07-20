@@ -142,9 +142,10 @@ export function VoiceVideoSettingsTab() {
 
   return (
     <div>
-      <h3 className="text-xl font-bold text-white mb-1">Voice & Video</h3>
+      <h3 className="text-xl font-bold text-app-text mb-1">Voice & Video</h3>
       <p className="text-app-muted text-sm mb-4">
-        Choose devices and processing. Applied the next time you join voice or start a call.
+        Choose devices and processing. Capture uses high-quality defaults (48&nbsp;kHz Opus voice,
+        720p–1080p camera, crisp screen share) — applied the next time you join voice or start a call.
       </p>
 
       <div className="bg-app-channel rounded-lg p-4 mb-4 space-y-4">
@@ -194,7 +195,7 @@ export function VoiceVideoSettingsTab() {
           ['autoGainControl', 'Auto gain control'],
         ] as const).map(([key, label]) => (
           <div key={key} className="flex items-center justify-between gap-3">
-            <span className="text-sm text-white">{label}</span>
+            <span className="text-sm text-app-text">{label}</span>
             <SettingsToggle
               checked={prefs[key]}
               onChange={(v) => persist({ [key]: v })}
@@ -205,7 +206,7 @@ export function VoiceVideoSettingsTab() {
       </div>
 
       <div className="bg-app-channel rounded-lg p-4 mb-4 space-y-3">
-        <h4 className="font-semibold text-white">Mic test</h4>
+        <h4 className="font-semibold text-app-text">Mic test</h4>
         <div className="h-2 rounded-full bg-app-darker overflow-hidden">
           <div
             className="h-full bg-app-accent transition-[width] duration-75"

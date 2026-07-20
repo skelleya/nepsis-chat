@@ -72,9 +72,9 @@ function HelpTab({ user }: { user: { id: string; username: string; is_guest?: bo
 
   return (
     <div>
-      <h3 className="text-xl font-bold text-white mb-4">Help & Support</h3>
+      <h3 className="text-xl font-bold text-app-text mb-4">Help & Support</h3>
       <div className="bg-app-channel rounded-lg p-4 space-y-4">
-        <h4 className="font-semibold text-white">Report a Bug</h4>
+        <h4 className="font-semibold text-app-text">Report a Bug</h4>
         {isGuest ? (
           <p className="text-app-muted text-sm">
             Guest accounts can’t submit bug reports. Sign in or create an account to send feedback to the developers.
@@ -613,8 +613,11 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4"
       onClick={(e) => e.target === e.currentTarget && requestClose()}
+      role="dialog"
+      aria-modal="true"
+      aria-label="User Settings"
     >
       <div
         ref={panelRef}
@@ -642,7 +645,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
                   onClick={() => switchTab(tab.id)}
                   className={`relative z-10 w-full px-2.5 py-1.5 rounded-md text-[15px] font-medium leading-6 text-left transition-colors ${
                     activeTab === tab.id
-                      ? 'text-white'
+                      ? 'text-app-text'
                       : 'text-app-muted hover:text-app-text'
                   }`}
                 >
@@ -674,8 +677,8 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
           >
               {displayedTab === 'account' && (
               <div>
-                <h3 className="text-xl font-bold text-white mb-4">My Account</h3>
-                <div className="bg-[#111214] rounded-lg overflow-hidden">
+                <h3 className="text-xl font-bold text-app-text mb-4">My Account</h3>
+                <div className="bg-app-panel rounded-lg overflow-hidden">
                   <div className="relative h-24">
                     {bannerUrl ? (
                       <img key={bannerUrl} src={bannerUrl} alt="Banner" className="w-full h-full object-cover" />
@@ -703,7 +706,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
                         {avatarUrl ? (
                           <img key={avatarUrl} src={avatarUrl} alt={(user.display_name || user.username)} className="w-20 h-20 rounded-full object-cover border-4 border-[#111214]" />
                         ) : (
-                          <div className="w-20 h-20 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-2xl border-4 border-[#111214]">
+                          <div className="w-20 h-20 rounded-full bg-app-accent flex items-center justify-center text-white font-bold text-2xl border-4 border-app-darker">
                             {(user.display_name || user.username).charAt(0).toUpperCase()}
                           </div>
                         )}
@@ -822,10 +825,10 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
 
                 <div className="mt-8">
                   <h4 className="text-xs font-bold text-red-400 uppercase tracking-wide mb-2">Danger Zone</h4>
-                  <div className="rounded-lg border border-red-500/40 bg-[#111214] p-4">
+                  <div className="rounded-lg border border-red-500/40 bg-app-panel p-4">
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-white">Delete Account</p>
+                        <p className="text-sm font-semibold text-app-text">Delete Account</p>
                         <p className="text-xs text-app-muted mt-1">
                           Permanently delete your account, messages, DMs, and any servers you own.
                           This cannot be undone.
@@ -857,7 +860,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="p-4">
-                        <h3 className="text-xl font-bold text-white">Delete Account</h3>
+                        <h3 className="text-xl font-bold text-app-text">Delete Account</h3>
                         <p className="text-sm text-app-muted mt-2">
                           This will permanently remove <strong className="text-app-text">{user.username}</strong> and
                           all associated data, including servers you own. Type your username to confirm.
@@ -950,7 +953,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
           type="button"
           onClick={requestClose}
           aria-label="Close settings"
-          className="absolute top-5 right-5 z-20 w-9 h-9 rounded-full border-2 border-app-muted/60 flex items-center justify-center text-app-muted hover:text-white hover:border-white transition-colors"
+          className="absolute top-5 right-5 z-20 w-9 h-9 rounded-full border-2 border-app-muted/60 flex items-center justify-center text-app-muted hover:text-app-text hover:border-app-text transition-colors"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
             <path d="M18.4 4L12 10.4L5.6 4L4 5.6L10.4 12L4 18.4L5.6 20L12 13.6L18.4 20L20 18.4L13.6 12L20 5.6L18.4 4Z" />

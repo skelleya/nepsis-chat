@@ -15,6 +15,7 @@ const THEME_OPTIONS: SettingsDropdownOption[] = [
   { value: 'dark', label: 'Dark' },
   { value: 'midnight', label: 'Midnight' },
   { value: 'amoled', label: 'AMOLED' },
+  { value: 'white', label: 'White' },
 ]
 
 const ACCENT_OPTIONS: SettingsDropdownOption[] = [
@@ -44,7 +45,7 @@ function Field({
   return (
     <div className="flex items-center justify-between gap-4 py-3 border-b border-app-hover/30 last:border-0">
       <div className="min-w-0">
-        <div className="text-sm font-medium text-white">{label}</div>
+        <div className="text-sm font-medium text-app-text">{label}</div>
         <p className="text-xs text-app-muted mt-0.5">{description}</p>
       </div>
       <div className="flex-shrink-0">{children}</div>
@@ -77,13 +78,13 @@ export function AppearanceSettingsTab() {
 
   return (
     <div>
-      <h3 className="text-xl font-bold text-white mb-1">Appearance</h3>
+      <h3 className="text-xl font-bold text-app-text mb-1">Appearance</h3>
       <p className="text-app-muted text-sm mb-4">
         Customize the local look and feel of Nepsis Chat.
       </p>
 
       <div className="bg-app-channel rounded-lg px-4 mb-4">
-        <h4 className="font-semibold text-white pt-4 pb-1">Theme</h4>
+        <h4 className="font-semibold text-app-text pt-4 pb-1">Theme</h4>
         <Field label="Color theme" description="Choose the base surface palette.">
           <SettingsDropdown
             value={prefs.theme}
@@ -103,7 +104,7 @@ export function AppearanceSettingsTab() {
       </div>
 
       <div className="bg-app-channel rounded-lg px-4 mb-4">
-        <h4 className="font-semibold text-white pt-4 pb-1">Layout</h4>
+        <h4 className="font-semibold text-app-text pt-4 pb-1">Layout</h4>
         <Field label="Compact density" description="Reduces vertical spacing in message lists.">
           <SettingsToggle
             checked={prefs.density === 'compact'}

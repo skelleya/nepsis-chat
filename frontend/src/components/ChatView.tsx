@@ -218,7 +218,7 @@ export function ChatView({
         ) : (
           <span className="text-2xl font-semibold text-app-offline leading-none">#</span>
         )}
-        <span className="font-semibold text-app-text text-[16px]">{channel.name}</span>
+        <span className="font-display font-semibold text-app-text text-[16px]">{channel.name}</span>
         {channel.type === 'rules' && (
           <span className="ml-1 text-xs text-app-muted">(read-only — react to accept)</span>
         )}
