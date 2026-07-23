@@ -167,6 +167,14 @@ Handlers are registered with the **Namespace** (`io.of('/voice')`, etc.), not th
 
 ---
 
+## Soundboard upload contract
+
+`POST /api/soundboard` accepts MP3/MPEG, WAV, OGG, WebM, M4A/MP4, AAC, and FLAC audio up to 10 MB. `music-metadata` must confirm a duration greater than zero and no more than ten seconds. Long source files are clipped in the frontend before this request; the API and Postgres check remain defense in depth.
+
+Storage uses `attachments/soundboard/{userId}/`. Migration `20260723234108_allow_soundboard_audio_formats.sql` extends a configured bucket MIME allowlist while preserving an unrestricted (`NULL`) allowlist.
+
+---
+
 ## CORS
 
 Configured for `http://localhost:5173` and `http://127.0.0.1:5173`.

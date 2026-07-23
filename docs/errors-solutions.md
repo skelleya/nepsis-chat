@@ -359,6 +359,16 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | Create channel always asked for type | Single + opened full type picker | Chat + / Voice + (and server menu entries) lock type and only ask for name |
 | Voice/video sounded/looked soft vs Discord | Default getUserMedia + no bitrate/codec prefs | `mediaQuality.ts`: 48 kHz Opus prefs, 128 kbps audio, 720p+/2.5 Mbps camera, 4 Mbps screen; applied on PC senders |
 | Members minimized rail looked sparse | Vertical text + lone chevron | Avatar stack preview, CoolIcons, count badge |
+| Remote speaking ring missing from left voice rail | Remote analysis existed only inside `VoiceView`; `VoiceParticipant.isSpeaking` remained false | Analyse every remote audio stream in `VoiceContext`, update only on threshold changes, and merge `isSpeaking` into existing sidebar users |
+| Remote camera froze on its last frame after turning off | Cached stream identity left `TileVideo.hasFrame=true` while a track muted/ended | Listen for track mute/end/removal, clear `srcObject` for ended media, and count only live unmuted video tracks |
+| Video/screen share lacked selectable 1080p+ quality | Capture and sender limits were fixed | Add 1080p/1440p camera and 1080p/1440p/4K screen settings; increase adaptive sender ceilings with browser fallback |
+| Soundboard rejected every file over 10 seconds | Client and API enforced the DB limit but no editor existed | Long audio now opens a start slider, previews ten seconds, and exports that segment as WAV before upload; DB limit stays intact |
+| MP3/audio blocked by a restricted Storage bucket | `attachments.allowed_mime_types` could omit audio | Migration `20260723234108_allow_soundboard_audio_formats.sql` appends supported audio MIME types without removing existing types |
+| Work profile switch showed stale media | Quick status menu had no profile switch and presentation refresh was settings-only | Personal/Work switching now lives in the User Panel and applies the API-returned name/avatar/banner immediately |
+| Server icon/banner stayed stale after upload | UI waited for a second server-list request | Optimistically merge the successful update into `AppContext.servers`, then refresh in the background |
+| Settings dropdown opened behind the modal or closed while scrolling | Portaled menu used z-index 80 below the z-100 settings shell and closed on every ancestor scroll | Raise to z-300 and recalculate fixed position during scroll |
+| Members sidebar showed black/blank space | Wrapper/rail lacked explicit full-height flex constraints and zero members had no content | Add `h-full min-h-0 self-stretch` and an empty-state panel |
+| Mute looked like speaker-off / text icon looked clipped | Semantic aliases used volume-off; old chat outline sat tight in compact layouts | Use a dedicated mic-slash SVG and padded hash text-channel glyph |
 
 ---
 

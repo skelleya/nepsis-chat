@@ -371,3 +371,36 @@ A major UI overhaul to match Discord's layout and interaction patterns.
 | `frontend/src/components/ServerSettingsModal.tsx` | **NEW** — Full-screen server settings |
 | `frontend/src/components/UserSettingsModal.tsx` | **NEW** — Full-screen user settings |
 | `frontend/src/App.tsx` | Rewired with VoiceProvider, UserPanel, voice users, one-click join |
+
+---
+
+## Voice, Media, Profiles, and Settings Reliability (2026-07-23)
+
+### Features
+
+| Area | Behavior |
+|------|----------|
+| Speaking indicator | Remote audio is analysed in `VoiceContext`; the left voice-channel rail now receives live `isSpeaking` state and lights the avatar ring. |
+| Camera off | Video tiles clear their last frame on mute/end/removal and return to the avatar instead of freezing. |
+| Media quality | Voice & Video settings offer 1080p/1440p camera and 1080p/1440p/4K screen capture. WebRTC sender limits scale up to 8 Mbps camera and 16 Mbps screen. Browser/device/network fallback is expected. |
+| Soundboard clipper | Audio over 10 seconds opens a start-time editor; preview and export create a server-valid WAV clip of at most 10 seconds. MP3, WAV, OGG, WebM, M4A/MP4, AAC, and FLAC are accepted. |
+| Quick profile | The User Panel status menu also switches Personal/Work profile and immediately refreshes display name, avatar, and banner. |
+| Server media | Server icon/banner updates paint optimistically and survive a failed follow-up list refresh. |
+| Settings dropdowns | Portaled lists sit above settings dialogs and stay aligned while scrolling. |
+| Members rail | The right rail fills the viewport and shows a useful empty state rather than black/blank space. |
+| Icons | Muting uses a microphone-with-slash glyph; text channels use a padded hash glyph. |
+
+### Database and storage
+
+- Migration `20260723234108_allow_soundboard_audio_formats.sql` extends any existing `attachments` MIME allowlist with audio formats. A `NULL` allowlist remains unrestricted.
+- `soundboard_sounds.duration_seconds` remains constrained to `0 < duration <= 10`; clipping happens before upload.
+- Storage is still the public `attachments` bucket under `soundboard/{userId}/`.
+
+### Manual test study
+
+1. Join one voice room with two accounts; speak remotely and confirm the left rail ring lights.
+2. Toggle the remote camera off and confirm the last frame immediately becomes the avatar.
+3. Select each media quality preset, restart capture, and inspect `MediaStreamTrack.getSettings()`.
+4. Upload a 15-second MP3, move the clip start, preview, save, and verify the stored duration is at most 10 seconds.
+5. Switch Personal/Work from the User Panel and verify name/avatar/banner; upload server icon/banner and refresh.
+6. Open every settings dropdown while scrolling; test the members rail with zero and many members.
