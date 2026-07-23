@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import * as api from '../services/api'
 import { EmojiPicker } from './EmojiPicker'
 import { useGsapMenu } from '../hooks/useGsapMenu'
+import { clipAudioToWav } from '../utils/audioClip'
 
 const MAX_DURATION_SECONDS = 10
 const DEFAULT_EMOJI = '🔊'
@@ -22,8 +23,11 @@ export function SoundboardDropdown({ userId, onPlay, anchorRef, isOpen, onClose 
   const [emojiForNew, setEmojiForNew] = useState(DEFAULT_EMOJI)
   const [emojiPickerFor, setEmojiPickerFor] = useState<string | 'new' | null>(null)
   const [emojiAnchorRect, setEmojiAnchorRect] = useState<DOMRect | null>(null)
+  const [clipSource, setClipSource] = useState<{ file: File; url: string; duration: number } | null>(null)
+  const [clipStart, setClipStart] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const previewRef = useRef<HTMLAudioElement | null>(null)
   const shouldRender = useGsapMenu(isOpen, dropdownRef, {
     enterY: 10,
     exitY: 8,
@@ -65,7 +69,19 @@ export function SoundboardDropdown({ userId, onPlay, anchorRef, isOpen, onClose 
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [isOpen, onClose, anchorRef])
 
+  useEffect(() => () => {
+    if (clipSource) URL.revokeObjectURL(clipSource.url)
+    previewRef.current?.pause()
+  }, [clipSource])
+
   const handleAddClick = () => fileInputRef.current?.click()
+
+  const uploadSound = async (file: File) => {
+    setAdding(true)
+    const name = file.name.replace(/\.[^/.]+$/, '').replace(/-clip$/, '').slice(0, 32) || 'Sound'
+    const sound = await api.uploadSoundboardSound(userId, name, file, emojiForNew)
+    setSounds((prev) => [...prev, sound])
+  }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -87,20 +103,45 @@ export function SoundboardDropdown({ userId, onPlay, anchorRef, isOpen, onClose 
     try {
       const duration = await checkDuration()
       if (duration > MAX_DURATION_SECONDS) {
-        setError(`Audio must be 10 seconds or less. Yours is ${duration.toFixed(1)}s.`)
+        const url = URL.createObjectURL(file)
+        setClipSource({ file, url, duration })
+        setClipStart(0)
         e.target.value = ''
         return
       }
 
-      setAdding(true)
-      const name = file.name.replace(/\.[^/.]+$/, '').slice(0, 32) || 'Sound'
-      const sound = await api.uploadSoundboardSound(userId, name, file, emojiForNew)
-      setSounds((prev) => [...prev, sound])
+      await uploadSound(file)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed')
     } finally {
       setAdding(false)
       e.target.value = ''
+    }
+  }
+
+  const previewClip = () => {
+    previewRef.current?.pause()
+    const audio = new Audio(clipSource?.url)
+    previewRef.current = audio
+    audio.currentTime = clipStart
+    void audio.play()
+    window.setTimeout(() => audio.pause(), MAX_DURATION_SECONDS * 1000)
+  }
+
+  const saveClip = async () => {
+    if (!clipSource) return
+    setError(null)
+    try {
+      setAdding(true)
+      const clipped = await clipAudioToWav(clipSource.file, clipStart, MAX_DURATION_SECONDS)
+      await uploadSound(clipped)
+      URL.revokeObjectURL(clipSource.url)
+      setClipSource(null)
+      setClipStart(0)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not create clip')
+    } finally {
+      setAdding(false)
     }
   }
 
@@ -169,12 +210,50 @@ export function SoundboardDropdown({ userId, onPlay, anchorRef, isOpen, onClose 
       <input
         ref={fileInputRef}
         type="file"
-        accept="audio/*"
+        accept=".mp3,.wav,.ogg,.webm,.m4a,.mp4,audio/mpeg,audio/mp3,audio/wav,audio/ogg,audio/webm,audio/mp4"
         className="hidden"
         onChange={handleFileChange}
       />
 
       <div className="p-2 overflow-y-auto flex-1">
+        {clipSource && (
+          <div className="mb-2 rounded-lg border border-app-accent/40 bg-app-dark p-3 space-y-2">
+            <div>
+              <p className="text-sm font-semibold text-app-text truncate">{clipSource.file.name}</p>
+              <p className="text-xs text-app-muted">
+                Select the start of the 10-second clip ({clipStart.toFixed(1)}s–{Math.min(clipStart + 10, clipSource.duration).toFixed(1)}s)
+              </p>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={Math.max(0, clipSource.duration - MAX_DURATION_SECONDS)}
+              step={0.1}
+              value={clipStart}
+              onChange={(event) => setClipStart(Number(event.target.value))}
+              className="w-full accent-[rgb(var(--app-accent))]"
+              aria-label="Clip start time"
+            />
+            <div className="flex gap-2">
+              <button type="button" onClick={previewClip} className="flex-1 px-2 py-1.5 rounded text-xs bg-app-hover text-app-text">
+                Preview 10s
+              </button>
+              <button type="button" disabled={adding} onClick={saveClip} className="flex-1 px-2 py-1.5 rounded text-xs bg-app-accent text-white disabled:opacity-50">
+                {adding ? 'Clipping…' : 'Save clip'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  URL.revokeObjectURL(clipSource.url)
+                  setClipSource(null)
+                }}
+                className="px-2 py-1.5 rounded text-xs text-app-muted hover:text-app-text"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
         {error && (
           <p className="text-red-400 text-xs mb-2">{error}</p>
         )}
