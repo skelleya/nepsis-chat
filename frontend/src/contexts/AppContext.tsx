@@ -666,7 +666,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [user, loadServers])
 
   const updateServerFn = useCallback(async (serverId: string, data: { name?: string; icon_url?: string; banner_url?: string; rules_channel_id?: string | null; lock_channels_until_rules_accepted?: boolean; rules_accept_emoji?: string; updatedBy?: string }) => {
-    await api.updateServer(serverId, data)
+    const updated = await api.updateServer(serverId, data)
+    // Paint uploaded icons/banners immediately; a transient refresh failure must
+    // not leave the rail and channel header showing stale server media.
+    setServers((current) =>
+      current.map((server) =>
+        server.id === serverId
+          ? { ...server, ...data, ...(updated && typeof updated === 'object' ? updated : {}) }
+          : server
+      )
+    )
     await loadServers()
   }, [loadServers])
 
