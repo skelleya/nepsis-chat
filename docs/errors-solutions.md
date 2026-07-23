@@ -369,6 +369,8 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | Settings dropdown opened behind the modal or closed while scrolling | Portaled menu used z-index 80 below the z-100 settings shell and closed on every ancestor scroll | Raise to z-300 and recalculate fixed position during scroll |
 | Members sidebar showed black/blank space | Wrapper/rail lacked explicit full-height flex constraints and zero members had no content | Add `h-full min-h-0 self-stretch` and an empty-state panel |
 | Mute looked like speaker-off / text icon looked clipped | Semantic aliases used volume-off; old chat outline sat tight in compact layouts | Use a dedicated mic-slash SVG and padded hash text-channel glyph |
+| Frontend verification failed with `tsc: not found` | Cloud workspace dependencies had not been installed; no async setup job was running | Run `npm ci` in `frontend/`, then rerun `npm run build` |
+| Quick-profile code failed TS7053 / missing `updatedAt` | Untyped API rows were used as profile-map keys and the local cache state requires `SettingsProfilesCache` | Type the fetched profile rows, construct a complete cache object (including `updatedAt`), then rebuild |
 
 ---
 

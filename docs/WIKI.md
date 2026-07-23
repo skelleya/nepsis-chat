@@ -404,3 +404,13 @@ A major UI overhaul to match Discord's layout and interaction patterns.
 4. Upload a 15-second MP3, move the clip start, preview, save, and verify the stored duration is at most 10 seconds.
 5. Switch Personal/Work from the User Panel and verify name/avatar/banner; upload server icon/banner and refresh.
 6. Open every settings dropdown while scrolling; test the members rail with zero and many members.
+
+### Verification study
+
+- `frontend`: `npm ci`, then `npm run build` — passed TypeScript and Vite production build.
+- `backend`: `npm test --if-present` — passed (no test script is currently defined).
+- `backend`: `node --check src/routes/soundboard.js` — passed.
+- Supabase: migration recorded as `allow_soundboard_audio_formats`; `attachments` is public, 50 MiB, and has `allowed_mime_types = NULL` (unrestricted, therefore MP3 and all supported audio are allowed).
+- Supabase advisors reported pre-existing project-wide RLS/index notices; this bucket metadata migration introduced no table, policy, or index changes.
+- `npm ci` audit reported 11 existing dependency advisories (2 low, 1 moderate, 8 high); dependency upgrades were not mixed into this feature pass.
+- Build warnings remain for optional Everett font files, large bundle size, stale Browserslist data, and modules that are both static/dynamic imports. They do not fail the build and are outside this fix set.

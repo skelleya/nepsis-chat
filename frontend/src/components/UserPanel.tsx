@@ -6,7 +6,11 @@ import { MicIcon, MicOffIcon, HeadphonesIcon, HeadphonesOffIcon } from './icons/
 import type { UserStatus } from '../contexts/AppContext'
 import * as api from '../services/api'
 import type { ProfileType } from '../services/api'
-import { loadSettingsProfilesCache, saveSettingsProfilesCache } from '../services/settingsCache'
+import {
+  loadSettingsProfilesCache,
+  saveSettingsProfilesCache,
+  type SettingsProfilesCache,
+} from '../services/settingsCache'
 
 interface UserPanelProps {
   user: { id: string; username: string; display_name?: string | null; avatar_url?: string; banner_url?: string; active_profile?: ProfileType; is_guest?: boolean }
@@ -133,12 +137,18 @@ export function UserPanel({
     Promise.all([api.getUserProfiles(user.id), api.getAccount(user.id)])
       .then(([rows, account]) => {
         if (cancelled) return
-        const next = {
+        const next: SettingsProfilesCache = {
           activeProfile: (account?.active_profile === 'work' ? 'work' : 'personal') as ProfileType,
           personal: { display_name: user.username, avatar_url: null, banner_url: null },
           work: { display_name: '', avatar_url: null, banner_url: null },
+          updatedAt: Date.now(),
         }
-        for (const row of rows) {
+        for (const row of rows as Array<{
+          profile_type: ProfileType
+          display_name?: string
+          avatar_url?: string | null
+          banner_url?: string | null
+        }>) {
           if (row.profile_type === 'personal' || row.profile_type === 'work') {
             next[row.profile_type] = {
               display_name: row.display_name || (row.profile_type === 'personal' ? user.username : ''),
