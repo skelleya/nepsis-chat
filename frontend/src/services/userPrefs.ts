@@ -9,6 +9,8 @@ export type ThemeId = 'dark' | 'midnight' | 'amoled' | 'white'
 export type AccentId = 'orange' | 'blurple' | 'green' | 'teal' | 'rose' | 'gold'
 export type DensityId = 'comfortable' | 'compact'
 export type FontSizeId = 'small' | 'default' | 'large'
+export type CameraQualityId = '1080p' | '1440p'
+export type ScreenQualityId = '1080p' | '1440p' | '4k'
 
 export interface AppearancePrefs {
   theme: ThemeId
@@ -25,6 +27,8 @@ export interface VoicePrefs {
   echoCancellation: boolean
   noiseSuppression: boolean
   autoGainControl: boolean
+  cameraQuality: CameraQualityId
+  screenQuality: ScreenQualityId
 }
 
 export interface NotificationPrefs {
@@ -61,6 +65,8 @@ export const DEFAULT_PREFS: UserPrefs = {
     echoCancellation: true,
     noiseSuppression: true,
     autoGainControl: true,
+    cameraQuality: '1080p',
+    screenQuality: '1440p',
   },
   notifications: {
     messageSounds: true,
@@ -233,11 +239,32 @@ export function getAudioConstraints(prefs: VoicePrefs = loadPrefs().voice): Medi
 }
 
 export function getVideoConstraints(prefs: VoicePrefs = loadPrefs().voice): MediaTrackConstraints {
-  const c: MediaTrackConstraints = { ...HIGH_QUALITY_CAMERA }
+  const size = prefs.cameraQuality === '1440p'
+    ? { width: 2560, height: 1440 }
+    : { width: 1920, height: 1080 }
+  const c: MediaTrackConstraints = {
+    ...HIGH_QUALITY_CAMERA,
+    width: { ideal: size.width, max: size.width },
+    height: { ideal: size.height, max: size.height },
+  }
   if (prefs.videoInputId) {
     c.deviceId = { exact: prefs.videoInputId }
   }
   return c
+}
+
+export function getScreenConstraints(prefs: VoicePrefs = loadPrefs().voice): MediaTrackConstraints {
+  const size =
+    prefs.screenQuality === '4k'
+      ? { width: 3840, height: 2160 }
+      : prefs.screenQuality === '1440p'
+        ? { width: 2560, height: 1440 }
+        : { width: 1920, height: 1080 }
+  return {
+    width: { ideal: size.width, max: size.width },
+    height: { ideal: size.height, max: size.height },
+    frameRate: { ideal: 30, max: 60 },
+  }
 }
 
 export async function applyAudioOutputDevice(

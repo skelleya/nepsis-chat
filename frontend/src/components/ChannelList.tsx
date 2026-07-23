@@ -109,22 +109,11 @@ interface ChannelListProps {
   isAdminOrOwner?: boolean
 }
 
-/** Soft chat glyph — not Discord # */
+/** Padded text-channel glyph; the inset viewBox prevents clipping at compact density. */
 function ChatIcon({ className }: { className?: string }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
-      <path
-        d="M8 10.5h8M8 14h5"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-      />
-      <path
-        d="M12 3.5c-4.7 0-8.5 3.13-8.5 7 0 2.12 1.12 4.02 2.9 5.3L5.5 20l3.4-1.7c.97.28 2 .43 3.1.43 4.7 0 8.5-3.13 8.5-7s-3.8-7-8.5-7z"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinejoin="round"
-      />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className={`overflow-visible ${className ?? ''}`} aria-hidden>
+      <path d="M9 5L7 19M17 5l-2 14M5 9h14M4 15h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   )
 }
