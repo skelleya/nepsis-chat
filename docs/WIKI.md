@@ -772,3 +772,25 @@ Release verification study:
 2. Merge into `master`, tag `v0.1.8`, confirm Desktop Release version job reports `0.1.8`.
 3. After install: second shortcut click focuses one session; update path shows loader not the NSIS wizard.
 
+### Voice card volume + gallery + manual updates (2026-07-24)
+
+- Click / right-click another user’s voice card → **User volume** (0–200%, default 100), optional **Stream volume**, Watch/Maximize, and Admin Mute/Deafen/Disconnect.
+- `RemoteAudio` uses Web Audio gain so users can be made louder than 100%.
+- Gallery mode camera cards use larger `--voice-grid-min` values.
+- Desktop updates: **no auto-download**; green arrow when available; badge click downloads then Discord-style **Updating your software** restart modal.
+
+Test study:
+
+1. Join voice with two clients → open remote card menu → set User volume to 200% and 20%; confirm loudness changes.
+2. Share screen with audio → watcher adjusts Stream volume independently of User volume.
+3. As admin, confirm Mute / Disconnect still appear under Admin in the same menu.
+4. Gallery with several cameras → cards are visibly larger than 0.1.9.
+5. Publish a newer desktop build → older client shows green arrow only (no download) until clicked; then download + updating modal + silent install.
+
+### Desktop 0.1.10 release (2026-07-24)
+
+- Electron source version: `0.1.10`.
+- Release notes: [release-0.1.10.md](release-0.1.10.md).
+- Includes per-user/stream volume menus, larger gallery cards, manual update UX.
+- Tag `v0.1.10` triggers Desktop Release.
+

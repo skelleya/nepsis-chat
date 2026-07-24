@@ -34,7 +34,8 @@ let updateReady = false
 if (!isDev && app.isPackaged) {
   autoUpdater.setFeedURL({ provider: 'github', owner: 'skelleya', repo: 'nepsis-chat' })
   // Download in the background; the renderer only asks when it is ready to restart.
-  autoUpdater.autoDownload = true
+  // Manual download: green badge in the renderer starts downloadUpdate().
+  autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = true
   autoUpdater.autoRunAppAfterInstall = true
   autoUpdater.allowDowngrade = false

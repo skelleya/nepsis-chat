@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useCallback, type RefObject } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback, type MouseEvent, type RefObject } from 'react'
 import type { Channel } from '../types'
 import { useVoice, type VoiceParticipant } from '../contexts/VoiceContext'
 import { MicIcon, MicOffIcon, HeadphonesIcon, HeadphonesOffIcon } from './icons/VoiceIcons'
@@ -8,7 +8,14 @@ import {
   getParticipantVideoStream,
   hasLiveVideo,
 } from '../utils/mediaTracks'
-import { loadPrefs, subscribePrefs } from '../services/userPrefs'
+import {
+  getPeerVolume,
+  getStreamVolume,
+  loadPrefs,
+  setPeerVolume,
+  setStreamVolume,
+  subscribePrefs,
+} from '../services/userPrefs'
 import { SettingsDropdown } from './settings/SettingsDropdown'
 
 interface VoiceViewProps {
@@ -340,6 +347,7 @@ function ParticipantCard({
   onDisconnectMember,
   isSharingScreen,
   isWatching,
+  isWatchingShare = false,
   onWatchShare,
   onMaximizeCamera,
   large = false,
@@ -365,6 +373,7 @@ function ParticipantCard({
   onDisconnectMember?: (userId: string) => Promise<void>
   isSharingScreen?: boolean
   isWatching?: boolean
+  isWatchingShare?: boolean
   onWatchShare?: (userId: string) => void
   onMaximizeCamera?: (userId: string) => void
   large?: boolean
@@ -373,6 +382,8 @@ function ParticipantCard({
 }) {
   const [showMenu, setShowMenu] = useState(false)
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
+  const [userVolume, setUserVolume] = useState(() => getPeerVolume(participant.userId))
+  const [streamVol, setStreamVol] = useState(() => getStreamVolume(participant.userId))
   const detectStream = isLocal ? localStream : participant.stream
   const speaking = useSpeakingDetector(detectStream, isLocal ? !isMuted : true)
 
@@ -389,10 +400,191 @@ function ParticipantCard({
     : hasRemoteCamera
 
   const showMuted = isMuted
-  const showAdminMenu =
+  const showAdminActions =
     !isLocal &&
-    isAdminOrOwner &&
-    (onMuteMember || onUnmuteMember || onDeafenMember || onUndeafenMember || onDisconnectMember)
+    !!isAdminOrOwner &&
+    !!(onMuteMember || onUnmuteMember || onDeafenMember || onUndeafenMember || onDisconnectMember)
+  const showUserMenu = !isLocal
+
+  useEffect(() => {
+    if (!showMenu) return
+    setUserVolume(getPeerVolume(participant.userId))
+    setStreamVol(getStreamVolume(participant.userId))
+  }, [showMenu, participant.userId])
+
+  const openUserMenu = (clientX: number, clientY: number) => {
+    if (!showUserMenu) return
+    const pad = 12
+    const menuW = 260
+    const menuH = 320
+    const x = Math.min(clientX, window.innerWidth - menuW - pad)
+    const y = Math.min(clientY, window.innerHeight - menuH - pad)
+    setMenuPos({ x: Math.max(pad, x), y: Math.max(pad, y) })
+    setShowMenu(true)
+  }
+
+  const handleCardClick = (e: MouseEvent) => {
+    if (showUserMenu) {
+      e.preventDefault()
+      openUserMenu(e.clientX, e.clientY)
+      return
+    }
+    if (isSharingScreen && onWatchShare) {
+      onWatchShare(participant.userId)
+      return
+    }
+    if (showVideoShell && onMaximizeCamera) onMaximizeCamera(participant.userId)
+  }
+
+  const handleCardContextMenu = (e: MouseEvent) => {
+    if (!showUserMenu) return
+    e.preventDefault()
+    openUserMenu(e.clientX, e.clientY)
+  }
+
+  const userMenu = showUserMenu && showMenu && (
+    <>
+      <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+      <div
+        className="fixed z-50 bg-[#111214] rounded-lg shadow-xl py-2 min-w-[240px] max-w-[280px] border border-app-hover/30"
+        style={{ left: menuPos.x, top: menuPos.y }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-3 pb-1.5 text-xs font-semibold text-app-muted truncate">
+          {participant.username}
+        </div>
+        <div className="px-3 py-2 space-y-1.5 border-b border-app-hover/30">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-app-text">User volume</span>
+            <span className="text-xs text-app-muted tabular-nums">{Math.round(userVolume * 100)}%</span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={200}
+            step={1}
+            value={Math.round(userVolume * 100)}
+            onChange={(e) => {
+              const next = Number(e.target.value) / 100
+              setUserVolume(next)
+              setPeerVolume(participant.userId, next)
+            }}
+            className="w-full accent-app-accent"
+            aria-label={`Volume for ${participant.username}`}
+          />
+        </div>
+        {isSharingScreen && (
+          <div className="px-3 py-2 space-y-1.5 border-b border-app-hover/30">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-app-text">Stream volume</span>
+              <span className="text-xs text-app-muted tabular-nums">{Math.round(streamVol * 100)}%</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={200}
+              step={1}
+              value={Math.round(streamVol * 100)}
+              onChange={(e) => {
+                const next = Number(e.target.value) / 100
+                setStreamVol(next)
+                setStreamVolume(participant.userId, next)
+              }}
+              className="w-full accent-app-accent"
+              aria-label={`Stream volume for ${participant.username}`}
+            />
+            <p className="text-[10px] text-app-muted leading-snug">
+              Applies while you watch their screen share audio.
+            </p>
+          </div>
+        )}
+        {(isSharingScreen && onWatchShare) || (showVideoShell && onMaximizeCamera) ? (
+          <div className="py-1 border-b border-app-hover/30">
+            {isSharingScreen && onWatchShare && (
+              <button
+                type="button"
+                onClick={() => {
+                  onWatchShare(participant.userId)
+                  setShowMenu(false)
+                }}
+                className="w-full px-3 py-2 text-left text-sm text-app-text hover:bg-app-accent hover:text-white"
+              >
+                {isWatchingShare ? 'Stop watching stream' : 'Watch stream'}
+              </button>
+            )}
+            {showVideoShell && onMaximizeCamera && (
+              <button
+                type="button"
+                onClick={() => {
+                  onMaximizeCamera(participant.userId)
+                  setShowMenu(false)
+                }}
+                className="w-full px-3 py-2 text-left text-sm text-app-text hover:bg-app-accent hover:text-white"
+              >
+                {isWatching && !isWatchingShare ? 'Restore camera' : 'Maximize camera'}
+              </button>
+            )}
+          </div>
+        ) : null}
+        {showAdminActions && (
+          <div className="py-1">
+            <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-app-muted">
+              Admin
+            </div>
+            {(isMuted ? onUnmuteMember : onMuteMember) && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (isMuted) {
+                    await onUnmuteMember?.(participant.userId)
+                  } else {
+                    await onMuteMember?.(participant.userId)
+                  }
+                  setShowMenu(false)
+                }}
+                className="w-full px-3 py-2 text-left text-sm text-app-text hover:bg-app-accent hover:text-white flex items-center gap-2"
+              >
+                {isMuted ? <MicIcon size={14} /> : <MicOffIcon size={14} />}
+                {isMuted ? 'Unmute' : 'Mute'}
+              </button>
+            )}
+            {(isDeafened ? onUndeafenMember : onDeafenMember) && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (isDeafened) {
+                    await onUndeafenMember?.(participant.userId)
+                  } else {
+                    await onDeafenMember?.(participant.userId)
+                  }
+                  setShowMenu(false)
+                }}
+                className="w-full px-3 py-2 text-left text-sm text-app-text hover:bg-app-accent hover:text-white flex items-center gap-2"
+              >
+                {isDeafened ? <HeadphonesIcon size={14} /> : <HeadphonesOffIcon size={14} />}
+                {isDeafened ? 'Undeafen' : 'Deafen'}
+              </button>
+            )}
+            {onDisconnectMember && (
+              <button
+                type="button"
+                onClick={async () => {
+                  await onDisconnectMember(participant.userId)
+                  setShowMenu(false)
+                }}
+                className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/20 flex items-center gap-2"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 00-2.67-1.85.996.996 0 01-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
+                </svg>
+                Disconnect
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  )
 
   // Inset rings stay inside the tile box so filmstrip overflow-x never clips them.
   const ringClass = isWatching
@@ -405,15 +597,12 @@ function ParticipantCard({
     return (
       <div
         className={`relative shrink-0 w-[7.5rem] sm:w-36 h-[4.75rem] sm:h-[5.5rem] rounded-lg ${ringClass} ${
-          (isSharingScreen && onWatchShare) || (showVideoShell && onMaximizeCamera) ? 'cursor-pointer' : ''
+          showUserMenu || (isSharingScreen && onWatchShare) || (showVideoShell && onMaximizeCamera)
+            ? 'cursor-pointer'
+            : ''
         }`}
-        onClick={() => {
-          if (isSharingScreen && onWatchShare) {
-            onWatchShare(participant.userId)
-            return
-          }
-          if (showVideoShell && onMaximizeCamera) onMaximizeCamera(participant.userId)
-        }}
+        onClick={handleCardClick}
+        onContextMenu={handleCardContextMenu}
         title={participant.username}
       >
         <div className="w-full h-full rounded-lg overflow-hidden bg-app-channel">
@@ -451,110 +640,48 @@ function ParticipantCard({
             <MicOffIcon size={10} className="text-white" />
           </div>
         )}
+        {userMenu}
       </div>
     )
   }
 
   const circleSize = large
-    ? 'w-32 h-32 sm:w-40 sm:h-40 text-4xl sm:text-5xl'
-    : 'w-20 h-20 sm:w-24 sm:h-24 text-2xl sm:text-3xl'
+    ? 'w-36 h-36 sm:w-48 sm:h-48 text-4xl sm:text-5xl'
+    : 'w-24 h-24 sm:w-28 sm:h-28 text-2xl sm:text-3xl'
   const videoTileSize = large
-    ? 'w-full aspect-video min-h-[220px]'
-    : 'w-full aspect-video min-h-[150px]'
+    ? 'w-full aspect-video min-h-[280px]'
+    : 'w-full aspect-video min-h-[220px]'
   const muteBadgeSize = large ? 'w-9 h-9' : 'w-7 h-7'
   const muteIconSize = large ? 16 : 14
 
   return (
     <div
-      className={`relative w-full min-w-0 min-h-[190px] flex flex-col items-center justify-center gap-3 p-3 sm:p-4 rounded-2xl border border-app-glass/[0.06] bg-app-channel/35 hover:bg-app-channel/55 transition-colors select-none ${
-        (isSharingScreen && onWatchShare) || (showVideoShell && onMaximizeCamera) ? 'cursor-pointer' : ''
+      className={`relative w-full min-w-0 min-h-[240px] flex flex-col items-center justify-center gap-3 p-3 sm:p-5 rounded-2xl border border-app-glass/[0.06] bg-app-channel/35 hover:bg-app-channel/55 transition-colors select-none ${
+        showUserMenu || (isSharingScreen && onWatchShare) || (showVideoShell && onMaximizeCamera)
+          ? 'cursor-pointer'
+          : ''
       }`}
-      onClick={() => {
-        if (isSharingScreen && onWatchShare) {
-          onWatchShare(participant.userId)
-          return
-        }
-        if (showVideoShell && onMaximizeCamera) onMaximizeCamera(participant.userId)
-      }}
-      onContextMenu={(e) => {
-        if (showAdminMenu) {
-          e.preventDefault()
-          setMenuPos({ x: e.clientX, y: e.clientY })
-          setShowMenu(true)
-        }
-      }}
+      onClick={handleCardClick}
+      onContextMenu={handleCardContextMenu}
     >
       {isSharingScreen && (
         <div className="absolute -top-0.5 right-1 z-10 flex items-center gap-1">
           <span className="bg-[#ed4245] text-white text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-sm">
             Live
           </span>
-          {onWatchShare && (
+          {onWatchShare && isWatchingShare && (
             <span className="bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-sm">
-              {isWatching ? 'Watching' : 'Click to watch'}
+              Watching
             </span>
           )}
         </div>
       )}
-      {showAdminMenu && showMenu && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-          <div
-            className="fixed z-50 bg-[#111214] rounded-lg shadow-xl py-1 min-w-[180px] border border-app-hover/30"
-            style={{ left: menuPos.x, top: menuPos.y }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {(isMuted ? onUnmuteMember : onMuteMember) && (
-              <button
-                onClick={async () => {
-                  if (isMuted) {
-                    await onUnmuteMember?.(participant.userId)
-                  } else {
-                    await onMuteMember?.(participant.userId)
-                  }
-                  setShowMenu(false)
-                }}
-                className="w-full px-3 py-2 text-left text-sm text-app-text hover:bg-app-accent hover:text-white flex items-center gap-2"
-              >
-                {isMuted ? <MicIcon size={14} /> : <MicOffIcon size={14} />}
-                {isMuted ? 'Unmute' : 'Mute'}
-              </button>
-            )}
-            {(isDeafened ? onUndeafenMember : onDeafenMember) && (
-              <button
-                onClick={async () => {
-                  if (isDeafened) {
-                    await onUndeafenMember?.(participant.userId)
-                  } else {
-                    await onDeafenMember?.(participant.userId)
-                  }
-                  setShowMenu(false)
-                }}
-                className="w-full px-3 py-2 text-left text-sm text-app-text hover:bg-app-accent hover:text-white flex items-center gap-2"
-              >
-                {isDeafened ? <HeadphonesIcon size={14} /> : <HeadphonesOffIcon size={14} />}
-                {isDeafened ? 'Undeafen' : 'Deafen'}
-              </button>
-            )}
-            {onDisconnectMember && (
-              <button
-                onClick={async () => {
-                  await onDisconnectMember(participant.userId)
-                  setShowMenu(false)
-                }}
-                className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-500/20 flex items-center gap-2"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 00-2.67-1.85.996.996 0 01-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>
-                </svg>
-                Disconnect
-              </button>
-            )}
-          </div>
-        </>
-      )}
+      {userMenu}
       {showVideoShell ? (
-        <div className={`relative ${videoTileSize} rounded-xl ${ringClass}`} title="Click to maximize">
+        <div
+          className={`relative ${videoTileSize} rounded-xl ${ringClass}`}
+          title={showUserMenu ? 'Click for user options' : 'Click to maximize'}
+        >
           <div className="w-full h-full rounded-xl overflow-hidden bg-app-channel">
             {(isLocal ? localVideoStream : participantVideoStream) ? (
               <TileVideo
@@ -890,6 +1017,7 @@ export function VoiceView({
         onDisconnectMember,
         isSharingScreen: screenShareUserIds.includes(p.userId),
         isWatching: watchingShareUserId === p.userId || maximizedCameraUserId === p.userId,
+        isWatchingShare: watchingShareUserId === p.userId,
         onWatchShare: screenShareUserIds.includes(p.userId) ? handleWatchShare : undefined,
         onMaximizeCamera: handleMaximizeCamera,
         large: opts.large,

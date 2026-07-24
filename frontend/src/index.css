@@ -248,7 +248,8 @@ html[data-density='compact'] {
 
 .voice-main-container {
   container-type: inline-size;
-  --voice-grid-min: 220px;
+  /* Gallery mode: larger camera/participant cards */
+  --voice-grid-min: 320px;
 }
 
 .voice-dual-focus {
@@ -256,11 +257,11 @@ html[data-density='compact'] {
 }
 
 @container (max-width: 900px) {
-  .voice-participant-grid { --voice-grid-min: 170px; }
+  .voice-participant-grid { --voice-grid-min: 260px; }
 }
 
 @container (max-width: 560px) {
-  .voice-participant-grid { --voice-grid-min: 140px; }
+  .voice-participant-grid { --voice-grid-min: 200px; }
 }
 
 @container (min-width: 900px) {

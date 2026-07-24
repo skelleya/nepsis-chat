@@ -54,7 +54,7 @@ frontend/src/
 | ServerBar | Server list (left sidebar); click-hold-and-drag to reorder servers. **GSAP:** Friends + Community bubbles scale-punch on click |
 | ChannelList | Text + voice channels in a **Nepsis rail** (rounded rows, chat/wave icons, orange selected accent). **Voice users:** right-click for Profile / Roles / Move to / Message / Call / Server Mute / Server Deafen / Disconnect / Kick / Ban; drag-drop into other voice rooms to move. **Channels:** hover gear — Rename, Copy ID, Move to Category, Delete. **Create:** chat + / voice + (or server menu) opens centered name-only modal with type locked. Server dropdown portaled with solid background. |
 | ChatView | Messages, input; scrolls to bottom on load; shows "New messages" indicator when scrolled up and new messages arrive; click to jump to new messages |
-| VoiceView | Voice participants as **circle frames** (no boxed tiles); mute badge outside avatar clip; Mic/MicOff control bar. Soundboard + Discord screenshare (click LIVE to watch; resizable stage). Presence merge always includes channel users (even after peer-left). **Admin:** right-click for Mute / Disconnect. |
+| VoiceView | Voice participants in a responsive gallery (larger camera cards). Click/right-click a remote card for **User volume** (0–200%), **Stream volume** (while sharing), Watch/Maximize, and **Admin** Mute/Deafen/Disconnect. Soundboard + screen stage. Presence merge always includes channel users (even after peer-left). |
 | Server Settings ownership | `isAdminOrOwner` uses `servers.owner_id` **or** members role. Members/servers fetch errors keep prior state so the owner menu and modal do not disappear during polls. |
 | DownloadPage | OS-detect primary **Install for Mac/Windows** (Apple/Windows logos); click starts installer download immediately; **Other Installers** reveals the rest + Linux Coming soon. |
 | SoundboardDropdown | Server soundboard: custom-named clips with emoji; uploads attach to `serverId` so every member sees the same list; rename (double-click / pencil); share legacy personal sounds; admin/uploader delete; plays to all voice peers. |
@@ -92,7 +92,7 @@ frontend/src/
 | CommunityPage | Explore page: invite code entry; community list shows online/member counts; **click a server** opens details panel (members, online, channels, owner, Join/Open). **GSAP:** fade+slide-in on mount |
 | InvitePage | Public invite join page — server banner/icon/name, inviter, **member count**, Join Server. **Log In to Join** stores `nepsis_pending_invite` then returns after auth. Successful join sets `joinServerId` + `nepsis_last_view: server` before `navigate('/')`. |
 | AppContent auth gate | `showApp` / `showLogin` initialize from current `user` so remounting `/` after `/invite/:code` (session already set) opens the main app instead of a stuck login shell. |
-| UpdateButton | Electron update modal (download / ready / applying) with **Update later**; deferred apply via neon top-right download badge |
+| UpdateButton | Electron: green top-right badge when an update is available (no auto-download); badge click downloads then shows Discord-style **Updating your software** modal |
 | DesktopUpdatesPanel | Settings → Help & Support: version + Check for updates (desktop only) |
 | DownloadBanner | Centered top tab: short prompt (“Prefer the desktop app?”) + clear Download button + subtle dismiss; `rounded-b-xl`; dismissible (localStorage); sets `--download-banner-height`; hidden on `/download` and in Electron. **GSAP:** slide/fade in/out |
 | WelcomeLanding | Pre-auth home (white split): large Nepsis logo left (`mix-blend-multiply` drops black square), **Use Web App** / **Download App** right. TWK Everett headers + Poppins body; GSAP entrance. |
@@ -260,7 +260,8 @@ When `VITE_API_URL` is set, voice uses Socket.io instead of BroadcastChannel. IC
 
 - `chat-shell`, `chat-header-modern`, `chat-message-modern`, and `chat-composer-wrap` provide a shared minimal visual language for server channels and DMs.
 - Message density now flows through `.chat-msg-row` and the Appearance density preference.
-- Voice gallery cards use an auto-fit grid rather than fixed wrapped sizes.
+- Voice gallery cards use an auto-fit grid (`--voice-grid-min` ~320/260/200) rather than fixed wrapped sizes.
+- Per-user / stream volumes live in `userPrefs.peerVolumes` / `streamVolumes` (0–2); `RemoteAudio` applies them via Web Audio `GainNode` (supports >100%).
 - Screen + camera dual focus stacks vertically on small displays and splits into a wide screen stage plus camera stage on desktop.
 - Self camera PiP is consistently placed at the lower right so it does not obscure screen-share labels.
 - Voice ping shows the slowest selected WebRTC peer path; the tooltip distinguishes local voice RTT from signaling-server RTT when alone.

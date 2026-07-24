@@ -58,6 +58,36 @@ export function getRemoteAudioStream(
   return getOrCreateSubset(stream, selected)
 }
 
+/**
+ * Mic-only remote audio. When a peer is screen-sharing with a separate capture track,
+ * the first live audio track is treated as the microphone.
+ */
+export function getRemoteMicAudioStream(
+  stream: MediaStream | null,
+  opts?: { knownScreenSharing?: boolean }
+): MediaStream | null {
+  if (!stream) return null
+  const tracks = stream.getAudioTracks().filter((track) => track.readyState !== 'ended')
+  if (tracks.length === 0) return null
+  const selected =
+    opts?.knownScreenSharing && tracks.length > 1 ? [tracks[0]] : tracks
+  return getOrCreateSubset(stream, selected)
+}
+
+/**
+ * Screen-share audio only (extra tracks beyond the mic while sharing).
+ * Returns null when there is no separate screen audio track.
+ */
+export function getRemoteScreenAudioStream(
+  stream: MediaStream | null,
+  opts?: { knownScreenSharing?: boolean }
+): MediaStream | null {
+  if (!stream || !opts?.knownScreenSharing) return null
+  const tracks = stream.getAudioTracks().filter((track) => track.readyState !== 'ended')
+  if (tracks.length <= 1) return null
+  return getOrCreateSubset(stream, tracks.slice(1))
+}
+
 export type MediaTrackOpts = {
   /** True when signaling says this peer is screen-sharing (authoritative). */
   knownScreenSharing?: boolean

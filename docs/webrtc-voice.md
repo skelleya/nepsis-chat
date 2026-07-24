@@ -20,7 +20,7 @@ Voice channels with WebRTC and Opus codec.
 3. Broadcast/emit "join"
 4. Peers connect: lower ID creates offer
 5. Offer → Answer → ICE candidates
-6. Remote stream → RemoteAudio component
+6. Remote stream → session-owned `RemoteAudio` sinks (mic + optional screen audio) via Web Audio gain
 
 ---
 
@@ -130,6 +130,9 @@ Users can play custom audio clips (max 10 seconds) to all peers in a voice chann
 - Sender ceilings adapt to the captured track: up to 8 Mbps camera and 16 Mbps screen.
 - Constraints are ideals/maximums, not a guarantee. The browser can return a lower resolution or bitrate for unsupported cameras, displays, encoders, or network conditions.
 - **Include screen audio** is device-local under Voice & Video. When enabled, `getDisplayMedia` requests tab/system audio without voice processing. Browser/OS picker support still determines availability. Screen audio is included for viewers watching that share; microphone audio remains available to the whole voice channel.
+- **Per-user volume:** Click/right-click a remote participant card → **User volume** (0–200%, default 100%). Persisted in `peerVolumes`. Applied with Web Audio `GainNode` (supports boost above 100%).
+- **Stream volume:** Same menu while they share → **Stream volume** for their screen-share audio tracks (while you watch). Persisted in `streamVolumes`.
+- **Gallery size:** `--voice-grid-min` ~320/260/200px so camera cards stay larger in gallery mode.
 
 ### Same-account tabs
 

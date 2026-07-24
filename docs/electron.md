@@ -10,7 +10,7 @@ Desktop app wrapper and packaging. The packaged app loads the **same React UI** 
 - **Dev mode**: Loads `http://localhost:5173` (`APP_URL`).
 - **Windows**: NSIS installer `NepsisChat-Setup.exe`
 - **macOS**: DMG + ZIP (ZIP required for `electron-updater`)
-- **Updates**: `electron-updater` from **GitHub Releases**. When a newer version ships, a **Nepsis update badge** appears at the top of the app; click to download, then restart to install.
+- **Updates**: `electron-updater` from **GitHub Releases** with **`autoDownload = false`**. When a newer version ships, a **green download arrow** appears top-right; click to download, then a Discord-style **Updating your software** modal covers restart/install.
 - **System tray**: Closing the window hides to tray (does not quit).
 - **Routing**: `HashRouter` + Vite `base: './'` for `file://` compatibility.
 - **Custom title bar**: Frameless window + `TitleBar.tsx` (drag region; Windows/Linux min/max/close). macOS uses `hiddenInset` traffic lights.
@@ -46,7 +46,7 @@ Artifacts land in `electron/dist/`.
 | `frontend/src/hooks/useDesktopUpdate.ts` | IPC: available / progress / downloaded |
 | `electron/main.js` | `autoUpdater` → `update-available`, `update-download-progress`, `update-downloaded` |
 
-Flow: check on launch (+ every 30 min) → badge “Update available” only when feed version is **newer** than installed (`isUpdateAvailable` + semver compare) → user clicks → download with progress → “Restart to update”. After restart onto latest, `update-not-available` / failed `isUpdateAvailable` clears the badge. Badge sits below the custom title bar (`z-[70]`, `no-drag`). `quit-and-install` sets `isQuitting`, removes tray close handlers, then `quitAndInstall` with `app.exit` fallback (0.1.3+).
+Flow: check on launch (+ every 30 min) → green badge only when feed version is **newer** than installed (no auto-download) → user clicks badge → `downloadUpdate()` with progress modal → auto `quitAndInstall` with **Updating your software** loader. After restart onto latest, `update-not-available` clears the badge. Badge sits below the custom title bar (`z-[70]`, `no-drag`). `quit-and-install` sets `isQuitting`, removes tray close handlers, then `quitAndInstall(true, true)` with `app.exit` fallback.
 
 ---
 
