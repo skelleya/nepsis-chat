@@ -104,6 +104,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [ping, setPing] = useState<number | null>(null)
   const [pingSource, setPingSource] = useState<PingSource>('none')
+  const pingSourceRef = useRef<PingSource>('none')
   const [leftUserIds, setLeftUserIds] = useState<Set<string>>(new Set())
   const [watchingShareUserId, setWatchingShareUserId] = useState<string | null>(null)
   /** Explicit screen-share signals from peers (remote tracks often lack labels) */
@@ -772,6 +773,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     if (!connected) {
       setPing(null)
       setPingSource('none')
+      pingSourceRef.current = 'none'
       return
     }
     let cancelled = false
@@ -782,24 +784,30 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         const webrtcRtt = await client?.getPing()
         if (cancelled) return
         if (webrtcRtt?.ms != null) {
-          setPing((previous) => smoothPing(previous, webrtcRtt.ms!))
+          const sameSource = pingSourceRef.current === 'webrtc'
+          setPing((previous) => sameSource ? smoothPing(previous, webrtcRtt.ms!) : webrtcRtt.ms)
           setPingSource('webrtc')
+          pingSourceRef.current = 'webrtc'
           return
         }
         if (hasPeers) {
           setPing(null)
           setPingSource('none')
+          pingSourceRef.current = 'none'
           return
         }
         const sig = signalingRef.current as { measureLatency?: () => Promise<number | null> } | null
         const sockRtt = await sig?.measureLatency?.()
         if (!cancelled) {
           if (sockRtt != null) {
-            setPing((previous) => smoothPing(previous, sockRtt))
+            const sameSource = pingSourceRef.current === 'server'
+            setPing((previous) => sameSource ? smoothPing(previous, sockRtt) : sockRtt)
             setPingSource('server')
+            pingSourceRef.current = 'server'
           } else {
             setPing(null)
             setPingSource('none')
+            pingSourceRef.current = 'none'
           }
         }
       } catch { /* ignore */ }

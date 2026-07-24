@@ -9,12 +9,19 @@ export interface PingReading {
 export async function readConnectionRtt(pc: RTCPeerConnection): Promise<PingReading> {
   try {
     const stats = await pc.getStats()
-    const activePairs: number[] = []
-    const succeededPairs: number[] = []
+    let transportSelectedPairId: string | null = null
+    let legacySelectedRtt: number | null = null
+    let nominatedRtt: number | null = null
+    let succeededRtt: number | null = null
     const mediaRtts: number[] = []
 
     for (const report of stats.values()) {
-      if (report.type === 'candidate-pair') {
+      if (report.type === 'transport') {
+        const transport = report as { selectedCandidatePairId?: string }
+        if (transport.selectedCandidatePairId) {
+          transportSelectedPairId = transport.selectedCandidatePairId
+        }
+      } else if (report.type === 'candidate-pair') {
         const pair = report as {
           state?: string
           selected?: boolean
@@ -23,8 +30,9 @@ export async function readConnectionRtt(pc: RTCPeerConnection): Promise<PingRead
         }
         if (!Number.isFinite(pair.currentRoundTripTime)) continue
         const ms = Math.round((pair.currentRoundTripTime as number) * 1000)
-        if (pair.selected || pair.nominated) activePairs.push(ms)
-        else if (pair.state === 'succeeded') succeededPairs.push(ms)
+        if (pair.selected) legacySelectedRtt = ms
+        else if (pair.nominated && pair.state === 'succeeded' && nominatedRtt === null) nominatedRtt = ms
+        else if (pair.state === 'succeeded' && succeededRtt === null) succeededRtt = ms
       } else if (report.type === 'remote-inbound-rtp') {
         const media = report as { kind?: string; roundTripTime?: number }
         if (
@@ -36,14 +44,22 @@ export async function readConnectionRtt(pc: RTCPeerConnection): Promise<PingRead
       }
     }
 
-    const candidates = activePairs.length
-      ? activePairs
-      : mediaRtts.length
-        ? mediaRtts
-        : succeededPairs
-    return candidates.length
-      ? { ms: Math.max(...candidates), source: 'webrtc' }
-      : { ms: null, source: 'none' }
+    if (transportSelectedPairId) {
+      const selected = stats.get(transportSelectedPairId) as
+        | { currentRoundTripTime?: number }
+        | undefined
+      if (Number.isFinite(selected?.currentRoundTripTime)) {
+        return {
+          ms: Math.round((selected?.currentRoundTripTime as number) * 1000),
+          source: 'webrtc',
+        }
+      }
+    }
+    const ms = legacySelectedRtt
+      ?? (mediaRtts.length ? Math.max(...mediaRtts) : null)
+      ?? nominatedRtt
+      ?? succeededRtt
+    return ms !== null ? { ms, source: 'webrtc' } : { ms: null, source: 'none' }
   } catch {
     return { ms: null, source: 'none' }
   }

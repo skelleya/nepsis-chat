@@ -164,7 +164,7 @@ export function DMView({
   const handleGifSelect = async (gif: api.GifSearchResult) => {
     setUploading(true)
     try {
-      const { url } = await api.importGif(gif.url)
+      const { url } = await api.importGif(currentUserId, gif.url)
       setAttachments((previous) => [
         ...previous,
         { url, type: 'image', filename: `${gif.title || 'gif'}.gif` },
@@ -626,7 +626,7 @@ export function DMView({
       </div>
 
       {showGifPicker && (
-        <GifPicker onSelect={handleGifSelect} onClose={() => setShowGifPicker(false)} />
+        <GifPicker userId={currentUserId} onSelect={handleGifSelect} onClose={() => setShowGifPicker(false)} />
       )}
 
       {profileMember && profileAnchor && (

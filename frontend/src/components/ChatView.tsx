@@ -179,7 +179,7 @@ export function ChatView({
   const handleGifSelect = async (gif: api.GifSearchResult) => {
     setUploading(true)
     try {
-      const { url } = await api.importGif(gif.url)
+      const { url } = await api.importGif(currentUserId, gif.url)
       setAttachments((previous) => [
         ...previous,
         { url, type: 'image', filename: `${gif.title || 'gif'}.gif` },
@@ -588,7 +588,7 @@ export function ChatView({
       </form>
       )}
       {showGifPicker && (
-        <GifPicker onSelect={handleGifSelect} onClose={() => setShowGifPicker(false)} />
+        <GifPicker userId={currentUserId} onSelect={handleGifSelect} onClose={() => setShowGifPicker(false)} />
       )}
       {!canSendMessages && channel.type === 'rules' && messages.length === 0 && (
         <div className="px-4 pb-6 text-center text-app-muted text-sm">

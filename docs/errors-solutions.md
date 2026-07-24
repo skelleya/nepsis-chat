@@ -385,6 +385,7 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | Observer-tab participants stayed labeled “Connecting…” | Presence-only gallery entries intentionally have no WebRTC stream in the observer tab | Mark observer cards as presence-only and show Connected; reserve Connecting for a media-owning tab waiting for tracks |
 | Voice ping could show the wrong path / DM calls had no ping | Voice selected the first succeeded ICE pair, used server RTT while peers were connecting, and CallContext did not sample stats | Read selected/nominated candidate-pair RTT with media fallback, aggregate the slowest mesh peer, smooth samples, label peer vs server RTT, and expose the same local WebRTC RTT in both parties’ DM call UI |
 | GIF files worked but there was no GIF search button | Chat composers only exposed upload and emoji controls | Add a shared Tenor GIF picker, backend search proxy, strict Tenor-host import validation, GIF magic-byte/size checks, Supabase persistence, and GIF buttons in server/DM composers |
+| GIF import could follow a Tenor redirect to an untrusted host or buffer oversized data | Initial URL validation did not validate redirect targets, and `arrayBuffer()` enforced the limit only after buffering | Follow at most three redirects manually, validate HTTPS Tenor hosts at every hop, stream with an immediate byte cap, require known users, and apply per-user/IP search/import rate limits |
 
 ---
 

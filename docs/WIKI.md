@@ -515,3 +515,11 @@ Test study:
 2. Start a DM audio/video call; verify both parties independently show ping and clear it after hanging up.
 3. Search/select GIFs in a server and DM; verify Tenor key stays backend-only, imported URLs use Supabase, animation renders, and invalid/non-Tenor/oversized inputs are rejected.
 4. Remove `TENOR_API_KEY`; verify the picker explains configuration and direct GIF upload still works.
+
+Verification results:
+
+- Frontend TypeScript and Vite production build passed (183 modules) after active ICE-pair selection and source-aware smoothing.
+- Backend syntax checks passed for GIF routes, app mounting, voice, calls, soundboard, and group DMs.
+- Electron dependencies installed successfully for version 0.1.4; the repository has no separate Electron build script outside the packaging workflow.
+- GIF import review added manual redirect validation, streamed byte limits, known-user checks, and per-user/IP rate limits before release.
+- Existing dependency audit reports remain documented and are not silently auto-fixed because forced upgrades would change Electron/build compatibility.

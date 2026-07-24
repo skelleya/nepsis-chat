@@ -415,9 +415,9 @@ export interface GifSearchResult {
   url: string
 }
 
-export async function searchGifs(query: string, limit = 24): Promise<GifSearchResult[]> {
+export async function searchGifs(userId: string, query: string, limit = 24): Promise<GifSearchResult[]> {
   const res = await fetch(
-    `${API_BASE}/gifs/search?q=${encodeURIComponent(query.trim())}&limit=${limit}`
+    `${API_BASE}/gifs/search?userId=${encodeURIComponent(userId)}&q=${encodeURIComponent(query.trim())}&limit=${limit}`
   )
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
@@ -426,11 +426,11 @@ export async function searchGifs(query: string, limit = 24): Promise<GifSearchRe
   return res.json()
 }
 
-export async function importGif(sourceUrl: string): Promise<{ url: string; path: string }> {
+export async function importGif(userId: string, sourceUrl: string): Promise<{ url: string; path: string }> {
   const res = await fetch(`${API_BASE}/gifs/import`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url: sourceUrl }),
+    body: JSON.stringify({ userId, url: sourceUrl }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))

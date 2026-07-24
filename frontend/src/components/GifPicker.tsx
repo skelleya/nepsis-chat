@@ -3,11 +3,12 @@ import { createPortal } from 'react-dom'
 import * as api from '../services/api'
 
 interface GifPickerProps {
+  userId: string
   onSelect: (gif: api.GifSearchResult) => Promise<void>
   onClose: () => void
 }
 
-export function GifPicker({ onSelect, onClose }: GifPickerProps) {
+export function GifPicker({ userId, onSelect, onClose }: GifPickerProps) {
   const [query, setQuery] = useState('popular')
   const [results, setResults] = useState<api.GifSearchResult[]>([])
   const [loading, setLoading] = useState(false)
@@ -25,7 +26,7 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
       setLoading(true)
       setError(null)
       try {
-        const rows = await api.searchGifs(trimmed)
+        const rows = await api.searchGifs(userId, trimmed)
         if (!cancelled) setResults(rows)
       } catch (err) {
         if (!cancelled) {
@@ -40,7 +41,7 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [query])
+  }, [query, userId])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
