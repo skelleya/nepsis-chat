@@ -4,8 +4,17 @@ import { createSocketSignaling } from '../services/socketSignaling'
 import { createWebRTCClient } from '../services/webrtc'
 import { ensureIceServers } from '../services/iceConfig'
 import { sounds } from '../services/sounds'
-import { getAudioConstraints, getScreenConstraints, getVideoConstraints, loadPrefs } from '../services/userPrefs'
-import { getScreenShareStream } from '../utils/mediaTracks'
+import {
+  getAudioConstraints,
+  getScreenConstraints,
+  getVideoConstraints,
+  loadPrefs,
+  subscribePrefs,
+  updatePrefs,
+  type MicProcessingLevel,
+} from '../services/userPrefs'
+import { RemoteAudio } from '../components/RemoteAudio'
+import { getRemoteAudioStream, getScreenShareStream } from '../utils/mediaTracks'
 import { getCallBusy } from '../services/mediaSessionGate'
 import { smoothPing, type IcePathType, type PingSource } from '../services/connectionStats'
 import { formatMediaPermissionError } from '../utils/mediaPermissionError'
@@ -36,9 +45,11 @@ interface VoiceContextValue {
   isMuted: boolean
   isDeafened: boolean
   isSoundboardMuted: boolean
+  micProcessing: MicProcessingLevel
   setIsMuted: (v: boolean) => void
   setIsDeafened: (v: boolean) => void
   setIsSoundboardMuted: (v: boolean) => void
+  setMicProcessing: (value: MicProcessingLevel) => Promise<void>
   isCameraOn: boolean
   isScreenSharing: boolean
   toggleCamera: () => Promise<void>
@@ -99,6 +110,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   const [isMuted, setIsMutedState] = useState(false)
   const [isDeafened, setIsDeafenedState] = useState(false)
   const [isSoundboardMuted, setIsSoundboardMuted] = useState(false)
+  const [micProcessing, setMicProcessingState] = useState<MicProcessingLevel>(() => loadPrefs().voice.micProcessing)
   const [isCameraOn, setIsCameraOn] = useState(false)
   const [isScreenSharing, setIsScreenSharing] = useState(false)
   const [videoStream, setVideoStream] = useState<MediaStream | null>(null)
@@ -202,6 +214,10 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   }, [userId, voiceChannelId, voiceChannelName])
   isSoundboardMutedRef.current = isSoundboardMuted
 
+  useEffect(() => subscribePrefs((prefs) => {
+    setMicProcessingState(prefs.voice.micProcessing)
+  }), [])
+
   /** Unmute also undeafens */
   const setIsMuted = useCallback((v: boolean) => {
     const wasMuted = isMutedRef.current
@@ -237,6 +253,47 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
       sounds.undeafen()
     }
   }, [])
+
+  const setMicProcessing = useCallback(async (value: MicProcessingLevel) => {
+    const nextVoicePrefs = updatePrefs({ voice: { micProcessing: value } }).voice
+    setMicProcessingState(nextVoicePrefs.micProcessing)
+    setError(null)
+    const currentTrack = localStream?.getAudioTracks()[0]
+    if (!currentTrack) return
+    const nextConstraints = getAudioConstraints(nextVoicePrefs)
+    try {
+      await currentTrack.applyConstraints(nextConstraints)
+      return
+    } catch {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: nextConstraints,
+          video: false,
+        })
+        const nextTrack = stream.getAudioTracks()[0]
+        if (!nextTrack) {
+          stream.getTracks().forEach((track) => track.stop())
+          return
+        }
+        try {
+          ;(nextTrack as MediaStreamTrack & { contentHint?: string }).contentHint = 'speech'
+        } catch {
+          /* ignore */
+        }
+        nextTrack.enabled = !isMutedRef.current
+        const nextStream = webrtcRef.current?.replaceAudioTrack
+          ? await webrtcRef.current.replaceAudioTrack(nextTrack)
+          : new MediaStream([nextTrack])
+        if (!webrtcRef.current?.replaceAudioTrack) {
+          currentTrack.stop()
+          webrtcRef.current?.setLocalStream?.(nextStream)
+        }
+        setLocalStream(nextStream)
+      } catch (err) {
+        setError(formatMediaPermissionError(err, 'microphone'))
+      }
+    }
+  }, [localStream])
 
   const addOrUpdateParticipant = useCallback((pUserId: string, pUsername: string, stream: MediaStream | null, isSpeaking = false) => {
     // Never list ourselves as a remote peer; never invent socket-id phantoms
@@ -675,6 +732,16 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     return () => unsub?.()
   }, [voiceChannelId])
 
+  // ─── Admin unmute listener ─
+  useEffect(() => {
+    const signaling = signalingRef.current
+    if (!signaling || !voiceChannelId) return
+    const unsub = (signaling as { onAdminUnmute?: (cb: () => void) => () => void }).onAdminUnmute?.(() => {
+      setIsMutedState(false)
+    })
+    return () => unsub?.()
+  }, [voiceChannelId])
+
   // ─── Admin deafen listener ─
   useEffect(() => {
     const signaling = signalingRef.current
@@ -685,6 +752,16 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     })
     return () => unsub?.()
   }, [voiceChannelId, setIsDeafened])
+
+  // ─── Admin undeafen listener ─
+  useEffect(() => {
+    const signaling = signalingRef.current
+    if (!signaling || !voiceChannelId) return
+    const unsub = (signaling as { onAdminUndeafen?: (cb: () => void) => () => void }).onAdminUndeafen?.(() => {
+      setIsDeafenedState(false)
+    })
+    return () => unsub?.()
+  }, [voiceChannelId])
 
   // ─── Local/remote voice-state sync (mute/deafen badges for peers) ─
   useEffect(() => {
@@ -999,9 +1076,11 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         isMuted,
         isDeafened,
         isSoundboardMuted,
+        micProcessing,
         setIsMuted,
         setIsDeafened,
         setIsSoundboardMuted,
+        setMicProcessing,
         isCameraOn,
         isScreenSharing,
         toggleCamera,
@@ -1025,6 +1104,27 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         setWatchingShareUserId,
       }}
     >
+      {/* Playback belongs to the session, not VoiceView. Keep it mounted while
+          navigating to Friends/Add Friend, DMs, Community, or settings. */}
+      {isConnected && (
+        <div aria-hidden className="contents">
+          {participants
+            .filter((participant) => participant.userId !== userId && participant.stream)
+            .map((participant) => {
+              const audioStream = getRemoteAudioStream(participant.stream, {
+                knownScreenSharing: screenShareUserIds.includes(participant.userId),
+                includeScreenAudio: watchingShareUserId === participant.userId,
+              })
+              return audioStream ? (
+                <RemoteAudio
+                  key={`voice-audio-${participant.userId}`}
+                  stream={audioStream}
+                  muted={isDeafened}
+                />
+              ) : null
+            })}
+        </div>
+      )}
       {children}
     </VoiceContext.Provider>
   )

@@ -967,6 +967,58 @@ function MainLayout({
     onDisconnect: () => voice.leaveVoice(),
   } : null
 
+  const handleMuteInVoice = async (targetUserId: string) => {
+    if (!currentServerId) return
+    try {
+      await api.muteMemberInVoice(currentServerId, targetUserId, user.id)
+      showNotification('User muted in voice')
+    } catch (e) {
+      showNotification((e as Error).message, 'error')
+    }
+  }
+
+  const handleUnmuteInVoice = async (targetUserId: string) => {
+    if (!currentServerId) return
+    try {
+      await api.unmuteMemberInVoice(currentServerId, targetUserId, user.id)
+      showNotification('User unmuted in voice')
+    } catch (e) {
+      showNotification((e as Error).message, 'error')
+    }
+  }
+
+  const handleDeafenInVoice = async (targetUserId: string) => {
+    if (!currentServerId) return
+    try {
+      await api.deafenMemberInVoice(currentServerId, targetUserId, user.id)
+      showNotification('User deafened in voice')
+    } catch (e) {
+      showNotification((e as Error).message, 'error')
+    }
+  }
+
+  const handleUndeafenInVoice = async (targetUserId: string) => {
+    if (!currentServerId) return
+    try {
+      await api.undeafenMemberInVoice(currentServerId, targetUserId, user.id)
+      showNotification('User undeafened in voice')
+    } catch (e) {
+      showNotification((e as Error).message, 'error')
+    }
+  }
+
+  const handleDisconnectFromVoice = async (targetUserId: string) => {
+    if (!currentServerId) return
+    try {
+      await api.disconnectMemberFromVoice(currentServerId, targetUserId, user.id)
+      showNotification('User disconnected from voice')
+      const updated = await api.getServerMembers(currentServerId)
+      setServerMembers(withLiveSelfPresence(updated))
+    } catch (e) {
+      showNotification((e as Error).message, 'error')
+    }
+  }
+
   // Clear stale DM selection when conversation not found (e.g. after API failure or tables missing)
   useEffect(() => {
     if (!currentDMId) return
@@ -1074,35 +1126,11 @@ function MainLayout({
               showNotification((e as Error).message, 'error')
             }
           }}
-          onMuteInVoice={async (targetUserId) => {
-            if (!currentServerId) return
-            try {
-              await api.muteMemberInVoice(currentServerId, targetUserId, user.id)
-              showNotification('User muted in voice')
-            } catch (e) {
-              showNotification((e as Error).message, 'error')
-            }
-          }}
-          onDeafenInVoice={async (targetUserId) => {
-            if (!currentServerId) return
-            try {
-              await api.deafenMemberInVoice(currentServerId, targetUserId, user.id)
-              showNotification('User deafened in voice')
-            } catch (e) {
-              showNotification((e as Error).message, 'error')
-            }
-          }}
-          onDisconnectFromVoice={async (targetUserId) => {
-            if (!currentServerId) return
-            try {
-              await api.disconnectMemberFromVoice(currentServerId, targetUserId, user.id)
-              showNotification('User disconnected from voice')
-              const updated = await api.getServerMembers(currentServerId)
-              setServerMembers(withLiveSelfPresence(updated))
-            } catch (e) {
-              showNotification((e as Error).message, 'error')
-            }
-          }}
+          onMuteInVoice={handleMuteInVoice}
+          onUnmuteInVoice={handleUnmuteInVoice}
+          onDeafenInVoice={handleDeafenInVoice}
+          onUndeafenInVoice={handleUndeafenInVoice}
+          onDisconnectFromVoice={handleDisconnectFromVoice}
           onKick={handleKick}
           onBan={handleBan}
           onMessageUser={async (userId, username) => {
@@ -1341,26 +1369,11 @@ function MainLayout({
           onInvitePeople={handleInvitePeople}
           isAdminOrOwner={isAdminOrOwner}
           serverId={currentServerId ?? undefined}
-          onMuteMember={async (targetUserId) => {
-            if (!currentServerId) return
-            try {
-              await api.muteMemberInVoice(currentServerId, targetUserId, user.id)
-              showNotification('User muted in voice')
-            } catch (e) {
-              showNotification((e as Error).message, 'error')
-            }
-          }}
-          onDisconnectMember={async (targetUserId) => {
-            if (!currentServerId) return
-            try {
-              await api.disconnectMemberFromVoice(currentServerId, targetUserId, user.id)
-              showNotification('User disconnected from voice')
-              const updated = await api.getServerMembers(currentServerId)
-              setServerMembers(withLiveSelfPresence(updated))
-            } catch (e) {
-              showNotification((e as Error).message, 'error')
-            }
-          }}
+          onMuteMember={handleMuteInVoice}
+          onUnmuteMember={handleUnmuteInVoice}
+          onDeafenMember={handleDeafenInVoice}
+          onUndeafenMember={handleUndeafenInVoice}
+          onDisconnectMember={handleDisconnectFromVoice}
         />
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center text-app-muted">
@@ -1437,26 +1450,12 @@ function MainLayout({
             showNotification((e as Error).message, 'error')
           }
         }}
-        onMuteInVoice={async (targetUserId) => {
-          if (!currentServerId) return
-          try {
-            await api.muteMemberInVoice(currentServerId, targetUserId, user.id)
-            showNotification('User muted in voice')
-          } catch (e) {
-            showNotification((e as Error).message, 'error')
-          }
-        }}
-        onDisconnectFromVoice={async (targetUserId) => {
-          if (!currentServerId) return
-          try {
-            await api.disconnectMemberFromVoice(currentServerId, targetUserId, user.id)
-            showNotification('User disconnected from voice')
-            const updated = await api.getServerMembers(currentServerId)
-            setServerMembers(withLiveSelfPresence(updated))
-          } catch (e) {
-            showNotification((e as Error).message, 'error')
-          }
-        }}
+        remoteVoiceStates={voice.remoteVoiceStates}
+        onMuteInVoice={handleMuteInVoice}
+        onUnmuteInVoice={handleUnmuteInVoice}
+        onDeafenInVoice={handleDeafenInVoice}
+        onUndeafenInVoice={handleUndeafenInVoice}
+        onDisconnectFromVoice={handleDisconnectFromVoice}
       />
       </div>
       )}

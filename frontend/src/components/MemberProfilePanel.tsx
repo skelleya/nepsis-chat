@@ -252,6 +252,17 @@ export function MemberProfilePanel({
             <p className="text-sm text-app-muted mt-0.5">{statusLabel}</p>
           </div>
 
+          {member.bio?.trim() && (
+            <div className="pt-2 border-t border-app-glass/5">
+              <p className="text-[11px] uppercase tracking-wide text-app-muted font-semibold mb-1.5">
+                About Me
+              </p>
+              <p className="text-sm text-app-text/90 whitespace-pre-wrap break-words">
+                {member.bio.trim()}
+              </p>
+            </div>
+          )}
+
           {!isCurrentUser && (onMessage || onCall || onAddFriend) && (
             <div className="flex flex-col gap-1.5 pt-1 border-t border-app-glass/5">
               {onMessage && (

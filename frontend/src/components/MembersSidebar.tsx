@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { MemberProfilePanel } from './MemberProfilePanel'
 import { CoolIcon } from './icons/CoolIcon'
+import { MicIcon, MicOffIcon, HeadphonesIcon, HeadphonesOffIcon } from './icons/VoiceIcons'
 import type { Channel } from '../types'
 
 export interface ServerMember {
@@ -8,6 +9,8 @@ export interface ServerMember {
   username: string
   avatarUrl?: string
   bannerUrl?: string
+  bio?: string
+  profileType?: 'personal' | 'work'
   role: 'owner' | 'admin' | 'member'
   status: 'online' | 'offline' | 'in-voice' | 'away' | 'dnd'
   voiceChannelId?: string | null
@@ -26,7 +29,11 @@ interface MembersSidebarProps {
   onAddFriend?: (userId: string, username: string) => void
   onCall?: (userId: string, username: string, avatarUrl?: string) => void
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
+  remoteVoiceStates?: Record<string, { muted: boolean; deafened: boolean }>
   onMuteInVoice?: (userId: string) => Promise<void>
+  onUnmuteInVoice?: (userId: string) => Promise<void>
+  onDeafenInVoice?: (userId: string) => Promise<void>
+  onUndeafenInVoice?: (userId: string) => Promise<void>
   onDisconnectFromVoice?: (userId: string) => Promise<void>
   title?: string
 }
@@ -87,7 +94,11 @@ export function MembersSidebar({
   onAddFriend,
   onCall,
   onMoveToChannel,
+  remoteVoiceStates = {},
   onMuteInVoice,
+  onUnmuteInVoice,
+  onDeafenInVoice,
+  onUndeafenInVoice,
   onDisconnectFromVoice,
   title = 'Members',
 }: MembersSidebarProps) {
@@ -199,6 +210,10 @@ export function MembersSidebar({
   const avatarUrlFor = (member: ServerMember) =>
     (member.userId === currentUserId && currentUserAvatarUrl) || member.avatarUrl
 
+  const contextMenuVoiceState = contextMenu ? remoteVoiceStates[contextMenu.member.userId] : undefined
+  const isContextMemberMuted = !!contextMenuVoiceState?.muted
+  const isContextMemberDeafened = !!contextMenuVoiceState?.deafened
+
   const roleBadge = (role: string) => {
     if (role === 'owner') {
       return (
@@ -283,15 +298,19 @@ export function MembersSidebar({
                 type="button"
                 title={member.username}
                 onClick={() => setMinimized(false)}
-                className="relative w-9 h-9 rounded-full overflow-hidden bg-app-accent flex items-center justify-center text-white text-xs font-semibold ring-1 ring-app-glass/10 hover:ring-app-accent/50 transition-all"
+                className="relative w-9 h-9 rounded-full bg-app-accent flex items-center justify-center text-white text-xs font-semibold ring-1 ring-app-glass/10 hover:ring-app-accent/50 transition-all"
               >
-                {avatar ? (
-                  <img src={avatar} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  member.username.charAt(0).toUpperCase()
-                )}
+                <div className="w-full h-full rounded-full overflow-hidden">
+                  {avatar ? (
+                    <img src={avatar} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      {member.username.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
                 <span
-                  className={`absolute bottom-0 right-0 w-2 h-2 rounded-full border border-app-channel ${statusDotClass(status)}`}
+                  className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-app-channel ${statusDotClass(status)}`}
                 />
               </button>
             )
@@ -416,16 +435,38 @@ export function MembersSidebar({
           )}
           {canMuteOrDisconnect(contextMenu.member) && (
             <>
-              <button
-                onClick={async () => {
-                  await onMuteInVoice?.(contextMenu.member.userId)
-                  setContextMenu(null)
-                }}
-                className="w-full px-3 py-2 text-left text-sm text-app-text hover:bg-app-accent hover:text-white flex items-center gap-2"
-              >
-                <CoolIcon name="volume-off" size={14} />
-                Mute in Voice
-              </button>
+              {(isContextMemberMuted ? onUnmuteInVoice : onMuteInVoice) && (
+                <button
+                  onClick={async () => {
+                    if (isContextMemberMuted) {
+                      await onUnmuteInVoice?.(contextMenu.member.userId)
+                    } else {
+                      await onMuteInVoice?.(contextMenu.member.userId)
+                    }
+                    setContextMenu(null)
+                  }}
+                  className="w-full px-3 py-2 text-left text-sm text-app-text hover:bg-app-accent hover:text-white flex items-center gap-2"
+                >
+                  {isContextMemberMuted ? <MicIcon size={14} /> : <MicOffIcon size={14} />}
+                  {isContextMemberMuted ? 'Unmute in Voice' : 'Mute in Voice'}
+                </button>
+              )}
+              {(isContextMemberDeafened ? onUndeafenInVoice : onDeafenInVoice) && (
+                <button
+                  onClick={async () => {
+                    if (isContextMemberDeafened) {
+                      await onUndeafenInVoice?.(contextMenu.member.userId)
+                    } else {
+                      await onDeafenInVoice?.(contextMenu.member.userId)
+                    }
+                    setContextMenu(null)
+                  }}
+                  className="w-full px-3 py-2 text-left text-sm text-app-text hover:bg-app-accent hover:text-white flex items-center gap-2"
+                >
+                  {isContextMemberDeafened ? <HeadphonesIcon size={14} /> : <HeadphonesOffIcon size={14} />}
+                  {isContextMemberDeafened ? 'Undeafen in Voice' : 'Deafen in Voice'}
+                </button>
+              )}
               <button
                 onClick={async () => {
                   await onDisconnectFromVoice?.(contextMenu.member.userId)

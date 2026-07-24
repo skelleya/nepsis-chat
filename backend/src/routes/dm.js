@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { randomUUID } from 'crypto'
 import supabase from '../db/supabase.js'
+import { presentationFromProfile } from '../utils/profiles.js'
 
 export const dmRouter = Router()
 
@@ -13,9 +14,97 @@ function isTableMissingError(err) {
   return code === '42P01' || /relation.*does not exist/.test(msg) || /dm_(conversations|participants|messages).*does not exist/.test(msg)
 }
 
+function isFriendsTableMissingError(err) {
+  if (!err) return false
+  const code = err.code || err?.error?.code
+  const msg = (err.message || err?.error?.message || '').toLowerCase()
+  return code === '42P01' || /relation.*does not exist/.test(msg) || /friend_(requests|profile_settings).*does not exist/.test(msg)
+}
+
 function presentUser(user, fallbackId) {
   const displayName = (user?.display_name && user.display_name.trim()) || user?.username || 'Unknown'
   return { id: user?.id || fallbackId, username: displayName, avatar_url: user?.avatar_url || null }
+}
+
+async function loadFriendPresentationMap(viewerId, targetIds, fallbackUserMap) {
+  const uniqueIds = [...new Set((targetIds || []).filter((id) => id && id !== viewerId))]
+  if (uniqueIds.length === 0) return {}
+
+  const [{ data: outbound, error: outboundError }, { data: inbound, error: inboundError }] = await Promise.all([
+    supabase
+      .from('friend_requests')
+      .select('addressee_id, addressee_profile')
+      .eq('requester_id', viewerId)
+      .eq('status', 'accepted')
+      .in('addressee_id', uniqueIds),
+    supabase
+      .from('friend_requests')
+      .select('requester_id, requester_profile')
+      .eq('addressee_id', viewerId)
+      .eq('status', 'accepted')
+      .in('requester_id', uniqueIds),
+  ])
+  if (outboundError || inboundError) {
+    if (isFriendsTableMissingError(outboundError || inboundError)) return {}
+    throw outboundError || inboundError
+  }
+
+  const friendMeta = {}
+  for (const row of outbound || []) {
+    friendMeta[row.addressee_id] = {
+      theirProfile: row.addressee_profile || 'personal',
+    }
+  }
+  for (const row of inbound || []) {
+    friendMeta[row.requester_id] = {
+      theirProfile: row.requester_profile || 'personal',
+    }
+  }
+
+  const friendIds = Object.keys(friendMeta)
+  if (friendIds.length === 0) return {}
+
+  let settingsByFriend = {}
+  try {
+    const { data: settings } = await supabase
+      .from('friend_profile_settings')
+      .select('friend_id, friendship_profile')
+      .eq('user_id', viewerId)
+      .in('friend_id', friendIds)
+    for (const row of settings || []) {
+      settingsByFriend[row.friend_id] = row
+    }
+  } catch {
+    settingsByFriend = {}
+  }
+
+  const { data: profiles, error: profilesError } = await supabase
+    .from('user_profiles')
+    .select('user_id, profile_type, display_name, bio, avatar_url, banner_url')
+    .in('user_id', friendIds)
+  if (profilesError) throw profilesError
+
+  const profilesByUser = {}
+  for (const profile of profiles || []) {
+    if (!profilesByUser[profile.user_id]) profilesByUser[profile.user_id] = {}
+    profilesByUser[profile.user_id][profile.profile_type] = profile
+  }
+
+  const result = {}
+  for (const friendId of friendIds) {
+    const showType = settingsByFriend[friendId]?.friendship_profile || friendMeta[friendId]?.theirProfile || 'personal'
+    const profile = profilesByUser[friendId]?.[showType] || profilesByUser[friendId]?.personal
+    const presented = presentationFromProfile(profile, fallbackUserMap.get(friendId))
+    result[friendId] = {
+      username: presented.displayName,
+      avatar_url: presented.avatarUrl,
+      banner_url: presented.bannerUrl,
+      bio: presented.bio,
+      profile_type: presented.profileType,
+    }
+  }
+
+  return result
 }
 
 async function getConversationForUser(conversationId, viewerId) {
@@ -37,17 +126,22 @@ async function getConversationForUser(conversationId, viewerId) {
   const userIds = rows.map((row) => row.user_id)
   const { data: users, error: usersError } = await supabase
     .from('users')
-    .select('id, username, display_name, avatar_url')
+    .select('id, username, display_name, avatar_url, banner_url')
     .in('id', userIds)
   if (usersError) throw usersError
   const userMap = new Map((users || []).map((user) => [user.id, user]))
   const members = rows.map((row) => ({ ...presentUser(userMap.get(row.user_id), row.user_id), joined_at: row.joined_at }))
   const other = members.find((member) => member.id !== viewerId)
+  const friendPresentationMap = conversation.is_group || !other
+    ? {}
+    : await loadFriendPresentationMap(viewerId, [other.id], userMap)
   return {
     ...conversation,
     is_group: !!conversation.is_group,
     participants: members,
-    other_user: conversation.is_group ? undefined : other,
+    other_user: conversation.is_group || !other
+      ? undefined
+      : { ...other, ...(friendPresentationMap[other.id] || {}) },
   }
 }
 
@@ -100,7 +194,7 @@ dmRouter.get('/conversations', async (req, res) => {
 
     const { data: users } = await supabase
       .from('users')
-      .select('id, username, display_name, avatar_url')
+      .select('id, username, display_name, avatar_url, banner_url')
       .in('id', participantIds)
 
     const userMap = new Map((users || []).map((entry) => [entry.id, entry]))
@@ -120,6 +214,15 @@ dmRouter.get('/conversations', async (req, res) => {
       .in('id', convIds)
       .order('updated_at', { ascending: false })
 
+    const directOtherIds = (convs || [])
+      .filter((conversation) => !conversation.is_group)
+      .map((conversation) => {
+        const members = participantsByConv.get(conversation.id) || []
+        return members.find((member) => member.id !== userId)?.id || null
+      })
+      .filter(Boolean)
+    const friendPresentationMap = await loadFriendPresentationMap(userId, directOtherIds, userMap)
+
     const result = (convs || []).map((c) => {
       const members = participantsByConv.get(c.id) || []
       const other = members.find((member) => member.id !== userId)
@@ -127,7 +230,9 @@ dmRouter.get('/conversations', async (req, res) => {
         ...c,
         is_group: !!c.is_group,
         participants: members,
-        other_user: c.is_group ? undefined : other,
+        other_user: c.is_group || !other
+          ? undefined
+          : { ...other, ...(friendPresentationMap[other.id] || {}) },
       }
     })
 

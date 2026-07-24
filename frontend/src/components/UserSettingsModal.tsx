@@ -385,7 +385,7 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
     ;(async () => {
       const [account, profiles] = await Promise.all([
         api.getAccount(user.id).catch(() => null),
-        api.getUserProfiles(user.id).catch(() => []),
+        api.getUserProfiles(user.id, user.id).catch(() => []),
       ])
       if (cancelled) return
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import gsap from 'gsap'
 
@@ -21,7 +21,7 @@ interface SettingsDropdownProps {
 }
 
 /** Custom select with GSAP open/close — replaces native `<select>` in settings. */
-export function SettingsDropdown({
+export const SettingsDropdown = memo(function SettingsDropdown({
   value,
   options,
   onChange,
@@ -38,9 +38,14 @@ export function SettingsDropdown({
   const [mounted, setMounted] = useState(false)
   const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number; openUp: boolean } | null>(null)
   const closingRef = useRef(false)
+  const openUpRef = useRef(false)
+  const animatedOpenRef = useRef(false)
+  const closeRef = useRef<() => void>(() => {})
+  const updatePositionRef = useRef<() => void>(() => {})
 
-  const selected = options.find((o) => o.value === value)
-  const label = selected?.label ?? placeholder
+  const selectedLabel = useMemo(() => {
+    return options.find((option) => option.value === value)?.label ?? placeholder
+  }, [options, placeholder, value])
 
   const updatePosition = useCallback(() => {
     const trigger = triggerRef.current
@@ -50,11 +55,24 @@ export function SettingsDropdown({
     const spaceBelow = window.innerHeight - rect.bottom - 8
     const openUp = spaceBelow < menuHeight && rect.top > spaceBelow
     const width = Math.max(rect.width, fullWidth ? rect.width : 148)
-    setMenuPos({
+    const next = {
       top: openUp ? rect.top - 6 : rect.bottom + 6,
       left: Math.min(rect.left, window.innerWidth - width - 8),
       width,
       openUp,
+    }
+    openUpRef.current = openUp
+    setMenuPos((previous) => {
+      if (
+        previous &&
+        previous.top === next.top &&
+        previous.left === next.left &&
+        previous.width === next.width &&
+        previous.openUp === next.openUp
+      ) {
+        return previous
+      }
+      return next
     })
   }, [fullWidth, options.length])
 
@@ -62,6 +80,7 @@ export function SettingsDropdown({
     if (!mounted || closingRef.current) return
     const menu = menuRef.current
     if (!menu) {
+      animatedOpenRef.current = false
       setOpen(false)
       setMounted(false)
       return
@@ -70,21 +89,26 @@ export function SettingsDropdown({
     gsap.killTweensOf(menu)
     gsap.to(menu, {
       opacity: 0,
-      y: menuPos?.openUp ? 6 : -6,
+      y: openUpRef.current ? 6 : -6,
       scale: 0.96,
       duration: 0.16,
       ease: 'power2.in',
       onComplete: () => {
         closingRef.current = false
+        animatedOpenRef.current = false
         setOpen(false)
         setMounted(false)
       },
     })
-  }, [mounted, menuPos?.openUp])
+  }, [mounted])
+
+  closeRef.current = close
+  updatePositionRef.current = updatePosition
 
   const openMenu = () => {
     if (disabled || closingRef.current) return
     updatePosition()
+    animatedOpenRef.current = false
     setOpen(true)
     setMounted(true)
   }
@@ -93,6 +117,10 @@ export function SettingsDropdown({
     if (!mounted || !open) return
     const menu = menuRef.current
     if (!menu || !menuPos) return
+    // Parent settings tabs (especially Voice & Video mic meter) re-render often.
+    // Only play the enter animation once per open cycle.
+    if (animatedOpenRef.current) return
+    animatedOpenRef.current = true
     gsap.killTweensOf(menu)
     gsap.fromTo(
       menu,
@@ -110,9 +138,6 @@ export function SettingsDropdown({
         ease: 'power3.out',
       }
     )
-    return () => {
-      gsap.killTweensOf(menu)
-    }
   }, [mounted, open, menuPos])
 
   useEffect(() => {
@@ -120,34 +145,40 @@ export function SettingsDropdown({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
-        close()
+        closeRef.current()
         triggerRef.current?.focus()
       }
     }
-    const onScroll = () => updatePosition()
-    const onResize = () => updatePosition()
+    const onScroll = (event: Event) => {
+      const target = event.target
+      if (target instanceof Node && menuRef.current?.contains(target)) return
+      updatePositionRef.current()
+    }
+    const onResize = () => updatePositionRef.current()
     window.addEventListener('keydown', onKey)
     window.addEventListener('resize', onResize)
-    // Keep the portaled list aligned while the settings panel scrolls.
     document.addEventListener('scroll', onScroll, true)
     return () => {
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('resize', onResize)
       document.removeEventListener('scroll', onScroll, true)
     }
-  }, [open, close, updatePosition])
+  }, [open])
 
   useEffect(() => {
     if (!open) return
     const onPointer = (e: MouseEvent) => {
-      const t = e.target
-      if (!(t instanceof Node)) return
-      if (triggerRef.current?.contains(t) || menuRef.current?.contains(t)) return
-      close()
+      const target = e.target
+      if (!(target instanceof Node)) return
+      if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return
+      closeRef.current()
     }
-    document.addEventListener('mousedown', onPointer)
-    return () => document.removeEventListener('mousedown', onPointer)
-  }, [open, close])
+    const timer = window.setTimeout(() => document.addEventListener('mousedown', onPointer), 0)
+    return () => {
+      window.clearTimeout(timer)
+      document.removeEventListener('mousedown', onPointer)
+    }
+  }, [open])
 
   const pick = (next: string) => {
     if (next !== value) onChange(next)
@@ -172,7 +203,7 @@ export function SettingsDropdown({
             : 'min-w-[148px] max-w-[200px] px-2.5 py-1.5 rounded-md'
         } ${open ? 'border-app-accent' : ''}`}
       >
-        <span className="flex-1 min-w-0 truncate">{label}</span>
+        <span className="flex-1 min-w-0 truncate">{selectedLabel}</span>
         <svg
           width="12"
           height="12"
@@ -233,4 +264,4 @@ export function SettingsDropdown({
       )}
     </div>
   )
-}
+})

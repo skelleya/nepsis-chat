@@ -929,6 +929,54 @@ serversRouter.post('/:id/members/:userId/mute-voice', async (req, res) => {
   }
 })
 
+// Unmute user in voice (owner/admin only, target must be in voice on this server)
+serversRouter.post('/:id/members/:userId/unmute-voice', async (req, res) => {
+  const { id: serverId, userId: targetUserId } = req.params
+  const { adminUserId } = req.body
+  if (!adminUserId) return res.status(400).json({ error: 'adminUserId required' })
+
+  try {
+    const { data: admin } = await supabase
+      .from('server_members')
+      .select('role')
+      .eq('server_id', serverId)
+      .eq('user_id', adminUserId)
+      .single()
+
+    if (!admin || !['owner', 'admin'].includes(admin.role)) {
+      return res.status(403).json({ error: 'Only owner or admin can unmute users' })
+    }
+
+    const { data: target } = await supabase
+      .from('server_members')
+      .select('role')
+      .eq('server_id', serverId)
+      .eq('user_id', targetUserId)
+      .single()
+
+    if (!target) return res.status(404).json({ error: 'User not in server' })
+    if (target.role === 'owner') return res.status(403).json({ error: 'Cannot unmute server owner' })
+    if (admin.role === 'admin' && target.role === 'admin') {
+      return res.status(403).json({ error: 'Admins cannot unmute other admins' })
+    }
+
+    const voiceNs = req.app.get('voiceNamespace')
+    if (voiceNs) {
+      for (const [, socket] of voiceNs.sockets) {
+        if (socket.userId === targetUserId) {
+          socket.emit('admin-unmute')
+          break
+        }
+      }
+    }
+
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Unmute voice error:', err)
+    res.status(500).json({ error: 'Failed to unmute user' })
+  }
+})
+
 // Server-deafen user in voice (owner/admin only)
 serversRouter.post('/:id/members/:userId/deafen-voice', async (req, res) => {
   const { id: serverId, userId: targetUserId } = req.params
@@ -974,6 +1022,54 @@ serversRouter.post('/:id/members/:userId/deafen-voice', async (req, res) => {
   } catch (err) {
     console.error('Deafen voice error:', err)
     res.status(500).json({ error: 'Failed to deafen user' })
+  }
+})
+
+// Server-undeafen user in voice (owner/admin only)
+serversRouter.post('/:id/members/:userId/undeafen-voice', async (req, res) => {
+  const { id: serverId, userId: targetUserId } = req.params
+  const { adminUserId } = req.body
+  if (!adminUserId) return res.status(400).json({ error: 'adminUserId required' })
+
+  try {
+    const { data: admin } = await supabase
+      .from('server_members')
+      .select('role')
+      .eq('server_id', serverId)
+      .eq('user_id', adminUserId)
+      .single()
+
+    if (!admin || !['owner', 'admin'].includes(admin.role)) {
+      return res.status(403).json({ error: 'Only owner or admin can undeafen users' })
+    }
+
+    const { data: target } = await supabase
+      .from('server_members')
+      .select('role')
+      .eq('server_id', serverId)
+      .eq('user_id', targetUserId)
+      .single()
+
+    if (!target) return res.status(404).json({ error: 'User not in server' })
+    if (target.role === 'owner') return res.status(403).json({ error: 'Cannot undeafen server owner' })
+    if (admin.role === 'admin' && target.role === 'admin') {
+      return res.status(403).json({ error: 'Admins cannot undeafen other admins' })
+    }
+
+    const voiceNs = req.app.get('voiceNamespace')
+    if (voiceNs) {
+      for (const [, socket] of voiceNs.sockets) {
+        if (socket.userId === targetUserId) {
+          socket.emit('admin-undeafen')
+          break
+        }
+      }
+    }
+
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Undeafen voice error:', err)
+    res.status(500).json({ error: 'Failed to undeafen user' })
   }
 })
 
