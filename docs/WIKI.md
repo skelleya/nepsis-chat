@@ -827,3 +827,16 @@ Test study:
 - Other links still use the Open Graph card.
 - Electron `0.2.3`. Tag `v0.2.3`.
 
+### Voice floating cameras in text/DM (0.2.4) (2026-07-24)
+
+- While in voice but viewing text/DM/Friends, a movable corner PiP shows live cameras (speaking highlighted).
+- Drag snaps to any corner; click returns to the voice channel.
+- Electron `0.2.4`. Tag `v0.2.4`.
+
+Test study:
+
+1. Join voice with cameras on → open a text channel → PiP appears with camera tiles.
+2. Drag PiP to each corner; reload — corner preference persists.
+3. Click Open / a tile → VoiceView returns.
+4. Full VoiceView open → PiP hidden.
+

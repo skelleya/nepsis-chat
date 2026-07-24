@@ -8,6 +8,16 @@ export type PatchNote = {
 /** In-app patch notes shown under User Settings → Help & Support. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.2.4',
+    date: '2026-07-24',
+    title: 'Floating voice cameras in chat',
+    highlights: [
+      'While in voice and browsing text or DMs, see live cameras in a corner panel.',
+      'Drag the panel to any corner; click Open to return to the voice channel.',
+      'Speaking users get a green highlight on their camera tile.',
+    ],
+  },
+  {
     version: '0.2.3',
     date: '2026-07-24',
     title: 'YouTube video embeds',
