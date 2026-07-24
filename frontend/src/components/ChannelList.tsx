@@ -95,6 +95,8 @@ interface ChannelListProps {
   channelMentionCounts?: Record<string, number>
   onSelectDM?: (conversationId: string) => void
   onCreateGroupDM?: () => void
+  minimized?: boolean
+  onToggleMinimized?: () => void
   // Admin: drop user onto voice channel to move them
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
   onMuteInVoice?: (userId: string) => Promise<void>
@@ -170,6 +172,13 @@ function categoryAwareCollisionDetection(args: Parameters<typeof closestCenter>[
     const filtered = [...args.droppableContainers].filter((c) => {
       const idStr = String(c.id)
       return idStr.startsWith(CATEGORY_PREFIX) && idStr !== activeStr
+    })
+    return closestCenter({ ...args, droppableContainers: filtered })
+  }
+  if (activeStr.startsWith(CHANNEL_PREFIX)) {
+    const filtered = [...args.droppableContainers].filter((container) => {
+      const id = String(container.id)
+      return id.startsWith(CHANNEL_PREFIX) || id.startsWith(CATEGORY_PREFIX)
     })
     return closestCenter({ ...args, droppableContainers: filtered })
   }
@@ -641,6 +650,7 @@ function SortableChannelItem({
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `${CHANNEL_PREFIX}${channel.id}`,
+    disabled: !canEdit,
   })
   const { setNodeRef: setDropRef, isOver } = useDroppable({
     id: channel.type === 'voice' ? `${VOICE_DROP_PREFIX}${channel.id}` : `no-drop-${channel.id}`,
@@ -992,6 +1002,7 @@ function SortableCategoryHeader({
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `${CATEGORY_PREFIX}${category.id}`,
+    disabled: !canEdit,
   })
   const { active, over } = useDndContext()
   const activeStr = String(active?.id ?? '')
@@ -1027,7 +1038,7 @@ function SortableCategoryHeader({
       className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg group cursor-pointer ${isDragging ? 'opacity-50' : ''} ${isOver ? 'bg-app-accent/15' : ''}`}
       onClick={onToggle}
     >
-      <button
+      {canEdit && <button
         {...attributes}
         {...listeners}
         onClick={(e) => e.stopPropagation()}
@@ -1037,7 +1048,7 @@ function SortableCategoryHeader({
         <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
           <path d="M8 6h2v2H8V6zm0 5h2v2H8v-2zm0 5h2v2H8v-2zm5-10h2v2h-2V6zm0 5h2v2h-2v-2zm0 5h2v2h-2v-2z" />
         </svg>
-      </button>
+      </button>}
       <svg
         width="10"
         height="10"
@@ -1050,7 +1061,7 @@ function SortableCategoryHeader({
         {category.name}
       </span>
       <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 transition-all">
-        <button
+        {canEdit && <button
           onClick={(e) => {
             e.stopPropagation()
             onAddTextChannel(category.id)
@@ -1059,8 +1070,8 @@ function SortableCategoryHeader({
           title="Create text channel"
         >
           <ChatIcon />
-        </button>
-        <button
+        </button>}
+        {canEdit && <button
           onClick={(e) => {
             e.stopPropagation()
             onAddVoiceChannel(category.id)
@@ -1069,7 +1080,7 @@ function SortableCategoryHeader({
           title="Create voice channel"
         >
           <VoiceIcon />
-        </button>
+        </button>}
         {canEdit && (
           <div className="relative">
             <button
@@ -1301,6 +1312,8 @@ export function ChannelList({
   channelMentionCounts = {},
   onSelectDM,
   onCreateGroupDM,
+  minimized = false,
+  onToggleMinimized,
 }: ChannelListProps) {
   const { user } = useApp()
   const allVoiceChannels = channels.filter((c) => c.type === 'voice')
@@ -1402,20 +1415,46 @@ export function ChannelList({
         const channelId = activeStr.slice(CHANNEL_PREFIX.length)
         const catId = overStr.slice(CATEGORY_PREFIX.length)
         const categoryId = catId === UNCATEGORIZED_ID ? null : catId
-        onUpdateChannel?.(channelId, { categoryId })
+        const targetChannels = channels.filter((channel) =>
+          categoryId ? channel.categoryId === categoryId : !channel.categoryId
+        )
+        const nextOrder = targetChannels.length
+          ? Math.max(...targetChannels.map((channel) => channel.order)) + 1
+          : 0
+        onUpdateChannel?.(channelId, { categoryId, order: nextOrder })
         return
       }
 
-      // Reorder channels within category
+      // Reorder channels, including dropping directly into another category.
       if (activeStr.startsWith(CHANNEL_PREFIX) && overStr.startsWith(CHANNEL_PREFIX)) {
         const channelId = activeStr.slice(CHANNEL_PREFIX.length)
         const channel = channels.find((c) => c.id === channelId)
-        if (!channel || !onReorderChannels) return
+        const targetId = overStr.slice(CHANNEL_PREFIX.length)
+        const target = channels.find((candidate) => candidate.id === targetId)
+        if (!channel || !target || !onReorderChannels) return
+        if ((channel.categoryId ?? null) !== (target.categoryId ?? null)) {
+          if (!onUpdateChannel) return
+          const targetChannels = channels
+            .filter((candidate) => (candidate.categoryId ?? null) === (target.categoryId ?? null))
+            .sort((a, b) => a.order - b.order)
+          const insertAt = Math.max(0, targetChannels.findIndex((candidate) => candidate.id === target.id))
+          const moved = { ...channel, categoryId: target.categoryId, order: insertAt }
+          const reordered = [...targetChannels]
+          reordered.splice(insertAt, 0, moved)
+          void (async () => {
+            await onUpdateChannel?.(channel.id, {
+              categoryId: target.categoryId ?? null,
+              order: insertAt,
+            })
+            await onReorderChannels(reordered.map((item, index) => ({ id: item.id, order: index })))
+          })()
+          return
+        }
         const catChannels = channel.categoryId
           ? channels.filter((c) => c.categoryId === channel.categoryId).sort((a, b) => a.order - b.order)
           : uncategorizedChannels
         const oldIndex = catChannels.findIndex((c) => c.id === channelId)
-        const newIndex = catChannels.findIndex((c) => `${CHANNEL_PREFIX}${c.id}` === overStr)
+        const newIndex = catChannels.findIndex((c) => c.id === target.id)
         if (oldIndex !== -1 && newIndex !== -1) {
           const reordered = arrayMove(catChannels, oldIndex, newIndex)
           onReorderChannels(reordered.map((ch, i) => ({ id: ch.id, order: i })))
@@ -1424,6 +1463,64 @@ export function ChannelList({
     },
     [channels, categories, uncategorizedChannels, onReorderChannels, onReorderCategories, onUpdateChannel, onMoveToChannel]
   )
+
+  if (minimized) {
+    const orderedChannels = [...channels].sort((a, b) => {
+      const aCategory = categories.find((category) => category.id === a.categoryId)?.order ?? 999
+      const bCategory = categories.find((category) => category.id === b.categoryId)?.order ?? 999
+      return aCategory - bCategory || a.order - b.order
+    })
+    const totalDMUnread = Object.values(dmUnreadCounts).reduce((sum, count) => sum + count, 0)
+    return (
+      <div className="h-full min-h-0 w-14 bg-app-channel flex flex-col items-center border-r border-app-glass/[0.06]">
+        <button
+          type="button"
+          onClick={onToggleMinimized}
+          className="w-10 h-10 mt-1 rounded-xl flex items-center justify-center text-app-muted hover:text-app-text hover:bg-app-hover/60"
+          title="Expand channels"
+          aria-label="Expand channels"
+        >
+          <CoolIcon name="chevron-right" size={18} />
+        </button>
+        {onSelectDM && dmConversations.length > 0 && (
+          <button
+            type="button"
+            onClick={() => onSelectDM(dmConversations[0].id)}
+            className="relative w-10 h-10 rounded-xl flex items-center justify-center text-app-muted hover:text-app-text hover:bg-app-hover/60"
+            title="Direct messages"
+          >
+            <CoolIcon name="chat" size={18} />
+            {totalDMUnread > 0 && (
+              <span className="absolute top-0.5 right-0.5 min-w-3.5 h-3.5 px-1 rounded-full bg-app-online text-[9px] text-white font-bold">
+                {totalDMUnread > 9 ? '9+' : totalDMUnread}
+              </span>
+            )}
+          </button>
+        )}
+        <div className="w-8 h-px bg-app-glass/[0.07] my-1" />
+        <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin flex flex-col items-center gap-1 px-1">
+          {orderedChannels.map((channel) => (
+            <button
+              key={channel.id}
+              type="button"
+              onClick={() => onSelectChannel(channel)}
+              className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+                currentChannelId === channel.id
+                  ? 'bg-app-accent text-white'
+                  : 'text-app-muted hover:text-app-text hover:bg-app-hover/60'
+              }`}
+              title={`${channel.type === 'voice' ? 'Voice' : 'Text'}: ${channel.name}`}
+            >
+              {channel.type === 'voice' ? <VoiceIcon /> : channel.type === 'rules' ? <RulesIcon /> : <ChatIcon />}
+              {voiceConnection?.channelId === channel.id && (
+                <span className="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-app-online ring-2 ring-app-channel" />
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <>
@@ -1446,7 +1543,7 @@ export function ChannelList({
               if (hasNoServers) onOpenCommunity?.()
               else setShowServerMenu(!showServerMenu)
             }}
-            className="w-full h-12 px-4 flex items-center justify-between border-b border-app-dark/80 text-app-text font-semibold shadow-sm hover:bg-app-hover/50 transition-colors"
+            className={`w-full h-12 pl-4 ${onToggleMinimized ? 'pr-16' : 'pr-4'} flex items-center justify-between border-b border-app-dark/80 text-app-text font-semibold shadow-sm hover:bg-app-hover/50 transition-colors`}
           >
             <span className="font-display truncate">
               {isFriendsView ? 'Friends' : hasNoServers ? 'Explore' : (serverName ?? 'Server')}
@@ -1463,6 +1560,21 @@ export function ChannelList({
               </svg>
             )}
           </button>
+          {onToggleMinimized && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                setShowServerMenu(false)
+                onToggleMinimized()
+              }}
+              className="hidden lg:flex absolute right-8 top-2 w-8 h-8 rounded-lg items-center justify-center text-app-muted hover:text-app-text hover:bg-app-hover z-10"
+              title="Collapse channels"
+              aria-label="Collapse channels"
+            >
+              <CoolIcon name="chevron-left" size={16} />
+            </button>
+          )}
 
           {/* Server dropdown — portaled so it isn't trapped/transparent in the rail */}
           {shouldRenderServerMenu && !hasNoServers && !isFriendsView && serverMenuPos &&
@@ -1709,7 +1821,7 @@ export function ChannelList({
                   voiceUsers={voiceUsers}
                   channelUnreadCounts={channelUnreadCounts}
                   channelMentionCounts={channelMentionCounts}
-                  canEdit={isOwner}
+                  canEdit={isAdminOrOwner}
                   canModerate={isAdminOrOwner}
                   currentUserId={user?.id}
                   currentUserRole={currentUserRole}
@@ -1746,7 +1858,7 @@ export function ChannelList({
                   voiceUsers={voiceUsers}
                   channelUnreadCounts={channelUnreadCounts}
                   channelMentionCounts={channelMentionCounts}
-                  canEdit={isOwner}
+                  canEdit={isAdminOrOwner}
                   canModerate={isAdminOrOwner}
                   currentUserId={user?.id}
                   currentUserRole={currentUserRole}
