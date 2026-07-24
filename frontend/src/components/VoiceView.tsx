@@ -43,11 +43,28 @@ function useAttachStream(videoRef: RefObject<HTMLVideoElement | null>, stream: M
     const play = () => {
       el.play().catch(() => { /* autoplay may need gesture */ })
     }
+    let resizeRaf: number | null = null
     play()
     const onUnmute = () => play()
     stream.getVideoTracks().forEach((t) => t.addEventListener('unmute', onUnmute))
+    const resizeObserver = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(() => {
+          if (resizeRaf !== null) cancelAnimationFrame(resizeRaf)
+          resizeRaf = requestAnimationFrame(() => {
+            resizeRaf = null
+            play()
+          })
+        })
+      : null
+    resizeObserver?.observe(el.parentElement || el)
     return () => {
       stream.getVideoTracks().forEach((t) => t.removeEventListener('unmute', onUnmute))
+      resizeObserver?.disconnect()
+      if (resizeRaf !== null) cancelAnimationFrame(resizeRaf)
+      if (el.srcObject === stream) {
+        el.pause()
+        el.srcObject = null
+      }
     }
   }, [videoRef, stream])
 }
@@ -873,9 +890,10 @@ export function VoiceView({
     return (
       <div className="flex-1 overflow-auto p-3 sm:p-5 min-h-0">
         <div
-          className={`grid w-full mx-auto gap-3 sm:gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))] ${
+          className={`voice-participant-grid grid w-full mx-auto gap-3 sm:gap-4 ${
             isAlone ? 'max-w-2xl' : 'max-w-7xl'
           }`}
+          style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, var(--voice-grid-min)), 1fr))' }}
         >
           {allParticipants.map((p) => (
             <ParticipantCard key={p.userId} {...cardProps(p, { large: isAlone })} />
@@ -890,8 +908,8 @@ export function VoiceView({
       return (
         <div className="flex-1 flex flex-col min-h-0">
           {renderFilmstrip()}
-          <div className="flex-1 flex flex-col md:flex-row gap-2.5 p-2.5 min-h-0 overflow-auto">
-            <div className="md:flex-[1.65] min-w-0 min-h-[260px]">
+          <div className="voice-dual-focus flex-1 flex flex-col gap-2.5 p-2.5 min-h-0 overflow-auto">
+            <div className="flex-[1.65] min-w-0 min-h-[220px]">
               <StageVideo
                 stream={watchingStream}
                 muted
@@ -903,7 +921,7 @@ export function VoiceView({
                 onClose={() => setWatchingShareUserId(null)}
               />
             </div>
-            <div className="md:flex-1 min-w-0 min-h-[220px] md:min-h-0">
+            <div className="flex-1 min-w-0 min-h-[200px]">
               <StageVideo
                 stream={maximizedCameraStream}
                 muted
@@ -991,7 +1009,7 @@ export function VoiceView({
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-app-darker min-h-0">
+    <div className="voice-main-container flex-1 flex flex-col bg-app-darker min-h-0">
       <div className="h-12 px-4 flex items-center justify-between border-b border-app-glass/[0.06] bg-app-dark/85 backdrop-blur shrink-0">
         <div className="flex items-center">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-app-muted">

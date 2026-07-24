@@ -817,6 +817,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await loadChannels(currentServerId)
       } catch (err) {
         console.error('Failed to update channel:', err)
+        throw err
       }
     },
     [currentServerId, loadChannels]

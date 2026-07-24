@@ -241,6 +241,20 @@ When `VITE_API_URL` is set, voice uses Socket.io instead of BroadcastChannel. IC
 - DM call overlays show each party’s own locally measured WebRTC RTT.
 - `GifPicker.tsx` provides debounced Tenor search; selected GIFs are imported by the backend before being attached to a server or DM message.
 
+### Collapsible rails and adaptive video
+
+- The desktop channel rail persists `nepsis_channel_rail_minimized` and switches between 288px and 56px. Mobile continues to use the full-width slide-over.
+- Minimized mode keeps channel type icons, selection, voice connection state, DM unread count, and compact avatar/mute/deafen/settings controls available.
+- `VoiceView` is an inline-size container. Gallery columns and dual camera/screen stages respond to actual content width after either sidebar changes—not only viewport breakpoints.
+- Video elements keep stable participant keys/streams; a `ResizeObserver` retries playback after rail transitions without remounting media.
+
+### Channel organization
+
+- Category headers can be dragged above/below Text/Voice sections.
+- Channels can be dropped directly onto another category header or a channel in another category.
+- Voice-user drop zones are ignored while dragging channels, preventing snap-back over voice rows.
+- Owner/admin gear menus expose rename/delete; deleting a category keeps its channels under uncategorized Channels.
+
 ---
 
 ## Group direct messages

@@ -295,8 +295,36 @@ function MainLayout({
   const currentDisplayName = (user.display_name && user.display_name.trim()) || user.username
   const [showServerSettings, setShowServerSettings] = useState(false)
   const [channelNavOpen, setChannelNavOpen] = useState(false)
+  const [channelRailMinimized, setChannelRailMinimized] = useState(() => {
+    try {
+      return localStorage.getItem('nepsis_channel_rail_minimized') === '1'
+    } catch {
+      return false
+    }
+  })
+  const [desktopLayout, setDesktopLayout] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
+  )
   const [membersOpen, setMembersOpen] = useState(false)
   const [groupDMModal, setGroupDMModal] = useState<{ mode: 'create' | 'add'; conversationId?: string } | null>(null)
+
+  const toggleChannelRail = useCallback(() => {
+    setChannelRailMinimized((current) => {
+      const next = !current
+      try {
+        localStorage.setItem('nepsis_channel_rail_minimized', next ? '1' : '0')
+      } catch { /* ignore */ }
+      return next
+    })
+  }, [])
+
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 1024px)')
+    const update = () => setDesktopLayout(query.matches)
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+  const desktopChannelMinimized = desktopLayout && channelRailMinimized
   const [blockedRevision, setBlockedRevision] = useState(0)
   const savedView = (() => {
     try {
@@ -1009,7 +1037,7 @@ function MainLayout({
 
       {/* Channel list + User panel wrapper */}
       <div
-        className={`fixed lg:relative z-40 inset-y-0 left-[72px] lg:left-auto w-72 bg-app-channel flex flex-col flex-shrink-0 transition-transform duration-200 ease-out ${
+        className={`fixed lg:relative z-40 inset-y-0 left-[72px] lg:left-auto w-72 ${desktopChannelMinimized ? 'lg:w-14' : 'lg:w-72'} bg-app-channel flex flex-col flex-shrink-0 transition-[width,transform] duration-200 ease-out ${
           channelNavOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
@@ -1151,6 +1179,8 @@ function MainLayout({
             } catch { /* ignore */ }
           }}
           onCreateGroupDM={() => setGroupDMModal({ mode: 'create' })}
+          minimized={desktopChannelMinimized}
+          onToggleMinimized={toggleChannelRail}
         />
         <UserPanel
           user={user}
@@ -1163,6 +1193,7 @@ function MainLayout({
           onToggleDeafen={() => voice.setIsDeafened(!voice.isDeafened)}
           onLogout={logout}
           onUserUpdate={updateUser}
+          compact={desktopChannelMinimized}
         />
       </div>
 

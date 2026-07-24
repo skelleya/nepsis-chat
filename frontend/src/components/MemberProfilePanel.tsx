@@ -10,6 +10,7 @@ interface MemberProfilePanelProps {
   voiceChannels?: Channel[]
   /** Clicked member row — popout anchors relative to this rect */
   anchorRect: DOMRect
+  anchorRef?: React.RefObject<HTMLElement | null>
   /** Prefer left of row (members list) or below (DM header) */
   placement?: 'left' | 'below'
   canKick?: boolean
@@ -31,6 +32,7 @@ export function MemberProfilePanel({
   currentUserId,
   voiceChannels = [],
   anchorRect,
+  anchorRef,
   placement = 'left',
   canKick = false,
   canBan = false,
@@ -128,6 +130,7 @@ export function MemberProfilePanel({
   useLayoutEffect(() => {
     const card = cardRef.current
     if (!card) return
+    closingRef.current = false
     gsap.killTweensOf(card)
     gsap.fromTo(
       card,
@@ -153,7 +156,8 @@ export function MemberProfilePanel({
     const onPointer = (e: MouseEvent) => {
       const card = cardRef.current
       if (!card) return
-      if (card.contains(e.target as Node)) return
+      const target = e.target as Node
+      if (card.contains(target) || anchorRef?.current?.contains(target)) return
       requestClose()
     }
     window.addEventListener('keydown', onKey)
@@ -164,7 +168,7 @@ export function MemberProfilePanel({
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('mousedown', onPointer)
     }
-  }, [requestClose])
+  }, [requestClose, anchorRef])
 
   const runModerate = async (kind: 'kick' | 'ban') => {
     setActionError('')
@@ -199,7 +203,7 @@ export function MemberProfilePanel({
       ref={cardRef}
       role="dialog"
       aria-label={`${member.username} profile`}
-      className="fixed z-[80] w-[320px] rounded-xl overflow-hidden shadow-2xl border border-white/10 bg-app-darker text-app-text"
+      className="fixed z-[80] w-[320px] rounded-xl overflow-hidden shadow-2xl border border-app-glass/10 bg-app-darker text-app-text"
       style={{ left: position.left, top: position.top }}
       onMouseDown={(e) => e.stopPropagation()}
     >
@@ -208,7 +212,7 @@ export function MemberProfilePanel({
         {member.bannerUrl ? (
           <img src={member.bannerUrl} alt="" className="w-full h-full object-cover" />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-app-accent to-[#0b0c0e]/80" />
+          <div className="absolute inset-0 bg-gradient-to-br from-app-accent to-app-darker/80" />
         )}
         <button
           type="button"
@@ -239,17 +243,17 @@ export function MemberProfilePanel({
           />
         </div>
 
-        <div className="rounded-lg bg-[#111214] p-3 space-y-3">
+        <div className="rounded-lg bg-app-panel p-3 space-y-3">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-xl font-bold text-white leading-tight">{member.username}</h2>
+              <h2 className="text-xl font-bold text-app-text leading-tight">{member.username}</h2>
               {roleBadge}
             </div>
             <p className="text-sm text-app-muted mt-0.5">{statusLabel}</p>
           </div>
 
           {!isCurrentUser && (onMessage || onCall || onAddFriend) && (
-            <div className="flex flex-col gap-1.5 pt-1 border-t border-white/5">
+            <div className="flex flex-col gap-1.5 pt-1 border-t border-app-glass/5">
               {onMessage && (
                 <button
                   type="button"
