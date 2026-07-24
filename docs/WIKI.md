@@ -571,3 +571,22 @@ Verification results:
 - Profile anchors are wired for MembersSidebar, DM headers, and voice-user rows.
 - Resize playback RAFs are canceled on cleanup; cross-category reorder waits for the category update to succeed.
 - Existing optional font, Browserslist, mixed-import, and bundle-size warnings remain non-fatal and documented.
+
+### Stable right-sidebar member interaction (2026-07-24)
+
+Issue:
+
+- Hovering a member row flickered, and a click could fail to open the member profile.
+- `Section` was declared inside `MembersSidebar`. Presence/status updates therefore produced a new React component type, remounting every section and member button. A refresh between mouse-down and click replaced the target DOM node.
+
+Solution:
+
+- `MemberSection` now lives at module scope, giving React a stable component identity across sidebar renders.
+- Member rows update in place instead of unmounting, preserving hover and click state while live presence changes.
+
+Test study:
+
+1. Continuously hover each In Voice / Online / Offline member while presence refreshes.
+2. Click repeatedly at different points within avatar, username, status, and row padding.
+3. Keep a profile open while members move between status sections; close it by outside click and Escape.
+4. Verify context menus and minimized member rail still work.

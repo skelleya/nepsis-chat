@@ -33,6 +33,32 @@ interface MembersSidebarProps {
 
 type DisplayStatus = 'online' | 'offline' | 'in-voice' | 'away' | 'dnd'
 
+interface MemberSectionProps {
+  label: string
+  count: number
+  children: React.ReactNode
+}
+
+/**
+ * Keep this component outside MembersSidebar. Defining it inside the parent
+ * creates a new React component type on every presence update, which remounts
+ * every member row and can interrupt a pointer click between down and up.
+ */
+function MemberSection({ label, count, children }: MemberSectionProps) {
+  if (count === 0) return null
+  return (
+    <div className="mb-3">
+      <div className="px-2.5 mb-1 flex items-center justify-between">
+        <span className="font-display text-[11px] font-semibold text-app-muted/90 tracking-tight">
+          {label}
+        </span>
+        <span className="text-[10px] tabular-nums text-app-muted/70">{count}</span>
+      </div>
+      <div className="space-y-0.5 px-1">{children}</div>
+    </div>
+  )
+}
+
 function statusDotClass(status: DisplayStatus) {
   if (status === 'online' || status === 'in-voice') return 'bg-[#23a559]'
   if (status === 'away') return 'bg-[#f0b232]'
@@ -229,29 +255,6 @@ export function MembersSidebar({
     )
   }
 
-  const Section = ({
-    label,
-    count,
-    children,
-  }: {
-    label: string
-    count: number
-    children: React.ReactNode
-  }) => {
-    if (count === 0) return null
-    return (
-      <div className="mb-3">
-        <div className="px-2.5 mb-1 flex items-center justify-between">
-          <span className="font-display text-[11px] font-semibold text-app-muted/90 tracking-tight">
-            {label}
-          </span>
-          <span className="text-[10px] tabular-nums text-app-muted/70">{count}</span>
-        </div>
-        <div className="space-y-0.5 px-1">{children}</div>
-      </div>
-    )
-  }
-
   // ── Minimized rail ──────────────────────────────────────────────
   if (minimized) {
     const preview = [...grouped.voice, ...grouped.online, ...grouped.offline].slice(0, 6)
@@ -330,15 +333,15 @@ export function MembersSidebar({
             <p className="text-xs text-app-muted mt-1">Members appear here after the server list loads.</p>
           </div>
         )}
-        <Section label="In Voice" count={grouped.voice.length}>
+        <MemberSection label="In Voice" count={grouped.voice.length}>
           {grouped.voice.map(renderMemberRow)}
-        </Section>
-        <Section label="Online" count={grouped.online.length}>
+        </MemberSection>
+        <MemberSection label="Online" count={grouped.online.length}>
           {grouped.online.map(renderMemberRow)}
-        </Section>
-        <Section label="Offline" count={grouped.offline.length}>
+        </MemberSection>
+        <MemberSection label="Offline" count={grouped.offline.length}>
           {grouped.offline.map(renderMemberRow)}
-        </Section>
+        </MemberSection>
       </div>
 
       {contextMenu && (
