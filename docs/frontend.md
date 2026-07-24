@@ -130,6 +130,10 @@ frontend/src/
 
 `SettingsDropdown` is portaled above the settings modal and memoized. Scroll/resize updates only its fixed position and do not replay the GSAP entrance. Reusable selector wrappers such as `DeviceSelect` must remain at module scope and stay memoized; defining them inside a frequently rendering tab remounts and closes their menus. Voice & Video keeps the live mic meter in `MicTestPanel` so RAF level ticks cannot re-render open device/quality menus.
 
+### Voice audio while navigating away from VoiceView
+
+Remote playback sinks live in `VoiceProvider` and are portaled to `document.body` (`#nepsis-voice-audio-root`). Camera/stage `<video>` elements stay muted so they never become the only audio path. Opening Friends (Nepsis logo), DMs, or text chats unmounts `VoiceView` but must not stop hearing or transmitting; `App` dispatches `nepsis-voice-audio-nudge` on main-view changes so sinks retry `play()`.
+
 ---
 
 ## Direct Messages (DM)

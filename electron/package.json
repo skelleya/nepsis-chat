@@ -1,6 +1,6 @@
 {
   "name": "nepsis-chat",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Nepsis Chat - WebRTC voice chat",
   "main": "main.js",
   "scripts": {
@@ -51,12 +51,15 @@
         "nsis",
         "zip"
       ],
-      "signAndEditExecutable": false,
+      "signAndEditExecutable": true,
       "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": false,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
       "artifactName": "NepsisChat-Setup.${ext}"
     },
     "mac": {

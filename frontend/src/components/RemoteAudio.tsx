@@ -6,18 +6,25 @@ interface RemoteAudioProps {
   muted?: boolean
 }
 
+/** Fired when the main app view changes so paused sinks can retry autoplay. */
+export const VOICE_AUDIO_NUDGE_EVENT = 'nepsis-voice-audio-nudge'
+
 /**
- * Plays remote peer audio. Keep instances stable across VoiceView layout changes
- * (focus/filmstrip remounts) — mount these at VoiceView root, not inside cards.
+ * Plays remote peer audio for the lifetime of a voice session.
+ * Mount from VoiceProvider (or a body portal) — never inside VoiceView tiles.
  */
 export function RemoteAudio({ stream, muted }: RemoteAudioProps) {
   const audioRef = useRef<HTMLAudioElement>(null)
 
   useEffect(() => {
     const audio = audioRef.current
-    if (!audio || !stream) return
+    if (!audio) return
 
     const attach = () => {
+      if (!stream) {
+        audio.srcObject = null
+        return
+      }
       const audioTracks = stream.getAudioTracks().filter((t) => t.readyState !== 'ended')
       if (audioTracks.length === 0) {
         audio.srcObject = null
@@ -32,35 +39,37 @@ export function RemoteAudio({ stream, muted }: RemoteAudioProps) {
       }
       audio.volume = loadPrefs().voice.outputVolume
       applyAudioOutputDevice(audio)
-      audio.play().catch(() => {
-        /* autoplay may be blocked until a user gesture; retry on unmute / interaction */
+      void audio.play().catch(() => {
+        /* autoplay may be blocked until a user gesture; retry on unmute / nudge */
       })
+    }
+
+    const nudgePlay = () => {
+      void audio.play().catch(() => {})
     }
 
     attach()
 
     const onTrackChange = () => attach()
-    const onUnmute = () => {
-      audio.play().catch(() => {})
-    }
+    const onUnmute = () => nudgePlay()
 
-    stream.addEventListener('addtrack', onTrackChange)
-    stream.addEventListener('removetrack', onTrackChange)
-    stream.getAudioTracks().forEach((t) => t.addEventListener('unmute', onUnmute))
+    stream?.addEventListener('addtrack', onTrackChange)
+    stream?.addEventListener('removetrack', onTrackChange)
+    stream?.getAudioTracks().forEach((t) => t.addEventListener('unmute', onUnmute))
 
-    // Retry play after any user gesture (layout remounts often fail autoplay)
-    const onGesture = () => {
-      audio.play().catch(() => {})
-    }
-    window.addEventListener('pointerdown', onGesture, { passive: true })
-    window.addEventListener('keydown', onGesture)
+    window.addEventListener('pointerdown', nudgePlay, { passive: true })
+    window.addEventListener('keydown', nudgePlay)
+    window.addEventListener(VOICE_AUDIO_NUDGE_EVENT, nudgePlay)
+    document.addEventListener('visibilitychange', nudgePlay)
 
     return () => {
-      stream.removeEventListener('addtrack', onTrackChange)
-      stream.removeEventListener('removetrack', onTrackChange)
-      stream.getAudioTracks().forEach((t) => t.removeEventListener('unmute', onUnmute))
-      window.removeEventListener('pointerdown', onGesture)
-      window.removeEventListener('keydown', onGesture)
+      stream?.removeEventListener('addtrack', onTrackChange)
+      stream?.removeEventListener('removetrack', onTrackChange)
+      stream?.getAudioTracks().forEach((t) => t.removeEventListener('unmute', onUnmute))
+      window.removeEventListener('pointerdown', nudgePlay)
+      window.removeEventListener('keydown', nudgePlay)
+      window.removeEventListener(VOICE_AUDIO_NUDGE_EVENT, nudgePlay)
+      document.removeEventListener('visibilitychange', nudgePlay)
     }
   }, [stream])
 
@@ -68,6 +77,7 @@ export function RemoteAudio({ stream, muted }: RemoteAudioProps) {
     const audio = audioRef.current
     if (!audio) return
     audio.muted = !!muted
+    if (!muted) void audio.play().catch(() => {})
   }, [muted])
 
   useEffect(() => {
@@ -82,14 +92,14 @@ export function RemoteAudio({ stream, muted }: RemoteAudioProps) {
     return subscribePrefs(apply)
   }, [])
 
-  // Visually hidden but still “playing” — avoid display:none which some browsers pause.
+  // Keep in-document (portaled to body). Avoid display:none — some browsers pause it.
   return (
     <audio
       ref={audioRef}
       autoPlay
       playsInline
       muted={muted}
-      style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+      style={{ position: 'fixed', width: 1, height: 1, opacity: 0, pointerEvents: 'none', left: 0, top: 0 }}
     />
   )
 }
