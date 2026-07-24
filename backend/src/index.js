@@ -20,6 +20,7 @@ import { healthRouter } from './routes/health.js'
 import { bugReportsRouter } from './routes/bugReports.js'
 import { soundboardRouter } from './routes/soundboard.js'
 import { webrtcRouter } from './routes/webrtc.js'
+import { gifsRouter } from './routes/gifs.js'
 import { registerChatHandlers } from './socket/chat.js'
 import { registerVoiceHandlers } from './socket/voice.js'
 import { registerCallHandlers } from './socket/calls.js'
@@ -96,6 +97,7 @@ app.use('/api/health', healthRouter)
 app.use('/api/bug-reports', bugReportsRouter)
 app.use('/api/soundboard', soundboardRouter)
 app.use('/api/webrtc', webrtcRouter)
+app.use('/api/gifs', gifsRouter)
 
 // 404 — ensure CORS headers on unknown routes
 app.use((req, res) => {

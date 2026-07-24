@@ -11,6 +11,7 @@ import { EmojiPicker } from './EmojiPicker'
 import { FileAttachment, isImageUrl, isVideoUrl, isFileUrl } from './FileAttachment'
 import { MemberProfilePanel } from './MemberProfilePanel'
 import type { ServerMember } from './MembersSidebar'
+import { GifPicker } from './GifPicker'
 
 interface DMViewProps {
   conversation: DMConversation
@@ -87,6 +88,7 @@ export function DMView({
   const [showEmojiPicker, setShowEmojiPicker] = useState<string | null>(null)
   const [emojiAnchorRect, setEmojiAnchorRect] = useState<DOMRect | null>(null)
   const [showInputEmoji, setShowInputEmoji] = useState(false)
+  const [showGifPicker, setShowGifPicker] = useState(false)
   const [inputEmojiRect, setInputEmojiRect] = useState<DOMRect | null>(null)
   const [replyTo, setReplyTo] = useState<DMMessage | null>(null)
   const [showUserMenu, setShowUserMenu] = useState(false)
@@ -156,6 +158,19 @@ export function DMView({
       setUploading(false)
       e.target.value = ''
       setShowAttachMenu(false)
+    }
+  }
+
+  const handleGifSelect = async (gif: api.GifSearchResult) => {
+    setUploading(true)
+    try {
+      const { url } = await api.importGif(gif.url)
+      setAttachments((previous) => [
+        ...previous,
+        { url, type: 'image', filename: `${gif.title || 'gif'}.gif` },
+      ])
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -569,6 +584,15 @@ export function DMView({
             <>
               <button
                 type="button"
+                onClick={() => setShowGifPicker(true)}
+                disabled={uploading}
+                className="h-8 px-2 rounded-lg text-[11px] font-bold tracking-wide text-app-muted hover:text-app-text hover:bg-app-glass/[0.06] disabled:opacity-50"
+                title="Choose a GIF"
+              >
+                GIF
+              </button>
+              <button
+                type="button"
                 onClick={(e) => {
                   if (showInputEmoji) {
                     setShowInputEmoji(false)
@@ -600,6 +624,10 @@ export function DMView({
           }
         />
       </div>
+
+      {showGifPicker && (
+        <GifPicker onSelect={handleGifSelect} onClose={() => setShowGifPicker(false)} />
+      )}
 
       {profileMember && profileAnchor && (
         <MemberProfilePanel

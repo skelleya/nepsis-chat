@@ -408,6 +408,37 @@ export async function uploadFile(file: File): Promise<{ url: string; path: strin
   return res.json()
 }
 
+export interface GifSearchResult {
+  id: string
+  title: string
+  previewUrl: string
+  url: string
+}
+
+export async function searchGifs(query: string, limit = 24): Promise<GifSearchResult[]> {
+  const res = await fetch(
+    `${API_BASE}/gifs/search?q=${encodeURIComponent(query.trim())}&limit=${limit}`
+  )
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to search GIFs')
+  }
+  return res.json()
+}
+
+export async function importGif(sourceUrl: string): Promise<{ url: string; path: string }> {
+  const res = await fetch(`${API_BASE}/gifs/import`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: sourceUrl }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to add GIF')
+  }
+  return res.json()
+}
+
 // ─── Server members ────────────────────────────────────
 
 export async function joinServer(serverId: string, userId: string) {

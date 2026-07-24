@@ -5,6 +5,7 @@ import * as api from '../services/api'
 import { EmojiPicker } from './EmojiPicker'
 import { ChatInput } from './ChatInput'
 import { FileAttachment } from './FileAttachment'
+import { GifPicker } from './GifPicker'
 
 interface ServerEmoji {
   id: string
@@ -70,6 +71,7 @@ export function ChatView({
   const [uploading, setUploading] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState<string | null>(null)
   const [showInputEmojiPicker, setShowInputEmojiPicker] = useState(false)
+  const [showGifPicker, setShowGifPicker] = useState(false)
   const [emojiAnchorRect, setEmojiAnchorRect] = useState<DOMRect | null>(null)
   const [inputEmojiAnchorRect, setInputEmojiAnchorRect] = useState<DOMRect | null>(null)
   const [hasNewMessages, setHasNewMessages] = useState(false)
@@ -171,6 +173,19 @@ export function ChatView({
     } finally {
       setUploading(false)
       e.target.value = ''
+    }
+  }
+
+  const handleGifSelect = async (gif: api.GifSearchResult) => {
+    setUploading(true)
+    try {
+      const { url } = await api.importGif(gif.url)
+      setAttachments((previous) => [
+        ...previous,
+        { url, type: 'image', filename: `${gif.title || 'gif'}.gif` },
+      ])
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -534,6 +549,15 @@ export function ChatView({
             <>
               <button
                 type="button"
+                onClick={() => setShowGifPicker(true)}
+                disabled={uploading}
+                className="h-8 px-2 rounded-lg text-[11px] font-bold tracking-wide text-app-muted hover:text-app-text hover:bg-app-glass/[0.06] disabled:opacity-50"
+                title="Choose a GIF"
+              >
+                GIF
+              </button>
+              <button
+                type="button"
                 onClick={(e) => {
                   if (showInputEmojiPicker) {
                     setShowInputEmojiPicker(false)
@@ -562,6 +586,9 @@ export function ChatView({
           }
         />
       </form>
+      )}
+      {showGifPicker && (
+        <GifPicker onSelect={handleGifSelect} onClose={() => setShowGifPicker(false)} />
       )}
       {!canSendMessages && channel.type === 'rules' && messages.length === 0 && (
         <div className="px-4 pb-6 text-center text-app-muted text-sm">
