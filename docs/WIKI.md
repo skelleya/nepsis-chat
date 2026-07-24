@@ -430,3 +430,5 @@ Verification: `frontend npm run build` passed TypeScript and the Vite production
 ### Camera orientation (2026-07-24)
 
 Camera self-previews now default to natural/unmirrored orientation. Voice & Video settings includes “Mirror my camera preview” for users who prefer a mirror. The preference updates local voice tiles, maximized self camera, self PiP, and DM call PiP immediately. It is intentionally display-only: remote viewers continue to see the natural camera orientation, and screen shares are never mirrored.
+
+Verification: `frontend npm run build` passed TypeScript and the Vite production build.
