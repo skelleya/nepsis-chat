@@ -92,7 +92,8 @@ frontend/src/
 | CommunityPage | Explore page: invite code entry; community list shows online/member counts; **click a server** opens details panel (members, online, channels, owner, Join/Open). **GSAP:** fade+slide-in on mount |
 | InvitePage | Public invite join page — server banner/icon/name, inviter, **member count**, Join Server. **Log In to Join** stores `nepsis_pending_invite` then returns after auth. Successful join sets `joinServerId` + `nepsis_last_view: server` before `navigate('/')`. |
 | AppContent auth gate | `showApp` / `showLogin` initialize from current `user` so remounting `/` after `/invite/:code` (session already set) opens the main app instead of a stuck login shell. |
-| UpdateButton | Green update (Electron only) |
+| UpdateButton | Electron update modal: download progress, restart prompt, applying loader (silent NSIS) |
+| DesktopUpdatesPanel | Settings → Help & Support: version + Check for updates (desktop only) |
 | DownloadBanner | Centered top tab: short prompt (“Prefer the desktop app?”) + clear Download button + subtle dismiss; `rounded-b-xl`; dismissible (localStorage); sets `--download-banner-height`; hidden on `/download` and in Electron. **GSAP:** slide/fade in/out |
 | WelcomeLanding | Pre-auth home (white split): large Nepsis logo left (`mix-blend-multiply` drops black square), **Use Web App** / **Download App** right. TWK Everett headers + Poppins body; GSAP entrance. |
 | LoginPage | After Use Web App: Guest / Sign In / Sign Up. **GSAP:** soft page/card enter; tab glide; fields collapse on submit; logo coin spin. Back returns to WelcomeLanding. |
@@ -105,7 +106,7 @@ frontend/src/
 | Hook | Purpose |
 |------|---------|
 | useVoiceChannel | WebRTC voice state, join/leave |
-| useDesktopUpdate | Update button state (Electron) |
+| useDesktopUpdate | Desktop update state + on-demand check (Electron) |
 
 ---
 
