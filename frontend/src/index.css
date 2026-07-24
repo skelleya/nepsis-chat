@@ -252,12 +252,8 @@ html[data-density='compact'] {
   --voice-grid-min: 320px;
 }
 
-.voice-dual-focus {
-  flex-direction: column;
-}
-
 .voice-stage-screen {
-  /* Give almost all remaining height to the shared screen */
+  /* Full remaining height for the shared screen (cameras stay in the top filmstrip / BR PiP) */
   min-height: 0;
 }
 
@@ -267,21 +263,4 @@ html[data-density='compact'] {
 
 @container (max-width: 560px) {
   .voice-participant-grid { --voice-grid-min: 200px; }
-}
-
-@container (min-width: 900px) {
-  .voice-dual-focus {
-    flex-direction: row;
-    align-items: stretch;
-  }
-
-  .voice-dual-focus-screen {
-    flex: 4 1 0;
-    min-height: 0;
-  }
-
-  .voice-dual-focus-camera {
-    flex: 1 1 0;
-    max-height: none;
-  }
 }

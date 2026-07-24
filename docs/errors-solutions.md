@@ -400,6 +400,8 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | Floating voice PiP felt stuck on hold after drag | React `pointerup`/`pointermove` on the header closed over `dragging` state and missed release outside the element | Attach `window` `pointermove`/`pointerup`/`pointercancel` on pointerdown; use a movement threshold so Open/click still works (0.2.5) |
 | PiP camera tiles jumped whenever someone spoke | Overlay sorted tiles by speaking priority | Keep stable join order (local + participant list); speaking only drives the green ring (0.2.5) |
 | Hard to see shared screens | Filmstrip + dual-focus split stole stage height/width; PiP used cover-cropped camera tiles only | Dense filmstrip + majority screen flex in dual focus; show Live screens in PiP with contain-fit (0.2.5) |
+| Screen share glitched / camera pane on the right / couldn’t see whole screen | Dual-focus layout placed a maximized camera beside the share, squeezing `object-contain` | Watching a share always clears maximized camera; full black stage + top filmstrip + single BR camera PiP (0.2.6) |
+| Update badge floated over the app (hard to find near window controls) | `UpdateButton` was `fixed top-10 right-3` below the title bar | Move update control into `TitleBar` immediately left of minimize (0.2.6) |
 
 ---
 

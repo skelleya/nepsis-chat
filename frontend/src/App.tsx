@@ -14,7 +14,6 @@ import { MembersSidebar, type ServerMember } from './components/MembersSidebar'
 import { CallOverlay } from './components/CallOverlay'
 import { VoiceFloatingOverlay } from './components/VoiceFloatingOverlay'
 import { LoginPage } from './components/LoginPage'
-import { UpdateButton } from './components/UpdateButton'
 import { DownloadBanner } from './components/DownloadBanner'
 import { EmailConfirmBanner } from './components/EmailConfirmBanner'
 import { TitleBar } from './components/TitleBar'
@@ -1660,7 +1659,6 @@ export default function App() {
       <AppProvider>
         <DownloadBanner />
         <EmailConfirmBanner />
-        <UpdateButton />
         <Routes>
           <Route path="/" element={<AppContent />} />
           <Route path="/invite/:code" element={<InvitePage />} />

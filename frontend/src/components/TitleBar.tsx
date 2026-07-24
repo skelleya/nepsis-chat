@@ -1,9 +1,12 @@
 import { useEffect, useState, type CSSProperties } from 'react'
+import { UpdateButton } from './UpdateButton'
 
 /**
  * Discord-style custom window chrome for the Electron desktop app.
  * Drag region across the bar; Windows/Linux get custom min/max/close.
  * macOS keeps a thin drag strip (traffic lights via hiddenInset) — no duplicate buttons.
+ * Update control sits immediately left of the minimize button (Windows/Linux)
+ * or at the trailing edge on macOS.
  */
 export function TitleBar() {
   const isElectron = !!window.electronAPI?.isElectron
@@ -40,8 +43,16 @@ export function TitleBar() {
         <span className="text-[12px] font-semibold text-app-muted truncate">Nepsis Chat</span>
       </div>
 
-      {!isMac && (
+      {isMac ? (
+        <div
+          className="flex items-stretch pr-1"
+          style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
+        >
+          <UpdateButton variant="titlebar" />
+        </div>
+      ) : (
         <div className="flex items-stretch" style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}>
+          <UpdateButton variant="titlebar" />
           <button
             type="button"
             aria-label="Minimize"

@@ -321,7 +321,7 @@ A major UI overhaul to match Discord's layout and interaction patterns.
 | **Voice Users in Channels** | Users connected to a voice channel are shown nested under that channel in the channel list. |
 | **Voice Connection Bar** | When connected to voice and viewing a different channel, a compact bar shows: green "Voice Connected" indicator, channel name, disconnect button, camera toggle, screen share toggle. |
 | **Camera** | Toggle camera on/off in voice view or voice connection bar. Turns on a large focus stage (cover) with a participant filmstrip; click a tile to switch focus. Avatar shows until the first frame. |
-| **Screen Share** | Discord-style: sharers get a LIVE badge; others click LIVE (sidebar or tile) to watch. Full-width focus stage + filmstrip; dual stage when a camera is also maximized; self-camera PiP when watching someone else. Auto-focus own share. Late joiners still receive the track. |
+| **Screen Share** | Discord-style: sharers get a LIVE badge; others click LIVE (sidebar or tile) to watch. Full stage shows the whole screen (`object-contain`); active cameras sit in the top filmstrip; one camera PiP is bottom-right (sharer → self → first live cam). Clicking a filmstrip camera swaps the PiP. Auto-focus own share. Late joiners still receive the track. |
 | **Voice participant grid** | Participants in a voice call appear in a Discord-style square grid that fills the center of the screen. Avatar tiles with speaking indicator ring. |
 | **Server Tooltips** | Hover over server icons to see server name tooltip (like Discord). Active indicator pill on left side. |
 
@@ -856,4 +856,18 @@ Test study:
 3. Open text while in voice → drag PiP, release mouse anywhere → snaps to a corner (not stuck).
 4. Multiple cameras on → speaking changes ring only; tile order does not reshuffle.
 5. Someone shares screen while you are in text → PiP shows a larger Live screen tile.
+
+### Screen share full stage + title-bar update (0.2.6) (2026-07-24)
+
+- Watching a screenshare always uses a **full stage** (no side camera pane that squeezed/glitched the screen).
+- Active cameras stay in the **top filmstrip**; one live camera shows as **bottom-right PiP** (default: sharer’s cam, else yours).
+- Desktop **Update** control moved into the title bar, immediately left of minimize.
+- Electron `0.2.6`. Tag `v0.2.6`.
+
+Test study:
+
+1. Click LIVE on a share → whole screen visible; no camera strip on the right of the stage.
+2. Sharer has camera on → their cam appears bottom-right; other cams remain on top.
+3. Click another filmstrip camera → BR PiP swaps; screen stays full-bleed.
+4. Update available → green download icon appears left of minimize (not floating over content).
 

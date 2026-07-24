@@ -129,15 +129,17 @@ function StageVideo({
   }, [stream])
 
   return (
-    <div className="relative w-full h-full min-h-0 rounded-xl overflow-hidden bg-app-darker border border-white/5 flex flex-col">
+    <div className="relative h-full min-h-0 w-full overflow-hidden rounded-xl border border-white/5 bg-black">
       {!hasFrame && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 z-[1] pointer-events-none">
+        <div className="pointer-events-none absolute inset-0 z-[1] flex flex-col items-center justify-center gap-3 bg-app-darker">
           <AvatarGlyph
             username={username}
             avatarUrl={avatarUrl}
-            className="w-28 h-28 sm:w-36 sm:h-36 rounded-full text-4xl sm:text-5xl shadow-lg"
+            className="h-28 w-28 rounded-full text-4xl shadow-lg sm:h-36 sm:w-36 sm:text-5xl"
           />
-          <span className="text-sm text-app-muted">Starting {badge === 'live' ? 'screen share' : 'camera'}…</span>
+          <span className="text-sm text-app-muted">
+            Starting {badge === 'live' ? 'screen share' : 'camera'}…
+          </span>
         </div>
       )}
       <video
@@ -147,23 +149,23 @@ function StageVideo({
         muted={muted}
         onLoadedData={() => setHasFrame(true)}
         onPlaying={() => setHasFrame(true)}
-        className={`flex-1 w-full h-full min-h-0 transition-opacity duration-200 ${
+        className={`absolute inset-0 h-full w-full transition-opacity duration-200 ${
           objectFit === 'cover' ? 'object-cover' : 'object-contain'
         } ${hasFrame ? 'opacity-100' : 'opacity-0'} ${mirror ? 'scale-x-[-1]' : ''}`}
       />
-      <div className="absolute top-3 left-3 flex items-center gap-2 z-[2]">
+      <div className="absolute left-3 top-3 z-[2] flex items-center gap-2">
         {badge === 'live' && (
-          <span className="bg-[#ed4245] text-white text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-sm">
+          <span className="rounded-sm bg-[#ed4245] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
             Live
           </span>
         )}
-        <span className="bg-black/55 px-2.5 py-1 rounded-md text-xs text-white font-medium">{label}</span>
+        <span className="rounded-md bg-black/55 px-2.5 py-1 text-xs font-medium text-white">{label}</span>
       </div>
       {onClose && (
         <button
           type="button"
           onClick={onClose}
-          className="absolute top-3 right-3 p-1.5 rounded-md bg-black/55 text-white hover:bg-black/80 transition-colors z-[2]"
+          className="absolute right-3 top-3 z-[2] rounded-md bg-black/55 p-1.5 text-white transition-colors hover:bg-black/80"
           title="Stop watching"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -845,6 +847,8 @@ export function VoiceView({
   const [soundboardOpen, setSoundboardOpen] = useState(false)
   const soundboardButtonRef = useRef<HTMLButtonElement>(null)
   const [maximizedCameraUserId, setMaximizedCameraUserId] = useState<string | null>(null)
+  /** While watching a screen share, optional override for the bottom-right camera PiP. */
+  const [screenPipUserId, setScreenPipUserId] = useState<string | null>(null)
   const [mirrorCameraPreview, setMirrorCameraPreview] = useState(
     () => loadPrefs().voice.mirrorCameraPreview
   )
@@ -943,23 +947,61 @@ export function VoiceView({
   const isWatchingShare = !!watchingStream && watchingStream.getVideoTracks().length > 0
   const isAlone = allParticipants.length === 1
 
+  const cameraStreamForUser = useCallback(
+    (userId: string | null | undefined): MediaStream | null => {
+      if (!userId) return null
+      if (userId === currentUserId) {
+        return isCameraOn && videoStream && hasLiveVideo(videoStream) ? videoStream : null
+      }
+      const p = allParticipants.find((x) => x.userId === userId)
+      if (!p?.stream) return null
+      const known = screenShareUserIds.includes(userId)
+      const cam = getParticipantVideoStream(p.stream, { knownScreenSharing: known })
+      return cam && hasLiveVideo(cam) ? cam : null
+    },
+    [currentUserId, isCameraOn, videoStream, allParticipants, screenShareUserIds]
+  )
+
   const maximizedCameraStream = useMemo(() => {
-    if (!maximizedCameraUserId) return null
-    if (maximizedCameraUserId === currentUserId) return videoStream
-    const p = allParticipants.find((x) => x.userId === maximizedCameraUserId)
-    const known = screenShareUserIds.includes(maximizedCameraUserId)
-    return p?.stream ? getParticipantVideoStream(p.stream, { knownScreenSharing: known }) : null
-  }, [maximizedCameraUserId, currentUserId, videoStream, allParticipants, screenShareUserIds])
+    if (!maximizedCameraUserId || watchingShareUserId) return null
+    return cameraStreamForUser(maximizedCameraUserId)
+  }, [maximizedCameraUserId, watchingShareUserId, cameraStreamForUser])
 
   const maximizedCameraUsername =
     maximizedCameraUserId === currentUserId
       ? currentUsername
       : allParticipants.find((p) => p.userId === maximizedCameraUserId)?.username ?? 'Camera'
 
-  // Auto-focus own camera once when turned on (bigger stage). Screen share takes priority.
+  /** Bottom-right camera while watching a share: pick → sharer cam → self → first live cam. */
+  const defaultScreenPipUserId = useMemo(() => {
+    if (!watchingShareUserId) return null
+    if (cameraStreamForUser(watchingShareUserId)) return watchingShareUserId
+    if (cameraStreamForUser(currentUserId)) return currentUserId
+    for (const p of allParticipants) {
+      if (cameraStreamForUser(p.userId)) return p.userId
+    }
+    return null
+  }, [watchingShareUserId, currentUserId, allParticipants, cameraStreamForUser])
+
+  const effectiveScreenPipUserId =
+    (screenPipUserId && cameraStreamForUser(screenPipUserId) ? screenPipUserId : null) ??
+    defaultScreenPipUserId
+
+  const screenPipStream = useMemo(
+    () => cameraStreamForUser(effectiveScreenPipUserId),
+    [cameraStreamForUser, effectiveScreenPipUserId]
+  )
+
+  const screenPipUsername =
+    effectiveScreenPipUserId === currentUserId
+      ? currentUsername
+      : allParticipants.find((p) => p.userId === effectiveScreenPipUserId)?.username ?? 'Camera'
+
+  // Auto-focus own camera once when turned on (bigger stage). Never while watching a share.
   useEffect(() => {
     if (!isInThisChannel) return
-    if (isCameraOn && videoStream && !watchingShareUserId && !autoFocusedCameraRef.current) {
+    if (watchingShareUserId) return
+    if (isCameraOn && videoStream && !autoFocusedCameraRef.current) {
       setMaximizedCameraUserId(currentUserId)
       autoFocusedCameraRef.current = true
     }
@@ -969,29 +1011,39 @@ export function VoiceView({
     }
   }, [isCameraOn, videoStream, watchingShareUserId, currentUserId, isInThisChannel])
 
+  // Watching a share always owns the full stage — never dual-focus with a side camera pane.
+  useEffect(() => {
+    if (!watchingShareUserId) {
+      setScreenPipUserId(null)
+      return
+    }
+    setMaximizedCameraUserId(null)
+  }, [watchingShareUserId])
+
   // Clear maximized camera if that user turned camera off / left
   useEffect(() => {
     if (!maximizedCameraUserId) return
-    if (maximizedCameraUserId === currentUserId && !isCameraOn) {
+    if (!cameraStreamForUser(maximizedCameraUserId)) {
       setMaximizedCameraUserId(null)
-      return
     }
-    if (maximizedCameraUserId !== currentUserId) {
-      const p = allParticipants.find((x) => x.userId === maximizedCameraUserId)
-      const known = screenShareUserIds.includes(maximizedCameraUserId)
-      if (!p?.stream || !getParticipantVideoStream(p.stream, { knownScreenSharing: known })) {
-        setMaximizedCameraUserId(null)
-      }
-    }
-  }, [maximizedCameraUserId, currentUserId, isCameraOn, allParticipants, screenShareUserIds])
+  }, [maximizedCameraUserId, cameraStreamForUser])
+
+  // Drop stale screen PiP override when that camera goes away
+  useEffect(() => {
+    if (!screenPipUserId) return
+    if (!cameraStreamForUser(screenPipUserId)) setScreenPipUserId(null)
+  }, [screenPipUserId, cameraStreamForUser])
 
   const handleWatchShare = useCallback(
     (userId: string) => {
       if (watchingShareUserId === userId) {
         setWatchingShareUserId(null)
+        setScreenPipUserId(null)
       } else {
+        // Full-screen share stage only — never open dual-focus with a side camera.
+        setMaximizedCameraUserId(null)
+        setScreenPipUserId(null)
         setWatchingShareUserId(userId)
-        // Keep camera maximize if both — dual focus layout
       }
     },
     [watchingShareUserId, setWatchingShareUserId]
@@ -999,9 +1051,14 @@ export function VoiceView({
 
   const handleMaximizeCamera = useCallback(
     (userId: string) => {
+      // While watching a share, camera clicks only change the corner PiP (not a side stage).
+      if (watchingShareUserId) {
+        setScreenPipUserId((prev) => (prev === userId ? null : userId))
+        return
+      }
       setMaximizedCameraUserId((prev) => (prev === userId ? null : userId))
     },
-    []
+    [watchingShareUserId]
   )
 
   const cycleMicProcessing = useCallback(() => {
@@ -1088,15 +1145,25 @@ export function VoiceView({
     ]
   )
 
-  const showFocusLayout = isWatchingShare || (!!maximizedCameraUserId && !!maximizedCameraStream)
-  const showDualFocus = isWatchingShare && !!maximizedCameraUserId && !!maximizedCameraStream
-
   const showSelfPip =
-    showFocusLayout &&
+    !!maximizedCameraUserId &&
+    !!maximizedCameraStream &&
+    !isWatchingShare &&
     isCameraOn &&
     !!videoStream &&
-    maximizedCameraUserId !== currentUserId &&
-    !(isWatchingShare && maximizedCameraUserId === currentUserId)
+    maximizedCameraUserId !== currentUserId
+
+  const filmstripParticipants = useMemo(() => {
+    if (!isWatchingShare) return allParticipants
+    // Active cameras first while watching a share, then everyone else.
+    const withCam: typeof allParticipants = []
+    const withoutCam: typeof allParticipants = []
+    for (const p of allParticipants) {
+      if (cameraStreamForUser(p.userId)) withCam.push(p)
+      else withoutCam.push(p)
+    }
+    return [...withCam, ...withoutCam]
+  }, [isWatchingShare, allParticipants, cameraStreamForUser])
 
   const renderFilmstrip = (dense = false) => (
     <div
@@ -1110,8 +1177,16 @@ export function VoiceView({
           dense ? 'gap-1.5 p-1' : 'gap-2.5 p-1.5'
         }`}
       >
-        {allParticipants.map((p) => (
-          <ParticipantCard key={p.userId} {...cardProps(p, { compact: true, dense })} />
+        {filmstripParticipants.map((p) => (
+          <ParticipantCard
+            key={p.userId}
+            {...cardProps(p, { compact: true, dense })}
+            isWatching={
+              watchingShareUserId === p.userId ||
+              (!isWatchingShare && maximizedCameraUserId === p.userId) ||
+              (isWatchingShare && effectiveScreenPipUserId === p.userId)
+            }
+          />
         ))}
       </div>
     </div>
@@ -1136,46 +1211,13 @@ export function VoiceView({
   }
 
   const renderFocusStage = () => {
-    if (showDualFocus && watchingStream && maximizedCameraStream) {
-      return (
-        <div className="flex-1 flex flex-col min-h-0">
-          {renderFilmstrip(true)}
-          <div className="voice-dual-focus flex-1 flex flex-col gap-1.5 p-1 sm:p-1.5 min-h-0 overflow-hidden">
-            <div className="voice-dual-focus-screen flex-[3.5] min-w-0 min-h-[280px] sm:min-h-[320px]">
-              <StageVideo
-                stream={watchingStream}
-                muted
-                badge="live"
-                label={`${watchingUsername} — Screen`}
-                username={watchingUsername}
-                avatarUrl={watchingShareUserId ? avatarByUserId.get(watchingShareUserId) : undefined}
-                objectFit="contain"
-                onClose={() => setWatchingShareUserId(null)}
-              />
-            </div>
-            <div className="voice-dual-focus-camera flex-1 min-w-0 min-h-[140px] max-h-[40%] sm:max-h-none sm:max-w-[280px] lg:max-w-[320px]">
-              <StageVideo
-                stream={maximizedCameraStream}
-                muted
-                badge="camera"
-                label={`${maximizedCameraUsername} — Camera`}
-                username={maximizedCameraUsername}
-                avatarUrl={maximizedCameraUserId ? avatarByUserId.get(maximizedCameraUserId) : undefined}
-                objectFit="cover"
-                mirror={maximizedCameraUserId === currentUserId && mirrorCameraPreview}
-                onClose={() => setMaximizedCameraUserId(null)}
-              />
-            </div>
-          </div>
-        </div>
-      )
-    }
-
+    // Screen share: full stage (whole screen via object-contain). Cameras stay in the top
+    // filmstrip; one live camera sits as a bottom-right PiP (never a side pane).
     if (isWatchingShare && watchingStream) {
       return (
-        <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex min-h-0 flex-1 flex-col">
           {renderFilmstrip(true)}
-          <div className="voice-stage-screen relative min-h-0 flex-1 p-0.5 sm:p-1">
+          <div className="voice-stage-screen relative min-h-0 flex-1 overflow-hidden bg-black p-0">
             <StageVideo
               stream={watchingStream}
               muted
@@ -1184,19 +1226,24 @@ export function VoiceView({
               username={watchingUsername}
               avatarUrl={watchingShareUserId ? avatarByUserId.get(watchingShareUserId) : undefined}
               objectFit="contain"
-              onClose={() => setWatchingShareUserId(null)}
+              onClose={() => {
+                setWatchingShareUserId(null)
+                setScreenPipUserId(null)
+              }}
             />
-            {showSelfPip && videoStream && (
-              <div className="absolute bottom-3 right-3 z-[3] aspect-video w-28 overflow-hidden rounded-lg ring-1 ring-white/20 shadow-2xl sm:bottom-4 sm:right-4 sm:w-40 sm:rounded-xl">
+            {screenPipStream && effectiveScreenPipUserId && (
+              <div className="absolute bottom-3 right-3 z-[3] aspect-video w-32 overflow-hidden rounded-lg ring-2 ring-white/25 shadow-2xl sm:bottom-4 sm:right-4 sm:w-44 sm:rounded-xl">
                 <TileVideo
-                  stream={videoStream}
+                  stream={screenPipStream}
                   muted
-                  username={currentUsername}
-                  avatarUrl={currentUserAvatarUrl}
-                  mirror={mirrorCameraPreview}
+                  username={screenPipUsername}
+                  avatarUrl={avatarByUserId.get(effectiveScreenPipUserId) ?? (effectiveScreenPipUserId === currentUserId ? currentUserAvatarUrl : undefined)}
+                  mirror={effectiveScreenPipUserId === currentUserId && mirrorCameraPreview}
                 />
-                <div className="absolute bottom-1 left-1.5 text-[10px] font-medium text-white drop-shadow">
-                  You
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-1.5 py-1">
+                  <div className="truncate text-[10px] font-medium text-white">
+                    {effectiveScreenPipUserId === currentUserId ? 'You' : screenPipUsername}
+                  </div>
                 </div>
               </div>
             )}
@@ -1207,9 +1254,9 @@ export function VoiceView({
 
     if (maximizedCameraUserId && maximizedCameraStream) {
       return (
-        <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex min-h-0 flex-1 flex-col">
           {allParticipants.length > 1 && renderFilmstrip()}
-          <div className="flex-1 p-2 sm:p-3 min-h-0 relative">
+          <div className="relative min-h-0 flex-1 p-2 sm:p-3">
             <StageVideo
               stream={maximizedCameraStream}
               muted
@@ -1222,7 +1269,7 @@ export function VoiceView({
               onClose={() => setMaximizedCameraUserId(null)}
             />
             {showSelfPip && videoStream && (
-              <div className="absolute bottom-4 right-4 w-36 sm:w-44 aspect-video rounded-xl overflow-hidden ring-1 ring-white/20 shadow-2xl z-[3]">
+              <div className="absolute bottom-4 right-4 z-[3] aspect-video w-36 overflow-hidden rounded-xl ring-1 ring-white/20 shadow-2xl sm:w-44">
                 <TileVideo
                   stream={videoStream}
                   muted

@@ -70,7 +70,7 @@ frontend/src/
 | DMView | Discord-style DM stream (left-aligned, grouped, date separators). Composer: + inside field, Enter to send, no send button. |
 | ChatView | Same Discord chat chrome for server channels — grouped messages, hover actions, integrated + composer. |
 | ChatInput | Shared Discord composer bar (`#383a40`): attach +, text, optional emoji; Enter submits. |
-| VoiceView | Avatar circles when cam off. **Camera/screen:** large focus stage (auto-maximize camera) + top filmstrip (dense while watching screen); dual stage gives screen majority space; self PiP when watching others. Tiles show avatar until first video frame (no black squares). Stream subsets cached in `mediaTracks.ts`. |
+| VoiceView | Avatar circles when cam off. **Camera/screen:** watching a share fills the stage (`object-contain`); active cameras stay in the top filmstrip; one live camera PiP sits bottom-right (sharer → self → first cam). No side-by-side dual stage. Camera maximize still uses a focus stage when not watching a share. |
 | RemoteAudio | Plays remote WebRTC stream |
 | CallOverlay | DM call UI: outgoing/incoming/in-call states |
 | DMView | Direct message chat; Call + Video Call in header (expand if already in call with them); click a message to reply; reactions persisted + realtime via `dm_message_reactions`; reply preview bar; file/image/video links use `FileAttachment` with Download |
@@ -98,7 +98,7 @@ frontend/src/
 | CommunityPage | Explore page: invite code entry; community list shows online/member counts; **click a server** opens details panel (members, online, channels, owner, Join/Open). **GSAP:** fade+slide-in on mount |
 | InvitePage | Public invite join page — server banner/icon/name, inviter, **member count**, Join Server. **Log In to Join** stores `nepsis_pending_invite` then returns after auth. Successful join sets `joinServerId` + `nepsis_last_view: server` before `navigate('/')`. |
 | AppContent auth gate | `showApp` / `showLogin` initialize from current `user` so remounting `/` after `/invite/:code` (session already set) opens the main app instead of a stuck login shell. |
-| UpdateButton | Electron: green top-right badge when an update is available (no auto-download); badge click downloads then shows Discord-style **Updating your software** modal |
+| UpdateButton | Electron: green download control in the title bar (left of minimize); click downloads then shows Discord-style **Updating your software** modal |
 | DesktopUpdatesPanel | Settings → Help & Support: version + Check for updates (desktop only) |
 | DownloadBanner | Centered top tab: short prompt (“Prefer the desktop app?”) + clear Download button + subtle dismiss; `rounded-b-xl`; dismissible (localStorage); sets `--download-banner-height`; hidden on `/download` and in Electron. **GSAP:** slide/fade in/out |
 | WelcomeLanding | Pre-auth home (white split): large Nepsis logo left (`mix-blend-multiply` drops black square), **Use Web App** / **Download App** right. TWK Everett headers + Poppins body; GSAP entrance. |
@@ -268,7 +268,7 @@ When `VITE_API_URL` is set, voice uses Socket.io instead of BroadcastChannel. IC
 - Message density now flows through `.chat-msg-row` and the Appearance density preference.
 - Voice gallery cards use an auto-fit grid (`--voice-grid-min` ~320/260/200) rather than fixed wrapped sizes.
 - Per-user / stream volumes live in `userPrefs.peerVolumes` / `streamVolumes` (0–2); `RemoteAudio` applies them via Web Audio `GainNode` (supports >100%).
-- Screen + camera dual focus stacks vertically on small displays and splits into a wide screen stage plus camera stage on desktop.
+- Screen share uses a full stage with cameras in the top filmstrip and a single bottom-right camera PiP (no side camera pane).
 - Self camera PiP is consistently placed at the lower right so it does not obscure screen-share labels.
 - Voice ping shows the slowest selected WebRTC peer path; the tooltip distinguishes local voice RTT from signaling-server RTT when alone.
 - DM call overlays show each party’s own locally measured WebRTC RTT.
