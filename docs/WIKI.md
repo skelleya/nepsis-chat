@@ -704,3 +704,17 @@ Test study:
 1. Join voice with cameras on; confirm filmstrip tiles show full inset rings on top/left.
 2. Stay connected, open Nepsis logo (Friends), a DM, and a text channel; confirm two-way audio throughout.
 3. After installing the new Windows build, confirm the desktop/Start Menu shortcut uses the Nepsis icon (reinstall if an old shortcut cached Electron’s icon).
+
+### Desktop 0.1.7 release (2026-07-24)
+
+- Electron source version: `0.1.7`.
+- Release notes: [release-0.1.7.md](release-0.1.7.md).
+- Includes voice audio while away from VoiceView, filmstrip ring clipping fix, and Windows Nepsis desktop icon embedding.
+- Tag `v0.1.7` triggers `.github/workflows/desktop-release.yml`.
+
+Release verification study:
+
+1. Confirm `electron/package.json` and lockfile root both report `0.1.7`.
+2. Merge into `master`, tag `v0.1.7`, confirm Desktop Release version job reports `0.1.7`.
+3. After Windows install, confirm desktop/Start Menu shortcut uses the Nepsis icon.
+
