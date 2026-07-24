@@ -25,7 +25,13 @@ import { ensureIceServers } from '../services/iceConfig'
 import { useVoice } from './VoiceContext'
 import { applyAudioOutputDevice, getAudioConstraints, getVideoConstraints, loadPrefs } from '../services/userPrefs'
 import { setCallBusy } from '../services/mediaSessionGate'
-import { readConnectionRtt, smoothPing, type PingSource } from '../services/connectionStats'
+import {
+  readConnectionRtt,
+  smoothPing,
+  type IcePathType,
+  type PingSource,
+} from '../services/connectionStats'
+import { formatMediaPermissionError } from '../utils/mediaPermissionError'
 
 const SOCKET_URL =
   import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000'
@@ -43,6 +49,7 @@ interface CallContextValue {
   callDuration: number
   ping: number | null
   pingSource: PingSource
+  pingPath: IcePathType | null
   unavailableReason: string | null
   isVideoCall: boolean
   callExpanded: boolean
@@ -85,6 +92,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
   const [callDuration, setCallDuration] = useState(0)
   const [ping, setPing] = useState<number | null>(null)
   const [pingSource, setPingSource] = useState<PingSource>('none')
+  const [pingPath, setPingPath] = useState<IcePathType | null>(null)
   const [unavailableReason, setUnavailableReason] = useState<string | null>(null)
   const [isVideoCall, setIsVideoCall] = useState(false)
   const [callExpanded, setCallExpanded] = useState(false)
@@ -183,6 +191,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
     setCallDuration(0)
     setPing(null)
     setPingSource('none')
+    setPingPath(null)
     setIsVideoCall(false)
     isVideoCallRef.current = false
     setCallExpanded(false)
@@ -202,6 +211,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
     if (callState !== 'in-call') {
       setPing(null)
       setPingSource('none')
+      setPingPath(null)
       return
     }
     let cancelled = false
@@ -211,6 +221,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
         if (!cancelled) {
           setPing(null)
           setPingSource('none')
+          setPingPath(null)
         }
         return
       }
@@ -219,9 +230,11 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
       if (reading.ms !== null) {
         setPing((previous) => smoothPing(previous, reading.ms!))
         setPingSource('webrtc')
+        setPingPath(reading.path ?? 'unknown')
       } else {
         setPing(null)
         setPingSource('none')
+        setPingPath(null)
       }
     }
     void sample()
@@ -258,9 +271,9 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
         })
       } catch (err) {
         setUnavailableReason(
-          withVideo ? 'Failed to access camera or microphone' : 'Failed to access microphone'
+          formatMediaPermissionError(err, withVideo ? 'microphone-or-camera' : 'microphone')
         )
-        window.setTimeout(() => setUnavailableReason(null), 4000)
+        window.setTimeout(() => setUnavailableReason(null), 8000)
         socketRef.current?.emit('call:end', { callId: callIdRef.current })
         sounds.callDisconnected()
         cleanup()
@@ -799,6 +812,7 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
         callDuration,
         ping,
         pingSource,
+        pingPath,
         unavailableReason,
         isVideoCall,
         callExpanded,

@@ -7,7 +7,8 @@ import { sounds } from '../services/sounds'
 import { getAudioConstraints, getScreenConstraints, getVideoConstraints, loadPrefs } from '../services/userPrefs'
 import { getScreenShareStream } from '../utils/mediaTracks'
 import { getCallBusy } from '../services/mediaSessionGate'
-import { smoothPing, type PingSource } from '../services/connectionStats'
+import { smoothPing, type IcePathType, type PingSource } from '../services/connectionStats'
+import { formatMediaPermissionError } from '../utils/mediaPermissionError'
 
 export interface VoiceParticipant {
   userId: string
@@ -52,6 +53,8 @@ interface VoiceContextValue {
   isSpeaking: boolean      // local user speaking detection
   ping: number | null       // latency in ms
   pingSource: PingSource
+  /** ICE path for the slowest peer (host/srflx/relay). Null when no peer stats. */
+  pingPath: IcePathType | null
   joinVoice: (channelId: string, channelName: string) => Promise<void>
   leaveVoice: (opts?: { preserveRejoin?: boolean }) => void
   /** Play soundboard sound to all peers (Socket.io only; no-op when using BroadcastChannel) */
@@ -104,6 +107,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [ping, setPing] = useState<number | null>(null)
   const [pingSource, setPingSource] = useState<PingSource>('none')
+  const [pingPath, setPingPath] = useState<IcePathType | null>(null)
   const pingSourceRef = useRef<PingSource>('none')
   const [leftUserIds, setLeftUserIds] = useState<Set<string>>(new Set())
   const [watchingShareUserId, setWatchingShareUserId] = useState<string | null>(null)
@@ -337,6 +341,9 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     setIsSoundboardMuted(false)
     setIsSpeaking(false)
     setPing(null)
+    setPingSource('none')
+    setPingPath(null)
+    pingSourceRef.current = 'none'
     setError(null)
     setWatchingShareUserId(null)
     if (!opts?.preserveRejoin) {
@@ -473,7 +480,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         /* ignore */
       }
       signalingRef.current = null
-      setError(err instanceof Error ? err.message : 'Failed to access microphone')
+      setError(formatMediaPermissionError(err, 'microphone'))
       setVoiceChannelId(null)
       setVoiceChannelName(null)
       setLocalStream(null)
@@ -773,6 +780,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     if (!connected) {
       setPing(null)
       setPingSource('none')
+      setPingPath(null)
       pingSourceRef.current = 'none'
       return
     }
@@ -787,12 +795,14 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
           const sameSource = pingSourceRef.current === 'webrtc'
           setPing((previous) => sameSource ? smoothPing(previous, webrtcRtt.ms!) : webrtcRtt.ms)
           setPingSource('webrtc')
+          setPingPath(webrtcRtt.path ?? 'unknown')
           pingSourceRef.current = 'webrtc'
           return
         }
         if (hasPeers) {
           setPing(null)
           setPingSource('none')
+          setPingPath(null)
           pingSourceRef.current = 'none'
           return
         }
@@ -803,10 +813,12 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
             const sameSource = pingSourceRef.current === 'server'
             setPing((previous) => sameSource ? smoothPing(previous, sockRtt) : sockRtt)
             setPingSource('server')
+            setPingPath(null)
             pingSourceRef.current = 'server'
           } else {
             setPing(null)
             setPingSource('none')
+            setPingPath(null)
             pingSourceRef.current = 'none'
           }
         }
@@ -849,8 +861,8 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         for (const track of stream.getTracks()) {
           await webrtcRef.current?.addTrackToAllPeers(track, stream)
         }
-      } catch {
-        setError('Failed to access camera')
+      } catch (err) {
+        setError(formatMediaPermissionError(err, 'camera'))
       }
     }
   }, [isCameraOn, videoStream])
@@ -918,9 +930,11 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
           stream.getTracks().map((track) => ({ track, stream }))
         )
       } catch (err) {
-        if (err instanceof Error && err.name !== 'NotAllowedError') {
-          setError('Failed to share screen')
-        }
+        // User canceling the picker is NotAllowedError without "by system" — stay quiet.
+        const name = err instanceof Error ? err.name : ''
+        const msg = err instanceof Error ? err.message : ''
+        if (name === 'NotAllowedError' && !/by system/i.test(msg)) return
+        setError(formatMediaPermissionError(err, 'screen'))
       }
     }
   }, [isScreenSharing, screenStream, userId, emitScreenShareState])
@@ -1001,6 +1015,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         isSpeaking,
         ping,
         pingSource,
+        pingPath,
         joinVoice,
         leaveVoice,
         playSoundboardSound,

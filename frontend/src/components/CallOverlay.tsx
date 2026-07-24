@@ -199,7 +199,13 @@ export function CallOverlay() {
                   <div className="text-white font-semibold truncate">{call.remoteUsername}</div>
                   <div className="text-white/60 text-xs font-mono flex items-center gap-2">
                     <span>{formatDuration(call.callDuration)}</span>
-                    <span title="Your locally measured WebRTC round-trip time">
+                    <span
+                      title={
+                        call.ping !== null
+                          ? `Your WebRTC RTT${call.pingPath ? ` · ${call.pingPath}` : ''}`
+                          : 'Measuring your connection…'
+                      }
+                    >
                       {call.ping !== null ? `${call.ping}ms` : 'Measuring…'}
                     </span>
                   </div>
@@ -304,7 +310,11 @@ export function CallOverlay() {
             </span>
             <span
               className="text-white/70 text-xs font-mono"
-              title="Your locally measured WebRTC round-trip time"
+              title={
+                call.ping !== null
+                  ? `Your WebRTC RTT${call.pingPath ? ` · ${call.pingPath}` : ''}`
+                  : 'Measuring your connection…'
+              }
             >
               {call.ping !== null ? `${call.ping}ms` : '…'}
             </span>

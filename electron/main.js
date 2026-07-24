@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } = require('electron')
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, session, systemPreferences } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const { autoUpdater } = require('electron-updater')
@@ -287,7 +287,33 @@ ipcMain.handle('quit-and-install', async () => {
   return { ok: true }
 })
 
+function setupMediaPermissions() {
+  // Allow mic/camera/screen prompts from our app origins. Without this, Chromium
+  // may deny getUserMedia and Windows surfaces "Permission denied by system".
+  const allow = new Set(['media', 'mediaKeySystem', 'display-capture', 'notifications'])
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(allow.has(permission))
+  })
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => allow.has(permission))
+
+  if (process.platform === 'darwin') {
+    try {
+      const mic = systemPreferences.getMediaAccessStatus('microphone')
+      if (mic !== 'granted') {
+        systemPreferences.askForMediaAccess('microphone').catch(() => {})
+      }
+      const cam = systemPreferences.getMediaAccessStatus('camera')
+      if (cam !== 'granted') {
+        systemPreferences.askForMediaAccess('camera').catch(() => {})
+      }
+    } catch (err) {
+      console.warn('macOS media access prompt failed', err?.message || err)
+    }
+  }
+}
+
 app.whenReady().then(() => {
+  setupMediaPermissions()
   createWindow()
   createTray()
 })

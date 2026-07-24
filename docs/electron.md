@@ -16,6 +16,7 @@ Desktop app wrapper and packaging. The packaged app loads the **same React UI** 
 - **Custom title bar**: Frameless window + `TitleBar.tsx` (drag region; Windows/Linux min/max/close). macOS uses `hiddenInset` traffic lights.
 - **Auth**: Desktop skips WelcomeLanding and Guest — Sign In / Sign Up only.
 - **Icons**: `electron/icon.png` + `electron/icon.ico` / `build/icon.ico` (multi-size). `app.setAppUserModelId('com.nepsis.chat')` for Windows taskbar.
+- **Media permissions**: On ready, `session.defaultSession` allows `media` / `display-capture` / `notifications`. macOS also prompts via `systemPreferences.askForMediaAccess`. OS privacy must still allow the app (Windows “Permission denied by system” is an OS block).
 
 ---
 

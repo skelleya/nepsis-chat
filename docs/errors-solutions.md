@@ -427,6 +427,8 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | Silent after network blip in voice | Socket reconnect without re-`join-voice` | `onReconnect` rejoin + peer reset |
 | Video call refresh → audio only | Rejoin payload omitted `withVideo` | Persist and restore `withVideo` in `CALL_REJOIN_KEY` |
 | Mic stayed on after failed join | getUserMedia stream not stopped in catch | Stop tracks on join failure |
+| **Third user: “Permission denied by system”** | Not a server ACL — Windows/macOS blocked mic/camera for that client’s OS/app | Enable Microphone (and Camera) in OS privacy for desktop apps / Nepsis / browser; Electron grants media permission requests; UI shows actionable copy via `formatMediaPermissionError` |
+| High voice ping / “server” expected to help | Media is P2P mesh; API is signaling-only; TURN relays when NAT fails and **adds** latency | Prefer direct ICE (hover ping bars for `host`/`srflx` vs `relay`); same region, wired, no VPN; configure TURN for connectivity, not for lowest RTT |
 | Chat unusable on phone | Fixed three rails | Mobile slide-over channel + members rails |
 | Block/Report “coming soon” | No implementation | Local block list + bug-report API for Report; Privacy unblock UI |
 | Docs said SQLite | Stale structure docs | `project-structure.md` / `backend.md` updated to Supabase |

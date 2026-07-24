@@ -3,6 +3,7 @@ import { createBroadcastSignaling } from '../services/signaling'
 import { createSocketSignaling } from '../services/socketSignaling'
 import { createWebRTCClient } from '../services/webrtc'
 import { ensureIceServers } from '../services/iceConfig'
+import { formatMediaPermissionError } from '../utils/mediaPermissionError'
 
 export interface VoiceParticipant {
   userId: string
@@ -71,7 +72,7 @@ export function useVoiceChannel(channelId: string | null, userId: string, userna
       webrtc.addLocalStream(stream)
       await signaling.join()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to access microphone')
+      setError(formatMediaPermissionError(err, 'microphone'))
     }
   }, [channelId, userId, username, addOrUpdateParticipant, removeParticipant])
 

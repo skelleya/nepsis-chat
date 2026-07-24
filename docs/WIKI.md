@@ -524,6 +524,26 @@ Verification results:
 - GIF import review added manual redirect validation, streamed byte limits, known-user checks, and per-user/IP rate limits before release.
 - Existing dependency audit reports remain documented and are not silently auto-fixed because forced upgrades would change Electron/build compatibility.
 
+### Ping path visibility + OS mic “permission denied by system” (2026-07-24)
+
+Architecture reminder:
+
+- Voice/DM audio is **WebRTC mesh P2P**. The backend is **signaling only** (Socket.io). Optional **TURN** relays media when direct ICE fails — that improves connectivity, not best-case ping.
+- Best ping: direct path (`host` / `srflx`), same region, wired, avoid VPN. Hover voice ping bars to see path type; `relay` means TURN (usually higher RTT). Mesh UI shows the slowest peer.
+
+Fixes:
+
+- Voice join / camera / call / screen errors map `Permission denied by system` and related DOMExceptions to OS privacy guidance (`formatMediaPermissionError`).
+- `connectionStats` reports ICE path type; ChannelList tooltip shows it beside RTT.
+- Electron grants media permission requests so the desktop app does not silently deny `getUserMedia`.
+
+Test study:
+
+1. Deny mic in Windows Privacy → join voice → see clear OS guidance (not a vague browser string).
+2. Allow mic → three users join the same voice channel → each hears others; ping tooltip shows path (`host`/`srflx`/`relay`).
+3. With TURN configured and a strict-NAT peer, confirm `relay` appears and audio still works.
+4. Desktop: fresh install prompts/allows mic; macOS Privacy list includes Nepsis Chat.
+
 ### Theme-complete shell, collapsible channels, adaptive cameras, and stable member profiles (2026-07-24)
 
 Changes:

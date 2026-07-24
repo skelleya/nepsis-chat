@@ -26,7 +26,7 @@ import { MicOffIcon, HeadphonesOffIcon } from './icons/VoiceIcons'
 import { useApp } from '../contexts/AppContext'
 import * as api from '../services/api'
 import type { DMConversation, ProfileType } from '../services/api'
-import type { PingSource } from '../services/connectionStats'
+import { describeIcePath, type IcePathType, type PingSource } from '../services/connectionStats'
 import { useGsapMenu } from '../hooks/useGsapMenu'
 import { MemberProfilePanel } from './MemberProfilePanel'
 import type { ServerMember } from './MembersSidebar'
@@ -51,6 +51,7 @@ interface VoiceConnectionInfo {
   isScreenSharing: boolean
   ping: number | null
   pingSource: PingSource
+  pingPath?: IcePathType | null
   onToggleMute: () => void
   onToggleDeafen: () => void
   onToggleCamera: () => void
@@ -1883,7 +1884,9 @@ export function ChannelList({
                   className="relative group flex items-end gap-0.5 h-4 w-fit cursor-default mb-1"
                   title={
                     voiceConnection.ping != null
-                      ? `${voiceConnection.ping}ms — ${voiceConnection.pingSource === 'webrtc' ? 'your peer connection (slowest path)' : 'signaling server latency (no peers)'}`
+                      ? voiceConnection.pingSource === 'webrtc'
+                        ? `${voiceConnection.ping}ms peer RTT · ${describeIcePath(voiceConnection.pingPath ?? undefined)}`
+                        : `${voiceConnection.ping}ms — signaling server latency (no peers)`
                       : 'Measuring your connection…'
                   }
                   aria-label={voiceConnection.ping != null ? `Ping ${voiceConnection.ping} milliseconds` : 'Measuring ping'}
@@ -1895,6 +1898,10 @@ export function ChannelList({
                     const barColor =
                       bars === 3 ? 'bg-[#23a559]' : bars === 2 ? 'bg-[#f0b232]' : bars === 1 ? 'bg-[#f23f43]' : 'bg-app-muted/50'
                     const inactive = 'bg-[#4e5058]'
+                    const pathLabel =
+                      voiceConnection.pingSource === 'webrtc'
+                        ? describeIcePath(voiceConnection.pingPath ?? undefined)
+                        : 'server RTT'
                     return (
                       <>
                         <div className={`w-1 rounded-sm ${bars >= 1 ? barColor : inactive}`} style={{ height: 6 }} />
@@ -1905,7 +1912,7 @@ export function ChannelList({
                           className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 whitespace-nowrap rounded bg-app-panel px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 z-20"
                         >
                           {ping != null
-                            ? `${ping}ms · ${voiceConnection.pingSource === 'webrtc' ? 'your voice RTT' : 'server RTT'}`
+                            ? `${ping}ms · ${voiceConnection.pingSource === 'webrtc' ? pathLabel : 'server RTT'}`
                             : 'Measuring…'}
                         </span>
                       </>

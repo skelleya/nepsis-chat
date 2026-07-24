@@ -161,7 +161,31 @@ When a user stops camera/screen share:
 
 ---
 
+## Best ping (what the “server” actually does)
+
+Voice/DM media is **mesh P2P**. The backend Socket.io server only does **signaling** (SDP/ICE/join). It does **not** relay audio/video unless a peer falls back to **TURN**.
+
+| Goal | What to do |
+|------|------------|
+| Lowest ping | Prefer a **direct** ICE path (`host` on LAN, or `srflx` via STUN). Hover the voice ping bars — tooltip shows path type. |
+| Connectivity when NAT fails | Configure **TURN** (`TURN_*` on backend). Relay works but usually **raises** ping. |
+| Avoid high ping | Same region / wired Ethernet; disable VPN when possible; don’t force all media through a far TURN. |
+| Read the UI | Mesh shows the **slowest peer** RTT. Alone in channel = signaling-server RTT (not voice quality). |
+
+There is no SFU media server today. For large rooms you’d need an SFU later; for 2–4 users, mesh + optional TURN is intentional.
+
+---
+
 ## Troubleshooting
+
+### “Permission denied by system” when joining voice
+
+This is **not** a Nepsis server membership / ACL error. Chromium/Electron throws it when the **OS blocks the microphone** (common on Windows Privacy settings). The third person joining hits `getUserMedia` on their own machine.
+
+- **Windows:** Settings → Privacy & security → Microphone → allow desktop apps + allow Nepsis Chat / browser → retry.
+- **macOS:** System Settings → Privacy & Security → Microphone → enable Nepsis Chat.
+- **Desktop app:** Electron now grants `media` / `display-capture` permission requests in `electron/main.js`.
+- App UI maps this string to a clearer message via `formatMediaPermissionError`.
 
 ### Cannot see/hear other users in voice
 
@@ -170,7 +194,7 @@ When a user stops camera/screen share:
   2. Set `VITE_API_URL` (e.g. `http://localhost:3000/api` in `.env.development`)
   3. Both users connect to the same backend URL
 - **Same machine, 2 tabs:** BroadcastChannel works; ensure both tabs join the same voice channel
-- **Microphone permissions:** Both users must allow microphone access
+- **Microphone permissions:** Both users must allow microphone access (see above)
 
 ### Cannot see friend's camera/screen share
 

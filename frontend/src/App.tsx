@@ -959,6 +959,7 @@ function MainLayout({
     isScreenSharing: voice.isScreenSharing,
     ping: voice.ping,
     pingSource: voice.pingSource,
+    pingPath: voice.pingPath,
     onToggleMute: () => voice.setIsMuted(!voice.isMuted),
     onToggleDeafen: () => voice.setIsDeafened(!voice.isDeafened),
     onToggleCamera: () => voice.toggleCamera(),
