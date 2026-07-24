@@ -460,3 +460,23 @@ Verification study:
 - Supabase migrations `group_direct_messages` and `group_dm_created_by_index` were applied successfully.
 - Remote schema verification confirmed all group columns and three new indexes (`participant user`, `group updated`, and `created_by`).
 - Supabase advisors were rerun. The new creator foreign key warning was resolved with the follow-up index; remaining security/performance notices predate this feature and are documented project-wide issues.
+
+### Multi-tab voice, soundboard, screen audio, and modern media/chat UI (2026-07-24)
+
+Features and fixes:
+
+- One browser tab remains the voice-media owner; same-account tabs observe its channel through a heartbeat and show the account in the correct room without replacing the live mic session.
+- Soundboard MP3 uploads accept desktop `application/octet-stream` when the extension is a supported audio format; metadata remains mandatory.
+- Sound clips play once: local sender playback plus peer-only socket relay, with shared restart/dedup behavior.
+- Voice & Video settings can request tab/system audio during screen sharing.
+- Camera galleries use responsive modern cards; screen/camera dual focus stacks on mobile and uses a wide stage split on desktop; self PiP sits at the lower right.
+- DMs and server channels share cleaner translucent headers, lighter dividers, lower-noise hover states, compact-density row spacing, 15px message typography, and a bordered modern composer.
+
+Test study:
+
+1. Join voice in tab A, open the same account in tab B, and verify both tabs show self in the same channel while tab A keeps its microphone.
+2. Close tab B and verify tab A stays `in-voice`; open the room in tab B and verify it remains observer-only.
+3. Upload MP3 as both `audio/mpeg` and `application/octet-stream`; play from A and verify A/B each hear exactly one instance.
+4. Enable/disable screen audio, share a browser tab that supports audio, and confirm peers hear audio only when enabled and selected in the native picker.
+5. Exercise voice layouts with 1, 2, 4, and 8 participants, camera-only, screen-only, dual camera/screen, mobile width, and desktop width.
+6. Verify DM/server messages, replies, reactions, uploads, editing, compact density, white theme, mobile hover actions, and new-message scrolling after the visual revamp.

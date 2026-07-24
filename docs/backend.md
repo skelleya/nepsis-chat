@@ -175,6 +175,10 @@ Handlers are registered with the **Namespace** (`io.of('/voice')`, etc.), not th
 
 Storage uses `attachments/soundboard/{userId}/`. Migration `20260723234108_allow_soundboard_audio_formats.sql` extends a configured bucket MIME allowlist while preserving an unrestricted (`NULL`) allowlist.
 
+Desktop clients sometimes submit MP3 as `application/octet-stream`; the route accepts that MIME only when the filename has a supported audio extension, then relies on metadata parsing to reject invalid content. Multer validation errors return 400 instead of a generic 500.
+
+`soundboard-play` is sent with `socket.to(room)`: the clicker plays locally for immediate feedback, and the backend sends exactly one event to each peer.
+
 ---
 
 ## Group direct messages
