@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   DndContext,
+  DragOverlay,
   closestCenter,
+  pointerWithin,
   KeyboardSensor,
   PointerSensor,
   useSensor,
@@ -10,7 +12,9 @@ import {
   useDroppable,
   useDraggable,
   useDndContext,
+  type CollisionDetection,
   type DragEndEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core'
 import {
   arrayMove,
@@ -31,6 +35,14 @@ import { useGsapMenu } from '../hooks/useGsapMenu'
 import { MemberProfilePanel } from './MemberProfilePanel'
 import type { ServerMember } from './MembersSidebar'
 import { CoolIcon } from './icons/CoolIcon'
+import {
+  CATEGORY_PREFIX,
+  CHANNEL_PREFIX,
+  USER_PREFIX,
+  VOICE_DROP_PREFIX,
+  filterDroppablesForActive,
+  resolveVoiceMoveTarget,
+} from '../utils/channelDragCollision'
 
 interface VoiceUserInfo {
   userId: string
@@ -162,30 +174,24 @@ function menuItemClass(danger = false) {
     : 'w-full px-3 py-1.5 rounded-md text-[13px] text-left text-app-text hover:bg-app-accent hover:text-white'
 }
 
-const CHANNEL_PREFIX = 'ch-'
-const CATEGORY_PREFIX = 'cat-'
-const USER_PREFIX = 'user-'
-const VOICE_DROP_PREFIX = 'voice-drop-'
 const UNCATEGORIZED_ID = '__uncategorized__'
 
-/** When dragging a category, only detect collisions with other category headers (not channels) */
-function categoryAwareCollisionDetection(args: Parameters<typeof closestCenter>[0]) {
+/**
+ * Collision rules:
+ * - categories ↔ categories
+ * - channels ↔ channels/categories
+ * - users ↔ voice-drop zones only (pointerWithin first for easier hits)
+ */
+const categoryAwareCollisionDetection: CollisionDetection = (args) => {
   const activeStr = String(args.active.id)
-  if (activeStr.startsWith(CATEGORY_PREFIX)) {
-    const filtered = [...args.droppableContainers].filter((c) => {
-      const idStr = String(c.id)
-      return idStr.startsWith(CATEGORY_PREFIX) && idStr !== activeStr
-    })
-    return closestCenter({ ...args, droppableContainers: filtered })
+  const filtered = filterDroppablesForActive(activeStr, [...args.droppableContainers])
+  const nextArgs = { ...args, droppableContainers: filtered as typeof args.droppableContainers }
+
+  if (activeStr.startsWith(USER_PREFIX)) {
+    const pointerHits = pointerWithin(nextArgs)
+    if (pointerHits.length > 0) return pointerHits
   }
-  if (activeStr.startsWith(CHANNEL_PREFIX)) {
-    const filtered = [...args.droppableContainers].filter((container) => {
-      const id = String(container.id)
-      return id.startsWith(CHANNEL_PREFIX) || id.startsWith(CATEGORY_PREFIX)
-    })
-    return closestCenter({ ...args, droppableContainers: filtered })
-  }
-  return closestCenter(args)
+  return closestCenter(nextArgs)
 }
 
 function VoiceUserRow({
@@ -691,6 +697,9 @@ function SortableChannelItem({
     id: channel.type === 'voice' ? `${VOICE_DROP_PREFIX}${channel.id}` : `no-drop-${channel.id}`,
     disabled: channel.type !== 'voice',
   })
+  const { active: dndActive } = useDndContext()
+  const isUserDragActive =
+    !!dndActive && String(dndActive.id).startsWith(USER_PREFIX) && channel.type === 'voice'
   const style = { transform: CSS.Transform.toString(transform), transition }
 
   const handleSaveEdit = useCallback(async () => {
@@ -703,6 +712,7 @@ function SortableChannelItem({
   const voiceUsersList = voiceUsers[channel.id] || []
   const isSelected = currentChannelId === channel.id
   const isVoice = channel.type === 'voice'
+  const showVoiceDropHighlight = isVoice && (isOver || isUserDragActive)
 
   return (
     <div ref={setNodeRef} style={style} className={isDragging ? 'opacity-50' : ''}>
@@ -720,7 +730,16 @@ function SortableChannelItem({
             </svg>
           </button>
         )}
-        <div className="flex-1 min-w-0 relative">
+        <div
+          ref={isVoice ? setDropRef : undefined}
+          className={`flex-1 min-w-0 relative rounded-xl transition-colors ${
+            isOver
+              ? 'bg-app-accent/15 ring-2 ring-inset ring-app-accent/50'
+              : isUserDragActive
+                ? 'bg-app-accent/[0.06] ring-1 ring-inset ring-app-accent/25'
+                : ''
+          }`}
+        >
           {editing ? (
             <div className="flex items-center gap-1 px-2 py-1">
               <input
@@ -751,7 +770,9 @@ function SortableChannelItem({
                       ? 'bg-red-500/12 text-app-text font-semibold hover:bg-red-500/18'
                       : channel.type === 'text' && hasUnread
                         ? 'bg-app-glass/[0.05] text-app-text hover:bg-app-glass/[0.08] font-medium'
-                        : 'text-app-muted hover:bg-app-glass/[0.04] hover:text-app-text'
+                        : showVoiceDropHighlight && !isSelected
+                          ? 'text-app-text'
+                          : 'text-app-muted hover:bg-app-glass/[0.04] hover:text-app-text'
                 }`}
               >
                 {isSelected && (
@@ -903,19 +924,22 @@ function SortableChannelItem({
           )}
           {isVoice && (
             <div
-              ref={setDropRef}
               className={
-                voiceUsersList.length > 0 || isOver
+                voiceUsersList.length > 0 || isUserDragActive || isOver
                   ? `mt-1 ml-1 pl-2 border-l space-y-0.5 transition-colors ${
                       isOver
-                        ? 'border-app-accent/60 bg-app-accent/10 rounded-r-xl py-1'
-                        : 'border-app-glass/[0.06] py-0.5'
+                        ? 'border-app-accent/70 bg-app-accent/10 rounded-r-xl py-1.5 min-h-10'
+                        : isUserDragActive
+                          ? 'border-app-accent/40 bg-app-accent/[0.04] rounded-r-xl py-1 min-h-10'
+                          : 'border-app-glass/[0.06] py-0.5'
                     }`
-                  : 'min-h-[2px]'
+                  : 'min-h-2'
               }
             >
-              {voiceUsersList.length === 0 && isOver && (
-                <div className="px-2 py-2 text-[11px] text-app-accent/90 font-medium">Drop to move here</div>
+              {voiceUsersList.length === 0 && (isOver || isUserDragActive) && (
+                <div className="px-2 py-2.5 text-[11px] text-app-accent/90 font-medium">
+                  {isOver ? 'Drop to move here' : 'Drop user here'}
+                </div>
               )}
               {voiceUsersList.map((vu) => (
                 <VoiceUserRow
@@ -1420,23 +1444,65 @@ export function ChannelList({
   ).sort((a, b) => a.order - b.order)
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    // Slightly lower distance so voice-user moves start sooner without feeling twitchy.
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
+
+  const [activeUserDrag, setActiveUserDrag] = useState<{
+    userId: string
+    username: string
+    avatarUrl?: string
+  } | null>(null)
+
+  const handleGlobalDragStart = useCallback(
+    (event: DragStartEvent) => {
+      const activeStr = String(event.active.id)
+      if (!activeStr.startsWith(USER_PREFIX)) {
+        setActiveUserDrag(null)
+        return
+      }
+      const userId = activeStr.slice(USER_PREFIX.length)
+      for (const list of Object.values(voiceUsers)) {
+        const match = list.find((vu) => vu.userId === userId)
+        if (match) {
+          setActiveUserDrag({
+            userId,
+            username: match.username,
+            avatarUrl: match.avatar_url,
+          })
+          return
+        }
+      }
+      const member = serverMembers.find((m) => m.userId === userId)
+      setActiveUserDrag({
+        userId,
+        username: member?.username || 'User',
+        avatarUrl: member?.avatarUrl,
+      })
+    },
+    [voiceUsers, serverMembers]
+  )
+
+  const clearUserDrag = useCallback(() => setActiveUserDrag(null), [])
 
   const handleGlobalDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event
+      clearUserDrag()
       if (!over || active.id === over.id) return
 
       const activeStr = String(active.id)
       const overStr = String(over.id)
 
-      // Move user to voice channel
-      if (activeStr.startsWith(USER_PREFIX) && overStr.startsWith(VOICE_DROP_PREFIX)) {
+      // Move user to voice channel (whole channel row is a drop target)
+      if (activeStr.startsWith(USER_PREFIX)) {
         const userId = activeStr.slice(USER_PREFIX.length)
-        const channelId = overStr.slice(VOICE_DROP_PREFIX.length)
-        onMoveToChannel?.(userId, channelId)
+        const channelId = resolveVoiceMoveTarget(overStr, channels)
+        if (channelId) {
+          const alreadyThere = (voiceUsers[channelId] || []).some((vu) => vu.userId === userId)
+          if (!alreadyThere) void onMoveToChannel?.(userId, channelId)
+        }
         return
       }
 
@@ -1509,7 +1575,17 @@ export function ChannelList({
         }
       }
     },
-    [channels, categories, uncategorizedChannels, onReorderChannels, onReorderCategories, onUpdateChannel, onMoveToChannel]
+    [
+      channels,
+      categories,
+      uncategorizedChannels,
+      voiceUsers,
+      onReorderChannels,
+      onReorderCategories,
+      onUpdateChannel,
+      onMoveToChannel,
+      clearUserDrag,
+    ]
   )
 
   if (minimized) {
@@ -1833,7 +1909,13 @@ export function ChannelList({
               </button>
             </div>
           ) : (
-          <DndContext sensors={sensors} collisionDetection={categoryAwareCollisionDetection} onDragEnd={handleGlobalDragEnd}>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={categoryAwareCollisionDetection}
+            onDragStart={handleGlobalDragStart}
+            onDragCancel={clearUserDrag}
+            onDragEnd={handleGlobalDragEnd}
+          >
             <SortableContext
               items={categories.map((c) => `${CATEGORY_PREFIX}${c.id}`)}
               strategy={verticalListSortingStrategy}
@@ -1917,6 +1999,27 @@ export function ChannelList({
                 />
               )}
             </SortableContext>
+            <DragOverlay dropAnimation={null}>
+              {activeUserDrag ? (
+                <div className="flex items-center gap-2 rounded-lg border border-app-accent/40 bg-app-darker/95 px-2.5 py-1.5 shadow-2xl ring-1 ring-app-accent/30">
+                  <div
+                    className={`flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-full text-[10px] font-semibold text-white ${
+                      activeUserDrag.avatarUrl ? 'bg-transparent' : 'bg-app-accent'
+                    }`}
+                  >
+                    {activeUserDrag.avatarUrl ? (
+                      <img src={activeUserDrag.avatarUrl} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      activeUserDrag.username.charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  <span className="max-w-[140px] truncate text-[12px] font-medium text-app-text">
+                    {activeUserDrag.username}
+                  </span>
+                  <span className="text-[10px] font-medium text-app-accent">Move</span>
+                </div>
+              ) : null}
+            </DragOverlay>
           </DndContext>
           )}
         </div>

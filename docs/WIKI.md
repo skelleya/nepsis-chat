@@ -797,7 +797,7 @@ Test study:
 ### Link embeds + patch notes (0.2.0) (2026-07-24)
 
 - Server chat and DMs render clickable links plus Open Graph embed cards (`MessageContent` / `LinkEmbed` → `POST /api/embeds/unfurl`).
-- Settings → Help & Support → **Patch notes** (installed version highlights + earlier releases).
+- Settings → Help & Support → **Patch notes** (Newer releases / Current·Installed / Earlier; subtitle keeps “you’re on v…”).
 - Electron source version: `0.2.0`. Release notes: [release-0.2.0.md](release-0.2.0.md).
 - Tag `v0.2.0` triggers Desktop Release.
 
@@ -870,4 +870,18 @@ Test study:
 2. Sharer has camera on → their cam appears bottom-right; other cams remain on top.
 3. Click another filmstrip camera → BR PiP swaps; screen stays full-bleed.
 4. Update available → green download icon appears left of minimize (not floating over content).
+
+### Voice user drag + patch notes grouping (0.2.7) (2026-07-24)
+
+- Dragging users between voice channels uses the **whole channel row** as a drop target, larger empty pads, accent highlights, and a drag overlay chip.
+- User-drag collision only hits `voice-drop-*` (`pointerWithin` preferred).
+- Patch notes: versions **above** installed → **Newer releases**; exact match → **Current / installed**; only older → **Earlier releases**. Subtitle still: “What’s new in Nepsis Chat (you’re on v…)”.
+- Unit checks: `cd frontend && npm run test:unit`.
+- Electron `0.2.7`. Tag `v0.2.7`.
+
+Test study:
+
+1. As admin, drag a voice user onto another voice channel name (not just the tiny user list) → they move.
+2. Drag over an empty voice channel → “Drop user here” pad appears; release moves them.
+3. On an older desktop build, open Patch notes → newer versions appear under **Newer releases**, not Earlier; installed card says **Installed**.
 

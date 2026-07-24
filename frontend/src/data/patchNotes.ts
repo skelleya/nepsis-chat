@@ -8,6 +8,35 @@ export type PatchNote = {
 /** In-app patch notes shown under User Settings → Help & Support. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.2.7',
+    date: '2026-07-24',
+    title: 'Smoother voice moves & clearer patch notes',
+    highlights: [
+      'Dragging users into other voice channels is easier — larger drop targets, clearer highlights, and a drag chip.',
+      'Patch notes group newer releases separately; your installed version is labeled Current / Installed.',
+    ],
+  },
+  {
+    version: '0.2.6',
+    date: '2026-07-24',
+    title: 'Full screen share stage & title-bar update',
+    highlights: [
+      'Watching a screenshare fills the stage; cameras stay in the top strip with one bottom-right PiP.',
+      'Removed the side camera pane that squeezed or glitched the shared screen.',
+      'Desktop update control sits in the title bar, left of minimize.',
+    ],
+  },
+  {
+    version: '0.2.5',
+    date: '2026-07-24',
+    title: 'PiP drag, stable cameras & larger screens',
+    highlights: [
+      'Floating voice PiP releases cleanly when you let go of a drag.',
+      'Camera tiles no longer reshuffle when someone speaks.',
+      'Screen shares are easier to see in voice and in the floating PiP.',
+    ],
+  },
+  {
     version: '0.2.4',
     date: '2026-07-24',
     title: 'Floating voice cameras in chat',

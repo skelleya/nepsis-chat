@@ -52,14 +52,14 @@ frontend/src/
 |-----------|---------|
 | VoiceIcons | Shared mic/mic-off/headphones/headphones-off SVGs (prevents clipping/snipping) |
 | ServerBar | Server list (left sidebar); click-hold-and-drag to reorder servers. **GSAP:** Friends + Community bubbles scale-punch on click |
-| ChannelList | Text + voice channels in a **Nepsis rail** (rounded rows, chat/wave icons, orange selected accent). **Voice users:** right-click for Profile / Roles / Move to / Message / Call / Server Mute / Server Deafen / Disconnect / Kick / Ban; drag-drop into other voice rooms to move. **Channels:** hover gear — Rename, Copy ID, Move to Category, Delete. **Create:** chat + / voice + (or server menu) opens centered name-only modal with type locked. Server dropdown portaled with solid background. |
+| ChannelList | Text + voice channels in a **Nepsis rail** (rounded rows, chat/wave icons, orange selected accent). **Voice users:** right-click for Profile / Roles / Move to / Message / Call / Server Mute / Server Deafen / Disconnect / Kick / Ban; drag-drop onto the whole voice channel row (highlighted targets + drag overlay chip). **Channels:** hover gear — Rename, Copy ID, Move to Category, Delete. **Create:** chat + / voice + (or server menu) opens centered name-only modal with type locked. Server dropdown portaled with solid background. |
 | ChatView | Messages, input; scrolls to bottom on load; shows "New messages" indicator when scrolled up and new messages arrive; click to jump to new messages |
 | VoiceView | Voice participants in a responsive gallery (larger camera cards). Click/right-click a remote card for **User volume** (0–200%), **Stream volume** (while sharing), Watch/Maximize, and **Admin** Mute/Deafen/Disconnect. Soundboard + screen stage. Presence merge always includes channel users (even after peer-left). |
 | MessageContent | Shared server/DM message renderer: mentions, clickable links, media attachments, and `LinkEmbed` preview cards |
 | LinkEmbed | Open Graph preview card; fetches `POST /api/embeds/unfurl` |
 | YouTubeEmbed | Playable YouTube player for youtube.com / youtu.be / shorts links (poster → iframe) |
 | VoiceFloatingOverlay | Corner PiP of voice cameras (+ live screens) while in text/DM/Friends; window-level drag-snap to TL/TR/BL/BR; stable tile order; click returns to VoiceView |
-| PatchNotesPanel | Help & Support → Patch notes (bundled history + GitHub Releases) |
+| PatchNotesPanel | Help & Support → Patch notes grouped as Newer / Current·Installed / Earlier (bundled + GitHub Releases) |
 | EmailConfirmBanner | Top dropdown when a registered user’s Supabase email is not confirmed yet (Resend + dismiss for session) |
 | Server Settings ownership | `isAdminOrOwner` uses `servers.owner_id` **or** members role. Members/servers fetch errors keep prior state so the owner menu and modal do not disappear during polls. |
 | DownloadPage | OS-detect primary **Install for Mac/Windows** (Apple/Windows logos); click starts installer download immediately; **Other Installers** reveals the rest + Linux Coming soon. |
@@ -202,7 +202,7 @@ Remote playback sinks live in `VoiceProvider` and are portaled to `document.body
 | **Delete category** | 3-dot menu → Delete; channels become uncategorized |
 | **Edit channel** | 3-dot menu on channel → Edit Channel → inline input |
 | **Delete channel** | 3-dot menu → Delete (with confirm) |
-| **Move user to voice channel** | Admin: drag voice user (in channel list) onto another voice channel |
+| **Move user to voice channel** | Admin: drag voice user onto another voice channel row (header + user list). User drags only collide with `voice-drop-*`; empty channels enlarge while dragging; DragOverlay shows a move chip. Helpers in `utils/channelDragCollision.ts`. |
 
 All features use `@dnd-kit/core` and `@dnd-kit/sortable`. Single DndContext with ID prefixes: `cat-`, `ch-`, `user-`, `voice-drop-`.
 
@@ -286,6 +286,7 @@ When `VITE_API_URL` is set, voice uses Socket.io instead of BroadcastChannel. IC
 - Category headers can be dragged above/below Text/Voice sections.
 - Channels can be dropped directly onto another category header or a channel in another category.
 - Voice-user drop zones are ignored while dragging channels, preventing snap-back over voice rows.
+- While dragging a voice user, only `voice-drop-*` targets are considered (`pointerWithin` then `closestCenter`); voice rows highlight and empty rooms show a drop pad.
 - Owner/admin gear menus expose rename/delete; deleting a category keeps its channels under uncategorized Channels.
 
 ---
