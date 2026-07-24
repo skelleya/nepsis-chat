@@ -25,7 +25,7 @@ import { CreateChannelModal } from './CreateChannelModal'
 import { MicOffIcon, HeadphonesOffIcon } from './icons/VoiceIcons'
 import { useApp } from '../contexts/AppContext'
 import * as api from '../services/api'
-import type { ProfileType } from '../services/api'
+import type { DMConversation, ProfileType } from '../services/api'
 import { useGsapMenu } from '../hooks/useGsapMenu'
 import { MemberProfilePanel } from './MemberProfilePanel'
 import type { ServerMember } from './MembersSidebar'
@@ -86,12 +86,13 @@ interface ChannelListProps {
   /** When true, show "Friends" header and DMs only; hide server channels */
   isFriendsView?: boolean
   // DM
-  dmConversations?: { id: string; created_at: string; other_user: { id: string; username: string; avatar_url?: string } }[]
+  dmConversations?: DMConversation[]
   currentDMId?: string | null
   dmUnreadCounts?: Record<string, number>
   channelUnreadCounts?: Record<string, number>
   channelMentionCounts?: Record<string, number>
   onSelectDM?: (conversationId: string) => void
+  onCreateGroupDM?: () => void
   // Admin: drop user onto voice channel to move them
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
   onMuteInVoice?: (userId: string) => Promise<void>
@@ -1297,6 +1298,7 @@ export function ChannelList({
   channelUnreadCounts = {},
   channelMentionCounts = {},
   onSelectDM,
+  onCreateGroupDM,
 }: ChannelListProps) {
   const { user } = useApp()
   const allVoiceChannels = channels.filter((c) => c.type === 'voice')
@@ -1569,7 +1571,7 @@ export function ChannelList({
         </div>
 
         {/* Direct Messages */}
-        {dmConversations.length > 0 && onSelectDM && (
+        {onSelectDM && (
           <div className="border-b border-app-dark/80 px-2 py-1.5">
             <div className="flex items-center gap-1.5 px-2 py-1 text-xs font-semibold text-app-muted uppercase tracking-wider">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="opacity-70">
@@ -1581,11 +1583,28 @@ export function ChannelList({
                   {Object.values(dmUnreadCounts).reduce((a, b) => a + b, 0)}
                 </span>
               )}
+              {onCreateGroupDM && (
+                <button
+                  type="button"
+                  onClick={onCreateGroupDM}
+                  className="ml-auto w-6 h-6 rounded flex items-center justify-center text-app-muted hover:text-app-text hover:bg-app-hover/60"
+                  title="Create group message"
+                  aria-label="Create group message"
+                >
+                  +
+                </button>
+              )}
             </div>
             <div className="space-y-0.5">
-              {dmConversations.filter((c) => c?.other_user).map((conv) => {
+              {dmConversations.map((conv) => {
                 const unreadCount = dmUnreadCounts[conv.id] ?? 0
                 const hasUnread = unreadCount > 0
+                const groupTitle = conv.name?.trim() || conv.participants
+                  .filter((participant) => participant.id !== user?.id)
+                  .map((participant) => participant.username)
+                  .join(', ')
+                const title = conv.is_group ? (groupTitle || 'Group message') : (conv.other_user?.username || 'Unknown')
+                const avatar = conv.is_group ? undefined : conv.other_user?.avatar_url
                 return (
                   <button
                     key={conv.id}
@@ -1602,12 +1621,14 @@ export function ChannelList({
                       <div
                         className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold overflow-hidden ${
                           hasUnread ? 'ring-2 ring-app-online ring-offset-2 ring-offset-app-channel' : ''
-                        } ${conv.other_user?.avatar_url ? 'bg-transparent' : 'bg-app-accent'}`}
+                        } ${avatar ? 'bg-transparent' : 'bg-app-accent'}`}
                       >
-                        {conv.other_user?.avatar_url ? (
-                          <img src={conv.other_user.avatar_url} alt="" className="w-full h-full object-cover" />
+                        {avatar ? (
+                          <img src={avatar} alt="" className="w-full h-full object-cover" />
+                        ) : conv.is_group ? (
+                          <CoolIcon name="users" size={14} />
                         ) : (
-                          (conv.other_user?.username ?? '?').charAt(0).toUpperCase()
+                          title.charAt(0).toUpperCase()
                         )}
                       </div>
                       {hasUnread && (
@@ -1622,7 +1643,7 @@ export function ChannelList({
                     <span
                       className={`text-sm truncate flex-1 ${hasUnread ? 'font-semibold' : ''}`}
                     >
-                      {conv.other_user?.username ?? 'Unknown'}
+                      {title}
                     </span>
                   </button>
                 )

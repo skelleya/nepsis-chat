@@ -18,6 +18,7 @@ import { DownloadBanner } from './components/DownloadBanner'
 import { TitleBar } from './components/TitleBar'
 import { UserPanel } from './components/UserPanel'
 import { ServerSettingsModal } from './components/ServerSettingsModal'
+import { GroupDMModal } from './components/GroupDMModal'
 import { mockChannels } from './data/mockData'
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 
@@ -49,6 +50,8 @@ function AppContent() {
     channelUnreadCounts,
     channelMentionCounts,
     openDM,
+    createGroupDM,
+    addGroupDMMembers,
     sendDMMessage,
     toggleDMReaction,
     setCurrentServer,
@@ -174,6 +177,8 @@ function AppContent() {
               channelUnreadCounts={channelUnreadCounts}
               channelMentionCounts={channelMentionCounts}
               openDM={openDM}
+              createGroupDM={createGroupDM}
+              addGroupDMMembers={addGroupDMMembers}
               sendDMMessage={sendDMMessage}
               toggleDMReaction={toggleDMReaction}
               setCurrentServer={setCurrentServer}
@@ -214,7 +219,7 @@ interface MainLayoutProps {
   messages: Record<string, { id: string; channel_id: string; user_id: string; content: string; created_at: string; edited_at?: string; username?: string; reply_to_id?: string; reply_to?: { username?: string; content?: string }; attachments?: { url: string; type: string; filename?: string }[]; reactions?: { user_id: string; emoji: string }[] }[]>
   currentServerId: string | null
   currentChannelId: string | null
-  dmConversations: { id: string; created_at: string; other_user: { id: string; username: string; avatar_url?: string } }[]
+  dmConversations: api.DMConversation[]
   dmMessages: Record<string, { id: string; conversation_id: string; user_id: string; content: string; created_at: string; username: string }[]>
   currentDMId: string | null
   setCurrentDM: (id: string | null) => void
@@ -222,6 +227,8 @@ interface MainLayoutProps {
   channelUnreadCounts: Record<string, number>
   channelMentionCounts: Record<string, number>
   openDM: (targetUserId: string, targetUsername: string) => Promise<string | undefined>
+  createGroupDM: (memberIds: string[], name?: string) => Promise<string | undefined>
+  addGroupDMMembers: (conversationId: string, memberIds: string[]) => Promise<void>
   sendDMMessage: (
     conversationId: string,
     content: string,
@@ -262,6 +269,8 @@ function MainLayout({
   channelUnreadCounts,
   channelMentionCounts,
   openDM,
+  createGroupDM,
+  addGroupDMMembers,
   sendDMMessage,
   toggleDMReaction,
   setCurrentServer,
@@ -287,6 +296,7 @@ function MainLayout({
   const [showServerSettings, setShowServerSettings] = useState(false)
   const [channelNavOpen, setChannelNavOpen] = useState(false)
   const [membersOpen, setMembersOpen] = useState(false)
+  const [groupDMModal, setGroupDMModal] = useState<{ mode: 'create' | 'add'; conversationId?: string } | null>(null)
   const [blockedRevision, setBlockedRevision] = useState(0)
   const savedView = (() => {
     try {
@@ -741,7 +751,7 @@ function MainLayout({
   }, [setCurrentChannel, setCurrentDM, voice, mustAcceptRules, rulesAcceptanceKnown, hasAcceptedRules, rulesChannelId])
 
   const visibleDmConversations = dmConversations.filter(
-    (c) => !c.other_user?.id || !isUserBlocked(c.other_user.id)
+    (c) => c.is_group || !c.other_user?.id || !isUserBlocked(c.other_user.id)
   )
   void blockedRevision // re-filter when block list changes
 
@@ -799,7 +809,15 @@ function MainLayout({
   const mobileTitle = showFriends && !currentDMId
     ? 'Friends'
     : currentDMId
-      ? (dmConversations.find((c) => c.id === currentDMId)?.other_user?.username || 'Direct Message')
+      ? (() => {
+          const conversation = dmConversations.find((entry) => entry.id === currentDMId)
+          if (!conversation) return 'Direct Message'
+          if (!conversation.is_group) return conversation.other_user?.username || 'Direct Message'
+          return conversation.name?.trim() || conversation.participants
+            .filter((participant) => participant.id !== user.id)
+            .map((participant) => participant.username)
+            .join(', ') || 'Group message'
+        })()
       : showCommunity
         ? 'Community'
         : showOnboarding
@@ -915,7 +933,7 @@ function MainLayout({
   useEffect(() => {
     if (!currentDMId) return
     const conv = dmConversations.find((c) => c.id === currentDMId)
-    if (!conv?.other_user) setCurrentDM(null)
+    if (!conv || (!conv.is_group && !conv.other_user)) setCurrentDM(null)
   }, [currentDMId, dmConversations, setCurrentDM])
 
   const mainViewKey =
@@ -1123,6 +1141,7 @@ function MainLayout({
               )
             } catch { /* ignore */ }
           }}
+          onCreateGroupDM={() => setGroupDMModal({ mode: 'create' })}
         />
         <UserPanel
           user={user}
@@ -1195,7 +1214,7 @@ function MainLayout({
         (() => {
           const conv = visibleDmConversations.find((c) => c.id === currentDMId) || dmConversations.find((c) => c.id === currentDMId)
           const dmMsgs = dmMessages[currentDMId] || []
-          if (!conv?.other_user) return null
+          if (!conv || (!conv.is_group && !conv.other_user)) return null
           return (
             <DMView
               conversation={conv}
@@ -1215,6 +1234,11 @@ function MainLayout({
               }}
               onBlockUser={handleBlockUser}
               onReportUser={handleReportUser}
+              onAddPeople={
+                conv.is_group && conv.participants.length < 10
+                  ? () => setGroupDMModal({ mode: 'add', conversationId: conv.id })
+                  : undefined
+              }
             />
           )
         })()
@@ -1394,6 +1418,32 @@ function MainLayout({
         }}
       />
       </div>
+      )}
+
+      {groupDMModal && (
+        <GroupDMModal
+          userId={user.id}
+          mode={groupDMModal.mode}
+          excludedUserIds={
+            groupDMModal.conversationId
+              ? dmConversations.find((entry) => entry.id === groupDMModal.conversationId)?.participants.map((participant) => participant.id) || []
+              : []
+          }
+          onClose={() => setGroupDMModal(null)}
+          onConfirm={async (memberIds, name) => {
+            if (groupDMModal.mode === 'create') {
+              const id = await createGroupDM(memberIds, name)
+              if (id) {
+                setShowCommunity(false)
+                setShowFriends(true)
+                setChannelNavOpen(false)
+              }
+            } else if (groupDMModal.conversationId) {
+              await addGroupDMMembers(groupDMModal.conversationId, memberIds)
+              showNotification('People added to group message')
+            }
+          }}
+        />
       )}
 
       {/* DM Call overlay */}

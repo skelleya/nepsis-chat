@@ -22,6 +22,7 @@ interface DMViewProps {
   onClose?: () => void
   onBlockUser?: (userId: string) => void
   onReportUser?: (userId: string) => void
+  onAddPeople?: () => void
 }
 
 function formatMessageTime(iso: string): string {
@@ -76,6 +77,7 @@ export function DMView({
   onClose,
   onBlockUser,
   onReportUser,
+  onAddPeople,
 }: DMViewProps) {
   const call = useCall()
   const [input, setInput] = useState('')
@@ -101,13 +103,18 @@ export function DMView({
     setReplyTo(null)
   }, [conversation.id])
 
-  const username = conversation.other_user?.username ?? 'Unknown'
+  const isGroup = conversation.is_group
+  const otherParticipants = conversation.participants.filter((participant) => participant.id !== currentUserId)
+  const username = isGroup
+    ? conversation.name?.trim() || otherParticipants.map((participant) => participant.username).join(', ') || 'Group message'
+    : conversation.other_user?.username ?? 'Unknown'
   const otherUserId = conversation.other_user?.id
   const otherAvatarUrl = conversation.other_user?.avatar_url
+  const participantById = new Map(conversation.participants.map((participant) => [participant.id, participant]))
   const inCallWithThem =
     call.callState === 'in-call' && call.remoteUserId === otherUserId
 
-  const profileMember: ServerMember | null = otherUserId
+  const profileMember: ServerMember | null = !isGroup && otherUserId
     ? {
         userId: otherUserId,
         username,
@@ -179,12 +186,14 @@ export function DMView({
         <button
           ref={nameBtnRef}
           type="button"
-          onClick={(e) => openProfile(e.currentTarget)}
-          className="flex items-center gap-2 min-w-0 flex-1 text-left rounded-md px-1.5 py-1 -mx-1.5 hover:bg-app-hover/50 transition-colors"
-          title={`View ${username}'s profile`}
+          onClick={(e) => { if (!isGroup) openProfile(e.currentTarget) }}
+          className={`flex items-center gap-2 min-w-0 flex-1 text-left rounded-md px-1.5 py-1 -mx-1.5 transition-colors ${isGroup ? 'cursor-default' : 'hover:bg-app-hover/50'}`}
+          title={isGroup ? `${conversation.participants.length} members` : `View ${username}'s profile`}
         >
           <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 bg-app-accent flex items-center justify-center text-white text-[10px] font-bold">
-            {otherAvatarUrl ? (
+            {isGroup ? (
+              <span className="text-sm">👥</span>
+            ) : otherAvatarUrl ? (
               <img src={otherAvatarUrl} alt="" className="w-full h-full object-cover" />
             ) : (
               username.charAt(0).toUpperCase()
@@ -194,7 +203,17 @@ export function DMView({
         </button>
 
         <div className="flex items-center gap-1">
-          {inCallWithThem ? (
+          {isGroup && onAddPeople && (
+            <button
+              type="button"
+              onClick={onAddPeople}
+              className="px-2.5 py-1.5 rounded text-sm font-medium text-app-text bg-app-hover/70 hover:bg-app-hover"
+              title="Add people"
+            >
+              Add people
+            </button>
+          )}
+          {!isGroup && (inCallWithThem ? (
             <button
               type="button"
               onClick={() => call.expandCall()}
@@ -228,7 +247,7 @@ export function DMView({
                 </svg>
               </button>
             </>
-          )}
+          ))}
           <div className="relative">
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
@@ -253,18 +272,22 @@ export function DMView({
                       Close DM
                     </button>
                   )}
-                  <button
-                    onClick={() => { onBlockUser?.(otherUserId); setShowUserMenu(false) }}
-                    className="w-full px-3 py-2 text-left text-sm text-[#f23f43] hover:bg-[#f23f43] hover:text-white"
-                  >
-                    Block User
-                  </button>
-                  <button
-                    onClick={() => { onReportUser?.(otherUserId); setShowUserMenu(false) }}
-                    className="w-full px-3 py-2 text-left text-sm text-app-text hover:bg-app-accent hover:text-white"
-                  >
-                    Report User
-                  </button>
+                  {!isGroup && (
+                    <>
+                      <button
+                        onClick={() => { if (otherUserId) onBlockUser?.(otherUserId); setShowUserMenu(false) }}
+                        className="w-full px-3 py-2 text-left text-sm text-[#f23f43] hover:bg-[#f23f43] hover:text-white"
+                      >
+                        Block User
+                      </button>
+                      <button
+                        onClick={() => { if (otherUserId) onReportUser?.(otherUserId); setShowUserMenu(false) }}
+                        className="w-full px-3 py-2 text-left text-sm text-app-text hover:bg-app-accent hover:text-white"
+                      >
+                        Report User
+                      </button>
+                    </>
+                  )}
                 </div>
               </>
             )}
@@ -278,12 +301,14 @@ export function DMView({
           <div className="flex flex-col justify-end h-full px-4 pb-4">
             <button
               type="button"
-              onClick={(e) => openProfile(e.currentTarget)}
-              className="text-left rounded-xl hover:bg-app-hover/30 p-2 -m-2 transition-colors w-fit"
-              title={`View ${username}'s profile`}
+              onClick={(e) => { if (!isGroup) openProfile(e.currentTarget) }}
+              className={`text-left rounded-xl p-2 -m-2 transition-colors w-fit ${isGroup ? 'cursor-default' : 'hover:bg-app-hover/30'}`}
+              title={isGroup ? `${conversation.participants.length} members` : `View ${username}'s profile`}
             >
               <div className="w-20 h-20 rounded-full bg-app-accent flex items-center justify-center text-white text-3xl font-bold mb-3 overflow-hidden">
-                {otherAvatarUrl ? (
+                {isGroup ? (
+                  <span>👥</span>
+                ) : otherAvatarUrl ? (
                   <img src={otherAvatarUrl} alt="" className="w-full h-full object-cover" />
                 ) : (
                   username.charAt(0).toUpperCase()
@@ -292,7 +317,9 @@ export function DMView({
               <h3 className="text-2xl font-bold text-white mb-1">{username}</h3>
             </button>
             <p className="text-app-muted text-sm max-w-md">
-              This is the beginning of your direct message history with <strong className="text-app-text">@{username}</strong>.
+              {isGroup
+                ? <>This is the beginning of <strong className="text-app-text">{username}</strong>.</>
+                : <>This is the beginning of your direct message history with <strong className="text-app-text">@{username}</strong>.</>}
             </p>
           </div>
         ) : (
@@ -305,7 +332,7 @@ export function DMView({
                 sameDay(prev.created_at, msg.created_at) &&
                 new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime() < 7 * 60 * 1000
               const isMe = msg.user_id === currentUserId
-              const avatarUrl = isMe ? currentUserAvatarUrl : otherAvatarUrl
+              const avatarUrl = isMe ? currentUserAvatarUrl : participantById.get(msg.user_id)?.avatar_url
               const showDateSep = !prev || !sameDay(prev.created_at, msg.created_at)
 
               const reactions = msg.reactions || []
@@ -510,8 +537,8 @@ export function DMView({
           value={input}
           onChange={setInput}
           onSubmit={doSend}
-          placeholder={replyTo ? `Reply to @${replyTo.username}` : `Message @${username}`}
-          members={conversation.other_user ? [{ id: conversation.other_user.id, username }] : []}
+          placeholder={replyTo ? `Reply to @${replyTo.username}` : `Message ${isGroup ? username : `@${username}`}`}
+          members={otherParticipants.map((participant) => ({ id: participant.id, username: participant.username }))}
           uploading={uploading}
           onAttachClick={() => setShowAttachMenu((v) => !v)}
           attachOpen={showAttachMenu}
