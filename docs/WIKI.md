@@ -821,3 +821,9 @@ Test study:
 - Right-click-only user menus with a true full-screen dismiss backdrop (no left-click reopen race).
 - Electron `0.2.2`. Tag `v0.2.2`.
 
+### YouTube playback embeds (0.2.3) (2026-07-24)
+
+- Server chat and DMs show a playable YouTube embed (poster + in-place player) for youtube.com / youtu.be / Shorts links.
+- Other links still use the Open Graph card.
+- Electron `0.2.3`. Tag `v0.2.3`.
+

@@ -8,6 +8,15 @@ export type PatchNote = {
 /** In-app patch notes shown under User Settings → Help & Support. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.2.3',
+    date: '2026-07-24',
+    title: 'YouTube video embeds',
+    highlights: [
+      'YouTube links in server chat and DMs show a playable video embed.',
+      'Click the thumbnail to play in place (youtube.com, youtu.be, Shorts).',
+    ],
+  },
+  {
     version: '0.2.2',
     date: '2026-07-24',
     title: 'Voice audio restored & menus fixed',
