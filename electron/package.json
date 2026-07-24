@@ -1,6 +1,6 @@
 {
   "name": "nepsis-chat",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Nepsis Chat - WebRTC voice chat",
   "main": "main.js",
   "scripts": {
@@ -55,8 +55,14 @@
       "icon": "build/icon.ico"
     },
     "nsis": {
-      "oneClick": false,
+      "oneClick": true,
+      "perMachine": false,
       "allowToChangeInstallationDirectory": false,
+      "allowElevation": true,
+      "runAfterFinish": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Nepsis Chat",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
       "installerHeaderIcon": "build/icon.ico",

@@ -9,9 +9,21 @@ const PROD_URL = process.env.PROD_URL || 'https://nepsischat.vercel.app'
 const BUNDLED_INDEX = path.join(process.resourcesPath, 'webapp', 'index.html')
 
 // Set AppUserModelId early — required for Windows to show the custom icon
-// in the taskbar instead of the default Electron icon.
+// in the taskbar instead of the default Electron icon / duplicate entries.
 if (process.platform === 'win32') {
   app.setAppUserModelId('com.nepsis.chat')
+}
+
+try {
+  app.setName('Nepsis Chat')
+} catch {
+  /* ignore */
+}
+
+// One desktop session only — a second launch focuses the existing window.
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
+if (!gotSingleInstanceLock) {
+  app.quit()
 }
 
 let mainWindow = null
@@ -25,6 +37,7 @@ if (!isDev && app.isPackaged) {
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
   autoUpdater.autoRunAppAfterInstall = true
+  autoUpdater.allowDowngrade = false
 }
 
 function loadIcon() {
@@ -50,6 +63,18 @@ function loadIcon() {
 function sendToRenderer(channel, payload) {
   const win = BrowserWindow.getAllWindows()[0]
   if (win?.webContents) win.webContents.send(channel, payload)
+}
+
+function focusMainWindow() {
+  if (!mainWindow) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  if (!mainWindow.isVisible()) mainWindow.show()
+  mainWindow.focus()
+  if (process.platform === 'win32') {
+    // Brief topmost pulse so Windows brings the existing session forward.
+    mainWindow.setAlwaysOnTop(true)
+    mainWindow.setAlwaysOnTop(false)
+  }
 }
 
 /** Compare dotted versions; true if remote is strictly newer than local. */
@@ -79,7 +104,7 @@ function createTray() {
   tray.setToolTip('Nepsis Chat')
 
   const contextMenu = Menu.buildFromTemplate([
-    { label: 'Show Nepsis Chat', click: () => mainWindow?.show() },
+    { label: 'Show Nepsis Chat', click: () => focusMainWindow() },
     { type: 'separator' },
     {
       label: 'Quit',
@@ -90,7 +115,7 @@ function createTray() {
     },
   ])
   tray.setContextMenu(contextMenu)
-  tray.on('click', () => mainWindow?.show())
+  tray.on('click', () => focusMainWindow())
 }
 
 function createWindow() {
@@ -103,6 +128,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     icon,
+    title: 'Nepsis Chat',
     // Custom Discord-like chrome (TitleBar.tsx in renderer)
     frame: false,
     titleBarStyle: isMac ? 'hiddenInset' : 'default',
@@ -193,7 +219,7 @@ ipcMain.handle('window-close', () => {
 ipcMain.handle('window-is-maximized', () => !!mainWindow?.isMaximized())
 
 ipcMain.handle('check-for-updates', async () => {
-  if (!app.isPackaged) return { error: 'Not packaged' }
+  if (!app.isPackaged) return { error: 'Updates are only available in the installed desktop app.' }
   try {
     const result = await autoUpdater.checkForUpdates()
     const feedVersion = result?.updateInfo?.version || null
@@ -206,9 +232,10 @@ ipcMain.handle('check-for-updates', async () => {
       version: available ? feedVersion : undefined,
       currentVersion,
       isUpdateAvailable: available,
+      updateDownloaded: updateReady,
     }
   } catch (err) {
-    return { error: err?.message || 'Check failed' }
+    return { error: err?.message || 'Check failed', currentVersion: app.getVersion() }
   }
 })
 
@@ -269,11 +296,11 @@ ipcMain.handle('quit-and-install', async () => {
   }
 
   // Brief delay lets the renderer paint its blocking "Applying update" modal.
-  await new Promise((r) => setTimeout(r, 350))
+  await new Promise((r) => setTimeout(r, 400))
 
   try {
-    // Silent NSIS update reads the existing HKCU/HKLM InstallLocation, preserving
-    // the user's original per-user/per-machine scope without showing the wizard.
+    // Silent NSIS update (/S --updated) reuses InstallLocation and never shows the
+    // first-run “who should this be installed for?” / directory wizard.
     autoUpdater.quitAndInstall(true, true)
   } catch (err) {
     console.error('quitAndInstall failed', err)
@@ -315,17 +342,26 @@ function setupMediaPermissions() {
   }
 }
 
-app.whenReady().then(() => {
-  setupMediaPermissions()
-  createWindow()
-  createTray()
-})
+if (gotSingleInstanceLock) {
+  app.on('second-instance', () => {
+    focusMainWindow()
+  })
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
-})
+  app.whenReady().then(() => {
+    setupMediaPermissions()
+    createWindow()
+    createTray()
+  })
 
-app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow()
-  else mainWindow?.show()
-})
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      // Stay alive in the tray on Windows/Linux when the window is hidden.
+      // Quitting is explicit via tray Quit.
+    }
+  })
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    else focusMainWindow()
+  })
+}

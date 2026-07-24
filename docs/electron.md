@@ -16,6 +16,8 @@ Desktop app wrapper and packaging. The packaged app loads the **same React UI** 
 - **Custom title bar**: Frameless window + `TitleBar.tsx` (drag region; Windows/Linux min/max/close). macOS uses `hiddenInset` traffic lights.
 - **Auth**: Desktop skips WelcomeLanding and Guest — Sign In / Sign Up only.
 - **Icons**: `electron/icon.png` + `electron/icon.ico` / `build/icon.ico` (multi-size). `app.setAppUserModelId('com.nepsis.chat')` for Windows taskbar. Windows packaging keeps `signAndEditExecutable: true` so rcedit embeds the ICO into `Nepsis Chat.exe` (desktop/Start Menu shortcuts use that exe icon). NSIS also sets `installerIcon` / `uninstallerIcon` / `installerHeaderIcon`.
+- **Single instance**: `requestSingleInstanceLock()` — only one Nepsis Chat session; a second shortcut click focuses the existing window (avoids duplicate Task Manager entries from multiple launches).
+- **NSIS**: `oneClick: true` + silent `quitAndInstall(true, true)` so updates show the in-app loader modal instead of the classic install wizard.
 - **Media permissions**: On ready, `session.defaultSession` allows `media` / `display-capture` / `notifications`. macOS also prompts via `systemPreferences.askForMediaAccess`. OS privacy must still allow the app (Windows “Permission denied by system” is an OS block).
 
 ---

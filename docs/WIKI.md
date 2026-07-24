@@ -719,6 +719,18 @@ Test study:
 3. Play a sound; all voice peers still hear it.
 4. Legacy personal sound shows Share; after Share it appears for other members.
 
+### Single instance and silent desktop updates (2026-07-24)
+
+- Only one desktop session: second launches focus the existing window.
+- Update UX: download progress modal → restart prompt → applying loader; NSIS runs silent (`oneClick` + `/S --updated`).
+- User Settings → Help & Support → **Check for updates**.
+
+Test study:
+
+1. Launch Nepsis Chat, click the desktop shortcut again — one session, window focuses; Task Manager shows a single app group.
+2. Trigger an update (or Check for updates) — progress modal, then Restart; no install-scope wizard.
+3. Confirm Settings shows the installed version and check status.
+
 ### Desktop 0.1.7 release (2026-07-24)
 
 - Electron source version: `0.1.7`.
@@ -731,4 +743,17 @@ Release verification study:
 1. Confirm `electron/package.json` and lockfile root both report `0.1.7`.
 2. Merge into `master`, tag `v0.1.7`, confirm Desktop Release version job reports `0.1.7`.
 3. After Windows install, confirm desktop/Start Menu shortcut uses the Nepsis icon.
+
+### Desktop 0.1.8 release (2026-07-24)
+
+- Electron source version: `0.1.8`.
+- Release notes: [release-0.1.8.md](release-0.1.8.md).
+- Includes single-instance lock, silent update modals, Settings → Check for updates, one-click NSIS.
+- Tag `v0.1.8` triggers Desktop Release.
+
+Release verification study:
+
+1. Confirm `electron/package.json` and lockfile root report `0.1.8`.
+2. Merge into `master`, tag `v0.1.8`, confirm Desktop Release version job reports `0.1.8`.
+3. After install: second shortcut click focuses one session; update path shows loader not the NSIS wizard.
 
