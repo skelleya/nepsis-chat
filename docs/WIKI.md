@@ -418,3 +418,5 @@ A major UI overhaul to match Discord's layout and interaction patterns.
 ### Soundboard duration parser correction (2026-07-24)
 
 `music-metadata` v11 defaults to a fast metadata pass. Valid MP3/AAC files without a duration header could therefore return `format.duration = undefined`, and the API incorrectly reported `0.0s`. The soundboard route now supplies the uploaded buffer size and enables full duration scanning with `{ duration: true }`. Unknown duration and over-ten-second files have separate error messages.
+
+Verification: generated a three-second constant-bitrate MP3 without a Xing header (`ffmpeg -write_xing 0`) and parsed it with the production options; detected duration was `3.030s`. `node --check src/routes/soundboard.js` also passed.
