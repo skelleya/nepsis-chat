@@ -214,6 +214,17 @@ export function VoiceVideoSettingsTab() {
             aria-label="Mirror my camera preview"
           />
         </div>
+        <div className="sm:col-span-2 flex items-center justify-between gap-3 pt-3 border-t border-app-hover/50">
+          <div>
+            <p className="text-sm text-app-text">Include audio when sharing screen</p>
+            <p className="text-xs text-app-muted">The browser picker still controls whether tab or system audio is available.</p>
+          </div>
+          <SettingsToggle
+            checked={prefs.includeScreenShareAudio}
+            onChange={(value) => persist({ includeScreenShareAudio: value })}
+            aria-label="Include audio when sharing screen"
+          />
+        </div>
       </div>
 
       <div className="bg-app-channel rounded-lg p-4 mb-4 space-y-4">
