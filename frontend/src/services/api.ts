@@ -671,6 +671,15 @@ export interface DMConversation {
   other_user?: { id: string; username: string; avatar_url?: string | null }
 }
 
+function normalizeDMConversation(raw: DMConversation): DMConversation {
+  const participants = Array.isArray(raw.participants)
+    ? raw.participants
+    : raw.other_user
+      ? [raw.other_user]
+      : []
+  return { ...raw, is_group: !!raw.is_group, participants }
+}
+
 export interface DMMessage {
   id: string
   conversation_id: string
@@ -686,7 +695,8 @@ export interface DMMessage {
 export async function listDMConversations(userId: string): Promise<DMConversation[]> {
   const res = await fetch(`${API_BASE}/dm/conversations?userId=${encodeURIComponent(userId)}`)
   if (!res.ok) throw new Error('Failed to list DMs')
-  return res.json()
+  const rows = await res.json() as DMConversation[]
+  return rows.map(normalizeDMConversation)
 }
 
 export async function getDMMessages(conversationId: string, userId: string): Promise<DMMessage[]> {
@@ -753,7 +763,7 @@ export async function createOrGetDMConversation(userId: string, targetUserId: st
     const err = await res.json().catch(() => ({}))
     throw new Error(err?.error || 'Failed to create DM')
   }
-  return res.json()
+  return normalizeDMConversation(await res.json())
 }
 
 export async function createGroupDM(
@@ -770,7 +780,7 @@ export async function createGroupDM(
     const err = await res.json().catch(() => ({}))
     throw new Error(err?.error || 'Failed to create group message')
   }
-  return res.json()
+  return normalizeDMConversation(await res.json())
 }
 
 export async function addGroupDMMembers(
@@ -787,7 +797,7 @@ export async function addGroupDMMembers(
     const err = await res.json().catch(() => ({}))
     throw new Error(err?.error || 'Failed to add people')
   }
-  return res.json()
+  return normalizeDMConversation(await res.json())
 }
 
 export async function renameGroupDM(
@@ -804,7 +814,7 @@ export async function renameGroupDM(
     const err = await res.json().catch(() => ({}))
     throw new Error(err?.error || 'Failed to rename group message')
   }
-  return res.json()
+  return normalizeDMConversation(await res.json())
 }
 
 // ─── Friends ───────────────────────────────────────────

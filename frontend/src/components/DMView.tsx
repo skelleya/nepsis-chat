@@ -118,7 +118,7 @@ export function DMView({
     ? {
         userId: otherUserId,
         username,
-        avatarUrl: otherAvatarUrl,
+        avatarUrl: otherAvatarUrl || undefined,
         role: 'member',
         status: 'online',
       }
@@ -173,7 +173,7 @@ export function DMView({
       return
     }
     if (call.callState !== 'idle') return
-    call.initiateCall(otherUserId, username, otherAvatarUrl, { video })
+    call.initiateCall(otherUserId, username, otherAvatarUrl || undefined, { video })
   }
 
   return (

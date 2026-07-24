@@ -51,6 +51,31 @@ async function getConversationForUser(conversationId, viewerId) {
   }
 }
 
+async function areAcceptedFriends(userId, targetIds) {
+  if (targetIds.length === 0) return true
+  const [{ data: outbound, error: outboundError }, { data: inbound, error: inboundError }] = await Promise.all([
+    supabase
+      .from('friend_requests')
+      .select('addressee_id')
+      .eq('requester_id', userId)
+      .eq('status', 'accepted')
+      .in('addressee_id', targetIds),
+    supabase
+      .from('friend_requests')
+      .select('requester_id')
+      .eq('addressee_id', userId)
+      .eq('status', 'accepted')
+      .in('requester_id', targetIds),
+  ])
+  if (outboundError) throw outboundError
+  if (inboundError) throw inboundError
+  const friendIds = new Set([
+    ...(outbound || []).map((row) => row.addressee_id),
+    ...(inbound || []).map((row) => row.requester_id),
+  ])
+  return targetIds.every((targetId) => friendIds.has(targetId))
+}
+
 // List DM conversations for a user (1:1 and groups)
 dmRouter.get('/conversations', async (req, res) => {
   const { userId } = req.query
@@ -396,6 +421,9 @@ dmRouter.post('/conversations/group', async (req, res) => {
     if ((validUsers || []).length !== allIds.length) {
       return res.status(400).json({ error: 'One or more selected users no longer exist' })
     }
+    if (!(await areAcceptedFriends(userId, requested))) {
+      return res.status(403).json({ error: 'Only accepted friends can be added to group messages' })
+    }
 
     const { error: conversationError } = await supabase.from('dm_conversations').insert({
       id,
@@ -450,6 +478,9 @@ dmRouter.post('/conversations/:id/members', async (req, res) => {
     if (usersError) throw usersError
     if ((validUsers || []).length !== additions.length) {
       return res.status(400).json({ error: 'One or more selected users no longer exist' })
+    }
+    if (!(await areAcceptedFriends(userId, additions))) {
+      return res.status(403).json({ error: 'Only accepted friends can be added to group messages' })
     }
 
     const { error } = await supabase.from('dm_participants').insert(
