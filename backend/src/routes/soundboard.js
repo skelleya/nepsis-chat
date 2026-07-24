@@ -9,7 +9,7 @@ export const soundboardRouter = Router()
 const BUCKET = 'attachments'
 const SOUNDBOARD_PREFIX = 'soundboard'
 const MAX_DURATION_SECONDS = 10
-const MAX_SIZE = 3 * 1024 * 1024 // 3MB for ~10s audio
+const MAX_SIZE = 10 * 1024 * 1024 // accommodates lossless 10s clips
 const ALLOWED_TYPES = [
   'audio/mpeg',
   'audio/mp3',
@@ -20,6 +20,8 @@ const ALLOWED_TYPES = [
   'audio/webm',
   'audio/mp4',
   'audio/x-m4a',
+  'audio/aac',
+  'audio/flac',
 ]
 
 const storage = multer.memoryStorage()
@@ -31,7 +33,7 @@ const upload = multer({
       ALLOWED_TYPES.includes(file.mimetype) ||
       file.mimetype.startsWith('audio/')
     if (allowed) cb(null, true)
-    else cb(new Error('Only audio files allowed (MP3, WAV, OGG, WebM, M4A)'), false)
+    else cb(new Error('Only audio files allowed (MP3, WAV, OGG, WebM, M4A, AAC, FLAC)'), false)
   },
 })
 
@@ -71,7 +73,7 @@ soundboardRouter.post('/', upload.single('file'), async (req, res) => {
       const metadata = await parseBuffer(req.file.buffer, { mimeType: req.file.mimetype })
       durationSeconds = metadata.format.duration ?? 0
     } catch (parseErr) {
-      return res.status(400).json({ error: 'Could not read audio file. Use MP3, WAV, OGG, or WebM.' })
+      return res.status(400).json({ error: 'Could not read audio file. Use MP3, WAV, OGG, WebM, M4A, AAC, or FLAC.' })
     }
 
     if (durationSeconds <= 0 || durationSeconds > MAX_DURATION_SECONDS) {

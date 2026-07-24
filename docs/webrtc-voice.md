@@ -114,6 +114,7 @@ Each peer maintains **one combined `MediaStream`** per remote peer. All incoming
 Users can play custom audio clips (max 10 seconds) to all peers in a voice channel. Flow:
 
 1. User uploads sounds via Soundboard UI (attachments bucket, `soundboard/{userId}/`)
+   - Sources longer than ten seconds open the clip editor; the selected segment is exported as WAV before upload.
 2. Each sound has an emoji (default 🔊; pick when adding or click to edit)
 3. In voice, user clicks a sound → `emitSoundboardPlay(soundUrl)` via Socket.io
 4. Backend broadcasts `soundboard-play` to room (including sender)
@@ -121,6 +122,13 @@ Users can play custom audio clips (max 10 seconds) to all peers in a voice chann
 6. Spam-click restarts the sound from the beginning
 7. Per-user soundboard mute (🔊/🔇) in voice bar — lets users stop hearing soundboard without deafening
 8. Works only with Socket.io signaling (BroadcastChannel has no soundboard)
+
+### Capture quality
+
+- Camera presets: 1920×1080 or 2560×1440, up to 60 capture fps.
+- Screen presets: 1920×1080, 2560×1440, or 3840×2160, up to 60 capture fps.
+- Sender ceilings adapt to the captured track: up to 8 Mbps camera and 16 Mbps screen.
+- Constraints are ideals/maximums, not a guarantee. The browser can return a lower resolution or bitrate for unsupported cameras, displays, encoders, or network conditions.
 
 ### Resizable Voice Layout (Voice UI v6 / Discord watch)
 
@@ -137,8 +145,8 @@ Users can play custom audio clips (max 10 seconds) to all peers in a voice chann
 
 When a user stops camera/screen share:
 1. `removeTrackFromAllPeers(track)` removes the sender and sends a renegotiation offer
-2. Remote side processes the new SDP; `track.onended` or `track.onmute` fires
-3. Track is removed from the combined stream; `useVideoTrackCount` hook updates the UI
+2. Remote side processes the new SDP; ended/removal means the track is gone, while mute/unmute controls temporary tile visibility
+3. `useVideoTrackCount` listens for stream and track lifecycle changes; `TileVideo` clears stale frames
 4. `ParticipantCard` switches back to avatar mode
 
 ---

@@ -5,10 +5,10 @@
 
 /** Voice chat target — Discord Go-Live / High Quality voice is ~64–128 kbps Opus */
 export const AUDIO_MAX_BITRATE = 128_000
-/** Camera — ~2.5 Mbps for 720p30 */
-export const CAMERA_MAX_BITRATE = 2_500_000
-/** Screen share — ~4 Mbps for crisp 1080p30 */
-export const SCREEN_MAX_BITRATE = 4_000_000
+/** Camera — enough headroom for 1080p/1440p at 30fps when the connection permits. */
+export const CAMERA_MAX_BITRATE = 8_000_000
+/** Screen share — enough headroom for 1440p/4K detail when the connection permits. */
+export const SCREEN_MAX_BITRATE = 16_000_000
 
 /** Base high-quality mic constraints (merge with device prefs). */
 export function highQualityAudioBase(): MediaTrackConstraints {
@@ -29,15 +29,15 @@ export function highQualityAudioBase(): MediaTrackConstraints {
 }
 
 export const HIGH_QUALITY_CAMERA: MediaTrackConstraints = {
-  width: { ideal: 1280, max: 1920 },
-  height: { ideal: 720, max: 1080 },
+  width: { ideal: 1920, max: 2560 },
+  height: { ideal: 1080, max: 1440 },
   frameRate: { ideal: 30, max: 60 },
   facingMode: 'user',
 }
 
 export const HIGH_QUALITY_SCREEN: MediaTrackConstraints = {
-  width: { ideal: 1920, max: 2560 },
-  height: { ideal: 1080, max: 1440 },
+  width: { ideal: 2560, max: 3840 },
+  height: { ideal: 1440, max: 2160 },
   frameRate: { ideal: 30, max: 60 },
 }
 
@@ -114,8 +114,11 @@ export async function applySenderQuality(sender: RTCRtpSender): Promise<void> {
       enc.maxBitrate = AUDIO_MAX_BITRATE
     } else if (track.kind === 'video') {
       const screen = isScreenTrack(track)
-      enc.maxBitrate = screen ? SCREEN_MAX_BITRATE : CAMERA_MAX_BITRATE
-      enc.maxFramerate = 30
+      const height = track.getSettings?.().height ?? 1080
+      enc.maxBitrate = screen
+        ? Math.min(SCREEN_MAX_BITRATE, height >= 2160 ? 16_000_000 : height >= 1440 ? 12_000_000 : 8_000_000)
+        : Math.min(CAMERA_MAX_BITRATE, height >= 1440 ? 8_000_000 : 5_000_000)
+      enc.maxFramerate = track.getSettings?.().frameRate ?? 30
       enc.scaleResolutionDownBy = 1
     }
     await sender.setParameters(params)

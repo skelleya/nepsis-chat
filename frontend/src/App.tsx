@@ -885,6 +885,7 @@ function MainLayout({
                 ...voiceUsers[chId][idx],
                 isMuted: voiceState?.muted ?? p.isMuted ?? voiceUsers[chId][idx].isMuted,
                 isDeafened: voiceState?.deafened ?? p.isDeafened ?? voiceUsers[chId][idx].isDeafened,
+                isSpeaking: p.isSpeaking,
                 isScreenSharing: voice.screenShareUserIds.includes(p.userId),
               }
             }
@@ -1321,7 +1322,7 @@ function MainLayout({
       {/* Hide members while a DM is open (Discord-like); server channels stay in the left rail */}
       {!showCommunity && !showFriends && !showOnboarding && !currentDMId && (
       <div
-        className={`fixed xl:relative z-40 inset-y-0 right-0 transition-transform duration-200 ease-out ${
+        className={`fixed xl:relative z-40 inset-y-0 right-0 h-full min-h-0 self-stretch flex flex-col flex-shrink-0 transition-transform duration-200 ease-out ${
           membersOpen ? 'translate-x-0' : 'translate-x-full xl:translate-x-0'
         }`}
       >

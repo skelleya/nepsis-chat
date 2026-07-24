@@ -4,9 +4,16 @@ import gsap from 'gsap'
 import { UserSettingsModal } from './UserSettingsModal'
 import { MicIcon, MicOffIcon, HeadphonesIcon, HeadphonesOffIcon } from './icons/VoiceIcons'
 import type { UserStatus } from '../contexts/AppContext'
+import * as api from '../services/api'
+import type { ProfileType } from '../services/api'
+import {
+  loadSettingsProfilesCache,
+  saveSettingsProfilesCache,
+  type SettingsProfilesCache,
+} from '../services/settingsCache'
 
 interface UserPanelProps {
-  user: { id: string; username: string; display_name?: string | null; avatar_url?: string; banner_url?: string; is_guest?: boolean }
+  user: { id: string; username: string; display_name?: string | null; avatar_url?: string; banner_url?: string; active_profile?: ProfileType; is_guest?: boolean }
   isMuted: boolean
   isDeafened: boolean
   isSpeaking?: boolean
@@ -15,7 +22,7 @@ interface UserPanelProps {
   onToggleMute: () => void
   onToggleDeafen: () => void
   onLogout: () => void
-  onUserUpdate?: (data: { username?: string; display_name?: string | null; avatar_url?: string; banner_url?: string }) => void
+  onUserUpdate?: (data: { username?: string; display_name?: string | null; avatar_url?: string; banner_url?: string; active_profile?: ProfileType }) => void
 }
 
 const STATUS_COLORS: Record<UserStatus, string> = {
@@ -46,6 +53,12 @@ export function UserPanel({
 }: UserPanelProps) {
   const [showSettings, setShowSettings] = useState(false)
   const [showStatusMenu, setShowStatusMenu] = useState(false)
+  const cachedProfiles = user.is_guest ? null : loadSettingsProfilesCache(user.id)
+  const [activeProfile, setActiveProfile] = useState<ProfileType>(
+    user.active_profile === 'work' || cachedProfiles?.activeProfile === 'work' ? 'work' : 'personal'
+  )
+  const [profileChoices, setProfileChoices] = useState(cachedProfiles)
+  const [switchingProfile, setSwitchingProfile] = useState(false)
   const statusMenuRef = useRef<HTMLDivElement>(null)
   const statusDropdownRef = useRef<HTMLDivElement>(null)
   const muteBtnRef = useRef<HTMLButtonElement>(null)
@@ -119,6 +132,40 @@ export function UserPanel({
   }, [showStatusMenu])
 
   useEffect(() => {
+    if (user.is_guest) return
+    let cancelled = false
+    Promise.all([api.getUserProfiles(user.id), api.getAccount(user.id)])
+      .then(([rows, account]) => {
+        if (cancelled) return
+        const next: SettingsProfilesCache = {
+          activeProfile: (account?.active_profile === 'work' ? 'work' : 'personal') as ProfileType,
+          personal: { display_name: user.username, avatar_url: null, banner_url: null },
+          work: { display_name: '', avatar_url: null, banner_url: null },
+          updatedAt: Date.now(),
+        }
+        for (const row of rows as Array<{
+          profile_type: ProfileType
+          display_name?: string
+          avatar_url?: string | null
+          banner_url?: string | null
+        }>) {
+          if (row.profile_type === 'personal' || row.profile_type === 'work') {
+            next[row.profile_type] = {
+              display_name: row.display_name || (row.profile_type === 'personal' ? user.username : ''),
+              avatar_url: row.avatar_url ?? null,
+              banner_url: row.banner_url ?? null,
+            }
+          }
+        }
+        setActiveProfile(next.activeProfile)
+        setProfileChoices(next)
+        saveSettingsProfilesCache(user.id, next)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [user.id, user.is_guest, user.username])
+
+  useEffect(() => {
     const dot = statusDotRef.current
     if (!dot) return
     gsap.fromTo(
@@ -151,6 +198,32 @@ export function UserPanel({
   const handleSelectStatus = (s: UserStatus) => {
     onSetStatus(s)
     closeStatusMenu()
+  }
+
+  const handleSelectProfile = async (type: ProfileType) => {
+    if (switchingProfile || type === activeProfile) return
+    if (type === 'work' && !profileChoices?.work.display_name?.trim()) return
+    setSwitchingProfile(true)
+    setActiveProfile(type)
+    try {
+      const updated = await api.setActiveProfile(user.id, type)
+      if (profileChoices) {
+        const next = { ...profileChoices, activeProfile: type }
+        setProfileChoices(next)
+        saveSettingsProfilesCache(user.id, next)
+      }
+      onUserUpdate?.({
+        active_profile: type,
+        display_name: updated.display_name ?? null,
+        avatar_url: updated.avatar_url || undefined,
+        banner_url: updated.banner_url || undefined,
+      })
+      closeStatusMenu()
+    } catch {
+      setActiveProfile(user.active_profile === 'work' ? 'work' : 'personal')
+    } finally {
+      setSwitchingProfile(false)
+    }
   }
 
   const displayStatus = userStatus === 'online' && isSpeaking ? 'Speaking' : STATUS_LABELS[userStatus]
@@ -217,6 +290,30 @@ export function UserPanel({
                   </button>
                 ))}
               </div>
+              {!user.is_guest && (
+                <div className="p-1 border-t border-app-hover/50">
+                  <p className="px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-app-muted">Active profile</p>
+                  {(['personal', 'work'] as ProfileType[]).map((type) => {
+                    const disabled = type === 'work' && !profileChoices?.work.display_name?.trim()
+                    return (
+                      <button
+                        key={type}
+                        type="button"
+                        disabled={disabled || switchingProfile}
+                        onClick={() => handleSelectProfile(type)}
+                        className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded text-left text-sm capitalize disabled:opacity-40 disabled:cursor-not-allowed ${
+                          activeProfile === type ? 'bg-app-accent/30 text-white' : 'text-app-text hover:bg-app-hover/60'
+                        }`}
+                      >
+                        <span>{type}</span>
+                        <span className="text-[10px] text-app-muted">
+                          {disabled ? 'Set up first' : activeProfile === type ? 'Active' : ''}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>

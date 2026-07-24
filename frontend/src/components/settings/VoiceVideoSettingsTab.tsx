@@ -144,8 +144,8 @@ export function VoiceVideoSettingsTab() {
     <div>
       <h3 className="text-xl font-bold text-app-text mb-1">Voice & Video</h3>
       <p className="text-app-muted text-sm mb-4">
-        Choose devices and processing. Capture uses high-quality defaults (48&nbsp;kHz Opus voice,
-        720p–1080p camera, crisp screen share) — applied the next time you join voice or start a call.
+        Choose devices, capture quality, and processing. Quality changes apply when you next start
+        the camera, screen share, or a call.
       </p>
 
       <div className="bg-app-channel rounded-lg p-4 mb-4 space-y-4">
@@ -170,6 +170,39 @@ export function VoiceVideoSettingsTab() {
           onChange={(id) => persist({ videoInputId: id })}
           emptyLabel="System default"
         />
+      </div>
+
+      <div className="bg-app-channel rounded-lg p-4 mb-4 grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <label className="block text-xs font-bold uppercase text-app-muted">Camera quality</label>
+          <SettingsDropdown
+            fullWidth
+            value={prefs.cameraQuality}
+            onChange={(value) => persist({ cameraQuality: value as VoicePrefs['cameraQuality'] })}
+            aria-label="Camera quality"
+            options={[
+              { value: '1080p', label: '1080p (recommended)' },
+              { value: '1440p', label: '1440p / 2K' },
+            ]}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="block text-xs font-bold uppercase text-app-muted">Screen-share quality</label>
+          <SettingsDropdown
+            fullWidth
+            value={prefs.screenQuality}
+            onChange={(value) => persist({ screenQuality: value as VoicePrefs['screenQuality'] })}
+            aria-label="Screen-share quality"
+            options={[
+              { value: '1080p', label: '1080p' },
+              { value: '1440p', label: '1440p / 2K (recommended)' },
+              { value: '4k', label: '2160p / 4K' },
+            ]}
+          />
+        </div>
+        <p className="sm:col-span-2 text-xs text-app-muted">
+          The browser and camera may choose a lower resolution when the device or connection cannot sustain the selected quality.
+        </p>
       </div>
 
       <div className="bg-app-channel rounded-lg p-4 mb-4 space-y-4">

@@ -124,11 +124,11 @@ export function SettingsDropdown({
         triggerRef.current?.focus()
       }
     }
-    const onScroll = () => close()
+    const onScroll = () => updatePosition()
     const onResize = () => updatePosition()
     window.addEventListener('keydown', onKey)
     window.addEventListener('resize', onResize)
-    // Close when the settings panel scrolls underneath
+    // Keep the portaled list aligned while the settings panel scrolls.
     document.addEventListener('scroll', onScroll, true)
     return () => {
       window.removeEventListener('keydown', onKey)
@@ -197,7 +197,7 @@ export function SettingsDropdown({
             bottom: menuPos.openUp ? window.innerHeight - menuPos.top : undefined,
             left: menuPos.left,
             width: menuPos.width,
-            zIndex: 80,
+            zIndex: 300,
           }}
           className="rounded-md bg-app-darker border border-app-hover shadow-xl shadow-black/40 overflow-hidden py-1 max-h-60 overflow-y-auto will-change-transform"
         >

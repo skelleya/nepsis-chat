@@ -4,7 +4,7 @@ import { createSocketSignaling } from '../services/socketSignaling'
 import { createWebRTCClient } from '../services/webrtc'
 import { ensureIceServers } from '../services/iceConfig'
 import { sounds } from '../services/sounds'
-import { getAudioConstraints, getVideoConstraints } from '../services/userPrefs'
+import { getAudioConstraints, getScreenConstraints, getVideoConstraints } from '../services/userPrefs'
 import { getScreenShareStream } from '../utils/mediaTracks'
 import { getCallBusy } from '../services/mediaSessionGate'
 
@@ -89,6 +89,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   /** Explicit screen-share signals from peers (remote tracks often lack labels) */
   const [remoteScreenShareIds, setRemoteScreenShareIds] = useState<Set<string>>(new Set())
   const [remoteVoiceStates, setRemoteVoiceStates] = useState<Record<string, RemoteVoiceState>>({})
+  const participantsRef = useRef<VoiceParticipant[]>([])
 
   const webrtcRef = useRef<ReturnType<typeof createWebRTCClient> | null>(null)
   const signalingRef = useRef<ReturnType<typeof createBroadcastSignaling> | ReturnType<typeof createSocketSignaling> | null>(null)
@@ -108,6 +109,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   const playingSoundboardRef = useRef<Map<string, HTMLAudioElement>>(new Map())
   isMutedRef.current = isMuted
   isDeafenedRef.current = isDeafened
+  participantsRef.current = participants
   isSoundboardMutedRef.current = isSoundboardMuted
 
   /** Unmute also undeafens */
@@ -494,6 +496,68 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     }
   }, [localStream, isMuted])
 
+  // Analyse remote audio once per media-track revision so the channel rail can
+  // show the same speaking ring as the voice view.
+  const remoteAudioKey = useMemo(
+    () =>
+      participants
+        .map((p) => `${p.userId}:${p.streamVersion}:${p.stream?.getAudioTracks().map((t) => t.id).join(',') ?? ''}`)
+        .join('|'),
+    [participants]
+  )
+  useEffect(() => {
+    const cleanups: Array<() => void> = []
+    for (const participant of participantsRef.current) {
+      const stream = participant.stream
+      if (!stream?.getAudioTracks().some((track) => track.readyState === 'live')) continue
+      let active = true
+      let context: AudioContext | null = null
+      let timer: number | null = null
+      const start = async () => {
+        try {
+          context = new AudioContext()
+          if (context.state === 'suspended') await context.resume()
+          if (!active) return
+          const analyser = context.createAnalyser()
+          analyser.fftSize = 256
+          analyser.smoothingTimeConstant = 0.5
+          context.createMediaStreamSource(stream).connect(analyser)
+          const samples = new Uint8Array(analyser.frequencyBinCount)
+          const sample = () => {
+            if (!active) return
+            analyser.getByteFrequencyData(samples)
+            const speaking = samples.reduce((sum, value) => sum + value, 0) / samples.length > 8
+            setParticipants((current) =>
+              current.map((item) =>
+                item.userId === participant.userId && item.isSpeaking !== speaking
+                  ? { ...item, isSpeaking: speaking }
+                  : item
+              )
+            )
+            timer = window.setTimeout(sample, 100)
+          }
+          sample()
+        } catch {
+          /* Audio analysis is optional in browsers without AudioContext support. */
+        }
+      }
+      void start()
+      cleanups.push(() => {
+        active = false
+        if (timer !== null) window.clearTimeout(timer)
+        void context?.close()
+      })
+    }
+    return () => {
+      cleanups.forEach((cleanup) => cleanup())
+      setParticipants((current) =>
+        current.some((participant) => participant.isSpeaking)
+          ? current.map((participant) => ({ ...participant, isSpeaking: false }))
+          : current
+      )
+    }
+  }, [remoteAudioKey])
+
   // ─── Admin move listener (when an admin moves this user to another voice channel) ─
   useEffect(() => {
     const signaling = signalingRef.current
@@ -683,9 +747,8 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
       setWatchingShareUserId((prev) => (prev === userId ? null : prev))
     } else {
       try {
-        const { HIGH_QUALITY_SCREEN } = await import('../services/mediaQuality')
         const stream = await navigator.mediaDevices.getDisplayMedia({
-          video: HIGH_QUALITY_SCREEN,
+          video: getScreenConstraints(),
           audio: false,
         })
         const screenTrack = stream.getVideoTracks()[0]

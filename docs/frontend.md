@@ -216,3 +216,13 @@ Cache is cleared on logout. See `frontend/src/services/layoutCache.ts`.
 | VITE_TURN_CREDENTIAL | — | TURN password (with `VITE_TURN_URLS`) |
 
 When `VITE_API_URL` is set, voice uses Socket.io instead of BroadcastChannel. ICE/TURN: see [webrtc-voice.md](webrtc-voice.md). Preferred: backend `GET /api/webrtc/ice`.
+
+---
+
+## Media and soundboard controls
+
+- `userPrefs.ts` persists `cameraQuality` (`1080p`/`1440p`) and `screenQuality` (`1080p`/`1440p`/`4k`).
+- `VoiceVideoSettingsTab.tsx` edits those device-local preferences; capture reads them the next time media starts.
+- `audioClip.ts` uses Web Audio to decode a long sound and writes the selected, at-most-10-second segment as PCM WAV.
+- `SoundboardDropdown.tsx` owns clip selection and preview; the backend remains the final duration/type validator.
+- `UserPanel.tsx` combines presence and quick Personal/Work switching. The full profile editor remains under User Settings → Profiles.

@@ -151,13 +151,25 @@ function useVideoTrackCount(stream: MediaStream | null, version = 0): number {
       setCount(0)
       return
     }
-    const update = () => setCount(stream.getVideoTracks().filter((t) => t.readyState !== 'ended').length)
+    const tracks = stream.getVideoTracks()
+    const update = () =>
+      setCount(stream.getVideoTracks().filter((track) => track.readyState === 'live' && !track.muted).length)
     update()
     stream.addEventListener('addtrack', update)
     stream.addEventListener('removetrack', update)
+    tracks.forEach((track) => {
+      track.addEventListener('ended', update)
+      track.addEventListener('mute', update)
+      track.addEventListener('unmute', update)
+    })
     return () => {
       stream.removeEventListener('addtrack', update)
       stream.removeEventListener('removetrack', update)
+      tracks.forEach((track) => {
+        track.removeEventListener('ended', update)
+        track.removeEventListener('mute', update)
+        track.removeEventListener('unmute', update)
+      })
     }
   }, [stream, version])
   return count
@@ -226,6 +238,33 @@ function TileVideo({
 
   useEffect(() => {
     setHasFrame(false)
+    const video = videoRef.current
+    const tracks = stream.getVideoTracks()
+    const clearFrame = () => {
+      setHasFrame(false)
+      if (tracks.every((track) => track.readyState === 'ended')) {
+        video?.pause()
+        if (video) video.srcObject = null
+      }
+    }
+    const restoreFrame = () => {
+      if (video && video.srcObject !== stream) video.srcObject = stream
+      void video?.play().catch(() => {})
+    }
+    stream.addEventListener('removetrack', clearFrame)
+    tracks.forEach((track) => {
+      track.addEventListener('ended', clearFrame)
+      track.addEventListener('mute', clearFrame)
+      track.addEventListener('unmute', restoreFrame)
+    })
+    return () => {
+      stream.removeEventListener('removetrack', clearFrame)
+      tracks.forEach((track) => {
+        track.removeEventListener('ended', clearFrame)
+        track.removeEventListener('mute', clearFrame)
+        track.removeEventListener('unmute', restoreFrame)
+      })
+    }
   }, [stream])
 
   return (

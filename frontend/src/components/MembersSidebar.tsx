@@ -252,7 +252,7 @@ export function MembersSidebar({
   if (minimized) {
     const preview = [...grouped.voice, ...grouped.online, ...grouped.offline].slice(0, 6)
     return (
-      <div className="w-14 bg-app-channel flex flex-col items-center border-l border-app-glass/[0.06] py-3 gap-2">
+      <div className="w-14 h-full min-h-0 bg-app-channel flex flex-col items-center border-l border-app-glass/[0.06] py-3 gap-2">
         <button
           type="button"
           onClick={() => setMinimized(false)}
@@ -298,7 +298,7 @@ export function MembersSidebar({
   }
 
   return (
-    <div className="w-60 bg-app-channel flex flex-col flex-shrink-0 border-l border-app-glass/[0.06]">
+    <div className="w-60 h-full min-h-0 bg-app-channel flex flex-col flex-shrink-0 border-l border-app-glass/[0.06]">
       <div className="h-12 px-3 flex items-center justify-between border-b border-app-glass/[0.06]">
         <div className="flex items-center gap-2 min-w-0">
           <CoolIcon name="users" size={16} className="text-app-muted flex-shrink-0" />
@@ -319,6 +319,13 @@ export function MembersSidebar({
       </div>
 
       <div className="flex-1 overflow-y-auto py-2 min-h-0">
+        {members.length === 0 && (
+          <div className="h-full min-h-40 flex flex-col items-center justify-center px-6 text-center">
+            <CoolIcon name="users" size={24} className="text-app-muted/50 mb-2" />
+            <p className="text-sm font-medium text-app-text">No members to show</p>
+            <p className="text-xs text-app-muted mt-1">Members appear here after the server list loads.</p>
+          </div>
+        )}
         <Section label="In Voice" count={grouped.voice.length}>
           {grouped.voice.map(renderMemberRow)}
         </Section>
