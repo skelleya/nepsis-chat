@@ -7,6 +7,7 @@ import { sounds } from '../services/sounds'
 import { getAudioConstraints, getScreenConstraints, getVideoConstraints, loadPrefs } from '../services/userPrefs'
 import { getScreenShareStream } from '../utils/mediaTracks'
 import { getCallBusy } from '../services/mediaSessionGate'
+import { smoothPing, type PingSource } from '../services/connectionStats'
 
 export interface VoiceParticipant {
   userId: string
@@ -50,6 +51,7 @@ interface VoiceContextValue {
   localStream: MediaStream | null
   isSpeaking: boolean      // local user speaking detection
   ping: number | null       // latency in ms
+  pingSource: PingSource
   joinVoice: (channelId: string, channelName: string) => Promise<void>
   leaveVoice: (opts?: { preserveRejoin?: boolean }) => void
   /** Play soundboard sound to all peers (Socket.io only; no-op when using BroadcastChannel) */
@@ -101,6 +103,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   const [error, setError] = useState<string | null>(null)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [ping, setPing] = useState<number | null>(null)
+  const [pingSource, setPingSource] = useState<PingSource>('none')
   const [leftUserIds, setLeftUserIds] = useState<Set<string>>(new Set())
   const [watchingShareUserId, setWatchingShareUserId] = useState<string | null>(null)
   /** Explicit screen-share signals from peers (remote tracks often lack labels) */
@@ -768,20 +771,37 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     const connected = !!localStream && !!voiceChannelId
     if (!connected) {
       setPing(null)
+      setPingSource('none')
       return
     }
     let cancelled = false
     const sample = async () => {
       try {
-        const webrtcRtt = await webrtcRef.current?.getPing()
+        const client = webrtcRef.current
+        const hasPeers = (client?.getPeerCount() ?? 0) > 0
+        const webrtcRtt = await client?.getPing()
         if (cancelled) return
-        if (webrtcRtt != null) {
-          setPing(webrtcRtt)
+        if (webrtcRtt?.ms != null) {
+          setPing((previous) => smoothPing(previous, webrtcRtt.ms!))
+          setPingSource('webrtc')
+          return
+        }
+        if (hasPeers) {
+          setPing(null)
+          setPingSource('none')
           return
         }
         const sig = signalingRef.current as { measureLatency?: () => Promise<number | null> } | null
         const sockRtt = await sig?.measureLatency?.()
-        if (!cancelled && sockRtt != null) setPing(sockRtt)
+        if (!cancelled) {
+          if (sockRtt != null) {
+            setPing((previous) => smoothPing(previous, sockRtt))
+            setPingSource('server')
+          } else {
+            setPing(null)
+            setPingSource('none')
+          }
+        }
       } catch { /* ignore */ }
     }
     sample()
@@ -972,6 +992,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         localStream,
         isSpeaking,
         ping,
+        pingSource,
         joinVoice,
         leaveVoice,
         playSoundboardSound,

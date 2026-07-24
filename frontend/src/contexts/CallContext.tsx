@@ -25,6 +25,7 @@ import { ensureIceServers } from '../services/iceConfig'
 import { useVoice } from './VoiceContext'
 import { applyAudioOutputDevice, getAudioConstraints, getVideoConstraints, loadPrefs } from '../services/userPrefs'
 import { setCallBusy } from '../services/mediaSessionGate'
+import { readConnectionRtt, smoothPing, type PingSource } from '../services/connectionStats'
 
 const SOCKET_URL =
   import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000'
@@ -40,6 +41,8 @@ interface CallContextValue {
   isMuted: boolean
   isDeafened: boolean
   callDuration: number
+  ping: number | null
+  pingSource: PingSource
   unavailableReason: string | null
   isVideoCall: boolean
   callExpanded: boolean
@@ -80,6 +83,8 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
   const [isMuted, setIsMuted] = useState(false)
   const [isDeafened, setIsDeafened] = useState(false)
   const [callDuration, setCallDuration] = useState(0)
+  const [ping, setPing] = useState<number | null>(null)
+  const [pingSource, setPingSource] = useState<PingSource>('none')
   const [unavailableReason, setUnavailableReason] = useState<string | null>(null)
   const [isVideoCall, setIsVideoCall] = useState(false)
   const [callExpanded, setCallExpanded] = useState(false)
@@ -176,6 +181,8 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
     setIsDeafened(false)
     mutedBeforeDeafenRef.current = false
     setCallDuration(0)
+    setPing(null)
+    setPingSource('none')
     setIsVideoCall(false)
     isVideoCallRef.current = false
     setCallExpanded(false)
@@ -190,6 +197,40 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
       setCallDuration(Math.floor((Date.now() - startTime) / 1000))
     }, 1000)
   }, [])
+
+  useEffect(() => {
+    if (callState !== 'in-call') {
+      setPing(null)
+      setPingSource('none')
+      return
+    }
+    let cancelled = false
+    const sample = async () => {
+      const pc = pcRef.current
+      if (!pc || pc.connectionState === 'closed' || pc.connectionState === 'failed') {
+        if (!cancelled) {
+          setPing(null)
+          setPingSource('none')
+        }
+        return
+      }
+      const reading = await readConnectionRtt(pc)
+      if (cancelled) return
+      if (reading.ms !== null) {
+        setPing((previous) => smoothPing(previous, reading.ms!))
+        setPingSource('webrtc')
+      } else {
+        setPing(null)
+        setPingSource('none')
+      }
+    }
+    void sample()
+    const interval = window.setInterval(sample, 2_000)
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [callState])
 
   const flushIceQueue = useCallback(async () => {
     const pc = pcRef.current
@@ -756,6 +797,8 @@ export function CallProvider({ children, userId, username }: CallProviderProps) 
         isMuted,
         isDeafened,
         callDuration,
+        ping,
+        pingSource,
         unavailableReason,
         isVideoCall,
         callExpanded,

@@ -197,7 +197,12 @@ export function CallOverlay() {
                 </div>
                 <div className="min-w-0">
                   <div className="text-white font-semibold truncate">{call.remoteUsername}</div>
-                  <div className="text-white/60 text-xs font-mono">{formatDuration(call.callDuration)}</div>
+                  <div className="text-white/60 text-xs font-mono flex items-center gap-2">
+                    <span>{formatDuration(call.callDuration)}</span>
+                    <span title="Your locally measured WebRTC round-trip time">
+                      {call.ping !== null ? `${call.ping}ms` : 'Measuring…'}
+                    </span>
+                  </div>
                 </div>
               </div>
               <button
@@ -296,6 +301,12 @@ export function CallOverlay() {
             </span>
             <span className="text-white/70 text-xs font-mono">
               {formatDuration(call.callDuration)}
+            </span>
+            <span
+              className="text-white/70 text-xs font-mono"
+              title="Your locally measured WebRTC round-trip time"
+            >
+              {call.ping !== null ? `${call.ping}ms` : '…'}
             </span>
             {call.isVideoCall && (
               <span className="text-[10px] uppercase font-bold text-white/80 bg-white/15 px-1.5 py-0.5 rounded">

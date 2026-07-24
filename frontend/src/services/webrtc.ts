@@ -6,6 +6,7 @@
  */
 
 import { applyPeerConnectionQuality, applySenderQuality, preferHighQualityCodecs } from './mediaQuality'
+import { readAggregateRtt, type PingReading } from './connectionStats'
 
 export interface WebRTCHandlers {
   onRemoteStream: (peerId: string, userId: string, username: string, stream: MediaStream) => void
@@ -393,20 +394,8 @@ export function createWebRTCClient(
 
   // ─── Ping measurement via RTCPeerConnection stats ─────────────────
 
-  const getPing = async (): Promise<number | null> => {
-    for (const [, { pc }] of peers) {
-      try {
-        const stats = await pc.getStats()
-        for (const report of stats.values()) {
-          if (report.type === 'candidate-pair' && report.state === 'succeeded') {
-            const rtt = (report as { currentRoundTripTime?: number }).currentRoundTripTime
-            if (rtt != null) return Math.round(rtt * 1000)
-          }
-        }
-      } catch { /* ignore */ }
-    }
-    return null
-  }
+  const getPing = async (): Promise<PingReading> =>
+    readAggregateRtt(Array.from(peers.values()).map((entry) => entry.pc))
 
   // ─── Signaling message handler ────────────────────────────────────
 
@@ -526,6 +515,7 @@ export function createWebRTCClient(
     removeTrackFromAllPeers,
     removeTracksFromAllPeers,
     getPing,
+    getPeerCount: () => peers.size,
     resetPeers,
     leave: () => {
       leave()
