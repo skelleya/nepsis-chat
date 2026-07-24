@@ -79,8 +79,10 @@ export function useDesktopUpdate() {
     setInstalling(true)
     setInstallError(null)
     try {
+      // Give React time to paint the blocking applying modal before Electron exits.
+      await new Promise((resolve) => window.setTimeout(resolve, 650))
       await window.electronAPI?.quitAndInstall()
-      // Process should exit; keep "Restarting…" visible briefly
+      // Process should exit; keep the applying state visible until it does.
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Restart failed'
       setInstallError(msg)

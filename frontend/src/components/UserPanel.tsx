@@ -136,7 +136,7 @@ export function UserPanel({
   useEffect(() => {
     if (user.is_guest) return
     let cancelled = false
-    Promise.all([api.getUserProfiles(user.id), api.getAccount(user.id)])
+    Promise.all([api.getUserProfiles(user.id, user.id), api.getAccount(user.id)])
       .then(([rows, account]) => {
         if (cancelled) return
         const next: SettingsProfilesCache = {

@@ -138,9 +138,19 @@ export function createSocketSignaling(
     return () => socket.off('admin-mute', callback)
   }
 
+  const onAdminUnmute = (callback: () => void) => {
+    socket.on('admin-unmute', callback)
+    return () => socket.off('admin-unmute', callback)
+  }
+
   const onAdminDeafen = (callback: () => void) => {
     socket.on('admin-deafen', callback)
     return () => socket.off('admin-deafen', callback)
+  }
+
+  const onAdminUndeafen = (callback: () => void) => {
+    socket.on('admin-undeafen', callback)
+    return () => socket.off('admin-undeafen', callback)
   }
 
   const onAdminDisconnect = (callback: () => void) => {
@@ -221,7 +231,9 @@ export function createSocketSignaling(
     getSocketId,
     onAdminMove,
     onAdminMute,
+    onAdminUnmute,
     onAdminDeafen,
+    onAdminUndeafen,
     onAdminDisconnect,
     onVoiceSessionReplaced,
     emitSoundboardPlay,

@@ -21,8 +21,10 @@ let updateReady = false
 // Updates from GitHub Releases (same channel for Windows + macOS)
 if (!isDev && app.isPackaged) {
   autoUpdater.setFeedURL({ provider: 'github', owner: 'skelleya', repo: 'nepsis-chat' })
-  autoUpdater.autoDownload = false // User clicks the update badge to start
+  // Download in the background; the renderer only asks when it is ready to restart.
+  autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = true
+  autoUpdater.autoRunAppAfterInstall = true
 }
 
 function loadIcon() {
@@ -266,12 +268,13 @@ ipcMain.handle('quit-and-install', async () => {
     win.removeAllListeners('close')
   }
 
-  // Brief delay lets the IPC reply reach the renderer before process exit
-  await new Promise((r) => setTimeout(r, 150))
+  // Brief delay lets the renderer paint its blocking "Applying update" modal.
+  await new Promise((r) => setTimeout(r, 350))
 
   try {
-    // isSilent=false, isForceRunAfter=true — restart into the new version
-    autoUpdater.quitAndInstall(false, true)
+    // Silent NSIS update reads the existing HKCU/HKLM InstallLocation, preserving
+    // the user's original per-user/per-machine scope without showing the wizard.
+    autoUpdater.quitAndInstall(true, true)
   } catch (err) {
     console.error('quitAndInstall failed', err)
     // autoInstallOnAppQuit is true — force quit so the update still applies

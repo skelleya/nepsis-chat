@@ -204,6 +204,26 @@ export function createWebRTCClient(
     })
   }
 
+  const replaceAudioTrack = async (track: MediaStreamTrack): Promise<MediaStream> => {
+    const previousStream = currentLocalStream
+    const preservedTracks = previousStream?.getTracks().filter((candidate) => candidate.kind !== 'audio') || []
+    const previousAudioTracks = previousStream?.getAudioTracks() || []
+    const nextStream = new MediaStream([...preservedTracks, track])
+    currentLocalStream = nextStream
+    await Promise.all(
+      Array.from(peers.values()).map(async ({ pc }) => {
+        const sender = pc.getSenders().find((candidate) => candidate.track?.kind === 'audio')
+        if (!sender) return
+        await sender.replaceTrack(track)
+        void applySenderQuality(sender)
+      })
+    )
+    for (const previousTrack of previousAudioTracks) {
+      if (previousTrack !== track) previousTrack.stop()
+    }
+    return nextStream
+  }
+
   const handleOffer = async (from: string, sdp: RTCSessionDescriptionInit, fromUserId?: string, fromUsername?: string) => {
     if (from === localId) return
     let entry = peers.get(from)
@@ -509,6 +529,7 @@ export function createWebRTCClient(
   return {
     connectToPeer,
     addLocalStream,
+    replaceAudioTrack,
     setLocalStream: (stream: MediaStream) => { currentLocalStream = stream },
     addTrackToAllPeers,
     addTracksToAllPeers,

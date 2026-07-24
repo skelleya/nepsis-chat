@@ -9,6 +9,7 @@ import {
   hasLiveVideo,
 } from '../utils/mediaTracks'
 import { loadPrefs, subscribePrefs } from '../services/userPrefs'
+import { SettingsDropdown } from './settings/SettingsDropdown'
 
 interface VoiceViewProps {
   channel: Channel
@@ -28,6 +29,9 @@ interface VoiceViewProps {
   isAdminOrOwner?: boolean
   serverId?: string
   onMuteMember?: (userId: string) => Promise<void>
+  onUnmuteMember?: (userId: string) => Promise<void>
+  onDeafenMember?: (userId: string) => Promise<void>
+  onUndeafenMember?: (userId: string) => Promise<void>
   onDisconnectMember?: (userId: string) => Promise<void>
 }
 
@@ -330,6 +334,9 @@ function ParticipantCard({
   currentUserId,
   isAdminOrOwner,
   onMuteMember,
+  onUnmuteMember,
+  onDeafenMember,
+  onUndeafenMember,
   onDisconnectMember,
   isSharingScreen,
   isWatching,
@@ -352,6 +359,9 @@ function ParticipantCard({
   currentUserId: string
   isAdminOrOwner?: boolean
   onMuteMember?: (userId: string) => Promise<void>
+  onUnmuteMember?: (userId: string) => Promise<void>
+  onDeafenMember?: (userId: string) => Promise<void>
+  onUndeafenMember?: (userId: string) => Promise<void>
   onDisconnectMember?: (userId: string) => Promise<void>
   isSharingScreen?: boolean
   isWatching?: boolean
@@ -379,7 +389,10 @@ function ParticipantCard({
     : hasRemoteCamera
 
   const showMuted = isMuted
-  const showAdminMenu = !isLocal && isAdminOrOwner && (onMuteMember || onDisconnectMember)
+  const showAdminMenu =
+    !isLocal &&
+    isAdminOrOwner &&
+    (onMuteMember || onUnmuteMember || onDeafenMember || onUndeafenMember || onDisconnectMember)
 
   const ringClass = isWatching
     ? 'ring-2 ring-app-accent shadow-[0_0_12px_rgba(88,101,242,0.45)]'
@@ -390,7 +403,7 @@ function ParticipantCard({
   if (compact) {
     return (
       <div
-        className={`relative shrink-0 w-[7.5rem] sm:w-36 h-[4.75rem] sm:h-[5.5rem] rounded-lg overflow-hidden ${ringClass} ${
+        className={`relative shrink-0 w-[7.5rem] sm:w-36 h-[4.75rem] sm:h-[5.5rem] rounded-lg ${ringClass} ${
           (isSharingScreen && onWatchShare) || (showVideoShell && onMaximizeCamera) ? 'cursor-pointer' : ''
         }`}
         onClick={() => {
@@ -402,23 +415,25 @@ function ParticipantCard({
         }}
         title={participant.username}
       >
-        {showVideoShell && (isLocal ? localVideoStream : participantVideoStream) ? (
-          <TileVideo
-            stream={(isLocal ? localVideoStream : participantVideoStream)!}
-            muted={isLocal || isDeafened}
-            username={participant.username}
-            avatarUrl={avatarUrl}
-            mirror={isLocal && mirrorLocalPreview}
-          />
-        ) : (
-          <div className="w-full h-full bg-app-channel flex items-center justify-center">
-            <AvatarGlyph
+        <div className="w-full h-full rounded-lg overflow-hidden bg-app-channel">
+          {showVideoShell && (isLocal ? localVideoStream : participantVideoStream) ? (
+            <TileVideo
+              stream={(isLocal ? localVideoStream : participantVideoStream)!}
+              muted={isLocal || isDeafened}
               username={participant.username}
               avatarUrl={avatarUrl}
-              className="w-12 h-12 rounded-full text-lg"
+              mirror={isLocal && mirrorLocalPreview}
             />
-          </div>
-        )}
+          ) : (
+            <div className="w-full h-full bg-app-channel flex items-center justify-center">
+              <AvatarGlyph
+                username={participant.username}
+                avatarUrl={avatarUrl}
+                className="w-12 h-12 rounded-full text-lg"
+              />
+            </div>
+          )}
+        </div>
         <div className="absolute inset-x-0 bottom-0 px-1.5 py-1 bg-gradient-to-t from-black/80 to-transparent">
           <div className="text-[11px] text-white font-medium truncate">
             {participant.username}
@@ -488,16 +503,36 @@ function ParticipantCard({
             style={{ left: menuPos.x, top: menuPos.y }}
             onClick={(e) => e.stopPropagation()}
           >
-            {onMuteMember && (
+            {(isMuted ? onUnmuteMember : onMuteMember) && (
               <button
                 onClick={async () => {
-                  await onMuteMember(participant.userId)
+                  if (isMuted) {
+                    await onUnmuteMember?.(participant.userId)
+                  } else {
+                    await onMuteMember?.(participant.userId)
+                  }
                   setShowMenu(false)
                 }}
                 className="w-full px-3 py-2 text-left text-sm text-app-text hover:bg-app-accent hover:text-white flex items-center gap-2"
               >
-                <MicOffIcon size={14} />
-                Mute
+                {isMuted ? <MicIcon size={14} /> : <MicOffIcon size={14} />}
+                {isMuted ? 'Unmute' : 'Mute'}
+              </button>
+            )}
+            {(isDeafened ? onUndeafenMember : onDeafenMember) && (
+              <button
+                onClick={async () => {
+                  if (isDeafened) {
+                    await onUndeafenMember?.(participant.userId)
+                  } else {
+                    await onDeafenMember?.(participant.userId)
+                  }
+                  setShowMenu(false)
+                }}
+                className="w-full px-3 py-2 text-left text-sm text-app-text hover:bg-app-accent hover:text-white flex items-center gap-2"
+              >
+                {isDeafened ? <HeadphonesIcon size={14} /> : <HeadphonesOffIcon size={14} />}
+                {isDeafened ? 'Undeafen' : 'Deafen'}
               </button>
             )}
             {onDisconnectMember && (
@@ -518,27 +553,26 @@ function ParticipantCard({
         </>
       )}
       {showVideoShell ? (
-        <div
-          className={`relative ${videoTileSize} rounded-xl overflow-hidden ${ringClass}`}
-          title="Click to maximize"
-        >
-          {(isLocal ? localVideoStream : participantVideoStream) ? (
-            <TileVideo
-              stream={(isLocal ? localVideoStream : participantVideoStream)!}
-              muted={isLocal || isDeafened}
-              username={participant.username}
-              avatarUrl={avatarUrl}
-              mirror={isLocal && mirrorLocalPreview}
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-app-channel">
-              <AvatarGlyph
+        <div className={`relative ${videoTileSize} rounded-xl ${ringClass}`} title="Click to maximize">
+          <div className="w-full h-full rounded-xl overflow-hidden bg-app-channel">
+            {(isLocal ? localVideoStream : participantVideoStream) ? (
+              <TileVideo
+                stream={(isLocal ? localVideoStream : participantVideoStream)!}
+                muted={isLocal || isDeafened}
                 username={participant.username}
                 avatarUrl={avatarUrl}
-                className="w-20 h-20 rounded-full text-3xl"
+                mirror={isLocal && mirrorLocalPreview}
               />
-            </div>
-          )}
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-app-channel">
+                <AvatarGlyph
+                  username={participant.username}
+                  avatarUrl={avatarUrl}
+                  className="w-20 h-20 rounded-full text-3xl"
+                />
+              </div>
+            )}
+          </div>
           {showMuted && (
             <div
               className={`absolute bottom-1.5 right-1.5 ${muteBadgeSize} rounded-full bg-[#ed4245] flex items-center justify-center ring-2 ring-app-darker shadow-md z-10`}
@@ -556,19 +590,21 @@ function ParticipantCard({
       ) : (
         <div className="relative">
           <div
-            className={`${circleSize} rounded-full flex items-center justify-center text-white font-bold transition-all duration-150 overflow-hidden ${
+            className={`${circleSize} rounded-full flex items-center justify-center text-white font-bold transition-all duration-150 ${
               isWatching
                 ? 'ring-4 ring-app-accent shadow-[0_0_16px_rgba(88,101,242,0.4)]'
                 : speaking
                   ? 'ring-4 ring-[#23a559] shadow-[0_0_16px_rgba(35,165,89,0.55)] scale-105'
                   : 'ring-2 ring-white/10'
-            } ${avatarUrl ? 'bg-transparent' : 'bg-app-accent'}`}
+            }`}
           >
-            <AvatarGlyph
-              username={participant.username}
-              avatarUrl={avatarUrl}
-              className={avatarUrl ? 'w-full h-full' : 'w-full h-full text-inherit'}
-            />
+            <div className={`w-full h-full rounded-full overflow-hidden ${avatarUrl ? 'bg-transparent' : 'bg-app-accent'}`}>
+              <AvatarGlyph
+                username={participant.username}
+                avatarUrl={avatarUrl}
+                className={avatarUrl ? 'w-full h-full' : 'w-full h-full text-inherit'}
+              />
+            </div>
           </div>
           {showMuted && (
             <div
@@ -607,6 +643,9 @@ export function VoiceView({
   isAdminOrOwner,
   serverId: _serverId,
   onMuteMember,
+  onUnmuteMember,
+  onDeafenMember,
+  onUndeafenMember,
   onDisconnectMember,
 }: VoiceViewProps) {
   const voice = useVoice()
@@ -633,6 +672,8 @@ export function VoiceView({
     screenShareUserIds,
     watchingShareUserId,
     setWatchingShareUserId,
+    micProcessing,
+    setMicProcessing,
   } = voice
 
   const [soundboardOpen, setSoundboardOpen] = useState(false)
@@ -797,6 +838,16 @@ export function VoiceView({
     []
   )
 
+  const cycleMicProcessing = useCallback(() => {
+    const next =
+      micProcessing === 'off'
+        ? 'standard'
+        : micProcessing === 'standard'
+          ? 'high'
+          : 'off'
+    void setMicProcessing(next)
+  }, [micProcessing, setMicProcessing])
+
   const cardProps = useCallback(
     (
       p: {
@@ -827,11 +878,14 @@ export function VoiceView({
         mirrorLocalPreview: mirrorCameraPreview,
         presenceOnly: !isInThisChannel,
         isMuted: isLocal ? isMuted : remoteState?.muted ?? p.isMuted ?? false,
-        isDeafened,
+        isDeafened: isLocal ? isDeafened : remoteState?.deafened ?? p.isDeafened ?? false,
         isCameraOn,
         currentUserId,
         isAdminOrOwner,
         onMuteMember,
+        onUnmuteMember,
+        onDeafenMember,
+        onUndeafenMember,
         onDisconnectMember,
         isSharingScreen: screenShareUserIds.includes(p.userId),
         isWatching: watchingShareUserId === p.userId || maximizedCameraUserId === p.userId,
@@ -853,6 +907,9 @@ export function VoiceView({
       screenShareUserIds,
       isAdminOrOwner,
       onMuteMember,
+      onUnmuteMember,
+      onDeafenMember,
+      onUndeafenMember,
       onDisconnectMember,
       watchingShareUserId,
       maximizedCameraUserId,
@@ -874,7 +931,7 @@ export function VoiceView({
     !(isWatchingShare && maximizedCameraUserId === currentUserId)
 
   const renderFilmstrip = () => (
-    <div className="shrink-0 px-3 py-2.5 border-b border-app-glass/[0.06] bg-app-panel/90 backdrop-blur">
+    <div className="shrink-0 px-3 py-3 border-b border-app-glass/[0.06] bg-app-panel/90 backdrop-blur">
       <div className="flex gap-2.5 overflow-x-auto items-stretch pb-0.5 scrollbar-thin">
         {allParticipants.map((p) => (
           <ParticipantCard key={p.userId} {...cardProps(p, { compact: true })} />
@@ -1060,6 +1117,28 @@ export function VoiceView({
       <div className="p-4 border-t border-app-dark shrink-0">
         {isInThisChannel ? (
           <div className="flex items-center justify-center gap-2">
+            <div className="hidden sm:block">
+              <SettingsDropdown
+                value={micProcessing}
+                onChange={(value) => {
+                  void setMicProcessing(value as typeof micProcessing)
+                }}
+                aria-label="Mic noise reduction"
+                options={[
+                  { value: 'off', label: 'Mic: Off' },
+                  { value: 'standard', label: 'Mic: Standard' },
+                  { value: 'high', label: 'Mic: High' },
+                ]}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={cycleMicProcessing}
+              className="sm:hidden px-3 py-2 rounded-full bg-app-hover hover:bg-app-channel text-app-text text-xs font-medium transition-colors"
+              title={`Mic noise reduction: ${micProcessing}`}
+            >
+              {micProcessing === 'off' ? 'Mic Off' : micProcessing === 'high' ? 'Mic High' : 'Mic Std'}
+            </button>
             <div className="relative">
               <SoundboardDropdown
                 userId={currentUserId}

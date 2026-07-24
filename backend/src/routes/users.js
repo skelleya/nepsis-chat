@@ -295,6 +295,10 @@ usersRouter.put('/:id/privacy', async (req, res) => {
 // Get user profiles (personal, work) — for non-guest accounts
 usersRouter.get('/:id/profiles', async (req, res) => {
   const { id } = req.params
+  const actorUserId = typeof req.query.actorUserId === 'string' ? req.query.actorUserId : ''
+  if (actorUserId !== id) {
+    return res.status(403).json({ error: 'Forbidden' })
+  }
   try {
     const { data, error } = await supabase
       .from('user_profiles')

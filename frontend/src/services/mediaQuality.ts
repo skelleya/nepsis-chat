@@ -13,18 +13,8 @@ export const SCREEN_MAX_BITRATE = 16_000_000
 /** Base high-quality mic constraints (merge with device prefs). */
 export function highQualityAudioBase(): MediaTrackConstraints {
   return {
-    echoCancellation: true,
-    noiseSuppression: true,
-    autoGainControl: true,
     sampleRate: { ideal: 48000 },
     channelCount: { ideal: 1 },
-    ...({
-      googEchoCancellation: true,
-      googNoiseSuppression: true,
-      googAutoGainControl: true,
-      googHighpassFilter: true,
-      googTypingNoiseDetection: true,
-    } as MediaTrackConstraints),
   }
 }
 

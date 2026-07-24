@@ -104,6 +104,9 @@ Main documentation index. Nepsis Chat is a WebRTC voice chat application (Opus c
 | + | Chat input — Send button uses up-arrow icon; @mention autocomplete (@everyone, @username); :emoji: shortcode autocomplete (e.g. :smile:) |
 | + | User settings — Full settings modal with tabs (My Account, Profiles, Privacy & Safety, Appearance, Voice & Video, Notifications); avatar + banner upload; username change; Personal/Work profile switch (non-guest); status dropdown (Online, Away, DND, Offline) in UserPanel |
 | + | Appearance / Voice / Notifications prefs — Workable local settings (`nepsis_user_prefs`): themes + accent + density; device selection + mic processing + volume; sound and desktop notification toggles |
+| + | Mic processing presets — Voice settings now use Discord-like `Off / Standard / High` mic cleanup presets; live voice sessions try `applyConstraints()` first and then reacquire/replace the outbound mic track if the browser rejects the change |
+| + | Voice clipping fixes — Minimized member status dots and voice speaking rings now live outside clipped avatar/video wrappers so badges and glows are no longer cut off |
+| + | DM friend bios — 1:1 DM profile popouts can show a friend's resolved banner/bio/profile presentation, while non-friends still do not receive friend-only bio data |
 | + | **Full audit fix pass** — Default accent Nepsis orange; Appearance UI wired; Discord hexes → `--app-*` tokens; GSAP on Create Channel / Server Settings / menus / Friends+Community exits / Call overlays; DM ICE flush; ghost Connecting fix (`leftUserIds`); late-joiner screen-share in `room-peers`; click-to-watch (no remote auto-watch); remote mute via `voice-state`; voice↔call gate; socket reconnect rejoin; video-call rejoin keeps `withVideo`; mobile slide-over rails; Block/Report + Privacy blocked list; docs SQLite→Supabase |
 | + | **UI polish** — Friends logo invert when selected; User Settings portaled (was trapped by rail transform); DM name opens profile popout; Friends tabs GSAP pill/slide; compact Add Friend |
 | + | **Typography** — Headers: TWK Everett (self-hosted `/fonts`); body/paragraphs: Poppins. Space Grotesk fallback until TWK files are added. |
@@ -611,7 +614,7 @@ Settings:
 
 - Dropdown position updates no longer replay their GSAP enter animation while the settings pane or menu scrolls.
 - Redundant position state updates are skipped, menu-internal scroll is ignored, and outside-click registration is deferred past the opening event.
-- Voice & Video’s `DeviceSelect` is module-scoped, so mic-meter renders cannot remount an open dropdown.
+- Voice & Video’s `DeviceSelect` is module-scoped and memoized; the mic meter lives in `MicTestPanel` so RAF ticks cannot remount or re-animate open dropdowns.
 
 Voice while adding friends:
 
@@ -632,3 +635,36 @@ Test study:
 2. Join server voice with another member, navigate to Friends → Add Friend, search/send a request, and confirm two-way audio throughout.
 3. Navigate through DMs, Community, and settings while connected; verify one copy of remote audio and working mute/deafen/output-device controls.
 4. Re-query guests and server owner/member roles; verify only `Test`/`antilink` guests and four `arrogamer`-owned servers.
+
+### Silent updates, mic processing, bios, and moderation reverse actions (2026-07-24)
+
+Desktop updates:
+
+- Background download + restart-only modal; applying modal shows an indeterminate loading bar.
+- Silent NSIS install preserves the original per-user/all-users scope (`quitAndInstall(true, true)`).
+
+Voice & Video settings:
+
+- Dropdown enter animation plays once per open; device options are memoized; mic meter updates are throttled to stop flicker.
+
+Mic processing:
+
+- Off / Standard / High preset applies immediately in voice when possible (`applyConstraints`, with replaceTrack fallback).
+- High uses browser `voiceIsolation` only when supported.
+
+Moderation:
+
+- Server Mute/Unmute and Server Deafen/Undeafen toggle from live voice state across ChannelList, MembersSidebar, and VoiceView.
+
+Visual / profile:
+
+- Camera speaking rings and minimized member status dots no longer clip.
+- Profile bios render in member popouts; friend DMs receive friendship-resolved bio/banner.
+
+Test study:
+
+1. Open Voice & Video dropdowns while the mic meter runs; scroll the settings pane; confirm no flicker.
+2. Join voice, switch Off/Standard/High, and verify capture settings change without leaving the channel.
+3. Admin-mute then unmute, admin-deafen then undeafen a peer; labels and target state reverse correctly.
+4. Inspect filmstrip/gallery rings and minimized member dots for full borders.
+5. Save a bio in Profiles, then open that member/DM profile and confirm About Me appears for friends.

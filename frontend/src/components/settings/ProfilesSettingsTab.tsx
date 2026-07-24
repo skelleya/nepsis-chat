@@ -117,7 +117,7 @@ export function ProfilesSettingsTab({
     setError(null)
     try {
       const [rows, friendRows, account] = await Promise.all([
-        api.getUserProfiles(user.id).catch(() => []),
+        api.getUserProfiles(user.id, user.id).catch(() => []),
         api.getFriendsList(user.id).catch(() => []),
         api.getAccount(user.id).catch(() => null),
       ])

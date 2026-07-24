@@ -7,17 +7,23 @@ Desktop updates use **electron-updater** with **GitHub Releases** as the feed (W
 ## How users get updates
 
 1. App launches (and every 30 minutes) → checks GitHub Releases for a newer version.
-2. If a **newer** release is found (`isUpdateAvailable` and feed version &gt; installed) → a **Nepsis update badge** appears at the **top center** of the window (logo + “Update available”). Already-on-latest does **not** show the badge after restart.
-3. User clicks → download starts; badge shows **progress %**.
-4. When ready → badge becomes **Restart to update** → `quitAndInstall`.
+2. If a newer release is found, the desktop shell **downloads it in the background** (`autoDownload = true`).
+3. When the package is staged → a modal asks only whether to **Restart and update** (or Later).
+4. Restart shows an **Applying update…** modal with an indeterminate loading bar, then runs a **silent** installer that reuses the original per-user / all-users install scope and location (`quitAndInstall(true, true)`).
+5. The app relaunches on the new version.
 
 Files: `electron/main.js`, `frontend/src/components/UpdateButton.tsx`, `frontend/src/hooks/useDesktopUpdate.ts`.
+
+Notes:
+
+- Download progress is real; the applying bar is indeterminate because NSIS install progress is not exposed to the renderer.
+- First-time installs still use the assisted NSIS wizard. Updates skip the “who should this application be installed for?” page because they are silent + `--updated`.
 
 ---
 
 ## Publishing a release
 
-**Preferred (CI):** bump `electron/package.json` version → push → GitHub Actions → **Desktop Release** → Run workflow. That builds Windows + macOS and publishes one release (`v{version}`) with both installers + `latest.yml` / `latest-mac.yml`.
+**Preferred (CI):** bump `electron/package.json` version → push tag `v{version}` → GitHub Actions **Desktop Release** builds Windows + macOS and publishes one release with both installers + `latest.yml` / `latest-mac.yml`.
 
 ```bash
 # Local alternative — bump version in electron/package.json first

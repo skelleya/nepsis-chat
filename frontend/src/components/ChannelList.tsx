@@ -101,7 +101,9 @@ interface ChannelListProps {
   // Admin: drop user onto voice channel to move them
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
   onMuteInVoice?: (userId: string) => Promise<void>
+  onUnmuteInVoice?: (userId: string) => Promise<void>
   onDeafenInVoice?: (userId: string) => Promise<void>
+  onUndeafenInVoice?: (userId: string) => Promise<void>
   onDisconnectFromVoice?: (userId: string) => Promise<void>
   onKick?: (userId: string) => Promise<void>
   onBan?: (userId: string) => Promise<void>
@@ -197,7 +199,9 @@ function VoiceUserRow({
   isSelf,
   onMoveToChannel,
   onMuteInVoice,
+  onUnmuteInVoice,
   onDeafenInVoice,
+  onUndeafenInVoice,
   onDisconnectFromVoice,
   onWatchScreenShare,
   onKick,
@@ -217,7 +221,9 @@ function VoiceUserRow({
   isSelf: boolean
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
   onMuteInVoice?: (userId: string) => Promise<void>
+  onUnmuteInVoice?: (userId: string) => Promise<void>
   onDeafenInVoice?: (userId: string) => Promise<void>
+  onUndeafenInVoice?: (userId: string) => Promise<void>
   onDisconnectFromVoice?: (userId: string) => Promise<void>
   onWatchScreenShare?: (userId: string) => void
   onKick?: (userId: string) => Promise<void>
@@ -493,28 +499,36 @@ function VoiceUserRow({
               </div>
             )}
 
-            {canModTarget && onMuteInVoice && (
+            {canModTarget && (vu.isMuted ? onUnmuteInVoice : onMuteInVoice) && (
               <button
                 type="button"
                 className={menuItemClass()}
                 onClick={async () => {
-                  await onMuteInVoice(vu.userId)
+                  if (vu.isMuted) {
+                    await onUnmuteInVoice?.(vu.userId)
+                  } else {
+                    await onMuteInVoice?.(vu.userId)
+                  }
                   closeMenu()
                 }}
               >
-                Server Mute
+                {vu.isMuted ? 'Server Unmute' : 'Server Mute'}
               </button>
             )}
-            {canModTarget && onDeafenInVoice && (
+            {canModTarget && (vu.isDeafened ? onUndeafenInVoice : onDeafenInVoice) && (
               <button
                 type="button"
                 className={menuItemClass()}
                 onClick={async () => {
-                  await onDeafenInVoice(vu.userId)
+                  if (vu.isDeafened) {
+                    await onUndeafenInVoice?.(vu.userId)
+                  } else {
+                    await onDeafenInVoice?.(vu.userId)
+                  }
                   closeMenu()
                 }}
               >
-                Server Deafen
+                {vu.isDeafened ? 'Server Undeafen' : 'Server Deafen'}
               </button>
             )}
             {canModTarget && onDisconnectFromVoice && (
@@ -598,7 +612,9 @@ function SortableChannelItem({
   onDeleteChannel,
   onMoveToChannel,
   onMuteInVoice,
+  onUnmuteInVoice,
   onDeafenInVoice,
+  onUndeafenInVoice,
   onDisconnectFromVoice,
   onWatchScreenShare,
   onKick,
@@ -626,7 +642,9 @@ function SortableChannelItem({
   onWatchScreenShare?: (userId: string) => void
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
   onMuteInVoice?: (userId: string) => Promise<void>
+  onUnmuteInVoice?: (userId: string) => Promise<void>
   onDeafenInVoice?: (userId: string) => Promise<void>
+  onUndeafenInVoice?: (userId: string) => Promise<void>
   onDisconnectFromVoice?: (userId: string) => Promise<void>
   onKick?: (userId: string) => Promise<void>
   onBan?: (userId: string) => Promise<void>
@@ -897,7 +915,9 @@ function SortableChannelItem({
                   isSelf={vu.userId === currentUserId}
                   onMoveToChannel={onMoveToChannel}
                   onMuteInVoice={onMuteInVoice}
+                  onUnmuteInVoice={onUnmuteInVoice}
                   onDeafenInVoice={onDeafenInVoice}
+                  onUndeafenInVoice={onUndeafenInVoice}
                   onDisconnectFromVoice={onDisconnectFromVoice}
                   onWatchScreenShare={onWatchScreenShare}
                   onKick={onKick}
@@ -1151,7 +1171,9 @@ function CategorySection({
   onDeleteCategory,
   onMoveToChannel,
   onMuteInVoice,
+  onUnmuteInVoice,
   onDeafenInVoice,
+  onUndeafenInVoice,
   onDisconnectFromVoice,
   onWatchScreenShare,
   onKick,
@@ -1183,7 +1205,9 @@ function CategorySection({
   onDeleteCategory?: (catId: string) => Promise<void>
   onMoveToChannel?: (userId: string, channelId: string) => Promise<void>
   onMuteInVoice?: (userId: string) => Promise<void>
+  onUnmuteInVoice?: (userId: string) => Promise<void>
   onDeafenInVoice?: (userId: string) => Promise<void>
+  onUndeafenInVoice?: (userId: string) => Promise<void>
   onDisconnectFromVoice?: (userId: string) => Promise<void>
   onWatchScreenShare?: (userId: string) => void
   onKick?: (userId: string) => Promise<void>
@@ -1247,7 +1271,9 @@ function CategorySection({
                 onDeleteChannel={onDeleteChannel}
                 onMoveToChannel={onMoveToChannel}
                 onMuteInVoice={onMuteInVoice}
+                onUnmuteInVoice={onUnmuteInVoice}
                 onDeafenInVoice={onDeafenInVoice}
+                onUndeafenInVoice={onUndeafenInVoice}
                 onDisconnectFromVoice={onDisconnectFromVoice}
                 onWatchScreenShare={onWatchScreenShare}
                 onKick={onKick}
@@ -1286,7 +1312,9 @@ export function ChannelList({
   onDeleteCategory,
   onMoveToChannel,
   onMuteInVoice,
+  onUnmuteInVoice,
   onDeafenInVoice,
+  onUndeafenInVoice,
   onDisconnectFromVoice,
   onKick,
   onBan,
@@ -1814,7 +1842,9 @@ export function ChannelList({
                   onDeleteCategory={onDeleteCategory}
                   onMoveToChannel={onMoveToChannel}
                   onMuteInVoice={onMuteInVoice}
+                  onUnmuteInVoice={onUnmuteInVoice}
                   onDeafenInVoice={onDeafenInVoice}
+                  onUndeafenInVoice={onUndeafenInVoice}
                   onDisconnectFromVoice={onDisconnectFromVoice}
                   onWatchScreenShare={onWatchScreenShare}
                   onKick={onKick}
@@ -1851,7 +1881,9 @@ export function ChannelList({
                   onDeleteCategory={onDeleteCategory}
                   onMoveToChannel={onMoveToChannel}
                   onMuteInVoice={onMuteInVoice}
+                  onUnmuteInVoice={onUnmuteInVoice}
                   onDeafenInVoice={onDeafenInVoice}
+                  onUndeafenInVoice={onUndeafenInVoice}
                   onDisconnectFromVoice={onDisconnectFromVoice}
                   onWatchScreenShare={onWatchScreenShare}
                   onKick={onKick}

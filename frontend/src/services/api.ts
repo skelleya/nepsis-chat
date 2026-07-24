@@ -499,6 +499,26 @@ export async function muteMemberInVoice(
   return res.json()
 }
 
+export async function unmuteMemberInVoice(
+  serverId: string,
+  targetUserId: string,
+  adminUserId: string
+): Promise<{ success: boolean }> {
+  const res = await fetch(
+    `${API_BASE}/servers/${serverId}/members/${targetUserId}/unmute-voice`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ adminUserId }),
+    }
+  )
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to unmute user')
+  }
+  return res.json()
+}
+
 export async function deafenMemberInVoice(
   serverId: string,
   targetUserId: string,
@@ -515,6 +535,26 @@ export async function deafenMemberInVoice(
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err?.error || 'Failed to deafen user')
+  }
+  return res.json()
+}
+
+export async function undeafenMemberInVoice(
+  serverId: string,
+  targetUserId: string,
+  adminUserId: string
+): Promise<{ success: boolean }> {
+  const res = await fetch(
+    `${API_BASE}/servers/${serverId}/members/${targetUserId}/undeafen-voice`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ adminUserId }),
+    }
+  )
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error || 'Failed to undeafen user')
   }
   return res.json()
 }
@@ -699,7 +739,14 @@ export interface DMConversation {
   name?: string | null
   created_by?: string | null
   participants: { id: string; username: string; avatar_url?: string | null; joined_at?: string }[]
-  other_user?: { id: string; username: string; avatar_url?: string | null }
+  other_user?: {
+    id: string
+    username: string
+    avatar_url?: string | null
+    banner_url?: string | null
+    bio?: string
+    profile_type?: 'personal' | 'work'
+  }
 }
 
 function normalizeDMConversation(raw: DMConversation): DMConversation {
@@ -1102,8 +1149,10 @@ export async function updateUserProfile(
   return res.json()
 }
 
-export async function getUserProfiles(userId: string) {
-  const res = await fetch(`${API_BASE}/users/${userId}/profiles`)
+export async function getUserProfiles(userId: string, actorUserId: string) {
+  const res = await fetch(
+    `${API_BASE}/users/${userId}/profiles?actorUserId=${encodeURIComponent(actorUserId)}`
+  )
   if (!res.ok) throw new Error('Failed to fetch profiles')
   return res.json()
 }

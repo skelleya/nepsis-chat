@@ -121,6 +121,9 @@ export function DMView({
         userId: otherUserId,
         username,
         avatarUrl: otherAvatarUrl || undefined,
+        bannerUrl: conversation.other_user?.banner_url || undefined,
+        bio: conversation.other_user?.bio || '',
+        profileType: conversation.other_user?.profile_type,
         role: 'member',
         status: 'online',
       }

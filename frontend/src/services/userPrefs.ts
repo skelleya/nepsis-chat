@@ -11,6 +11,7 @@ export type DensityId = 'comfortable' | 'compact'
 export type FontSizeId = 'small' | 'default' | 'large'
 export type CameraQualityId = '1080p' | '1440p'
 export type ScreenQualityId = '1080p' | '1440p' | '4k'
+export type MicProcessingLevel = 'off' | 'standard' | 'high'
 
 export interface AppearancePrefs {
   theme: ThemeId
@@ -24,6 +25,7 @@ export interface VoicePrefs {
   audioOutputId: string
   videoInputId: string
   outputVolume: number
+  micProcessing: MicProcessingLevel
   echoCancellation: boolean
   noiseSuppression: boolean
   autoGainControl: boolean
@@ -65,6 +67,7 @@ export const DEFAULT_PREFS: UserPrefs = {
     audioOutputId: '',
     videoInputId: '',
     outputVolume: 1,
+    micProcessing: 'standard',
     echoCancellation: true,
     noiseSuppression: true,
     autoGainControl: true,
@@ -154,6 +157,43 @@ type Listener = (prefs: UserPrefs) => void
 const listeners = new Set<Listener>()
 
 const VALID_THEMES = new Set<ThemeId>(['dark', 'midnight', 'amoled', 'white'])
+const VALID_MIC_PROCESSING = new Set<MicProcessingLevel>(['off', 'standard', 'high'])
+
+function getMicProcessingBooleans(level: MicProcessingLevel): Pick<
+  VoicePrefs,
+  'echoCancellation' | 'noiseSuppression' | 'autoGainControl'
+> {
+  if (level === 'off') {
+    return {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+    }
+  }
+  return {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+  }
+}
+
+function normalizeVoicePrefs(raw: Partial<VoicePrefs> | undefined, base = DEFAULT_PREFS.voice): VoicePrefs {
+  const merged = { ...base, ...(raw || {}) }
+  const derivedMicProcessing =
+    merged.echoCancellation === false &&
+    merged.noiseSuppression === false &&
+    merged.autoGainControl === false
+      ? 'off'
+      : 'standard'
+  const micProcessing = VALID_MIC_PROCESSING.has(merged.micProcessing)
+    ? merged.micProcessing
+    : derivedMicProcessing
+  return {
+    ...merged,
+    micProcessing,
+    ...getMicProcessingBooleans(micProcessing),
+  }
+}
 
 function mergePrefs(raw: unknown): UserPrefs {
   const base = structuredClone(DEFAULT_PREFS)
@@ -165,7 +205,7 @@ function mergePrefs(raw: unknown): UserPrefs {
   }
   return {
     appearance,
-    voice: { ...base.voice, ...(r.voice || {}) },
+    voice: normalizeVoicePrefs(r.voice, base.voice),
     notifications: { ...base.notifications, ...(r.notifications || {}) },
   }
 }
@@ -201,7 +241,7 @@ export function updatePrefs(patch: {
   const current = loadPrefs()
   const next: UserPrefs = {
     appearance: { ...current.appearance, ...patch.appearance },
-    voice: { ...current.voice, ...patch.voice },
+    voice: normalizeVoicePrefs({ ...current.voice, ...patch.voice }, current.voice),
     notifications: { ...current.notifications, ...patch.notifications },
   }
   savePrefs(next)
@@ -229,16 +269,29 @@ export function applyAppearancePrefs(appearance: AppearancePrefs = loadPrefs().a
   root.style.colorScheme = appearance.theme === 'white' ? 'light' : 'dark'
 }
 
-/** Media constraints for mic capture — high-quality defaults + user toggles */
+/** Media constraints for mic capture — high-quality defaults + user processing preset */
 export function getAudioConstraints(prefs: VoicePrefs = loadPrefs().voice): MediaTrackConstraints {
-  const c: MediaTrackConstraints = {
+  const normalizedPrefs = normalizeVoicePrefs(prefs)
+  const c: MediaTrackConstraints & { voiceIsolation?: boolean } = {
     ...highQualityAudioBase(),
-    echoCancellation: prefs.echoCancellation,
-    noiseSuppression: prefs.noiseSuppression,
-    autoGainControl: prefs.autoGainControl,
   }
-  if (prefs.audioInputId) {
-    c.deviceId = { exact: prefs.audioInputId }
+  if (normalizedPrefs.micProcessing === 'off') {
+    c.echoCancellation = false
+    c.noiseSuppression = false
+    c.autoGainControl = false
+  } else {
+    c.echoCancellation = true
+    c.noiseSuppression = true
+    c.autoGainControl = true
+    const supported = navigator.mediaDevices?.getSupportedConstraints?.() as MediaTrackSupportedConstraints & {
+      voiceIsolation?: boolean
+    }
+    if (normalizedPrefs.micProcessing === 'high' && supported?.voiceIsolation) {
+      c.voiceIsolation = true
+    }
+  }
+  if (normalizedPrefs.audioInputId) {
+    c.deviceId = { exact: normalizedPrefs.audioInputId }
   }
   return c
 }

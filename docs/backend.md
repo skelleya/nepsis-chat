@@ -29,7 +29,10 @@ Node.js + Express + Socket.io + Supabase (Postgres). Legacy `src/db/init.js` (SQ
 | DELETE | `/api/servers/:id/members/:userId?kickerUserId=` | Kick member (owner/admin). Clears presence; they may rejoin via invite. |
 | POST | `/api/servers/:id/members/:userId/ban` | Ban member (`adminUserId`, optional `reason`). Removes membership, inserts `server_bans`, blocks invite/community rejoin. |
 | DELETE | `/api/servers/:id/members/:userId` | Kick user (`?kickerUserId=`) — owner/admin only |
-| POST | `/api/servers/:id/members/:userId/mute-voice` | Mute user in voice (`adminUserId`) — owner/admin only; emits admin-mute to target socket |
+| POST | `/api/servers/:id/members/:userId/mute-voice` | Mute user in voice (`adminUserId`) — owner/admin only; emits `admin-mute` to target socket |
+| POST | `/api/servers/:id/members/:userId/unmute-voice` | Unmute user in voice (`adminUserId`) — owner/admin only; emits `admin-unmute` to target socket |
+| POST | `/api/servers/:id/members/:userId/deafen-voice` | Deafen user in voice (`adminUserId`) — owner/admin only; emits `admin-deafen` to target socket |
+| POST | `/api/servers/:id/members/:userId/undeafen-voice` | Undeafen user in voice (`adminUserId`) — owner/admin only; emits `admin-undeafen` to target socket |
 | POST | `/api/servers/:id/members/:userId/disconnect-voice` | Disconnect user from voice (`adminUserId`) — owner/admin only; clears presence, emits admin-disconnect-from-voice |
 | POST | `/api/servers/:id/members/:userId/move-voice` | Move user to another voice channel (`targetChannelId`, `adminUserId`) — owner/admin only |
 | PATCH | `/api/servers/:id/channels/:channelId` | Update channel (`order`, `name`, `categoryId`) |
@@ -157,6 +160,9 @@ Handlers are registered with the **Namespace** (`io.of('/voice')`, etc.), not th
 | soundboard-play | Server → Client | soundUrl, userId, username — broadcast to room |
 | admin-move-to-channel | Server → Client | channelId, channelName — emitted to target user when admin moves them to another voice channel |
 | admin-mute | Server → Client | — emitted to target user when admin force-mutes them |
+| admin-unmute | Server → Client | — emitted to target user when admin clears a server mute |
+| admin-deafen | Server → Client | — emitted to target user when admin force-deafens them |
+| admin-undeafen | Server → Client | — emitted to target user when admin clears a server deafen |
 | admin-disconnect-from-voice | Server → Client | — emitted to target user when admin disconnects them from voice |
 
 ### `/calls` (DM private calls)

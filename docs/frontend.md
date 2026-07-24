@@ -128,7 +128,7 @@ frontend/src/
 
 ### Settings dropdown stability
 
-`SettingsDropdown` is portaled above the settings modal. Scroll/resize updates only its fixed position and do not replay the GSAP entrance. Reusable selector wrappers such as `DeviceSelect` must remain at module scope; defining them inside a frequently rendering tab remounts and closes their menus.
+`SettingsDropdown` is portaled above the settings modal and memoized. Scroll/resize updates only its fixed position and do not replay the GSAP entrance. Reusable selector wrappers such as `DeviceSelect` must remain at module scope and stay memoized; defining them inside a frequently rendering tab remounts and closes their menus. Voice & Video keeps the live mic meter in `MicTestPanel` so RAF level ticks cannot re-render open device/quality menus.
 
 ---
 
@@ -212,6 +212,15 @@ Cache is cleared on logout. See `frontend/src/services/layoutCache.ts`.
 - **VoiceContext** — voice channel state, WebRTC, participants, speaking detection
 - **CallContext** — private DM calls, WebRTC 1-on-1, call state machine
 - No Redux/Zustand; useState in components
+
+---
+
+## Recent Notes
+
+- **Mic processing presets** live in `userPrefs.voice.micProcessing` with `off`, `standard`, and `high`. Legacy booleans still exist for compatibility but are derived from the preset. `VoiceContext.setMicProcessing()` updates saved prefs and tries `applyConstraints()` on the current mic before falling back to reacquiring and replacing the outbound audio track.
+- **Voice settings UI** replaces the three mic-processing toggles with a `SettingsDropdown`. The mic test meter lives in `MicTestPanel` and only updates its own state when the sampled level moves by at least `0.02`, so open dropdowns never re-render from meter ticks.
+- **Voice/member clipping fixes** keep rings and speaking glows on outer wrappers while `overflow-hidden` stays on the inner media/avatar element only. This prevents minimized member status dots, mute badges, and video glows from being clipped.
+- **DM profile popouts** can now show friend-resolved banner/bio data from `conversation.other_user`; non-friends still render without friend-only bio data.
 
 ---
 

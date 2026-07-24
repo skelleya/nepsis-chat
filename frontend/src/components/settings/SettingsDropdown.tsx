@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import gsap from 'gsap'
 
@@ -21,7 +21,7 @@ interface SettingsDropdownProps {
 }
 
 /** Custom select with GSAP open/close — replaces native `<select>` in settings. */
-export function SettingsDropdown({
+export const SettingsDropdown = memo(function SettingsDropdown({
   value,
   options,
   onChange,
@@ -39,9 +39,13 @@ export function SettingsDropdown({
   const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number; openUp: boolean } | null>(null)
   const closingRef = useRef(false)
   const openUpRef = useRef(false)
+  const animatedOpenRef = useRef(false)
+  const closeRef = useRef<() => void>(() => {})
+  const updatePositionRef = useRef<() => void>(() => {})
 
-  const selected = options.find((o) => o.value === value)
-  const label = selected?.label ?? placeholder
+  const selectedLabel = useMemo(() => {
+    return options.find((option) => option.value === value)?.label ?? placeholder
+  }, [options, placeholder, value])
 
   const updatePosition = useCallback(() => {
     const trigger = triggerRef.current
@@ -76,6 +80,7 @@ export function SettingsDropdown({
     if (!mounted || closingRef.current) return
     const menu = menuRef.current
     if (!menu) {
+      animatedOpenRef.current = false
       setOpen(false)
       setMounted(false)
       return
@@ -90,15 +95,20 @@ export function SettingsDropdown({
       ease: 'power2.in',
       onComplete: () => {
         closingRef.current = false
+        animatedOpenRef.current = false
         setOpen(false)
         setMounted(false)
       },
     })
   }, [mounted])
 
+  closeRef.current = close
+  updatePositionRef.current = updatePosition
+
   const openMenu = () => {
     if (disabled || closingRef.current) return
     updatePosition()
+    animatedOpenRef.current = false
     setOpen(true)
     setMounted(true)
   }
@@ -107,6 +117,10 @@ export function SettingsDropdown({
     if (!mounted || !open) return
     const menu = menuRef.current
     if (!menu || !menuPos) return
+    // Parent settings tabs (especially Voice & Video mic meter) re-render often.
+    // Only play the enter animation once per open cycle.
+    if (animatedOpenRef.current) return
+    animatedOpenRef.current = true
     gsap.killTweensOf(menu)
     gsap.fromTo(
       menu,
@@ -124,56 +138,47 @@ export function SettingsDropdown({
         ease: 'power3.out',
       }
     )
-    return () => {
-      gsap.killTweensOf(menu)
-    }
-    // Position changes are applied by inline styles and must not restart the
-    // enter animation while the settings pane or menu itself is scrolling.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mounted, open])
+  }, [mounted, open, menuPos])
 
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
-        close()
+        closeRef.current()
         triggerRef.current?.focus()
       }
     }
     const onScroll = (event: Event) => {
       const target = event.target
       if (target instanceof Node && menuRef.current?.contains(target)) return
-      updatePosition()
+      updatePositionRef.current()
     }
-    const onResize = () => updatePosition()
+    const onResize = () => updatePositionRef.current()
     window.addEventListener('keydown', onKey)
     window.addEventListener('resize', onResize)
-    // Keep the portaled list aligned while the settings panel scrolls.
     document.addEventListener('scroll', onScroll, true)
     return () => {
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('resize', onResize)
       document.removeEventListener('scroll', onScroll, true)
     }
-  }, [open, close, updatePosition])
+  }, [open])
 
   useEffect(() => {
     if (!open) return
     const onPointer = (e: MouseEvent) => {
-      const t = e.target
-      if (!(t instanceof Node)) return
-      if (triggerRef.current?.contains(t) || menuRef.current?.contains(t)) return
-      close()
+      const target = e.target
+      if (!(target instanceof Node)) return
+      if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return
+      closeRef.current()
     }
-    // Defer registration so the interaction that opened the portaled menu
-    // cannot also be interpreted as an outside click.
     const timer = window.setTimeout(() => document.addEventListener('mousedown', onPointer), 0)
     return () => {
       window.clearTimeout(timer)
       document.removeEventListener('mousedown', onPointer)
     }
-  }, [open, close])
+  }, [open])
 
   const pick = (next: string) => {
     if (next !== value) onChange(next)
@@ -198,7 +203,7 @@ export function SettingsDropdown({
             : 'min-w-[148px] max-w-[200px] px-2.5 py-1.5 rounded-md'
         } ${open ? 'border-app-accent' : ''}`}
       >
-        <span className="flex-1 min-w-0 truncate">{label}</span>
+        <span className="flex-1 min-w-0 truncate">{selectedLabel}</span>
         <svg
           width="12"
           height="12"
@@ -259,4 +264,4 @@ export function SettingsDropdown({
       )}
     </div>
   )
-}
+})
