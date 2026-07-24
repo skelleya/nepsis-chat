@@ -177,9 +177,9 @@ export function DMView({
   }
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-app-dark">
+    <div className="chat-shell flex-1 flex flex-col min-w-0">
       {/* Header — Discord DM top bar */}
-      <div className="h-12 px-4 flex items-center gap-3 border-b border-app-darker shadow-sm flex-shrink-0 z-10">
+      <div className="chat-header-modern h-12 px-4 flex items-center gap-3 flex-shrink-0 z-10">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-app-offline flex-shrink-0">
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c1.19 0 2.34-.21 3.41-.6.3-.11.49-.4.49-.72v-.28c0-.32-.19-.61-.48-.73A8.96 8.96 0 0112 20c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8c0 .66-.08 1.3-.23 1.91-.07.3.02.61.24.82l.2.2c.28.28.75.2.91-.16.4-.9.63-1.9.63-2.96C22 6.48 17.52 2 12 2zm0 4c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3zm0 14c-2.67 0-5.33-.84-7.2-2.4.03-1.99 4.8-3.1 7.2-3.1 2.4 0 7.17 1.1 7.2 3.1A11.94 11.94 0 0112 20z" />
         </svg>
@@ -296,7 +296,7 @@ export function DMView({
       </div>
 
       {/* Messages — Discord left-aligned stream */}
-      <div className="flex-1 overflow-y-auto min-h-0 px-0 py-4">
+      <div className="scrollbar-thin flex-1 overflow-y-auto min-h-0 px-0 py-4">
         {messages.length === 0 ? (
           <div className="flex flex-col justify-end h-full px-4 pb-4">
             <button
@@ -348,21 +348,21 @@ export function DMView({
               return (
                 <div key={msg.id} id={`dm-msg-${msg.id}`}>
                   {showDateSep && (
-                    <div className="flex items-center gap-2 mx-4 my-3">
-                      <div className="flex-1 h-px bg-[#3f4147]" />
-                      <span className="text-[12px] font-semibold text-app-muted uppercase tracking-wide">
+                    <div className="flex items-center gap-3 mx-5 my-5">
+                      <div className="flex-1 h-px bg-app-glass/[0.07]" />
+                      <span className="text-[10px] font-semibold text-app-muted uppercase tracking-[0.12em]">
                         {new Date(msg.created_at).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })}
                       </span>
-                      <div className="flex-1 h-px bg-[#3f4147]" />
+                      <div className="flex-1 h-px bg-app-glass/[0.07]" />
                     </div>
                   )}
                   <div
-                    className={`group relative flex gap-4 px-4 hover:bg-app-channel/60 cursor-pointer ${
-                      isGrouped ? 'py-0.5 min-h-[1.375rem]' : 'mt-4 py-0.5'
+                    className={`chat-msg-row chat-message-modern group relative flex gap-3.5 px-5 cursor-pointer ${
+                      isGrouped ? 'min-h-[1.375rem]' : 'mt-3'
                     } ${replyTo?.id === msg.id ? 'bg-app-accent/10' : ''}`}
                     onClick={() => selectReply(msg)}
                   >
-                    <div className="absolute right-4 -top-3 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 z-10 flex items-center bg-app-dark border border-app-darker rounded shadow-lg overflow-hidden">
+                    <div className="absolute right-5 -top-3 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 z-10 flex items-center bg-app-panel/95 border border-app-glass/[0.08] rounded-lg shadow-xl overflow-hidden backdrop-blur">
                       <button
                         type="button"
                         onClick={(e) => {
@@ -393,10 +393,10 @@ export function DMView({
                     <div className="flex-1 min-w-0">
                       {!isGrouped && (
                         <div className="flex items-baseline gap-2 flex-wrap leading-tight">
-                          <span className="font-medium text-app-text text-[16px] hover:underline cursor-default">
+                          <span className="font-semibold text-app-text text-[15px] hover:underline cursor-default">
                             {msg.username ?? 'Unknown'}
                           </span>
-                          <span className="text-[12px] text-app-muted">
+                          <span className="text-[11px] tabular-nums text-app-muted/80">
                             {formatMessageTime(msg.created_at)}
                           </span>
                         </div>
@@ -410,11 +410,11 @@ export function DMView({
                           }}
                           className="mt-0.5 mb-1 flex items-center gap-1.5 text-xs text-app-muted hover:text-white border-l-2 border-app-hover pl-2"
                         >
-                          <span className="font-semibold text-[#c9cdfb]">{msg.reply_to.username}</span>
+                          <span className="font-semibold text-app-accent">{msg.reply_to.username}</span>
                           <span className="truncate max-w-[240px]">{msg.reply_to.content}</span>
                         </button>
                       )}
-                      <div className={`text-app-text text-[16px] leading-[1.375] break-words whitespace-pre-wrap ${isGrouped ? '' : 'mt-0.5'}`}>
+                      <div className={`text-app-text text-[15px] leading-[1.5] break-words whitespace-pre-wrap ${isGrouped ? '' : 'mt-0.5'}`}>
                         {(() => {
                           const parts = renderMessageContent(msg.content)
                           if (parts.length === 0) return msg.content
@@ -487,12 +487,12 @@ export function DMView({
       </div>
 
       {/* Composer */}
-      <div className="px-4 pb-6 pt-2 flex-shrink-0">
+      <div className="chat-composer-wrap px-4 sm:px-5 pb-5 pt-3 flex-shrink-0">
         {replyTo && (
           <div className="mb-2 flex items-center justify-between gap-2 px-3 py-2 rounded-t-lg bg-app-channel border-l-4 border-app-accent">
             <div className="min-w-0 text-sm">
               <span className="text-app-muted">Replying to </span>
-              <span className="text-[#c9cdfb] font-semibold">{replyTo.username}</span>
+              <span className="text-app-accent font-semibold">{replyTo.username}</span>
               <p className="text-app-muted truncate">{replyTo.content}</p>
             </div>
             <button

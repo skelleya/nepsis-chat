@@ -46,6 +46,8 @@
   --app-panel: 22 23 26;
   --app-font-size: 16px;
   --chat-msg-py: 0.375rem;
+  --chat-divider: 255 255 255;
+  --chat-surface: 24 25 28;
   --font-header: 'TWK Everett', 'Space Grotesk', Poppins, ui-sans-serif, sans-serif;
   --font-body: Poppins, ui-sans-serif, system-ui, sans-serif;
   color-scheme: dark;
@@ -175,6 +177,43 @@ html[data-density='compact'] {
   .chat-msg-row {
     padding-top: var(--chat-msg-py);
     padding-bottom: var(--chat-msg-py);
+  }
+
+  .chat-shell {
+    background:
+      radial-gradient(circle at 50% -20%, rgb(var(--app-accent) / 0.035), transparent 38%),
+      rgb(var(--app-dark));
+  }
+
+  .chat-header-modern {
+    background: rgb(var(--app-dark) / 0.88);
+    border-bottom: 1px solid rgb(var(--app-glass) / 0.06);
+    backdrop-filter: blur(14px);
+  }
+
+  .chat-message-modern {
+    border-left: 2px solid transparent;
+    transition: background-color 140ms ease, border-color 140ms ease;
+  }
+
+  .chat-message-modern:hover {
+    background: rgb(var(--app-glass) / 0.025);
+    border-left-color: rgb(var(--app-accent) / 0.3);
+  }
+
+  .chat-composer-wrap {
+    background: linear-gradient(to top, rgb(var(--app-dark)) 68%, transparent);
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--app-glass) / 0.15) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgb(var(--app-glass) / 0.14);
+    border-radius: 999px;
   }
 
   /* Thin, trackless scrollbar for settings panels */

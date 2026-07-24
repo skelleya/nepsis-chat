@@ -183,7 +183,7 @@ export function ChatInput({
 
   return (
     <div className="relative w-full min-w-0">
-      <div className="flex items-center gap-1 bg-app-hover rounded-lg min-h-[44px] px-1.5 focus-within:ring-1 focus-within:ring-app-accent/30">
+      <div className="flex items-center gap-1 bg-app-channel/75 border border-app-glass/[0.07] rounded-xl min-h-[46px] px-1.5 shadow-[0_8px_28px_rgba(0,0,0,0.12)] focus-within:border-app-accent/40 focus-within:ring-2 focus-within:ring-app-accent/10 transition-colors">
         {onAttachClick && (
           <div className="relative flex-shrink-0">
             <button
