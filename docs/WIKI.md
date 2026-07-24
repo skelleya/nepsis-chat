@@ -815,3 +815,9 @@ Test study:
 - Unconfirmed email accounts see a dropdown **Confirm your email** banner with Resend.
 - Electron source version: `0.2.1`. Tag `v0.2.1` triggers Desktop Release.
 
+### Voice audio/menu hotfix (0.2.2) (2026-07-24)
+
+- 0.2.1 Web Audio path still silenced peers — fully revert to HTML `<audio>` for remote playback.
+- Right-click-only user menus with a true full-screen dismiss backdrop (no left-click reopen race).
+- Electron `0.2.2`. Tag `v0.2.2`.
+

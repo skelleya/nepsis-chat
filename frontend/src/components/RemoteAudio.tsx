@@ -4,94 +4,39 @@ import { applyAudioOutputDevice, loadPrefs, subscribePrefs } from '../services/u
 interface RemoteAudioProps {
   stream: MediaStream | null
   muted?: boolean
-  /** Per-user multiplier 0–2 (0%–200%). Combined with master output volume. */
+  /**
+   * Per-user multiplier 0–2 (0%–200%). Combined with master output volume.
+   * HTML audio.max is 1.0, so values above 100% are capped at full volume
+   * (lowering still works; boosting above master is not applied via Web Audio
+   * because that path was silencing remote WebRTC playback).
+   */
   volumeMultiplier?: number
 }
 
 /** Fired when the main app view changes so paused sinks can retry autoplay. */
 export const VOICE_AUDIO_NUDGE_EVENT = 'nepsis-voice-audio-nudge'
 
-type AudioContextWithSink = AudioContext & {
-  setSinkId?: (id: string) => Promise<void>
-}
-
-let sharedAudioContext: AudioContextWithSink | null = null
-
-function getSharedAudioContext(): AudioContextWithSink {
-  if (!sharedAudioContext || sharedAudioContext.state === 'closed') {
-    sharedAudioContext = new AudioContext() as AudioContextWithSink
-  }
-  return sharedAudioContext
+function effectiveElementVolume(master: number, multiplier: number, isMuted: boolean): number {
+  if (isMuted) return 0
+  const mult = Number.isFinite(multiplier) ? multiplier : 1
+  const masterClamped = Number.isFinite(master) ? Math.min(1, Math.max(0, master)) : 1
+  // Cap at 1.0 — HTMLMediaElement cannot go louder than unity.
+  return Math.min(1, Math.max(0, masterClamped * mult))
 }
 
 /**
  * Plays remote peer audio for the lifetime of a voice session.
- * Uses an HTMLAudioElement (reliable WebRTC playback) plus a Web Audio GainNode
- * so per-user volume can go above 100%. Mount from VoiceProvider — never VoiceView.
+ * Uses a plain HTMLAudioElement (the path known to work with WebRTC).
+ * Mount from VoiceProvider (or a body portal) — never inside VoiceView tiles.
  */
 export function RemoteAudio({ stream, muted, volumeMultiplier = 1 }: RemoteAudioProps) {
   const audioRef = useRef<HTMLAudioElement>(null)
-  const gainRef = useRef<GainNode | null>(null)
-  const sourceReadyRef = useRef(false)
   const volumeMultiplierRef = useRef(volumeMultiplier)
-  const mutedRef = useRef(!!muted)
-
   volumeMultiplierRef.current = volumeMultiplier
-  mutedRef.current = !!muted
-
-  const applyGain = () => {
-    const audio = audioRef.current
-    const gainNode = gainRef.current
-    const master = loadPrefs().voice.outputVolume
-    const mult = Number.isFinite(volumeMultiplierRef.current) ? volumeMultiplierRef.current : 1
-    const next = mutedRef.current ? 0 : Math.min(2, Math.max(0, master * mult))
-
-    if (gainNode) {
-      gainNode.gain.value = next
-      if (audio) {
-        // Element output is routed through Web Audio; keep element unmuted at unity.
-        audio.volume = 1
-        audio.muted = false
-      }
-      return
-    }
-
-    if (audio) {
-      audio.volume = Math.min(1, next)
-      audio.muted = !!mutedRef.current || next <= 0
-    }
-  }
-
-  const ensureGraph = () => {
-    const audio = audioRef.current
-    if (!audio || sourceReadyRef.current) return
-    try {
-      const ctx = getSharedAudioContext()
-      const source = ctx.createMediaElementSource(audio)
-      const gain = ctx.createGain()
-      source.connect(gain)
-      gain.connect(ctx.destination)
-      gainRef.current = gain
-      sourceReadyRef.current = true
-      applyGain()
-      if (ctx.state === 'suspended') void ctx.resume().catch(() => {})
-    } catch (err) {
-      // createMediaElementSource can fail if already connected; fall back to element volume.
-      console.warn('RemoteAudio: Web Audio gain unavailable, using element volume', err)
-      sourceReadyRef.current = true
-      applyGain()
-    }
-  }
 
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
-
-    const resume = () => {
-      const ctx = sharedAudioContext
-      if (ctx?.state === 'suspended') void ctx.resume().catch(() => {})
-      void audio.play().catch(() => {})
-    }
 
     const attach = () => {
       if (!stream) {
@@ -110,62 +55,72 @@ export function RemoteAudio({ stream, muted, volumeMultiplier = 1 }: RemoteAudio
       if (prevIds !== nextIds) {
         audio.srcObject = next
       }
-      ensureGraph()
-      applyGain()
-      void applyAudioOutputDevice(audio)
+      audio.volume = effectiveElementVolume(
+        loadPrefs().voice.outputVolume,
+        volumeMultiplierRef.current,
+        !!muted
+      )
+      applyAudioOutputDevice(audio)
       void audio.play().catch(() => {
         /* autoplay may be blocked until a user gesture; retry on unmute / nudge */
       })
     }
 
+    const nudgePlay = () => {
+      void audio.play().catch(() => {})
+    }
+
     attach()
 
     const onTrackChange = () => attach()
-    const onUnmute = () => resume()
+    const onUnmute = () => nudgePlay()
 
     stream?.addEventListener('addtrack', onTrackChange)
     stream?.addEventListener('removetrack', onTrackChange)
     stream?.getAudioTracks().forEach((t) => t.addEventListener('unmute', onUnmute))
 
-    window.addEventListener('pointerdown', resume, { passive: true })
-    window.addEventListener('keydown', resume)
-    window.addEventListener(VOICE_AUDIO_NUDGE_EVENT, resume)
-    document.addEventListener('visibilitychange', resume)
+    window.addEventListener('pointerdown', nudgePlay, { passive: true })
+    window.addEventListener('keydown', nudgePlay)
+    window.addEventListener(VOICE_AUDIO_NUDGE_EVENT, nudgePlay)
+    document.addEventListener('visibilitychange', nudgePlay)
 
     return () => {
       stream?.removeEventListener('addtrack', onTrackChange)
       stream?.removeEventListener('removetrack', onTrackChange)
       stream?.getAudioTracks().forEach((t) => t.removeEventListener('unmute', onUnmute))
-      window.removeEventListener('pointerdown', resume)
-      window.removeEventListener('keydown', resume)
-      window.removeEventListener(VOICE_AUDIO_NUDGE_EVENT, resume)
-      document.removeEventListener('visibilitychange', resume)
+      window.removeEventListener('pointerdown', nudgePlay)
+      window.removeEventListener('keydown', nudgePlay)
+      window.removeEventListener(VOICE_AUDIO_NUDGE_EVENT, nudgePlay)
+      document.removeEventListener('visibilitychange', nudgePlay)
     }
-  }, [stream])
+  }, [stream, muted])
 
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
-    applyGain()
+    audio.muted = !!muted
     if (!muted) void audio.play().catch(() => {})
-  }, [muted, volumeMultiplier])
+  }, [muted])
 
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
     const apply = () => {
-      applyGain()
-      applyAudioOutputDevice(audio, loadPrefs().voice.audioOutputId)
+      const v = loadPrefs().voice
+      audio.volume = effectiveElementVolume(v.outputVolume, volumeMultiplierRef.current, !!muted)
+      applyAudioOutputDevice(audio, v.audioOutputId)
     }
     apply()
     return subscribePrefs(apply)
-  }, [])
+  }, [muted, volumeMultiplier])
 
+  // Keep in-document (portaled to body). Avoid display:none — some browsers pause it.
   return (
     <audio
       ref={audioRef}
       autoPlay
       playsInline
+      muted={muted}
       style={{ position: 'fixed', width: 1, height: 1, opacity: 0, pointerEvents: 'none', left: 0, top: 0 }}
     />
   )

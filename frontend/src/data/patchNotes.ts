@@ -8,6 +8,16 @@ export type PatchNote = {
 /** In-app patch notes shown under User Settings → Help & Support. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.2.2',
+    date: '2026-07-24',
+    title: 'Voice audio restored & menus fixed',
+    highlights: [
+      'You can hear other users in voice again (HTML audio playback restored).',
+      'Right-click user menus close when you click away; left-click watches/maximizes again.',
+      'Per-user volume still lowers peers (above 100% is capped at full device volume).',
+    ],
+  },
+  {
     version: '0.2.1',
     date: '2026-07-24',
     title: 'Voice audio fix, menu dismiss, email banner',
