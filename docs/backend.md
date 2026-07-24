@@ -212,6 +212,16 @@ The API key never reaches the browser. Import permits HTTPS Tenor media hosts on
 
 ---
 
+## Link embeds (Open Graph unfurl)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/api/embeds/unfurl` | Fetch a public http(s) page and return title / description / image / siteName / favicon |
+
+Security: blocks private/local hosts and IPs (SSRF), follows ≤3 redirects, HTML size cap (~1.5 MB), 8s timeout, per-IP rate limit, in-memory cache (~1h). Used by `LinkEmbed` in server chat and DMs. File: `backend/src/routes/embeds.js`.
+
+---
+
 ## Group direct messages
 
 The existing `dm_participants` join table supports multiple users. Group metadata is additive, so old two-person conversations remain `is_group=false`.

@@ -444,6 +444,8 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | **Update downloaded without asking** | `autoDownload = true` | Set `autoDownload = false`; show green badge on `update-available`; download only on badge/Settings action |
 | **Could not make a peer louder than 100%** | HTML `audio.volume` max is 1 | `RemoteAudio` uses Web Audio `GainNode` with per-user multipliers up to 2 (200%) |
 | **Gallery cameras looked too small** | `--voice-grid-min` ~220/170/140 | Raise gallery minimums to ~320/260/200 and increase tile `min-h` |
+| **Links in chat had no preview / were not clickable** | Plain text rendering only; CORS blocks browser OG fetch | Shared `MessageContent` + `LinkEmbed`; backend `POST /api/embeds/unfurl` with SSRF guards |
+| **No patch notes in Settings** | Help tab only had updates + bug report | Add `PatchNotesPanel` under Help & Support (bundled + GitHub Releases) |
 | **Refresh left voice UI / camera off after rejoin** | Rejoin only restored mic audio; sessionStorage lacked `serverId`/`cameraOn` and App did not open VoiceView | Persist server + camera in `nepsis_voice_rejoin`; auto-open that voice channel after rejoin; re-enable camera post-join |
 | **Voice filmstrip cameras clipped on top/left** | Speaking rings used outer `ring` + glow while the filmstrip used `overflow-x-auto` (which also clips Y) with no inset padding | Use `ring-inset` on tiles and pad the filmstrip scroller |
 | **NSIS asks “install for all users or just me” on update** | `quitAndInstall(false, true)` ran a non-silent assisted installer, which still shows install-mode pages | Manual badge download, then `quitAndInstall(true, true)` so NSIS reuses the existing InstallLocation silently |

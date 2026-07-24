@@ -8,7 +8,7 @@ import * as api from '../services/api'
 import { useCall } from '../contexts/CallContext'
 import { ChatInput } from './ChatInput'
 import { EmojiPicker } from './EmojiPicker'
-import { FileAttachment, isImageUrl, isVideoUrl, isFileUrl } from './FileAttachment'
+import { MessageContent } from './MessageContent'
 import { MemberProfilePanel } from './MemberProfilePanel'
 import type { ServerMember } from './MembersSidebar'
 import { GifPicker } from './GifPicker'
@@ -36,32 +36,6 @@ function formatMessageTime(iso: string): string {
   if (isToday) return time
   if (isYesterday) return `Yesterday at ${time}`
   return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined }) + ` at ${time}`
-}
-
-function renderMessageContent(
-  content: string
-): { type: 'text' | 'image' | 'video' | 'file'; value: string }[] {
-  const parts: { type: 'text' | 'image' | 'video' | 'file'; value: string }[] = []
-  const urlRe = /(https?:\/\/[^\s]+)/g
-  let lastIndex = 0
-  let match
-  while ((match = urlRe.exec(content)) !== null) {
-    if (match.index > lastIndex) {
-      const text = content.slice(lastIndex, match.index)
-      if (text.trim()) parts.push({ type: 'text', value: text })
-    }
-    const url = match[1]
-    if (isImageUrl(url)) parts.push({ type: 'image', value: url })
-    else if (isVideoUrl(url)) parts.push({ type: 'video', value: url })
-    else if (isFileUrl(url)) parts.push({ type: 'file', value: url })
-    else parts.push({ type: 'text', value: url })
-    lastIndex = match.index + match[0].length
-  }
-  if (lastIndex < content.length) {
-    const text = content.slice(lastIndex)
-    if (text.trim()) parts.push({ type: 'text', value: text })
-  }
-  return parts
 }
 
 function sameDay(a: string, b: string) {
@@ -432,25 +406,11 @@ export function DMView({
                           <span className="truncate max-w-[240px]">{msg.reply_to.content}</span>
                         </button>
                       )}
-                      <div className={`text-app-text text-[15px] leading-[1.5] break-words whitespace-pre-wrap ${isGrouped ? '' : 'mt-0.5'}`}>
-                        {(() => {
-                          const parts = renderMessageContent(msg.content)
-                          if (parts.length === 0) return msg.content
-                          return parts.map((part, i) => {
-                            if (part.type === 'image' || part.type === 'video' || part.type === 'file') {
-                              return (
-                                <FileAttachment
-                                  key={i}
-                                  url={part.value}
-                                  type={part.type}
-                                  stopPropagation
-                                />
-                              )
-                            }
-                            return <span key={i}>{part.value}</span>
-                          })
-                        })()}
-                      </div>
+                      <MessageContent
+                        content={msg.content}
+                        stopPropagation
+                        className={isGrouped ? '' : 'mt-0.5'}
+                      />
                       <div className="mt-1 flex flex-wrap gap-1 items-center" onClick={(e) => e.stopPropagation()}>
                         {Object.entries(groupedReactions).map(([emoji, { count, userIds }]) => (
                           <button

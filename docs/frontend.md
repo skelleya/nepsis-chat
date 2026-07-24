@@ -55,6 +55,9 @@ frontend/src/
 | ChannelList | Text + voice channels in a **Nepsis rail** (rounded rows, chat/wave icons, orange selected accent). **Voice users:** right-click for Profile / Roles / Move to / Message / Call / Server Mute / Server Deafen / Disconnect / Kick / Ban; drag-drop into other voice rooms to move. **Channels:** hover gear — Rename, Copy ID, Move to Category, Delete. **Create:** chat + / voice + (or server menu) opens centered name-only modal with type locked. Server dropdown portaled with solid background. |
 | ChatView | Messages, input; scrolls to bottom on load; shows "New messages" indicator when scrolled up and new messages arrive; click to jump to new messages |
 | VoiceView | Voice participants in a responsive gallery (larger camera cards). Click/right-click a remote card for **User volume** (0–200%), **Stream volume** (while sharing), Watch/Maximize, and **Admin** Mute/Deafen/Disconnect. Soundboard + screen stage. Presence merge always includes channel users (even after peer-left). |
+| MessageContent | Shared server/DM message renderer: mentions, clickable links, media attachments, and `LinkEmbed` preview cards |
+| LinkEmbed | Open Graph preview card; fetches `POST /api/embeds/unfurl` |
+| PatchNotesPanel | Help & Support → Patch notes (bundled history + GitHub Releases) |
 | Server Settings ownership | `isAdminOrOwner` uses `servers.owner_id` **or** members role. Members/servers fetch errors keep prior state so the owner menu and modal do not disappear during polls. |
 | DownloadPage | OS-detect primary **Install for Mac/Windows** (Apple/Windows logos); click starts installer download immediately; **Other Installers** reveals the rest + Linux Coming soon. |
 | SoundboardDropdown | Server soundboard: custom-named clips with emoji; uploads attach to `serverId` so every member sees the same list; rename (double-click / pencil); share legacy personal sounds; admin/uploader delete; plays to all voice peers. |
