@@ -564,6 +564,7 @@ function VoiceUserRow({
           currentUserId={currentUserId}
           voiceChannels={voiceChannels}
           anchorRect={profileAnchor}
+          anchorRef={rowRef}
           placement="left"
           canKick={!!(canModTarget && onKick)}
           canBan={!!(canModTarget && onBan)}
@@ -1302,7 +1303,6 @@ export function ChannelList({
   onInvitePeople,
   onOpenCommunity,
   serverId,
-  isOwner,
   hasNoServers,
   isFriendsView = false,
   dmConversations = [],
@@ -1442,11 +1442,15 @@ export function ChannelList({
           const reordered = [...targetChannels]
           reordered.splice(insertAt, 0, moved)
           void (async () => {
-            await onUpdateChannel?.(channel.id, {
-              categoryId: target.categoryId ?? null,
-              order: insertAt,
-            })
-            await onReorderChannels(reordered.map((item, index) => ({ id: item.id, order: index })))
+            try {
+              await onUpdateChannel(channel.id, {
+                categoryId: target.categoryId ?? null,
+                order: insertAt,
+              })
+              await onReorderChannels(reordered.map((item, index) => ({ id: item.id, order: index })))
+            } catch (error) {
+              console.error('Failed to move channel between categories:', error)
+            }
           })()
           return
         }
@@ -1472,7 +1476,7 @@ export function ChannelList({
     })
     const totalDMUnread = Object.values(dmUnreadCounts).reduce((sum, count) => sum + count, 0)
     return (
-      <div className="h-full min-h-0 w-14 bg-app-channel flex flex-col items-center border-r border-app-glass/[0.06]">
+      <div className="flex-1 min-h-0 w-14 bg-app-channel flex flex-col items-center border-r border-app-glass/[0.06]">
         <button
           type="button"
           onClick={onToggleMinimized}

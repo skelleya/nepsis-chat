@@ -634,6 +634,7 @@ export function DMView({
           member={profileMember}
           currentUserId={currentUserId}
           anchorRect={profileAnchor}
+          anchorRef={nameBtnRef}
           placement="below"
           onClose={() => setProfileAnchor(null)}
           onCall={

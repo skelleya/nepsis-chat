@@ -543,3 +543,11 @@ Test study:
 3. With both sidebars in every state, test 1/2/4/8 cameras, screen share, dual stage, self PiP, camera on/off, and remote viewer playback.
 4. Drag categories above/below one another; move channels within/across categories by row and header; rename/delete channels and categories as owner/admin.
 5. Repeatedly click the same/different member rows, scroll, open/close with Escape/outside click, and verify the profile panel never flickers or becomes stuck.
+
+Verification results:
+
+- Frontend TypeScript and Vite production build passed after the focused regression pass (183 modules).
+- White-theme audit corrected inactive server initials, emoji category/grid states, profile surfaces, user controls, update banner, and theme-aware scrollbars.
+- Profile anchors are wired for MembersSidebar, DM headers, and voice-user rows.
+- Resize playback RAFs are canceled on cleanup; cross-category reorder waits for the category update to succeed.
+- Existing optional font, Browserslist, mixed-import, and bundle-size warnings remain non-fatal and documented.

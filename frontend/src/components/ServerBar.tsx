@@ -69,10 +69,10 @@ function SortableServerIcon({ server, isActive, onClick }: { server: Server; isA
         {...attributes}
         {...listeners}
         onClick={onClick}
-        className={`w-12 h-12 flex items-center justify-center text-white font-bold text-lg transition-all duration-200 cursor-grab active:cursor-grabbing touch-none ${
+        className={`w-12 h-12 flex items-center justify-center font-bold text-lg transition-all duration-200 cursor-grab active:cursor-grabbing touch-none ${
           isActive
-            ? 'bg-app-accent rounded-[16px]'
-            : 'bg-app-channel rounded-[24px] hover:bg-app-accent hover:rounded-[16px]'
+            ? 'bg-app-accent text-white rounded-[16px]'
+            : 'bg-app-channel text-app-text rounded-[24px] hover:bg-app-accent hover:text-white hover:rounded-[16px]'
         }`}
       >
         {server.iconUrl ? (

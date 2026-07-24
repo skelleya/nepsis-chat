@@ -234,8 +234,8 @@ export function EmojiPicker({
   }
 
   /* ── Shared button classes ─────────────────────────────────── */
-  const emojiBtn = 'aspect-square flex items-center justify-center text-2xl rounded-md transition-colors duration-100 hover:bg-white/[0.06] active:scale-90'
-  const serverEmojiBtn = 'aspect-square flex items-center justify-center rounded-md transition-colors duration-100 hover:bg-white/[0.06] active:scale-90'
+  const emojiBtn = 'aspect-square flex items-center justify-center text-2xl rounded-md transition-colors duration-100 hover:bg-app-glass/[0.06] active:scale-90'
+  const serverEmojiBtn = 'aspect-square flex items-center justify-center rounded-md transition-colors duration-100 hover:bg-app-glass/[0.06] active:scale-90'
 
   /* ── Render ─────────────────────────────────────────────────── */
   const picker = (
@@ -246,7 +246,7 @@ export function EmojiPicker({
       onClick={e => e.stopPropagation()}
     >
       <div
-        className="flex flex-col overflow-hidden rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.45)] border border-white/[0.06]"
+        className="flex flex-col overflow-hidden rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.45)] border border-app-glass/[0.06]"
         style={{
           width: PICKER_W,
           height: PICKER_H,
@@ -284,8 +284,8 @@ export function EmojiPicker({
                 onClick={() => scrollToCategory(cat)}
                 className={`flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-md text-[15px] transition-all duration-150 ${
                   activeCategory === cat
-                    ? 'bg-white/[0.08] text-white'
-                    : 'text-app-muted hover:bg-white/[0.04] hover:text-app-text'
+                    ? 'bg-app-glass/[0.08] text-app-text'
+                    : 'text-app-muted hover:bg-app-glass/[0.04] hover:text-app-text'
                 }`}
                 title={cat}
               >
@@ -296,14 +296,13 @@ export function EmojiPicker({
         )}
 
         {/* ───── Divider ───── */}
-        <div className="h-px bg-white/[0.04] mx-2 flex-shrink-0" />
+        <div className="h-px bg-app-glass/[0.04] mx-2 flex-shrink-0" />
 
         {/* ───── Emoji grid ───── */}
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="flex-1 overflow-y-auto px-1.5 py-1"
-          style={{ scrollbarWidth: 'thin', scrollbarColor: '#3f4147 transparent' }}
+          className="settings-scroll flex-1 overflow-y-auto px-1.5 py-1"
         >
           {searchResults ? (
             /* ── Search results view ── */

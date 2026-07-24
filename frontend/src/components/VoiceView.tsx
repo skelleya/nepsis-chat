@@ -43,16 +43,28 @@ function useAttachStream(videoRef: RefObject<HTMLVideoElement | null>, stream: M
     const play = () => {
       el.play().catch(() => { /* autoplay may need gesture */ })
     }
+    let resizeRaf: number | null = null
     play()
     const onUnmute = () => play()
     stream.getVideoTracks().forEach((t) => t.addEventListener('unmute', onUnmute))
     const resizeObserver = typeof ResizeObserver !== 'undefined'
-      ? new ResizeObserver(() => requestAnimationFrame(play))
+      ? new ResizeObserver(() => {
+          if (resizeRaf !== null) cancelAnimationFrame(resizeRaf)
+          resizeRaf = requestAnimationFrame(() => {
+            resizeRaf = null
+            play()
+          })
+        })
       : null
     resizeObserver?.observe(el.parentElement || el)
     return () => {
       stream.getVideoTracks().forEach((t) => t.removeEventListener('unmute', onUnmute))
       resizeObserver?.disconnect()
+      if (resizeRaf !== null) cancelAnimationFrame(resizeRaf)
+      if (el.srcObject === stream) {
+        el.pause()
+        el.srcObject = null
+      }
     }
   }, [videoRef, stream])
 }
