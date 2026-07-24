@@ -808,3 +808,10 @@ Test study:
 3. Open Settings → Help & Support — Patch notes panel lists v0.2.0 (and earlier).
 4. After desktop install of 0.2.0, Help shows “you’re on v0.2.0”.
 
+### Voice audio + menu + email confirm banner (0.2.1) (2026-07-24)
+
+- Restore remote voice hearing after volume GainNode change (HTML audio + MediaElementSource gain).
+- Voice card user menu portals to `document.body` and closes on outside click / Escape.
+- Unconfirmed email accounts see a dropdown **Confirm your email** banner with Resend.
+- Electron source version: `0.2.1`. Tag `v0.2.1` triggers Desktop Release.
+

@@ -15,6 +15,7 @@ import { CallOverlay } from './components/CallOverlay'
 import { LoginPage } from './components/LoginPage'
 import { UpdateButton } from './components/UpdateButton'
 import { DownloadBanner } from './components/DownloadBanner'
+import { EmailConfirmBanner } from './components/EmailConfirmBanner'
 import { TitleBar } from './components/TitleBar'
 import { UserPanel } from './components/UserPanel'
 import { ServerSettingsModal } from './components/ServerSettingsModal'
@@ -1617,6 +1618,7 @@ export default function App() {
     <ErrorBoundary>
       <AppProvider>
         <DownloadBanner />
+        <EmailConfirmBanner />
         <UpdateButton />
         <Routes>
           <Route path="/" element={<AppContent />} />

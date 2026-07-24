@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { loadPrefs, subscribePrefs } from '../services/userPrefs'
+import { applyAudioOutputDevice, loadPrefs, subscribePrefs } from '../services/userPrefs'
 
 interface RemoteAudioProps {
   stream: MediaStream | null
@@ -24,24 +24,15 @@ function getSharedAudioContext(): AudioContextWithSink {
   return sharedAudioContext
 }
 
-async function applyContextOutputDevice(ctx: AudioContextWithSink, deviceId: string): Promise<void> {
-  if (!deviceId || typeof ctx.setSinkId !== 'function') return
-  try {
-    await ctx.setSinkId(deviceId)
-  } catch {
-    /* unsupported / permission */
-  }
-}
-
 /**
  * Plays remote peer audio for the lifetime of a voice session.
- * Uses Web Audio GainNode so per-user volume can go above 100% (up to 200%).
- * Mount from VoiceProvider (or a body portal) — never inside VoiceView tiles.
+ * Uses an HTMLAudioElement (reliable WebRTC playback) plus a Web Audio GainNode
+ * so per-user volume can go above 100%. Mount from VoiceProvider — never VoiceView.
  */
 export function RemoteAudio({ stream, muted, volumeMultiplier = 1 }: RemoteAudioProps) {
+  const audioRef = useRef<HTMLAudioElement>(null)
   const gainRef = useRef<GainNode | null>(null)
-  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
-  const connectedStreamKeyRef = useRef<string>('')
+  const sourceReadyRef = useRef(false)
   const volumeMultiplierRef = useRef(volumeMultiplier)
   const mutedRef = useRef(!!muted)
 
@@ -49,74 +40,88 @@ export function RemoteAudio({ stream, muted, volumeMultiplier = 1 }: RemoteAudio
   mutedRef.current = !!muted
 
   const applyGain = () => {
+    const audio = audioRef.current
     const gainNode = gainRef.current
-    if (!gainNode) return
     const master = loadPrefs().voice.outputVolume
     const mult = Number.isFinite(volumeMultiplierRef.current) ? volumeMultiplierRef.current : 1
     const next = mutedRef.current ? 0 : Math.min(2, Math.max(0, master * mult))
-    gainNode.gain.value = next
+
+    if (gainNode) {
+      gainNode.gain.value = next
+      if (audio) {
+        // Element output is routed through Web Audio; keep element unmuted at unity.
+        audio.volume = 1
+        audio.muted = false
+      }
+      return
+    }
+
+    if (audio) {
+      audio.volume = Math.min(1, next)
+      audio.muted = !!mutedRef.current || next <= 0
+    }
+  }
+
+  const ensureGraph = () => {
+    const audio = audioRef.current
+    if (!audio || sourceReadyRef.current) return
+    try {
+      const ctx = getSharedAudioContext()
+      const source = ctx.createMediaElementSource(audio)
+      const gain = ctx.createGain()
+      source.connect(gain)
+      gain.connect(ctx.destination)
+      gainRef.current = gain
+      sourceReadyRef.current = true
+      applyGain()
+      if (ctx.state === 'suspended') void ctx.resume().catch(() => {})
+    } catch (err) {
+      // createMediaElementSource can fail if already connected; fall back to element volume.
+      console.warn('RemoteAudio: Web Audio gain unavailable, using element volume', err)
+      sourceReadyRef.current = true
+      applyGain()
+    }
   }
 
   useEffect(() => {
-    const ctx = getSharedAudioContext()
-    const resume = () => {
-      if (ctx.state === 'suspended') void ctx.resume().catch(() => {})
-    }
+    const audio = audioRef.current
+    if (!audio) return
 
-    const teardownGraph = () => {
-      try {
-        sourceRef.current?.disconnect()
-      } catch {
-        /* already disconnected */
-      }
-      sourceRef.current = null
-      try {
-        gainRef.current?.disconnect()
-      } catch {
-        /* already disconnected */
-      }
-      gainRef.current = null
-      connectedStreamKeyRef.current = ''
+    const resume = () => {
+      const ctx = sharedAudioContext
+      if (ctx?.state === 'suspended') void ctx.resume().catch(() => {})
+      void audio.play().catch(() => {})
     }
 
     const attach = () => {
       if (!stream) {
-        teardownGraph()
+        audio.srcObject = null
         return
       }
       const audioTracks = stream.getAudioTracks().filter((t) => t.readyState !== 'ended')
       if (audioTracks.length === 0) {
-        teardownGraph()
+        audio.srcObject = null
         return
       }
+      const next = new MediaStream(audioTracks)
+      const prev = audio.srcObject as MediaStream | null
+      const prevIds = prev?.getAudioTracks().map((t) => t.id).sort().join('|') ?? ''
       const nextIds = audioTracks.map((t) => t.id).sort().join('|')
-      if (connectedStreamKeyRef.current === nextIds && sourceRef.current && gainRef.current) {
-        applyGain()
-        resume()
-        return
+      if (prevIds !== nextIds) {
+        audio.srcObject = next
       }
-
-      teardownGraph()
-      const subset = new MediaStream(audioTracks)
-      const source = ctx.createMediaStreamSource(subset)
-      const gain = ctx.createGain()
-      source.connect(gain)
-      gain.connect(ctx.destination)
-      sourceRef.current = source
-      gainRef.current = gain
-      connectedStreamKeyRef.current = nextIds
+      ensureGraph()
       applyGain()
-      void applyContextOutputDevice(ctx, loadPrefs().voice.audioOutputId)
-      resume()
+      void applyAudioOutputDevice(audio)
+      void audio.play().catch(() => {
+        /* autoplay may be blocked until a user gesture; retry on unmute / nudge */
+      })
     }
 
     attach()
 
     const onTrackChange = () => attach()
-    const onUnmute = () => {
-      resume()
-      applyGain()
-    }
+    const onUnmute = () => resume()
 
     stream?.addEventListener('addtrack', onTrackChange)
     stream?.addEventListener('removetrack', onTrackChange)
@@ -135,27 +140,32 @@ export function RemoteAudio({ stream, muted, volumeMultiplier = 1 }: RemoteAudio
       window.removeEventListener('keydown', resume)
       window.removeEventListener(VOICE_AUDIO_NUDGE_EVENT, resume)
       document.removeEventListener('visibilitychange', resume)
-      teardownGraph()
     }
   }, [stream])
 
   useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
     applyGain()
+    if (!muted) void audio.play().catch(() => {})
   }, [muted, volumeMultiplier])
 
   useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
     const apply = () => {
       applyGain()
-      void applyContextOutputDevice(getSharedAudioContext(), loadPrefs().voice.audioOutputId)
+      applyAudioOutputDevice(audio, loadPrefs().voice.audioOutputId)
     }
     apply()
     return subscribePrefs(apply)
   }, [])
 
-  // Invisible placeholder keeps the component tree stable; playback is Web Audio.
   return (
     <audio
-      aria-hidden
+      ref={audioRef}
+      autoPlay
+      playsInline
       style={{ position: 'fixed', width: 1, height: 1, opacity: 0, pointerEvents: 'none', left: 0, top: 0 }}
     />
   )
