@@ -446,10 +446,11 @@ function MainLayout({
   // Track in-flight refresh; allow a follow-up load if presence changed mid-fetch
   const membersRefreshRef = useRef(false)
   const membersNeedsReloadRef = useRef(false)
-  const voiceChannelIdRef = useRef(voice.voiceChannelId)
+  const effectiveVoiceChannelId = voice.voiceChannelId ?? voice.otherTabVoiceChannelId
+  const voiceChannelIdRef = useRef(effectiveVoiceChannelId)
   const userStatusRef = useRef(userStatus)
   const serverOwnerIdRef = useRef<string | null>(null)
-  voiceChannelIdRef.current = voice.voiceChannelId
+  voiceChannelIdRef.current = effectiveVoiceChannelId
   userStatusRef.current = userStatus
   serverOwnerIdRef.current = currentServer?.owner_id ?? null
 
@@ -569,7 +570,7 @@ function MainLayout({
     })
 
     // Fallback poll (presence realtime covers most cases)
-    const ms = voice.voiceChannelId ? 3000 : 10000
+    const ms = effectiveVoiceChannelId ? 3000 : 10000
     const interval = setInterval(load, ms)
 
     return () => {
@@ -577,13 +578,13 @@ function MainLayout({
       unsubscribe(membersChannel)
       unsubscribe(presenceChannel)
     }
-  }, [currentServerId, user?.id, user?.avatar_url, voice.voiceChannelId, withLiveSelfPresence])
+  }, [currentServerId, user?.id, user?.avatar_url, effectiveVoiceChannelId, withLiveSelfPresence])
 
   // Update presence (online / in-voice / away / dnd) — optimistic local patch first
   useEffect(() => {
     if (!user) return
-    const status = voice.voiceChannelId ? 'in-voice' : userStatus
-    const voiceChannelId = voice.voiceChannelId ?? null
+    const status = effectiveVoiceChannelId ? 'in-voice' : userStatus
+    const voiceChannelId = effectiveVoiceChannelId ?? null
 
     setServerMembers((prev) =>
       withLiveSelfPresence(
@@ -609,7 +610,7 @@ function MainLayout({
       })
     }
     push()
-  }, [user?.id, voice.voiceChannelId, userStatus, withLiveSelfPresence])
+  }, [user?.id, effectiveVoiceChannelId, userStatus, withLiveSelfPresence])
 
   // Heartbeat so other devices see you as online even if a single upsert was dropped
   useEffect(() => {
@@ -627,6 +628,9 @@ function MainLayout({
   useEffect(() => {
     if (!user) return
     const markOffline = () => {
+      // Another same-account tab owns voice; closing this observer must not
+      // erase that session's global presence.
+      if (voiceChannelIdRef.current && !voice.voiceChannelId) return
       const base = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
       try {
         fetch(`${base}/users/${user.id}/presence`, {
@@ -639,7 +643,7 @@ function MainLayout({
     }
     window.addEventListener('pagehide', markOffline)
     return () => window.removeEventListener('pagehide', markOffline)
-  }, [user?.id])
+  }, [user?.id, voice.voiceChannelId])
 
   const handleKick = useCallback(
     async (targetUserId: string) => {
@@ -746,7 +750,11 @@ function MainLayout({
       localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'server' }))
     } catch { /* ignore */ }
     if (channel.type === 'voice') {
-      voice.joinVoice(channel.id, channel.name)
+      // Opening the room already owned by another tab is observer-only. The
+      // existing session keeps its mic/WebRTC connection instead of being kicked.
+      if (voice.otherTabVoiceChannelId !== channel.id) {
+        voice.joinVoice(channel.id, channel.name)
+      }
     }
   }, [setCurrentChannel, setCurrentDM, voice, mustAcceptRules, rulesAcceptanceKnown, hasAcceptedRules, rulesChannelId])
 
@@ -850,33 +858,33 @@ function MainLayout({
         isScreenSharing: voice.screenShareUserIds.includes(member.userId),
       })
     }
-    // Always inject self from LIVE voice state (never depend on API presence alone)
-    if (voice.voiceChannelId) {
-      const chInServer = displayChannels.find((c) => c.id === voice.voiceChannelId)
+    // Inject self from this tab's live session or another same-account tab.
+    if (effectiveVoiceChannelId) {
+      const chInServer = displayChannels.find((c) => c.id === effectiveVoiceChannelId)
       // Show under this channel when it belongs to the current server, or until channels finish loading
       const belongsHere = !chInServer || !chInServer.server_id || chInServer.server_id === currentServerId
       if (belongsHere) {
-        const chId = voice.voiceChannelId
+        const chId = effectiveVoiceChannelId
         if (!voiceUsers[chId]) voiceUsers[chId] = []
         if (!voiceUsers[chId].some((u) => u.userId === user.id)) {
           voiceUsers[chId].unshift({
             userId: user.id,
             username: currentDisplayName,
             avatar_url: user.avatar_url,
-            isMuted: voice.isMuted,
-            isDeafened: voice.isDeafened,
-            isSpeaking: voice.isSpeaking,
-            isScreenSharing: voice.isScreenSharing,
+            isMuted: voice.voiceChannelId ? voice.isMuted : false,
+            isDeafened: voice.voiceChannelId ? voice.isDeafened : false,
+            isSpeaking: voice.voiceChannelId ? voice.isSpeaking : false,
+            isScreenSharing: voice.voiceChannelId ? voice.isScreenSharing : false,
           })
         } else {
           const selfIdx = voiceUsers[chId].findIndex((u) => u.userId === user.id)
           if (selfIdx >= 0) {
             voiceUsers[chId][selfIdx] = {
               ...voiceUsers[chId][selfIdx],
-              isMuted: voice.isMuted,
-              isDeafened: voice.isDeafened,
-              isSpeaking: voice.isSpeaking,
-              isScreenSharing: voice.isScreenSharing,
+              isMuted: voice.voiceChannelId ? voice.isMuted : voiceUsers[chId][selfIdx].isMuted,
+              isDeafened: voice.voiceChannelId ? voice.isDeafened : voiceUsers[chId][selfIdx].isDeafened,
+              isSpeaking: voice.voiceChannelId ? voice.isSpeaking : false,
+              isScreenSharing: voice.voiceChannelId ? voice.isScreenSharing : voiceUsers[chId][selfIdx].isScreenSharing,
             }
           }
         }
