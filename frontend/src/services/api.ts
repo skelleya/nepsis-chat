@@ -1305,7 +1305,9 @@ export async function submitBugReport(data: {
   title: string
   description: string
   url?: string
-}): Promise<{ id: string; success: boolean }> {
+  /** `bug` (default) or `support` ticket from the title-bar Support control */
+  category?: 'bug' | 'support'
+}): Promise<{ id: string; success: boolean; category?: string }> {
   const res = await fetch(`${API_BASE}/bug-reports`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1313,7 +1315,19 @@ export async function submitBugReport(data: {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error(err?.error || 'Failed to submit bug report')
+    throw new Error(err?.error || 'Failed to submit report')
   }
   return res.json()
+}
+
+/** Alias for support tickets (same API, category=support). */
+export async function submitSupportTicket(data: {
+  userId?: string
+  username?: string
+  email?: string
+  title: string
+  description: string
+  url?: string
+}): Promise<{ id: string; success: boolean; category?: string }> {
+  return submitBugReport({ ...data, category: 'support' })
 }

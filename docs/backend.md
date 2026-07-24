@@ -64,7 +64,7 @@ Node.js + Express + Socket.io + Supabase (Postgres). Legacy `src/db/init.js` (SQ
 | DELETE | `/api/servers/:id/invites/:code` | Revoke invite (`?revokedBy=`) |
 | GET | `/api/servers/:id/audit-log` | List audit log entries (invite_created, invite_revoked, member_kicked, member_joined) |
 | GET | `/api/version` | App version |
-| POST | `/api/bug-reports` | Submit bug report (`userId`, `username`, `email`, `title`, `description`, `url`) — public |
+| POST | `/api/bug-reports` | Submit bug report or support ticket (`userId`, `username`, `email`, `title`, `description`, `url`, optional `category`: `bug`\|`support`) — signed-in non-guest |
 | GET | `/api/soundboard` | List sounds (`?userId=` required; `?serverId=` returns all server sounds for members + caller's legacy personal sounds) |
 | POST | `/api/soundboard` | Upload sound (multipart: `file`, `userId`, `name`, `emoji`?, `serverId`?) — max 10s; with `serverId` the sound is visible to all members |
 | PATCH | `/api/soundboard/:id` | Update sound (JSON: `userId`, `emoji`?, `name`?, `serverId`?) — rename/emoji; optional `serverId` claims a legacy personal sound onto that server |
@@ -112,7 +112,7 @@ Deletion ordering matters because several user foreign keys use `NO ACTION`: cle
 | users | + active_profile (personal\|work) — which profile is used when joining/appearing in servers |
 | server_invites | code, server_id, created_by, expires_at, max_uses, use_count, created_at — see migration `20250211000004_server_invites_audit.sql` |
 | server_audit_log | id, server_id, user_id, action, details (JSONB), created_at — see migration `20250211000004_server_invites_audit.sql` |
-| bug_reports | id, user_id, username, email, title, description, url, user_agent, status (pending/reviewed/resolved/wontfix), created_at — see migration `20250211000008_bug_reports.sql` |
+| bug_reports | id, user_id, username, email, title, description, url, user_agent, status (pending/reviewed/resolved/wontfix), category (`bug`\|`support`), created_at — migrations `20250211000008_bug_reports.sql`, `20250211000021_bug_reports_category.sql` |
 | soundboard_sounds | id, user_id, server_id?, name, url, duration_seconds, storage_path, emoji, created_at — max 10s audio; server-scoped listing when `server_id` set; migrations `20250211000009`, `20250211000014`, `20260724023843_soundboard_server_scope.sql` |
 | dm_conversations | id, created_at, is_group, name, created_by, updated_at — 1:1 and group DM metadata; group fields added by `20260724004517_group_direct_messages.sql`, creator FK index follow-up `20260724005105_group_dm_created_by_index.sql` |
 | dm_participants | conversation_id, user_id, joined_at — many-to-many DM membership; groups support up to 10 members through the API |

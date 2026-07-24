@@ -885,3 +885,18 @@ Test study:
 2. Drag over an empty voice channel → “Drop user here” pad appears; release moves them.
 3. On an older desktop build, open Patch notes → newer versions appear under **Newer releases**, not Earlier; installed card says **Installed**.
 
+### Support, Nous subscription & keybindings (0.2.8) (2026-07-24)
+
+- Desktop title bar **Support** (?) left of Update / minimize → support ticket modal (`bug_reports.category = support`).
+- Settings → **Nous subscription**: plan cards, payment method, billing history templates (no live billing yet).
+- Settings → **Keybindings**: remap mute/deafen/camera/screen/disconnect/answer/decline; persisted in `userPrefs.keybindings`; applied by `GlobalKeybindings`.
+- Migration `20250211000021_bug_reports_category.sql`.
+- Electron `0.2.8`. Tag `v0.2.8`.
+
+Test study:
+
+1. Desktop: click title-bar Support → submit a ticket while signed in → success message.
+2. Settings → Nous subscription → Free + Nous cards and billing placeholders visible; upgrade buttons disabled.
+3. Settings → Keybindings → rebind Toggle mute → combo saves; in voice, new combo toggles mute.
+4. Guest account → Support form explains sign-in is required.
+

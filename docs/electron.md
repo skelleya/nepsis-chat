@@ -11,6 +11,7 @@ Desktop app wrapper and packaging. The packaged app loads the **same React UI** 
 - **Windows**: NSIS installer `NepsisChat-Setup.exe`
 - **macOS**: DMG + ZIP (ZIP required for `electron-updater`)
 - **Updates**: `electron-updater` from **GitHub Releases** with **`autoDownload = false`**. When a newer version ships, a **green download arrow** appears in the title bar (left of minimize); click to download, then a Discord-style **Updating your software** modal covers restart/install.
+- **Support**: Title-bar **?** control (left of Update / minimize) opens a support ticket modal.
 - **System tray**: Closing the window hides to tray (does not quit).
 - **Routing**: `HashRouter` + Vite `base: './'` for `file://` compatibility.
 - **Custom title bar**: Frameless window + `TitleBar.tsx` (drag region; Windows/Linux min/max/close). macOS uses `hiddenInset` traffic lights.
@@ -43,6 +44,7 @@ Artifacts land in `electron/dist/`.
 | File | Role |
 |------|------|
 | `frontend/src/components/UpdateButton.tsx` | Title-bar download control + updating modal |
+| `frontend/src/components/SupportTicketModal.tsx` | Support ticket form from the title-bar control |
 | `frontend/src/hooks/useDesktopUpdate.ts` | IPC: available / progress / downloaded |
 | `electron/main.js` | `autoUpdater` → `update-available`, `update-download-progress`, `update-downloaded` |
 

@@ -14,6 +14,8 @@ import { VoiceVideoSettingsTab } from './settings/VoiceVideoSettingsTab'
 import { NotificationsSettingsTab } from './settings/NotificationsSettingsTab'
 import { DesktopUpdatesPanel } from './settings/DesktopUpdatesPanel'
 import { PatchNotesPanel } from './settings/PatchNotesPanel'
+import { NousSubscriptionSettingsTab } from './settings/NousSubscriptionSettingsTab'
+import { KeybindingsSettingsTab } from './settings/KeybindingsSettingsTab'
 
 type ProfilePreview = {
   display_name: string
@@ -21,7 +23,16 @@ type ProfilePreview = {
   banner_url?: string | null
 }
 
-type TabId = 'account' | 'profiles' | 'privacy' | 'appearance' | 'voice' | 'notifications' | 'help'
+type TabId =
+  | 'account'
+  | 'profiles'
+  | 'privacy'
+  | 'appearance'
+  | 'voice'
+  | 'keybindings'
+  | 'notifications'
+  | 'subscription'
+  | 'help'
 
 const TAB_ORDER: Record<TabId, number> = {
   account: 0,
@@ -29,8 +40,10 @@ const TAB_ORDER: Record<TabId, number> = {
   privacy: 2,
   appearance: 3,
   voice: 4,
-  notifications: 5,
-  help: 6,
+  keybindings: 5,
+  notifications: 6,
+  subscription: 7,
+  help: 8,
 }
 
 function HelpTab({ user }: { user: { id: string; username: string; is_guest?: boolean } }) {
@@ -77,6 +90,13 @@ function HelpTab({ user }: { user: { id: string; username: string; is_guest?: bo
       <h3 className="text-xl font-bold text-app-text mb-4">Help & Support</h3>
       <DesktopUpdatesPanel />
       <PatchNotesPanel />
+      <div className="bg-app-channel rounded-lg p-4 space-y-3 mb-4">
+        <h4 className="font-semibold text-app-text">Support ticket</h4>
+        <p className="text-sm text-app-muted">
+          On the desktop app, use the <span className="text-app-text font-medium">?</span> button in the
+          title bar (left of minimize) to open a support ticket. Billing and account questions are welcome there.
+        </p>
+      </div>
       <div className="bg-app-channel rounded-lg p-4 space-y-4">
         <h4 className="font-semibold text-app-text">Report a Bug</h4>
         {isGuest ? (
@@ -602,7 +622,9 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
     { id: 'privacy', label: 'Privacy & Safety' },
     { id: 'appearance', label: 'Appearance' },
     { id: 'voice', label: 'Voice & Video' },
+    { id: 'keybindings', label: 'Keybindings' },
     { id: 'notifications', label: 'Notifications' },
+    { id: 'subscription', label: 'Nous subscription' },
     { id: 'help', label: 'Help & Support' },
   ]
 
@@ -943,7 +965,11 @@ export function UserSettingsModal({ user, onClose, onLogout, onUserUpdate }: Use
 
               {displayedTab === 'voice' && <VoiceVideoSettingsTab />}
 
+              {displayedTab === 'keybindings' && <KeybindingsSettingsTab />}
+
               {displayedTab === 'notifications' && <NotificationsSettingsTab />}
+
+              {displayedTab === 'subscription' && <NousSubscriptionSettingsTab />}
 
               {displayedTab === 'help' && (
                 <HelpTab user={user} />

@@ -60,6 +60,10 @@ frontend/src/
 | YouTubeEmbed | Playable YouTube player for youtube.com / youtu.be / shorts links (poster → iframe) |
 | VoiceFloatingOverlay | Corner PiP of voice cameras (+ live screens) while in text/DM/Friends; window-level drag-snap to TL/TR/BL/BR; stable tile order; click returns to VoiceView |
 | PatchNotesPanel | Help & Support → Patch notes grouped as Newer / Current·Installed / Earlier (bundled + GitHub Releases) |
+| SupportTicketModal | Title-bar Support control → support ticket form (`category=support` via bug-reports API) |
+| NousSubscriptionSettingsTab | Settings → Nous subscription (plan + billing templates) |
+| KeybindingsSettingsTab | Settings → Keybindings (remap voice/call shortcuts in local prefs) |
+| GlobalKeybindings | Applies remapped shortcuts under VoiceProvider / CallProvider |
 | EmailConfirmBanner | Top dropdown when a registered user’s Supabase email is not confirmed yet (Resend + dismiss for session) |
 | Server Settings ownership | `isAdminOrOwner` uses `servers.owner_id` **or** members role. Members/servers fetch errors keep prior state so the owner menu and modal do not disappear during polls. |
 | DownloadPage | OS-detect primary **Install for Mac/Windows** (Apple/Windows logos); click starts installer download immediately; **Other Installers** reveals the rest + Linux Coming soon. |
@@ -99,6 +103,7 @@ frontend/src/
 | InvitePage | Public invite join page — server banner/icon/name, inviter, **member count**, Join Server. **Log In to Join** stores `nepsis_pending_invite` then returns after auth. Successful join sets `joinServerId` + `nepsis_last_view: server` before `navigate('/')`. |
 | AppContent auth gate | `showApp` / `showLogin` initialize from current `user` so remounting `/` after `/invite/:code` (session already set) opens the main app instead of a stuck login shell. |
 | UpdateButton | Electron: green download control in the title bar (left of minimize); click downloads then shows Discord-style **Updating your software** modal |
+| TitleBar | Electron chrome; Support (?) then Update, then min/max/close |
 | DesktopUpdatesPanel | Settings → Help & Support: version + Check for updates (desktop only) |
 | DownloadBanner | Centered top tab: short prompt (“Prefer the desktop app?”) + clear Download button + subtle dismiss; `rounded-b-xl`; dismissible (localStorage); sets `--download-banner-height`; hidden on `/download` and in Electron. **GSAP:** slide/fade in/out |
 | WelcomeLanding | Pre-auth home (white split): large Nepsis logo left (`mix-blend-multiply` drops black square), **Use Web App** / **Download App** right. TWK Everett headers + Poppins body; GSAP entrance. |

@@ -17,6 +17,7 @@ import { LoginPage } from './components/LoginPage'
 import { DownloadBanner } from './components/DownloadBanner'
 import { EmailConfirmBanner } from './components/EmailConfirmBanner'
 import { TitleBar } from './components/TitleBar'
+import { GlobalKeybindings } from './components/GlobalKeybindings'
 import { UserPanel } from './components/UserPanel'
 import { ServerSettingsModal } from './components/ServerSettingsModal'
 import { GroupDMModal } from './components/GroupDMModal'
@@ -162,6 +163,7 @@ function AppContent() {
         <div className={`fixed inset-0 overflow-hidden bg-app-darker ${chromePad}`}>
           <VoiceProvider userId={user.id} username={displayName}>
             <CallProvider userId={user.id} username={displayName}>
+            <GlobalKeybindings />
             <MainLayout
               user={user}
               servers={servers}

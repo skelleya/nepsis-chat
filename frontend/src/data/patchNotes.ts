@@ -8,6 +8,16 @@ export type PatchNote = {
 /** In-app patch notes shown under User Settings → Help & Support. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.2.8',
+    date: '2026-07-24',
+    title: 'Support tickets, Nous subscription & keybindings',
+    highlights: [
+      'Desktop title bar has a Support button (left of minimize) to submit a support ticket.',
+      'Settings → Nous subscription shows plan and billing templates (checkout coming later).',
+      'Settings → Keybindings lets you remap mute, deafen, camera, screen share, disconnect, and call shortcuts.',
+    ],
+  },
+  {
     version: '0.2.7',
     date: '2026-07-24',
     title: 'Smoother voice moves & clearer patch notes',

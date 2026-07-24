@@ -196,4 +196,45 @@ for (const rel of [
   assert.match(src, /export function/, `${rel} should export helpers`)
 }
 
-console.log('OK — drag + patch notes unit checks passed')
+// --- keybinding combo helpers (mirrors userPrefs formatKeyCombo / eventMatchesCombo) ---
+function formatKeyCombo(e) {
+  if (e.key === 'Control' || e.key === 'Shift' || e.key === 'Alt' || e.key === 'Meta') return null
+  const parts = []
+  if (e.ctrlKey || e.metaKey) parts.push('Ctrl')
+  if (e.altKey) parts.push('Alt')
+  if (e.shiftKey) parts.push('Shift')
+  let key = e.key
+  if (key === ' ') key = 'Space'
+  else if (key.length === 1) key = key.toUpperCase()
+  else key = key.length ? key[0].toUpperCase() + key.slice(1) : key
+  if (!key) return null
+  parts.push(key)
+  return parts.join('+')
+}
+
+function eventMatchesCombo(e, combo) {
+  if (!combo) return false
+  const parts = combo.split('+').map((p) => p.trim()).filter(Boolean)
+  const wantCtrl = parts.includes('Ctrl') || parts.includes('Meta') || parts.includes('Cmd')
+  const wantAlt = parts.includes('Alt')
+  const wantShift = parts.includes('Shift')
+  const keyPart = parts.filter((p) => !['Ctrl', 'Meta', 'Cmd', 'Alt', 'Shift'].includes(p)).pop()
+  if (!keyPart) return false
+  if (!!wantCtrl !== (e.ctrlKey || e.metaKey)) return false
+  if (!!wantAlt !== e.altKey) return false
+  if (!!wantShift !== e.shiftKey) return false
+  let key = e.key
+  if (key === ' ') key = 'Space'
+  else if (key.length === 1) key = key.toUpperCase()
+  else key = key.length ? key[0].toUpperCase() + key.slice(1) : key
+  return key.toLowerCase() === keyPart.toLowerCase()
+}
+
+{
+  const e = { key: 'm', ctrlKey: true, metaKey: false, altKey: false, shiftKey: true }
+  assert.equal(formatKeyCombo(e), 'Ctrl+Shift+M')
+  assert.equal(eventMatchesCombo(e, 'Ctrl+Shift+M'), true)
+  assert.equal(eventMatchesCombo(e, 'Ctrl+Shift+D'), false)
+}
+
+console.log('OK — drag + patch notes + keybinding unit checks passed')

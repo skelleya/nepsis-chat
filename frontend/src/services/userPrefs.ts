@@ -45,10 +45,23 @@ export interface NotificationPrefs {
   browserDmNotifications: boolean
 }
 
+/** Stable action ids for remappable keyboard shortcuts. */
+export type KeybindingActionId =
+  | 'toggleMute'
+  | 'toggleDeafen'
+  | 'toggleCamera'
+  | 'toggleScreenShare'
+  | 'disconnectVoice'
+  | 'answerCall'
+  | 'declineCall'
+
+export type KeybindingsPrefs = Record<KeybindingActionId, string>
+
 export interface UserPrefs {
   appearance: AppearancePrefs
   voice: VoicePrefs
   notifications: NotificationPrefs
+  keybindings: KeybindingsPrefs
   /** Per-peer mic volume multipliers (0–2 → 0%–200%). Default 1 (100%). */
   peerVolumes: Record<string, number>
   /** Per-peer screen-share audio multipliers (0–2 → 0%–200%). Default 1 (100%). */
@@ -88,8 +101,27 @@ export const DEFAULT_PREFS: UserPrefs = {
     browserCallNotifications: true,
     browserDmNotifications: false,
   },
+  keybindings: {
+    toggleMute: 'Ctrl+Shift+M',
+    toggleDeafen: 'Ctrl+Shift+D',
+    toggleCamera: 'Ctrl+Shift+V',
+    toggleScreenShare: 'Ctrl+Shift+S',
+    disconnectVoice: 'Ctrl+Shift+E',
+    answerCall: 'Ctrl+Shift+A',
+    declineCall: 'Ctrl+Shift+X',
+  },
   peerVolumes: {},
   streamVolumes: {},
+}
+
+export const KEYBINDING_LABELS: Record<KeybindingActionId, { label: string; description: string }> = {
+  toggleMute: { label: 'Toggle mute', description: 'Mute or unmute your microphone in voice.' },
+  toggleDeafen: { label: 'Toggle deafen', description: 'Deafen or undeafen in voice.' },
+  toggleCamera: { label: 'Toggle camera', description: 'Turn your camera on or off.' },
+  toggleScreenShare: { label: 'Toggle screen share', description: 'Start or stop sharing your screen.' },
+  disconnectVoice: { label: 'Disconnect from voice', description: 'Leave the current voice channel.' },
+  answerCall: { label: 'Answer call', description: 'Accept an incoming DM call.' },
+  declineCall: { label: 'Decline / end call', description: 'Decline ringing or end the active call.' },
 }
 
 /** Clamp user/stream volume sliders to 0–200% (stored as 0–2). */
@@ -218,6 +250,16 @@ function normalizeVoicePrefs(raw: Partial<VoicePrefs> | undefined, base = DEFAUL
   }
 }
 
+function normalizeKeybindings(raw: Partial<KeybindingsPrefs> | undefined, base = DEFAULT_PREFS.keybindings): KeybindingsPrefs {
+  const merged = { ...base, ...(raw || {}) }
+  const out = { ...base }
+  for (const key of Object.keys(base) as KeybindingActionId[]) {
+    const value = merged[key]
+    if (typeof value === 'string' && value.trim()) out[key] = value.trim()
+  }
+  return out
+}
+
 function mergePrefs(raw: unknown): UserPrefs {
   const base = structuredClone(DEFAULT_PREFS)
   if (!raw || typeof raw !== 'object') return base
@@ -230,6 +272,7 @@ function mergePrefs(raw: unknown): UserPrefs {
     appearance,
     voice: normalizeVoicePrefs(r.voice, base.voice),
     notifications: { ...base.notifications, ...(r.notifications || {}) },
+    keybindings: normalizeKeybindings(r.keybindings, base.keybindings),
     peerVolumes: normalizeVolumeMap(r.peerVolumes),
     streamVolumes: normalizeVolumeMap(r.streamVolumes),
   }
@@ -262,6 +305,7 @@ export function updatePrefs(patch: {
   appearance?: Partial<AppearancePrefs>
   voice?: Partial<VoicePrefs>
   notifications?: Partial<NotificationPrefs>
+  keybindings?: Partial<KeybindingsPrefs>
   peerVolumes?: Record<string, number>
   streamVolumes?: Record<string, number>
 }): UserPrefs {
@@ -270,6 +314,10 @@ export function updatePrefs(patch: {
     appearance: { ...current.appearance, ...patch.appearance },
     voice: normalizeVoicePrefs({ ...current.voice, ...patch.voice }, current.voice),
     notifications: { ...current.notifications, ...patch.notifications },
+    keybindings: normalizeKeybindings(
+      { ...current.keybindings, ...patch.keybindings },
+      current.keybindings
+    ),
     peerVolumes:
       patch.peerVolumes !== undefined
         ? normalizeVolumeMap(patch.peerVolumes)
@@ -281,6 +329,42 @@ export function updatePrefs(patch: {
   }
   savePrefs(next)
   return next
+}
+
+/** Serialize a KeyboardEvent into a stable shortcut string (e.g. Ctrl+Shift+M). */
+export function formatKeyCombo(e: KeyboardEvent): string | null {
+  if (e.key === 'Control' || e.key === 'Shift' || e.key === 'Alt' || e.key === 'Meta') return null
+  const parts: string[] = []
+  if (e.ctrlKey || e.metaKey) parts.push('Ctrl')
+  if (e.altKey) parts.push('Alt')
+  if (e.shiftKey) parts.push('Shift')
+  let key = e.key
+  if (key === ' ') key = 'Space'
+  else if (key.length === 1) key = key.toUpperCase()
+  else key = key.length ? key[0].toUpperCase() + key.slice(1) : key
+  if (!key) return null
+  parts.push(key)
+  return parts.join('+')
+}
+
+/** Match a KeyboardEvent against a stored combo like `Ctrl+Shift+M`. */
+export function eventMatchesCombo(e: KeyboardEvent, combo: string): boolean {
+  if (!combo) return false
+  const parts = combo.split('+').map((p) => p.trim()).filter(Boolean)
+  if (parts.length === 0) return false
+  const wantCtrl = parts.includes('Ctrl') || parts.includes('Meta') || parts.includes('Cmd')
+  const wantAlt = parts.includes('Alt')
+  const wantShift = parts.includes('Shift')
+  const keyPart = parts.filter((p) => !['Ctrl', 'Meta', 'Cmd', 'Alt', 'Shift'].includes(p)).pop()
+  if (!keyPart) return false
+  if (!!wantCtrl !== (e.ctrlKey || e.metaKey)) return false
+  if (!!wantAlt !== e.altKey) return false
+  if (!!wantShift !== e.shiftKey) return false
+  let key = e.key
+  if (key === ' ') key = 'Space'
+  else if (key.length === 1) key = key.toUpperCase()
+  else key = key.length ? key[0].toUpperCase() + key.slice(1) : key
+  return key.toLowerCase() === keyPart.toLowerCase()
 }
 
 export function subscribePrefs(fn: Listener): () => void {
