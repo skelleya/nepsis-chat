@@ -61,7 +61,7 @@ function SortableServerIcon({ server, isActive, onClick }: { server: Server; isA
   return (
     <div ref={setNodeRef} style={style} className={`relative group ${isDragging ? 'opacity-50' : ''}`} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
       {/* Active indicator pill */}
-      <div className={`absolute -left-3 top-1/2 -translate-y-1/2 w-1 rounded-r-full bg-white transition-all ${
+      <div className={`absolute -left-3 top-1/2 -translate-y-1/2 w-1 rounded-r-full bg-app-text transition-all ${
         isActive ? 'h-10' : 'h-0 group-hover:h-5'
       }`} />
 
@@ -85,9 +85,9 @@ function SortableServerIcon({ server, isActive, onClick }: { server: Server; isA
       {/* Tooltip */}
       {showTooltip && (
         <div className="absolute left-[62px] top-1/2 -translate-y-1/2 z-50 pointer-events-none">
-          <div className="relative bg-[#111214] text-white text-sm font-semibold px-3 py-2 rounded-md shadow-xl whitespace-nowrap">
+          <div className="relative bg-app-darker text-app-text text-sm font-semibold px-3 py-2 rounded-md shadow-xl whitespace-nowrap">
             {server.name}
-            <div className="absolute right-full top-1/2 -translate-y-1/2 border-[5px] border-transparent border-r-[#111214]" />
+            <div className="absolute right-full top-1/2 -translate-y-1/2 border-[5px] border-transparent border-r-app-darker" />
           </div>
         </div>
       )}
@@ -175,7 +175,7 @@ export function ServerBar({ servers, currentServerId, onSelectServer, onCreateSe
       <div className="w-[72px] min-w-[72px] bg-app-dark flex flex-col items-center py-3 gap-2 flex-shrink-0 overflow-x-hidden">
         {/* Home / Friends button */}
         <div className="relative group">
-          <div className={`absolute -left-3 top-1/2 -translate-y-1/2 w-1 rounded-r-full bg-white transition-all ${
+          <div className={`absolute -left-3 top-1/2 -translate-y-1/2 w-1 rounded-r-full bg-app-text transition-all ${
             isFriendsActive ? 'h-10' : 'h-0 group-hover:h-5'
           }`} />
           <button

@@ -72,7 +72,7 @@ export function UpdateButton() {
           void downloadUpdate()
         }}
         disabled={downloading}
-        className="pointer-events-auto mt-0 flex items-center gap-3 rounded-b-2xl bg-[#111214] border border-white/10 border-t-0 pl-3 pr-4 py-2.5 text-white shadow-lg transition-transform hover:-translate-y-0.5 disabled:opacity-90 disabled:hover:translate-y-0"
+        className="pointer-events-auto mt-0 flex items-center gap-3 rounded-b-2xl bg-app-darker border border-app-glass/10 border-t-0 pl-3 pr-4 py-2.5 text-app-text shadow-lg transition-transform hover:-translate-y-0.5 disabled:opacity-90 disabled:hover:translate-y-0"
         title={downloading ? `Downloading… ${downloadPercent}%` : `Download ${versionLabel}`}
         style={noDrag}
       >
@@ -83,18 +83,18 @@ export function UpdateButton() {
             className="h-9 w-9 rounded-lg object-contain bg-white p-0.5"
           />
           {!downloading && (
-            <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-[#ff5a1f] ring-2 ring-[#111214]" />
+            <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-app-accent ring-2 ring-app-darker" />
           )}
         </span>
         <span className="text-left min-w-[9.5rem]">
           <span className="block text-sm font-semibold leading-tight">
             {downloading ? 'Downloading update…' : 'Update available'}
           </span>
-          <span className="block text-[11px] text-white/70">
+          <span className="block text-[11px] text-app-muted">
             {downloading ? `${downloadPercent}%` : `${versionLabel} — click to install`}
           </span>
           {downloading && (
-            <span className="mt-1.5 block h-1 w-full overflow-hidden rounded-full bg-white/15">
+            <span className="mt-1.5 block h-1 w-full overflow-hidden rounded-full bg-app-glass/15">
               <span
                 className="block h-full rounded-full bg-[#ff5a1f] transition-[width] duration-200"
                 style={{ width: `${downloadPercent}%` }}

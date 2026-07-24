@@ -23,6 +23,7 @@ interface UserPanelProps {
   onToggleDeafen: () => void
   onLogout: () => void
   onUserUpdate?: (data: { username?: string; display_name?: string | null; avatar_url?: string; banner_url?: string; active_profile?: ProfileType }) => void
+  compact?: boolean
 }
 
 const STATUS_COLORS: Record<UserStatus, string> = {
@@ -50,6 +51,7 @@ export function UserPanel({
   onToggleDeafen,
   onLogout,
   onUserUpdate,
+  compact = false,
 }: UserPanelProps) {
   const [showSettings, setShowSettings] = useState(false)
   const [showStatusMenu, setShowStatusMenu] = useState(false)
@@ -232,16 +234,16 @@ export function UserPanel({
 
   return (
     <>
-      <div className="h-[60px] bg-[#232428] px-2.5 flex items-center gap-1.5 flex-shrink-0">
+      <div className={`${compact ? 'h-auto py-2 flex-col' : 'h-[60px] px-2.5'} bg-app-dark flex items-center gap-1.5 flex-shrink-0 border-t border-app-glass/[0.05]`}>
         {/* User avatar + name — clickable for status */}
-        <div className="relative flex-1 min-w-0" ref={statusMenuRef}>
+        <div className={`relative min-w-0 ${compact ? '' : 'flex-1'}`} ref={statusMenuRef}>
           <button
             type="button"
             onClick={toggleStatusMenu}
             aria-haspopup="menu"
             aria-expanded={showStatusMenu}
             aria-label={`Status: ${displayStatus}. Change status`}
-            className="w-full flex items-center gap-2.5 px-1.5 py-1.5 rounded hover:bg-app-hover/40 cursor-pointer transition-colors text-left"
+            className={`w-full flex items-center gap-2.5 px-1.5 py-1.5 rounded hover:bg-app-hover/40 cursor-pointer transition-colors text-left ${compact ? 'justify-center' : ''}`}
           >
             <div className={`relative flex-shrink-0 rounded-full transition-all duration-150 ${
               isSpeaking ? 'ring-2 ring-[#23a559] shadow-[0_0_12px_rgba(35,165,89,0.8)]' : ''
@@ -255,13 +257,13 @@ export function UserPanel({
               )}
               <div
                 ref={statusDotRef}
-                className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-[#232428] ${statusColor} ${
+                className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-app-dark ${statusColor} ${
                   isSpeaking ? 'shadow-[0_0_6px_#23a559] ring-1 ring-[#23a559] animate-pulse' : ''
                 }`}
               />
             </div>
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-white truncate leading-tight">
+            <div className={`min-w-0 ${compact ? 'hidden' : ''}`}>
+              <div className="text-sm font-semibold text-app-text truncate leading-tight">
                 {displayName}
               </div>
               <div className="text-xs text-app-muted truncate leading-tight">{displayStatus}</div>
@@ -319,7 +321,7 @@ export function UserPanel({
         </div>
 
         {/* Control buttons — equal hit targets, optically centered icons */}
-        <div className="flex items-center gap-0.5 flex-shrink-0">
+        <div className={`flex items-center gap-0.5 flex-shrink-0 ${compact ? 'flex-col' : ''}`}>
           <button
             ref={muteBtnRef}
             type="button"

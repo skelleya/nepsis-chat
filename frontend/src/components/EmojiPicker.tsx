@@ -416,7 +416,7 @@ export function EmojiPicker({
         </div>
 
         {/* ───── Preview bar ───── */}
-        <div className="h-[42px] border-t border-white/[0.04] px-3 flex items-center gap-2.5 flex-shrink-0 bg-[#232428]">
+        <div className="h-[42px] border-t border-app-glass/[0.04] px-3 flex items-center gap-2.5 flex-shrink-0 bg-app-dark">
           {hover ? (
             <>
               <span className="text-2xl flex-shrink-0 leading-none">
