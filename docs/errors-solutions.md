@@ -372,6 +372,7 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | Frontend verification failed with `tsc: not found` | Cloud workspace dependencies had not been installed; no async setup job was running | Run `npm ci` in `frontend/`, then rerun `npm run build` |
 | Quick-profile code failed TS7053 / missing `updatedAt` | Untyped API rows were used as profile-map keys and the local cache state requires `SettingsProfilesCache` | Type the fetched profile rows, construct a complete cache object (including `updatedAt`), then rebuild |
 | Soundboard upload said “Your file is 0.0s” for valid audio | `music-metadata` v11 does not scan the complete file for duration by default; some MP3/AAC files have no quick duration header, so parsing succeeded with `duration` undefined | Pass the buffer size and `{ duration: true }` to `parseBuffer`; distinguish an unreadable duration from a genuinely over-10-second clip |
+| Other users could not see a newly enabled camera | The camera-freeze fix counted only live **and unmuted** remote tracks. WebRTC receivers can stay muted until a video element is attached/RTP starts, so the UI never mounted the element needed to display the camera | Mount `TileVideo` for every live track regardless of `track.muted`; its frame lifecycle still replaces muted/ended video with the avatar, preventing stale frames |
 
 ---
 

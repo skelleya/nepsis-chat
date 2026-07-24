@@ -152,8 +152,11 @@ function useVideoTrackCount(stream: MediaStream | null, version = 0): number {
       return
     }
     const tracks = stream.getVideoTracks()
+    // A remote WebRTC video track can remain `muted` until a video element is
+    // attached and RTP starts flowing. Keep the tile mounted for every live
+    // track; TileVideo independently hides stale frames while muted.
     const update = () =>
-      setCount(stream.getVideoTracks().filter((track) => track.readyState === 'live' && !track.muted).length)
+      setCount(stream.getVideoTracks().filter((track) => track.readyState === 'live').length)
     update()
     stream.addEventListener('addtrack', update)
     stream.addEventListener('removetrack', update)

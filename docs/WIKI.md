@@ -420,3 +420,7 @@ A major UI overhaul to match Discord's layout and interaction patterns.
 `music-metadata` v11 defaults to a fast metadata pass. Valid MP3/AAC files without a duration header could therefore return `format.duration = undefined`, and the API incorrectly reported `0.0s`. The soundboard route now supplies the uploaded buffer size and enables full duration scanning with `{ duration: true }`. Unknown duration and over-ten-second files have separate error messages.
 
 Verification: generated a three-second constant-bitrate MP3 without a Xing header (`ffmpeg -write_xing 0`) and parsed it with the production options; detected duration was `3.030s`. `node --check src/routes/soundboard.js` also passed.
+
+### Remote camera startup correction (2026-07-24)
+
+The camera-freeze guard initially excluded `MediaStreamTrack.muted` tracks from the remote video count. Browsers may keep a newly negotiated receiver muted until RTP begins and a video element is attached, creating a deadlock where the tile never mounted. Remote camera tiles now mount for every live track. `TileVideo` continues to hide its frame on mute/end/removal and shows the avatar until `playing`, so camera-off still cannot leave a frozen frame.
