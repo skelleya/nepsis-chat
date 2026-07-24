@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback, type MouseEvent, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import type { Channel } from '../types'
 import { useVoice, type VoiceParticipant } from '../contexts/VoiceContext'
 import { MicIcon, MicOffIcon, HeadphonesIcon, HeadphonesOffIcon } from './icons/VoiceIcons'
@@ -406,11 +407,36 @@ function ParticipantCard({
     !!(onMuteMember || onUnmuteMember || onDeafenMember || onUndeafenMember || onDisconnectMember)
   const showUserMenu = !isLocal
 
+  const menuRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     if (!showMenu) return
     setUserVolume(getPeerVolume(participant.userId))
     setStreamVol(getStreamVolume(participant.userId))
   }, [showMenu, participant.userId])
+
+  // Portal menu to body + document listeners so click-away works even inside transformed/scroll parents.
+  useEffect(() => {
+    if (!showMenu) return
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node | null
+      if (menuRef.current?.contains(target)) return
+      setShowMenu(false)
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowMenu(false)
+    }
+    // Next frame so the opening click/contextmenu does not immediately close the menu.
+    const timer = window.setTimeout(() => {
+      document.addEventListener('pointerdown', onPointerDown, true)
+      document.addEventListener('keydown', onKeyDown, true)
+    }, 0)
+    return () => {
+      window.clearTimeout(timer)
+      document.removeEventListener('pointerdown', onPointerDown, true)
+      document.removeEventListener('keydown', onKeyDown, true)
+    }
+  }, [showMenu])
 
   const openUserMenu = (clientX: number, clientY: number) => {
     if (!showUserMenu) return
@@ -426,6 +452,11 @@ function ParticipantCard({
   const handleCardClick = (e: MouseEvent) => {
     if (showUserMenu) {
       e.preventDefault()
+      e.stopPropagation()
+      if (showMenu) {
+        setShowMenu(false)
+        return
+      }
       openUserMenu(e.clientX, e.clientY)
       return
     }
@@ -439,16 +470,22 @@ function ParticipantCard({
   const handleCardContextMenu = (e: MouseEvent) => {
     if (!showUserMenu) return
     e.preventDefault()
+    e.stopPropagation()
     openUserMenu(e.clientX, e.clientY)
   }
 
-  const userMenu = showUserMenu && showMenu && (
-    <>
-      <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+  const userMenu =
+    showUserMenu &&
+    showMenu &&
+    typeof document !== 'undefined' &&
+    createPortal(
       <div
-        className="fixed z-50 bg-[#111214] rounded-lg shadow-xl py-2 min-w-[240px] max-w-[280px] border border-app-hover/30"
+        ref={menuRef}
+        className="fixed z-[200] bg-[#111214] rounded-lg shadow-xl py-2 min-w-[240px] max-w-[280px] border border-app-hover/30"
         style={{ left: menuPos.x, top: menuPos.y }}
         onClick={(e) => e.stopPropagation()}
+        onContextMenu={(e) => e.preventDefault()}
+        role="menu"
       >
         <div className="px-3 pb-1.5 text-xs font-semibold text-app-muted truncate">
           {participant.username}
@@ -582,9 +619,9 @@ function ParticipantCard({
             )}
           </div>
         )}
-      </div>
-    </>
-  )
+      </div>,
+      document.body
+    )
 
   // Inset rings stay inside the tile box so filmstrip overflow-x never clips them.
   const ringClass = isWatching

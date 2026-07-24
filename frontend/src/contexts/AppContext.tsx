@@ -129,6 +129,10 @@ interface AppContextValue {
     options?: { replyToId?: string }
   ) => Promise<void>
   toggleDMReaction: (messageId: string, emoji: string) => Promise<void>
+  /** True when a registered (non-guest) account still needs to confirm email. */
+  needsEmailConfirmation: boolean
+  authEmail: string | null
+  resendConfirmationEmail: () => Promise<void>
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -155,8 +159,15 @@ function saveLastChannel(serverId: string, channelId: string) {
   }
 }
 
+function isEmailConfirmed(userLike: { email?: string | null; email_confirmed_at?: string | null; confirmed_at?: string | null } | null | undefined) {
+  if (!userLike?.email) return true
+  return !!(userLike.email_confirmed_at || userLike.confirmed_at)
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
+  const [authEmail, setAuthEmail] = useState<string | null>(null)
+  const [emailConfirmed, setEmailConfirmed] = useState(true)
   const [userStatus, setUserStatusState] = useState<UserStatus>(() => {
     try {
       const s = localStorage.getItem(USER_STATUS_KEY)
@@ -231,12 +242,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user?.id])
 
+  const syncAuthEmailState = useCallback((sessionUser: {
+    email?: string | null
+    email_confirmed_at?: string | null
+    confirmed_at?: string | null
+  } | null | undefined) => {
+    const email = sessionUser?.email?.trim() || null
+    setAuthEmail(email)
+    setEmailConfirmed(isEmailConfirmed(sessionUser))
+  }, [])
+
   // Restore session on mount
   useEffect(() => {
     const restoreSession = async () => {
       if (supabase) {
         const { data: { session } } = await supabase.auth.getSession()
         if (session?.user) {
+          syncAuthEmailState(session.user)
           try {
             const u = await api.authCallback(session.user.id, session.user.email || '')
             setUser(u)
@@ -246,6 +268,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           } catch {
             // Fall through
           }
+        } else {
+          syncAuthEmailState(null)
         }
       }
       const saved = localStorage.getItem('nepsis_user')
@@ -253,30 +277,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         const savedUser: User = JSON.parse(saved)
         setUser(savedUser)
+        // Guests / offline restore have no Supabase email confirmation requirement.
+        if (savedUser.is_guest) {
+          setAuthEmail(null)
+          setEmailConfirmed(true)
+        }
         await loadServers(savedUser.id)
       } catch {
         localStorage.removeItem('nepsis_user')
       }
     }
     restoreSession()
-  }, [loadServers])
+  }, [loadServers, syncAuthEmailState])
 
   // Listen for Supabase Auth state changes
   useEffect(() => {
     if (!supabase) return
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (event === 'SIGNED_IN' && session?.user) {
+        if (session?.user) {
+          syncAuthEmailState(session.user)
+        }
+        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') && session?.user) {
           try {
             const u = await api.authCallback(session.user.id, session.user.email || '')
             setUser(u)
             localStorage.setItem('nepsis_user', JSON.stringify(u))
-            await loadServers(u.id)
+            if (event === 'SIGNED_IN') {
+              await loadServers(u.id)
+            }
           } catch (err) {
             console.error('Auth state change error:', err)
           }
         } else if (event === 'SIGNED_OUT') {
           setUser(null)
+          syncAuthEmailState(null)
           localStorage.removeItem('nepsis_user')
           localStorage.removeItem(LAST_CHANNEL_KEY)
           clearLayoutCache()
@@ -294,7 +329,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     )
     return () => subscription.unsubscribe()
-  }, [loadServers])
+  }, [loadServers, syncAuthEmailState])
+
+  const resendConfirmationEmail = useCallback(async () => {
+    if (!supabase) throw new Error('Email auth not configured')
+    const email = authEmail
+    if (!email) throw new Error('No email on this account')
+    const { error } = await supabase.auth.resend({ type: 'signup', email })
+    if (error) throw error
+  }, [authEmail])
+
+  const needsEmailConfirmation = !!(user && !user.is_guest && authEmail && !emailConfirmed)
 
   // Guest login
   const login = useCallback(async (username: string) => {
@@ -317,6 +362,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!supabase) throw new Error('Email auth not configured')
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
+    if (data.user) syncAuthEmailState(data.user)
     const sessionUser = data.session?.user
     if (!sessionUser) throw new Error('No session returned')
     try {
@@ -330,7 +376,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ? err
         : new Error('Signed in with Supabase, but the Nepsis API is unreachable. Check Railway.')
     }
-  }, [loadServers])
+  }, [loadServers, syncAuthEmailState])
 
   // Username + password login (backend looks up email, returns session; we set it locally)
   const loginWithUsername = useCallback(async (username: string, password: string) => {
@@ -340,6 +386,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error
     const sessionUser = data.session?.user
     if (!sessionUser) throw new Error('No session returned')
+    syncAuthEmailState(sessionUser)
     try {
       const u = await api.authCallback(sessionUser.id, sessionUser.email || '')
       setUser(u)
@@ -351,10 +398,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ? err
         : new Error('Signed in, but the Nepsis API is unreachable. Check Railway.')
     }
-  }, [loadServers])
+  }, [loadServers, syncAuthEmailState])
 
   const clearSessionLocal = useCallback((userId?: string | null) => {
     setUser(null)
+    syncAuthEmailState(null)
     localStorage.removeItem('nepsis_user')
     localStorage.removeItem(LAST_CHANNEL_KEY)
     localStorage.removeItem('nepsis_last_view')
@@ -372,7 +420,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setDMUnreadCounts({})
     setChannelUnreadCounts({})
     setChannelMentionCounts({})
-  }, [])
+  }, [syncAuthEmailState])
 
   const logout = useCallback(async () => {
     const wasGuest = user?.is_guest
@@ -1389,6 +1437,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         deleteAccount,
         setCurrentServer,
         setCurrentChannel,
+        needsEmailConfirmation,
+        authEmail,
+        resendConfirmationEmail,
       }}
     >
       {children}
