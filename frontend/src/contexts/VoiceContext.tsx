@@ -36,9 +36,32 @@ export interface RemoteVoiceState {
   deafened: boolean
 }
 
+export type VoiceJoinOptions = {
+  serverId?: string | null
+  cameraOn?: boolean
+  muted?: boolean
+  deafened?: boolean
+  /** Ask the app shell to open this voice channel UI after join/rejoin. */
+  restoreUi?: boolean
+}
+
+export type VoiceRejoinState = {
+  channelId: string
+  channelName: string
+  serverId?: string | null
+  cameraOn?: boolean
+  muted?: boolean
+  deafened?: boolean
+  restoreUi?: boolean
+}
+
+export const VOICE_REJOIN_KEY = 'nepsis_voice_rejoin'
+
 interface VoiceContextValue {
   voiceChannelId: string | null
   voiceChannelName: string | null
+  /** Server that owns the active voice channel (for UI restore / server switch). */
+  voiceServerId: string | null
   /** Voice session owned by another same-account browser tab (observer state). */
   otherTabVoiceChannelId: string | null
   otherTabVoiceChannelName: string | null
@@ -67,7 +90,7 @@ interface VoiceContextValue {
   pingSource: PingSource
   /** ICE path for the slowest peer (host/srflx/relay). Null when no peer stats. */
   pingPath: IcePathType | null
-  joinVoice: (channelId: string, channelName: string) => Promise<void>
+  joinVoice: (channelId: string, channelName: string, opts?: VoiceJoinOptions) => Promise<void>
   leaveVoice: (opts?: { preserveRejoin?: boolean }) => void
   /** Play soundboard sound to all peers (Socket.io only; no-op when using BroadcastChannel) */
   playSoundboardSound: (soundUrl: string) => void
@@ -77,6 +100,8 @@ interface VoiceContextValue {
   /** Who the local user is watching (null = not watching; click to watch) */
   watchingShareUserId: string | null
   setWatchingShareUserId: (userId: string | null) => void
+  /** Clear the one-shot UI restore flag after the app shell opens VoiceView. */
+  clearVoiceUiRestoreFlag: () => void
 }
 
 const VoiceContext = createContext<VoiceContextValue | null>(null)
@@ -104,6 +129,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   const initialObservedRef = useRef(readObservedVoiceTab(userId))
   const [voiceChannelId, setVoiceChannelId] = useState<string | null>(null)
   const [voiceChannelName, setVoiceChannelName] = useState<string | null>(null)
+  const [voiceServerId, setVoiceServerId] = useState<string | null>(null)
   const [otherTabVoiceChannelId, setOtherTabVoiceChannelId] = useState<string | null>(initialObservedRef.current.channelId)
   const [otherTabVoiceChannelName, setOtherTabVoiceChannelName] = useState<string | null>(initialObservedRef.current.channelName)
   const [participants, setParticipants] = useState<VoiceParticipant[]>([])
@@ -134,21 +160,64 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   const leftUserClearTimeoutsRef = useRef<Map<string, number>>(new Map())
   const voiceChannelIdRef = useRef<string | null>(null)
   const voiceChannelNameRef = useRef<string | null>(null)
+  const voiceServerIdRef = useRef<string | null>(null)
   const leaveVoiceRef = useRef<(opts?: { preserveRejoin?: boolean }) => void>(() => {})
-  const joinVoiceRef = useRef<(id: string, name: string) => Promise<void>>(async () => {})
+  const joinVoiceRef = useRef<(id: string, name: string, opts?: VoiceJoinOptions) => Promise<void>>(async () => {})
+  const enableCameraRef = useRef<() => Promise<boolean>>(async () => false)
   voiceChannelIdRef.current = voiceChannelId
   voiceChannelNameRef.current = voiceChannelName
+  voiceServerIdRef.current = voiceServerId
 
-  const VOICE_REJOIN_KEY = 'nepsis_voice_rejoin'
   const isMutedRef = useRef(false)
   const isDeafenedRef = useRef(false)
+  const isCameraOnRef = useRef(false)
   const mutedBeforeDeafenRef = useRef(false)
   const isSoundboardMutedRef = useRef(false)
   const playingSoundboardRef = useRef<Map<string, HTMLAudioElement>>(new Map())
   const tabIdRef = useRef(crypto.randomUUID())
   isMutedRef.current = isMuted
   isDeafenedRef.current = isDeafened
+  isCameraOnRef.current = isCameraOn
   participantsRef.current = participants
+
+  const persistRejoinState = useCallback((patch?: Partial<VoiceRejoinState>) => {
+    const channelId = patch?.channelId ?? voiceChannelIdRef.current
+    if (!channelId) return
+    let previousRestoreUi = false
+    try {
+      const raw = sessionStorage.getItem(VOICE_REJOIN_KEY)
+      previousRestoreUi = !!(raw ? (JSON.parse(raw) as VoiceRejoinState).restoreUi : false)
+    } catch {
+      previousRestoreUi = false
+    }
+    const next: VoiceRejoinState = {
+      channelId,
+      channelName: patch?.channelName ?? (voiceChannelNameRef.current || 'Voice'),
+      serverId: patch?.serverId !== undefined ? patch.serverId : voiceServerIdRef.current,
+      cameraOn: patch?.cameraOn !== undefined ? patch.cameraOn : isCameraOnRef.current,
+      muted: patch?.muted !== undefined ? patch.muted : isMutedRef.current,
+      deafened: patch?.deafened !== undefined ? patch.deafened : isDeafenedRef.current,
+      // Preserve the one-shot UI flag unless the caller sets it explicitly.
+      restoreUi: patch?.restoreUi !== undefined ? patch.restoreUi : previousRestoreUi,
+    }
+    try {
+      sessionStorage.setItem(VOICE_REJOIN_KEY, JSON.stringify(next))
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const clearVoiceUiRestoreFlag = useCallback(() => {
+    try {
+      const raw = sessionStorage.getItem(VOICE_REJOIN_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as VoiceRejoinState
+      if (!parsed.restoreUi) return
+      sessionStorage.setItem(VOICE_REJOIN_KEY, JSON.stringify({ ...parsed, restoreUi: false }))
+    } catch {
+      /* ignore */
+    }
+  }, [])
 
   // Share the active voice owner across tabs without creating a second WebRTC
   // session. Observer tabs can render presence and avoid overwriting it.
@@ -391,6 +460,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     setRemoteVoiceStates({})
     setVoiceChannelId(null)
     setVoiceChannelName(null)
+    setVoiceServerId(null)
     setIsCameraOn(false)
     setIsScreenSharing(false)
     setIsMutedState(false)
@@ -415,7 +485,37 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
 
   leaveVoiceRef.current = leaveVoice
 
-  const joinVoice = useCallback(async (channelId: string, channelName: string) => {
+  const enableCamera = useCallback(async (): Promise<boolean> => {
+    if (isCameraOnRef.current && videoStream) return true
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: getVideoConstraints(),
+        audio: false,
+      })
+      for (const track of stream.getVideoTracks()) {
+        try {
+          track.contentHint = 'motion'
+        } catch {
+          /* ignore */
+        }
+      }
+      setVideoStream(stream)
+      setIsCameraOn(true)
+      isCameraOnRef.current = true
+      for (const track of stream.getTracks()) {
+        await webrtcRef.current?.addTrackToAllPeers(track, stream)
+      }
+      persistRejoinState({ cameraOn: true })
+      return true
+    } catch (err) {
+      setError(formatMediaPermissionError(err, 'camera'))
+      return false
+    }
+  }, [videoStream, persistRejoinState])
+
+  enableCameraRef.current = enableCamera
+
+  const joinVoice = useCallback(async (channelId: string, channelName: string, opts?: VoiceJoinOptions) => {
     if (voiceChannelId === channelId) return
 
     if (getCallBusy()) {
@@ -448,15 +548,23 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
       setLocalStream(stream)
       setVoiceChannelId(channelId)
       setVoiceChannelName(channelName)
-      try {
-        sessionStorage.setItem(VOICE_REJOIN_KEY, JSON.stringify({ channelId, channelName }))
-      } catch {
-        /* ignore */
-      }
+      setVoiceServerId(opts?.serverId ?? null)
+      voiceServerIdRef.current = opts?.serverId ?? null
+      persistRejoinState({
+        channelId,
+        channelName,
+        serverId: opts?.serverId ?? null,
+        cameraOn: !!opts?.cameraOn,
+        muted: !!opts?.muted,
+        deafened: !!opts?.deafened,
+        restoreUi: opts?.restoreUi !== false,
+      })
       setParticipants([])
       setLeftUserIds(new Set())
       setRemoteScreenShareIds(new Set())
       setRemoteVoiceStates({})
+      if (opts?.muted) setIsMutedState(true)
+      if (opts?.deafened) setIsDeafened(true)
 
       const signaling = USE_SOCKET
         ? createSocketSignaling(channelId, userId, username)
@@ -524,6 +632,13 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
 
       await signaling.join()
       sounds.voiceConnected()
+
+      // Restore camera after the voice session is up (refresh / brief disconnect rejoin).
+      if (opts?.cameraOn) {
+        window.setTimeout(() => {
+          void enableCameraRef.current()
+        }, 250)
+      }
     } catch (err) {
       acquiredStream?.getTracks().forEach((t) => t.stop())
       try {
@@ -541,6 +656,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
       setError(formatMediaPermissionError(err, 'microphone'))
       setVoiceChannelId(null)
       setVoiceChannelName(null)
+      setVoiceServerId(null)
       setLocalStream(null)
       setParticipants([])
       setLeftUserIds(new Set())
@@ -552,7 +668,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         /* ignore */
       }
     }
-  }, [voiceChannelId, userId, username, leaveVoice, addOrUpdateParticipant, removeParticipant])
+  }, [voiceChannelId, userId, username, leaveVoice, addOrUpdateParticipant, removeParticipant, persistRejoinState, setIsDeafened])
 
   joinVoiceRef.current = joinVoice
 
@@ -560,22 +676,18 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   useEffect(() => {
     const onPageHide = () => {
       if (!voiceChannelIdRef.current) return
-      try {
-        sessionStorage.setItem(
-          VOICE_REJOIN_KEY,
-          JSON.stringify({
-            channelId: voiceChannelIdRef.current,
-            channelName: voiceChannelNameRef.current || 'Voice',
-          })
-        )
-      } catch {
-        /* ignore */
-      }
+      persistRejoinState({ restoreUi: true })
       leaveVoiceRef.current({ preserveRejoin: true })
     }
     window.addEventListener('pagehide', onPageHide)
     return () => window.removeEventListener('pagehide', onPageHide)
-  }, [])
+  }, [persistRejoinState])
+
+  // Keep rejoin payload fresh while connected (camera / mute changes).
+  useEffect(() => {
+    if (!voiceChannelId) return
+    persistRejoinState()
+  }, [voiceChannelId, voiceServerId, isCameraOn, isMuted, isDeafened, persistRejoinState])
 
   // Auto-rejoin voice after refresh
   useEffect(() => {
@@ -583,11 +695,17 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     try {
       const raw = sessionStorage.getItem(VOICE_REJOIN_KEY)
       if (!raw) return
-      const parsed = JSON.parse(raw) as { channelId?: string; channelName?: string }
+      const parsed = JSON.parse(raw) as VoiceRejoinState
       if (!parsed.channelId) return
       const t = window.setTimeout(() => {
         if (cancelled) return
-        void joinVoiceRef.current(parsed.channelId!, parsed.channelName || 'Voice')
+        void joinVoiceRef.current(parsed.channelId, parsed.channelName || 'Voice', {
+          serverId: parsed.serverId,
+          cameraOn: !!parsed.cameraOn,
+          muted: !!parsed.muted,
+          deafened: !!parsed.deafened,
+          restoreUi: true,
+        })
       }, 400)
       return () => {
         cancelled = true
@@ -920,30 +1038,12 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
       }
       setVideoStream(null)
       setIsCameraOn(false)
+      isCameraOnRef.current = false
+      persistRejoinState({ cameraOn: false })
     } else {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: getVideoConstraints(),
-          audio: false,
-        })
-        for (const track of stream.getVideoTracks()) {
-          try {
-            track.contentHint = 'motion'
-          } catch {
-            /* ignore */
-          }
-        }
-        setVideoStream(stream)
-        setIsCameraOn(true)
-        // Add video tracks to all peer connections (triggers renegotiation)
-        for (const track of stream.getTracks()) {
-          await webrtcRef.current?.addTrackToAllPeers(track, stream)
-        }
-      } catch (err) {
-        setError(formatMediaPermissionError(err, 'camera'))
-      }
+      await enableCamera()
     }
-  }, [isCameraOn, videoStream])
+  }, [isCameraOn, videoStream, enableCamera, persistRejoinState])
 
   const emitScreenShareState = useCallback((active: boolean) => {
     const sig = signalingRef.current as { emitScreenShare?: (a: boolean) => void } | null
@@ -1071,6 +1171,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
       value={{
         voiceChannelId,
         voiceChannelName,
+        voiceServerId,
         otherTabVoiceChannelId,
         otherTabVoiceChannelName,
         isConnected,
@@ -1103,6 +1204,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         screenShareUserIds,
         watchingShareUserId,
         setWatchingShareUserId,
+        clearVoiceUiRestoreFlag,
       }}
     >
       {/* Playback is session-owned and portaled to document.body so Friends/DM/chat

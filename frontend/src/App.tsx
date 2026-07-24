@@ -759,7 +759,7 @@ function MainLayout({
   }, [currentServerId, user?.id, rulesChannelId])
 
   // Handle channel selection - close DM, open channel; voice also joins
-  const handleSelectChannel = useCallback((channel: { id: string; name: string; type: string }) => {
+  const handleSelectChannel = useCallback((channel: { id: string; name: string; type: string; serverId?: string }) => {
     if (mustAcceptRules && rulesAcceptanceKnown && !hasAcceptedRules && channel.type !== 'rules' && channel.id !== rulesChannelId) {
       setCurrentDM(null)
       setShowFriends(false)
@@ -781,10 +781,75 @@ function MainLayout({
       // Opening the room already owned by another tab is observer-only. The
       // existing session keeps its mic/WebRTC connection instead of being kicked.
       if (voice.otherTabVoiceChannelId !== channel.id) {
-        voice.joinVoice(channel.id, channel.name)
+        voice.joinVoice(channel.id, channel.name, {
+          serverId: channel.serverId || currentServerId,
+          restoreUi: false,
+        })
       }
     }
-  }, [setCurrentChannel, setCurrentDM, voice, mustAcceptRules, rulesAcceptanceKnown, hasAcceptedRules, rulesChannelId])
+  }, [setCurrentChannel, setCurrentDM, voice, mustAcceptRules, rulesAcceptanceKnown, hasAcceptedRules, rulesChannelId, currentServerId])
+
+  // After refresh/rejoin: open the voice channel UI (and its server) automatically.
+  useEffect(() => {
+    if (!voice.voiceChannelId || !servers.length) return
+    let parsed: { restoreUi?: boolean; serverId?: string | null; channelId?: string } | null = null
+    try {
+      const raw = sessionStorage.getItem('nepsis_voice_rejoin')
+      parsed = raw ? JSON.parse(raw) : null
+    } catch {
+      parsed = null
+    }
+    if (!parsed?.restoreUi) return
+
+    const serverId = parsed.serverId || voice.voiceServerId
+    if (serverId && serverId !== currentServerId) {
+      setCurrentServer(serverId)
+      return
+    }
+    if (!serverId) return
+
+    const channelReady =
+      channels.some((c) => c.id === voice.voiceChannelId && c.server_id === serverId) ||
+      displayChannels.some((c) => c.id === voice.voiceChannelId)
+
+    if (!channelReady && channels.length === 0) return
+
+    setShowFriends(false)
+    setShowCommunity(false)
+    setShowOnboarding(false)
+    setCurrentDM(null)
+    if (currentChannelId !== voice.voiceChannelId) {
+      setCurrentChannel(voice.voiceChannelId)
+    }
+    try {
+      localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'server' }))
+    } catch { /* ignore */ }
+    voice.clearVoiceUiRestoreFlag()
+  }, [
+    voice.voiceChannelId,
+    voice.voiceServerId,
+    voice.clearVoiceUiRestoreFlag,
+    servers.length,
+    currentServerId,
+    currentChannelId,
+    channels,
+    displayChannels,
+    setCurrentServer,
+    setCurrentChannel,
+    setCurrentDM,
+  ])
+
+  // After switching back to the server you're in voice on, open that voice room
+  // once channels are loaded (covers async layout cache / last-channel races).
+  const preferVoiceOnServerRef = useRef<string | null>(null)
+  useEffect(() => {
+    const targetServer = preferVoiceOnServerRef.current
+    if (!targetServer || !voice.voiceChannelId || voice.voiceServerId !== targetServer) return
+    if (currentServerId !== targetServer) return
+    if (!channels.some((c) => c.id === voice.voiceChannelId && c.server_id === targetServer)) return
+    setCurrentChannel(voice.voiceChannelId)
+    preferVoiceOnServerRef.current = null
+  }, [currentServerId, voice.voiceChannelId, voice.voiceServerId, channels, setCurrentChannel])
 
   const visibleDmConversations = dmConversations.filter(
     (c) => c.is_group || !c.other_user?.id || !isUserBlocked(c.other_user.id)
@@ -1070,6 +1135,11 @@ function MainLayout({
           try {
             localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'server' }))
           } catch { /* ignore */ }
+          // Prefer the live voice room when returning to its server.
+          if (voice.voiceChannelId && voice.voiceServerId === id) {
+            preferVoiceOnServerRef.current = id
+            queueMicrotask(() => setCurrentChannel(voice.voiceChannelId!))
+          }
         }}
         onCreateServer={async (name) => { await createServer(name) }}
         onReorderServers={reorderServers}

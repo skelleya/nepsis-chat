@@ -759,3 +759,10 @@ Release verification study:
 2. Merge into `master`, tag `v0.1.8`, confirm Desktop Release version job reports `0.1.8`.
 3. After install: second shortcut click focuses one session; update path shows loader not the NSIS wizard.
 
+### Desktop 0.1.9 release (2026-07-24)
+
+- Electron source version: `0.1.9`.
+- Release notes: [release-0.1.9.md](release-0.1.9.md).
+- Includes voice channel UI + camera restore after refresh/rejoin.
+- Tag `v0.1.9` triggers Desktop Release.
+
