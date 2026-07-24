@@ -1208,10 +1208,18 @@ export interface SoundboardSound {
   url: string
   duration_seconds: number
   emoji?: string
+  user_id?: string
+  server_id?: string | null
+  created_at?: string
 }
 
-export async function getSoundboardSounds(userId: string): Promise<SoundboardSound[]> {
-  const res = await fetch(`${API_BASE}/soundboard?userId=${encodeURIComponent(userId)}`)
+export async function getSoundboardSounds(
+  userId: string,
+  opts?: { serverId?: string }
+): Promise<SoundboardSound[]> {
+  const params = new URLSearchParams({ userId })
+  if (opts?.serverId) params.set('serverId', opts.serverId)
+  const res = await fetch(`${API_BASE}/soundboard?${params}`)
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error((err as { error?: string }).error || 'Failed to fetch soundboard')
@@ -1223,13 +1231,14 @@ export async function uploadSoundboardSound(
   userId: string,
   name: string,
   file: File,
-  emoji?: string
+  opts?: { emoji?: string; serverId?: string }
 ): Promise<SoundboardSound> {
   const form = new FormData()
   form.append('file', file)
   form.append('userId', userId)
   form.append('name', name)
-  if (emoji) form.append('emoji', emoji)
+  if (opts?.emoji) form.append('emoji', opts.emoji)
+  if (opts?.serverId) form.append('serverId', opts.serverId)
 
   const res = await fetch(`${API_BASE}/soundboard`, {
     method: 'POST',
@@ -1245,14 +1254,17 @@ export async function uploadSoundboardSound(
 export async function updateSoundboardSound(
   userId: string,
   soundId: string,
-  data: { emoji?: string }
+  data: { emoji?: string; name?: string; serverId?: string }
 ): Promise<SoundboardSound> {
   const res = await fetch(`${API_BASE}/soundboard/${soundId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId, ...data }),
   })
-  if (!res.ok) throw new Error('Failed to update sound')
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || 'Failed to update sound')
+  }
   return res.json()
 }
 

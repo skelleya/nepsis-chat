@@ -705,6 +705,20 @@ Test study:
 2. Stay connected, open Nepsis logo (Friends), a DM, and a text channel; confirm two-way audio throughout.
 3. After installing the new Windows build, confirm the desktop/Start Menu shortcut uses the Nepsis icon (reinstall if an old shortcut cached Electron’s icon).
 
+### Server soundboard with custom names (2026-07-24)
+
+- `soundboard_sounds.server_id` scopes clips to a server; every member sees the same list in voice.
+- Upload flow asks for a **custom name** (+ emoji) before saving; rename via pencil or double-click.
+- Legacy personal sounds (no `server_id`) stay owner-only until **Share** (or rename) claims them onto the current server.
+- Migration: `20260724023843_soundboard_server_scope.sql` (applied).
+
+Test study:
+
+1. User A uploads “Airhorn” on a server voice channel; User B opens the soundboard on the same server and sees “Airhorn”.
+2. Rename and emoji-edit as uploader; confirm admin can delete another member’s sound.
+3. Play a sound; all voice peers still hear it.
+4. Legacy personal sound shows Share; after Share it appears for other members.
+
 ### Desktop 0.1.7 release (2026-07-24)
 
 - Electron source version: `0.1.7`.

@@ -65,10 +65,10 @@ Node.js + Express + Socket.io + Supabase (Postgres). Legacy `src/db/init.js` (SQ
 | GET | `/api/servers/:id/audit-log` | List audit log entries (invite_created, invite_revoked, member_kicked, member_joined) |
 | GET | `/api/version` | App version |
 | POST | `/api/bug-reports` | Submit bug report (`userId`, `username`, `email`, `title`, `description`, `url`) — public |
-| GET | `/api/soundboard` | List user soundboard sounds (`?userId=`) |
-| POST | `/api/soundboard` | Upload soundboard sound (multipart: `file`, `userId`, `name`, `emoji`?) — max 10s, MP3/WAV/OGG/WebM/M4A |
-| PATCH | `/api/soundboard/:id` | Update soundboard sound (JSON: `userId`, `emoji`) — change emoji |
-| DELETE | `/api/soundboard/:id` | Delete soundboard sound (`?userId=`) |
+| GET | `/api/soundboard` | List sounds (`?userId=` required; `?serverId=` returns all server sounds for members + caller's legacy personal sounds) |
+| POST | `/api/soundboard` | Upload sound (multipart: `file`, `userId`, `name`, `emoji`?, `serverId`?) — max 10s; with `serverId` the sound is visible to all members |
+| PATCH | `/api/soundboard/:id` | Update sound (JSON: `userId`, `emoji`?, `name`?, `serverId`?) — rename/emoji; optional `serverId` claims a legacy personal sound onto that server |
+| DELETE | `/api/soundboard/:id` | Delete sound (`?userId=`) — uploader or server admin/owner |
 | GET | `/api/servers/:id/rules-acceptance` | Check if user accepted rules (`?userId=`) — for channel lock |
 | GET | `/api/webrtc/ice` | Public ICE list (STUN + optional TURN from `TURN_*` env) for voice/calls |
 
@@ -113,7 +113,7 @@ Deletion ordering matters because several user foreign keys use `NO ACTION`: cle
 | server_invites | code, server_id, created_by, expires_at, max_uses, use_count, created_at — see migration `20250211000004_server_invites_audit.sql` |
 | server_audit_log | id, server_id, user_id, action, details (JSONB), created_at — see migration `20250211000004_server_invites_audit.sql` |
 | bug_reports | id, user_id, username, email, title, description, url, user_agent, status (pending/reviewed/resolved/wontfix), created_at — see migration `20250211000008_bug_reports.sql` |
-| soundboard_sounds | id, user_id, name, url, duration_seconds, storage_path, emoji, created_at — max 10s audio; emoji shown on each sound; migration `20250211000009_soundboard_sounds.sql`, `20250211000014_soundboard_emoji.sql` |
+| soundboard_sounds | id, user_id, server_id?, name, url, duration_seconds, storage_path, emoji, created_at — max 10s audio; server-scoped listing when `server_id` set; migrations `20250211000009`, `20250211000014`, `20260724023843_soundboard_server_scope.sql` |
 | dm_conversations | id, created_at, is_group, name, created_by, updated_at — 1:1 and group DM metadata; group fields added by `20260724004517_group_direct_messages.sql`, creator FK index follow-up `20260724005105_group_dm_created_by_index.sql` |
 | dm_participants | conversation_id, user_id, joined_at — many-to-many DM membership; groups support up to 10 members through the API |
 
@@ -191,7 +191,7 @@ Handlers are registered with the **Namespace** (`io.of('/voice')`, etc.), not th
 
 `POST /api/soundboard` accepts MP3/MPEG, WAV, OGG, WebM, M4A/MP4, AAC, and FLAC audio up to 10 MB. `music-metadata` must confirm a duration greater than zero and no more than ten seconds. Long source files are clipped in the frontend before this request; the API and Postgres check remain defense in depth.
 
-Storage uses `attachments/soundboard/{userId}/`. Migration `20260723234108_allow_soundboard_audio_formats.sql` extends a configured bucket MIME allowlist while preserving an unrestricted (`NULL`) allowlist.
+Storage uses `attachments/soundboard/servers/{serverId}/` for server sounds (legacy personal paths remain `soundboard/{userId}/`). Migration `20260723234108_allow_soundboard_audio_formats.sql` extends a configured bucket MIME allowlist while preserving an unrestricted (`NULL`) allowlist.
 
 Desktop clients sometimes submit MP3 as `application/octet-stream`; the route accepts that MIME only when the filename has a supported audio extension, then relies on metadata parsing to reject invalid content. Multer validation errors return 400 instead of a generic 500.
 

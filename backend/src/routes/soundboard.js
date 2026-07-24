@@ -40,15 +40,68 @@ const upload = multer({
   },
 })
 
-// List user's soundboard sounds
+async function getServerMembership(serverId, userId) {
+  const { data, error } = await supabase
+    .from('server_members')
+    .select('role')
+    .eq('server_id', serverId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+function canManageSound(sound, actorUserId, actorRole) {
+  if (!sound) return false
+  if (sound.user_id === actorUserId) return true
+  return actorRole === 'owner' || actorRole === 'admin'
+}
+
+const SOUND_SELECT = 'id, user_id, server_id, name, url, duration_seconds, emoji, created_at'
+
+// List soundboard sounds for a server (all members) or legacy personal library
 soundboardRouter.get('/', async (req, res) => {
-  const { userId } = req.query
+  const { userId, serverId } = req.query
   if (!userId) return res.status(400).json({ error: 'userId required' })
 
   try {
+    if (serverId) {
+      const membership = await getServerMembership(String(serverId), String(userId))
+      if (!membership) return res.status(403).json({ error: 'Not a server member' })
+
+      // Server sounds for everyone + this user's legacy personal sounds (no server yet)
+      const [{ data: serverSounds, error: serverError }, { data: personalSounds, error: personalError }] =
+        await Promise.all([
+          supabase
+            .from('soundboard_sounds')
+            .select(SOUND_SELECT)
+            .eq('server_id', String(serverId))
+            .order('created_at', { ascending: true }),
+          supabase
+            .from('soundboard_sounds')
+            .select(SOUND_SELECT)
+            .is('server_id', null)
+            .eq('user_id', String(userId))
+            .order('created_at', { ascending: true }),
+        ])
+      if (serverError) throw serverError
+      if (personalError) throw personalError
+
+      const seen = new Set()
+      const merged = []
+      for (const sound of [...(serverSounds || []), ...(personalSounds || [])]) {
+        if (seen.has(sound.id)) continue
+        seen.add(sound.id)
+        merged.push(sound)
+      }
+      merged.sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))
+      res.json(merged)
+      return
+    }
+
     const { data, error } = await supabase
       .from('soundboard_sounds')
-      .select('id, name, url, duration_seconds, emoji')
+      .select(SOUND_SELECT)
       .eq('user_id', userId)
       .order('created_at', { ascending: true })
 
@@ -57,7 +110,7 @@ soundboardRouter.get('/', async (req, res) => {
   } catch (err) {
     console.error('Soundboard list error:', err)
     const msg = err?.message || 'Failed to fetch soundboard'
-    const hint = msg.includes('does not exist') ? ' Run migration 20250211000009_soundboard_sounds.sql in Supabase.' : ''
+    const hint = msg.includes('does not exist') ? ' Run soundboard migrations in Supabase.' : ''
     res.status(500).json({ error: msg + hint })
   }
 })
@@ -69,15 +122,23 @@ const receiveSoundboardFile = (req, res, next) => {
   })
 }
 
-// Upload soundboard sound (max 10 seconds)
+// Upload soundboard sound (max 10 seconds). Prefer serverId so all members see it.
 soundboardRouter.post('/', receiveSoundboardFile, async (req, res) => {
-  const { userId, name, emoji } = req.body
+  const { userId, name, emoji, serverId } = req.body
   if (!userId || !name || !req.file) {
     return res.status(400).json({ error: 'userId, name, and file required' })
   }
   const emojiVal = (emoji && String(emoji).trim().slice(0, 8)) || '🔊'
+  const displayName = String(name).trim().slice(0, 48) || 'Sound'
 
   try {
+    let membershipRole = null
+    if (serverId) {
+      const membership = await getServerMembership(String(serverId), String(userId))
+      if (!membership) return res.status(403).json({ error: 'Not a server member' })
+      membershipRole = membership.role
+    }
+
     let durationSeconds = 0
     try {
       // music-metadata v11 skips full duration scanning by default. MP3 files
@@ -106,7 +167,9 @@ soundboardRouter.post('/', receiveSoundboardFile, async (req, res) => {
     }
 
     const ext = (req.file.originalname.split('.').pop() || 'mp3').slice(0, 6)
-    const path = `${SOUNDBOARD_PREFIX}/${userId}/${crypto.randomUUID()}.${ext}`
+    const path = serverId
+      ? `${SOUNDBOARD_PREFIX}/servers/${serverId}/${crypto.randomUUID()}.${ext}`
+      : `${SOUNDBOARD_PREFIX}/${userId}/${crypto.randomUUID()}.${ext}`
 
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from(BUCKET)
@@ -124,21 +187,25 @@ soundboardRouter.post('/', receiveSoundboardFile, async (req, res) => {
     const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(uploadData.path)
     const id = 'sb-' + crypto.randomUUID()
 
+    const insertRow = {
+      id,
+      user_id: userId,
+      name: displayName,
+      url: urlData.publicUrl,
+      duration_seconds: Math.round(durationSeconds * 100) / 100,
+      storage_path: uploadData.path,
+      emoji: emojiVal,
+    }
+    if (serverId) insertRow.server_id = String(serverId)
+
     const { data: sound, error: insertError } = await supabase
       .from('soundboard_sounds')
-      .insert({
-        id,
-        user_id: userId,
-        name: String(name).slice(0, 64) || 'Sound',
-        url: urlData.publicUrl,
-        duration_seconds: Math.round(durationSeconds * 100) / 100,
-        storage_path: uploadData.path,
-        emoji: emojiVal,
-      })
-      .select('id, name, url, duration_seconds, emoji')
+      .insert(insertRow)
+      .select(SOUND_SELECT)
       .single()
 
     if (insertError) throw insertError
+    void membershipRole
     res.status(201).json(sound)
   } catch (err) {
     console.error('Soundboard upload error:', err)
@@ -146,20 +213,57 @@ soundboardRouter.post('/', receiveSoundboardFile, async (req, res) => {
   }
 })
 
-// Update soundboard sound (emoji)
+// Update soundboard sound (name and/or emoji)
 soundboardRouter.patch('/:id', async (req, res) => {
   const { id } = req.params
-  const { userId, emoji } = req.body
+  const { userId, emoji, name } = req.body
   if (!userId) return res.status(400).json({ error: 'userId required' })
 
   try {
-    const emojiVal = (emoji && String(emoji).trim().slice(0, 8)) || '🔊'
+    const { data: existing, error: fetchError } = await supabase
+      .from('soundboard_sounds')
+      .select(SOUND_SELECT)
+      .eq('id', id)
+      .maybeSingle()
+    if (fetchError) throw fetchError
+    if (!existing) return res.status(404).json({ error: 'Sound not found' })
+
+    let actorRole = null
+    if (existing.server_id) {
+      const membership = await getServerMembership(existing.server_id, String(userId))
+      if (!membership) return res.status(403).json({ error: 'Not a server member' })
+      actorRole = membership.role
+    }
+    if (!canManageSound(existing, String(userId), actorRole)) {
+      return res.status(403).json({ error: 'Only the uploader or a server admin can edit this sound' })
+    }
+
+    const patch = {}
+    if (emoji !== undefined) {
+      patch.emoji = (emoji && String(emoji).trim().slice(0, 8)) || '🔊'
+    }
+    if (name !== undefined) {
+      const nextName = String(name).trim().slice(0, 48)
+      if (!nextName) return res.status(400).json({ error: 'Name cannot be empty' })
+      patch.name = nextName
+    }
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ error: 'emoji or name required' })
+    }
+
+    // Claiming a legacy personal sound into the current server when renaming from a server board
+    if (!existing.server_id && req.body.serverId) {
+      const membership = await getServerMembership(String(req.body.serverId), String(userId))
+      if (membership && existing.user_id === String(userId)) {
+        patch.server_id = String(req.body.serverId)
+      }
+    }
+
     const { data, error } = await supabase
       .from('soundboard_sounds')
-      .update({ emoji: emojiVal })
+      .update(patch)
       .eq('id', id)
-      .eq('user_id', userId)
-      .select('id, name, url, duration_seconds, emoji')
+      .select(SOUND_SELECT)
       .single()
 
     if (error) throw error
@@ -171,7 +275,7 @@ soundboardRouter.patch('/:id', async (req, res) => {
   }
 })
 
-// Delete soundboard sound
+// Delete soundboard sound (uploader or server admin/owner)
 soundboardRouter.delete('/:id', async (req, res) => {
   const { id } = req.params
   const { userId } = req.query
@@ -180,17 +284,26 @@ soundboardRouter.delete('/:id', async (req, res) => {
   try {
     const { data: existing } = await supabase
       .from('soundboard_sounds')
-      .select('id, storage_path')
+      .select('id, user_id, server_id, storage_path')
       .eq('id', id)
-      .eq('user_id', userId)
-      .single()
+      .maybeSingle()
 
     if (!existing) {
       return res.status(404).json({ error: 'Sound not found' })
     }
 
+    let actorRole = null
+    if (existing.server_id) {
+      const membership = await getServerMembership(existing.server_id, String(userId))
+      if (!membership) return res.status(403).json({ error: 'Not a server member' })
+      actorRole = membership.role
+    }
+    if (!canManageSound(existing, String(userId), actorRole)) {
+      return res.status(403).json({ error: 'Only the uploader or a server admin can delete this sound' })
+    }
+
     await supabase.storage.from(BUCKET).remove([existing.storage_path])
-    const { error } = await supabase.from('soundboard_sounds').delete().eq('id', id).eq('user_id', userId)
+    const { error } = await supabase.from('soundboard_sounds').delete().eq('id', id)
 
     if (error) throw error
     res.json({ ok: true })
