@@ -58,6 +58,7 @@ frontend/src/
 | MessageContent | Shared server/DM message renderer: mentions, clickable links, media attachments, and `LinkEmbed` preview cards |
 | LinkEmbed | Open Graph preview card; fetches `POST /api/embeds/unfurl` |
 | YouTubeEmbed | Playable YouTube player for youtube.com / youtu.be / shorts links (poster → iframe) |
+| VoiceFloatingOverlay | Corner PiP of voice cameras while in text/DM/Friends; drag-snap to TL/TR/BL/BR; click returns to VoiceView |
 | PatchNotesPanel | Help & Support → Patch notes (bundled history + GitHub Releases) |
 | EmailConfirmBanner | Top dropdown when a registered user’s Supabase email is not confirmed yet (Resend + dismiss for session) |
 | Server Settings ownership | `isAdminOrOwner` uses `servers.owner_id` **or** members role. Members/servers fetch errors keep prior state so the owner menu and modal do not disappear during polls. |

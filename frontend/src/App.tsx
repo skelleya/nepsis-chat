@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react'
 import gsap from 'gsap'
 import * as api from './services/api'
 import { subscribeToServerMembers, subscribeToUserPresence, unsubscribe } from './services/realtime'
@@ -12,6 +12,7 @@ import { VoiceView } from './components/VoiceView'
 import { DMView } from './components/DMView'
 import { MembersSidebar, type ServerMember } from './components/MembersSidebar'
 import { CallOverlay } from './components/CallOverlay'
+import { VoiceFloatingOverlay } from './components/VoiceFloatingOverlay'
 import { LoginPage } from './components/LoginPage'
 import { UpdateButton } from './components/UpdateButton'
 import { DownloadBanner } from './components/DownloadBanner'
@@ -1100,6 +1101,23 @@ function MainLayout({
             : currentChannel ? `${currentChannel.type}-${currentChannel.id}`
               : 'empty'
 
+  // VoiceView is only mounted for the voice channel main pane — everywhere else keep PiP cameras.
+  const showingVoiceView =
+    !showFriends &&
+    !currentDMId &&
+    !showOnboarding &&
+    !showCommunity &&
+    currentChannel?.type === 'voice'
+
+  const voicePipAvatars = useMemo(() => {
+    const map = new Map<string, string | undefined>()
+    for (const m of serverMembers) {
+      map.set(m.userId, m.avatarUrl)
+    }
+    if (user?.avatar_url) map.set(user.id, user.avatar_url)
+    return map
+  }, [serverMembers, user?.id, user?.avatar_url])
+
   useLayoutEffect(() => {
     const el = mainContentRef.current
     if (!el) return
@@ -1566,6 +1584,29 @@ function MainLayout({
 
       {/* DM Call overlay */}
       <CallOverlay />
+
+      {/* Voice cameras while browsing text / DMs / friends */}
+      <VoiceFloatingOverlay
+        visible={!showingVoiceView}
+        currentUserId={user.id}
+        currentUsername={(user.display_name && user.display_name.trim()) || user.username}
+        currentUserAvatarUrl={user.avatar_url}
+        avatarByUserId={voicePipAvatars}
+        onReturnToVoice={() => {
+          if (!voice.voiceChannelId) return
+          setShowFriends(false)
+          setShowCommunity(false)
+          setShowOnboarding(false)
+          setCurrentDM(null)
+          setCurrentChannel(voice.voiceChannelId)
+          setChannelNavOpen(false)
+          try {
+            localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'server' }))
+          } catch {
+            /* ignore */
+          }
+        }}
+      />
 
       {/* Notification toast */}
       {notification && (
