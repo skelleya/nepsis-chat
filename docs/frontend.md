@@ -135,6 +135,10 @@ frontend/src/
 
 Remote playback sinks live in `VoiceProvider` and are portaled to `document.body` (`#nepsis-voice-audio-root`). Camera/stage `<video>` elements stay muted so they never become the only audio path. Opening Friends (Nepsis logo), DMs, or text chats unmounts `VoiceView` but must not stop hearing or transmitting; `App` dispatches `nepsis-voice-audio-nudge` on main-view changes so sinks retry `play()`.
 
+### Voice rejoin after refresh
+
+`sessionStorage` key `nepsis_voice_rejoin` stores `{ channelId, channelName, serverId, cameraOn, muted, deafened, restoreUi }`. On reload the client re-joins voice, opens that server’s voice channel UI when `restoreUi` is set, and turns the camera back on when `cameraOn` was true. Returning to the same server while still connected also selects the live voice channel.
+
 ---
 
 ## Direct Messages (DM)

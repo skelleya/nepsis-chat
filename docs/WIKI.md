@@ -733,6 +733,19 @@ Test study:
 3. Confirm Settings shows the installed version and check status.
 4. Choose **Update later** on the ready modal; confirm the top-right badge appears and applying from it restarts into the new version.
 
+### Voice UI + camera restore after refresh (2026-07-24)
+
+- Rejoin payload includes `serverId` and `cameraOn`.
+- After refresh, the app reopens the voice channel view and re-enables the camera when it was on.
+- Clicking back into that server while still in voice selects the live voice channel.
+
+Test study:
+
+1. Join voice, turn camera on, hard refresh — land in that voice UI with camera on.
+2. Join voice, open Friends, refresh — still restore into the voice channel (not Friends).
+3. Leave voice intentionally — no auto-rejoin / no camera restore.
+4. While in voice, switch to another server then back — voice channel UI opens again.
+
 ### Desktop 0.1.7 release (2026-07-24)
 
 - Electron source version: `0.1.7`.
