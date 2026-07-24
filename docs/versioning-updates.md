@@ -7,17 +7,19 @@ Desktop updates use **electron-updater** with **GitHub Releases** as the feed (W
 ## How users get updates
 
 1. App launches (and every 30 minutes) → checks GitHub Releases for a newer version.
-2. If a newer release is found, the desktop shell **downloads it in the background** (`autoDownload = true`).
+2. If a newer release is found, the desktop shell **downloads it in the background** (`autoDownload = true`) and can show a **download progress modal**.
 3. When the package is staged → a modal asks only whether to **Restart and update** (or Later).
-4. Restart shows an **Applying update…** modal with an indeterminate loading bar, then runs a **silent** installer that reuses the original per-user / all-users install scope and location (`quitAndInstall(true, true)`).
+4. Restart shows an **Applying update…** modal with an indeterminate loading bar, then runs a **silent** one-click NSIS install (`quitAndInstall(true, true)` → `/S --updated`) that reuses the existing install location — no install-scope / directory wizard.
 5. The app relaunches on the new version.
+6. **User Settings → Help & Support → Check for updates** runs the same check on demand.
 
-Files: `electron/main.js`, `frontend/src/components/UpdateButton.tsx`, `frontend/src/hooks/useDesktopUpdate.ts`.
+Files: `electron/main.js`, `frontend/src/components/UpdateButton.tsx`, `frontend/src/hooks/useDesktopUpdate.ts`, `frontend/src/components/settings/DesktopUpdatesPanel.tsx`.
 
 Notes:
 
 - Download progress is real; the applying bar is indeterminate because NSIS install progress is not exposed to the renderer.
-- First-time installs still use the assisted NSIS wizard. Updates skip the “who should this application be installed for?” page because they are silent + `--updated`.
+- Packaged Windows builds use `nsis.oneClick: true`. In-app updates never ask “who should this application be installed for?”.
+- Only one desktop session is allowed (`requestSingleInstanceLock`); a second launch focuses the existing window.
 
 ---
 

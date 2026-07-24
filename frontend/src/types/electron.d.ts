@@ -22,6 +22,7 @@ export interface ElectronAPI {
     version?: string
     currentVersion?: string
     isUpdateAvailable?: boolean
+    updateDownloaded?: boolean
     error?: string
   } | null>
   onUpdateAvailable: (callback: (info: UpdateInfo) => void) => (() => void) | void
