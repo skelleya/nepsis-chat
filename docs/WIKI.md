@@ -424,3 +424,5 @@ Verification: generated a three-second constant-bitrate MP3 without a Xing heade
 ### Remote camera startup correction (2026-07-24)
 
 The camera-freeze guard initially excluded `MediaStreamTrack.muted` tracks from the remote video count. Browsers may keep a newly negotiated receiver muted until RTP begins and a video element is attached, creating a deadlock where the tile never mounted. Remote camera tiles now mount for every live track. `TileVideo` continues to hide its frame on mute/end/removal and shows the avatar until `playing`, so camera-off still cannot leave a frozen frame.
+
+Verification: `frontend npm run build` passed TypeScript and the Vite production build. Existing font, bundle-size, Browserslist, and mixed-import warnings remain non-fatal.
