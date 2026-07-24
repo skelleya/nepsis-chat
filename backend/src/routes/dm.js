@@ -13,7 +13,45 @@ function isTableMissingError(err) {
   return code === '42P01' || /relation.*does not exist/.test(msg) || /dm_(conversations|participants|messages).*does not exist/.test(msg)
 }
 
-// List DM conversations for a user (with other participant info)
+function presentUser(user, fallbackId) {
+  const displayName = (user?.display_name && user.display_name.trim()) || user?.username || 'Unknown'
+  return { id: user?.id || fallbackId, username: displayName, avatar_url: user?.avatar_url || null }
+}
+
+async function getConversationForUser(conversationId, viewerId) {
+  const { data: conversation, error: conversationError } = await supabase
+    .from('dm_conversations')
+    .select('id, created_at, is_group, name, created_by, updated_at')
+    .eq('id', conversationId)
+    .maybeSingle()
+  if (conversationError) throw conversationError
+  if (!conversation) return null
+
+  const { data: rows, error: participantError } = await supabase
+    .from('dm_participants')
+    .select('user_id, joined_at')
+    .eq('conversation_id', conversationId)
+  if (participantError) throw participantError
+  if (!rows?.some((row) => row.user_id === viewerId)) return null
+
+  const userIds = rows.map((row) => row.user_id)
+  const { data: users, error: usersError } = await supabase
+    .from('users')
+    .select('id, username, display_name, avatar_url')
+    .in('id', userIds)
+  if (usersError) throw usersError
+  const userMap = new Map((users || []).map((user) => [user.id, user]))
+  const members = rows.map((row) => ({ ...presentUser(userMap.get(row.user_id), row.user_id), joined_at: row.joined_at }))
+  const other = members.find((member) => member.id !== viewerId)
+  return {
+    ...conversation,
+    is_group: !!conversation.is_group,
+    participants: members,
+    other_user: conversation.is_group ? undefined : other,
+  }
+}
+
+// List DM conversations for a user (1:1 and groups)
 dmRouter.get('/conversations', async (req, res) => {
   const { userId } = req.query
   if (!userId) return res.status(400).json({ error: 'userId required' })
@@ -30,41 +68,41 @@ dmRouter.get('/conversations', async (req, res) => {
 
     const { data: participants } = await supabase
       .from('dm_participants')
-      .select('conversation_id, user_id')
+      .select('conversation_id, user_id, joined_at')
       .in('conversation_id', convIds)
 
-    const otherByConv = {}
-    for (const p of participants || []) {
-      if (p.user_id !== userId) {
-        otherByConv[p.conversation_id] = p.user_id
-      }
-    }
-
-    const otherIds = [...new Set(Object.values(otherByConv))]
-    if (otherIds.length === 0) return res.json([])
+    const participantIds = [...new Set((participants || []).map((participant) => participant.user_id))]
 
     const { data: users } = await supabase
       .from('users')
       .select('id, username, display_name, avatar_url')
-      .in('id', otherIds)
+      .in('id', participantIds)
 
-    const userMap = {}
-    for (const u of users || []) userMap[u.id] = u
+    const userMap = new Map((users || []).map((entry) => [entry.id, entry]))
+    const participantsByConv = new Map()
+    for (const participant of participants || []) {
+      const list = participantsByConv.get(participant.conversation_id) || []
+      list.push({
+        ...presentUser(userMap.get(participant.user_id), participant.user_id),
+        joined_at: participant.joined_at,
+      })
+      participantsByConv.set(participant.conversation_id, list)
+    }
 
     const { data: convs } = await supabase
       .from('dm_conversations')
-      .select('id, created_at')
+      .select('id, created_at, is_group, name, created_by, updated_at')
       .in('id', convIds)
-      .order('created_at', { ascending: false })
+      .order('updated_at', { ascending: false })
 
     const result = (convs || []).map((c) => {
-      const otherId = otherByConv[c.id]
-      const other = userMap[otherId] || { id: otherId, username: 'Unknown', display_name: null, avatar_url: null }
-      const displayName = (other.display_name && other.display_name.trim()) || other.username
+      const members = participantsByConv.get(c.id) || []
+      const other = members.find((member) => member.id !== userId)
       return {
-        id: c.id,
-        created_at: c.created_at,
-        other_user: { id: other.id, username: displayName, avatar_url: other.avatar_url },
+        ...c,
+        is_group: !!c.is_group,
+        participants: members,
+        other_user: c.is_group ? undefined : other,
       }
     })
 
@@ -238,6 +276,10 @@ dmRouter.post('/messages', async (req, res) => {
       .single()
 
     if (error) throw error
+    await supabase
+      .from('dm_conversations')
+      .update({ updated_at: inserted.created_at || new Date().toISOString() })
+      .eq('id', conversationId)
 
     const { data: u } = await supabase.from('users').select('username, display_name').eq('id', userId).single()
 
@@ -331,6 +373,119 @@ dmRouter.delete('/messages/:id/reactions', async (req, res) => {
   }
 })
 
+// Create a group DM. The creator plus at least two other people are required.
+dmRouter.post('/conversations/group', async (req, res) => {
+  const { userId, memberIds, name } = req.body
+  const requested = [...new Set((Array.isArray(memberIds) ? memberIds : []).filter((id) => typeof id === 'string' && id && id !== userId))]
+  if (!userId || requested.length < 2) {
+    return res.status(400).json({ error: 'Choose at least two people for a group message' })
+  }
+  if (requested.length > 9) {
+    return res.status(400).json({ error: 'Group messages support up to 10 people' })
+  }
+
+  const cleanName = typeof name === 'string' ? name.trim().slice(0, 80) : ''
+  const id = `dm_${randomUUID()}`
+  try {
+    const allIds = [userId, ...requested]
+    const { data: validUsers, error: usersError } = await supabase
+      .from('users')
+      .select('id')
+      .in('id', allIds)
+    if (usersError) throw usersError
+    if ((validUsers || []).length !== allIds.length) {
+      return res.status(400).json({ error: 'One or more selected users no longer exist' })
+    }
+
+    const { error: conversationError } = await supabase.from('dm_conversations').insert({
+      id,
+      is_group: true,
+      name: cleanName || null,
+      created_by: userId,
+      updated_at: new Date().toISOString(),
+    })
+    if (conversationError) throw conversationError
+
+    const { error: participantError } = await supabase.from('dm_participants').insert(
+      allIds.map((memberId) => ({ conversation_id: id, user_id: memberId }))
+    )
+    if (participantError) {
+      await supabase.from('dm_conversations').delete().eq('id', id)
+      throw participantError
+    }
+
+    const conversation = await getConversationForUser(id, userId)
+    return res.status(201).json(conversation)
+  } catch (err) {
+    console.error('Group DM create error:', err)
+    return res.status(500).json({ error: 'Failed to create group message' })
+  }
+})
+
+// Add people to an existing group DM. Any current participant may invite friends.
+dmRouter.post('/conversations/:id/members', async (req, res) => {
+  const { id } = req.params
+  const { userId, memberIds } = req.body
+  const requested = [...new Set((Array.isArray(memberIds) ? memberIds : []).filter((entry) => typeof entry === 'string' && entry && entry !== userId))]
+  if (!userId || requested.length === 0) {
+    return res.status(400).json({ error: 'userId and memberIds required' })
+  }
+
+  try {
+    const conversation = await getConversationForUser(id, userId)
+    if (!conversation) return res.status(403).json({ error: 'Not a participant' })
+    if (!conversation.is_group) return res.status(400).json({ error: 'Add people is only available in group messages' })
+
+    const existing = new Set(conversation.participants.map((participant) => participant.id))
+    const additions = requested.filter((memberId) => !existing.has(memberId))
+    if (existing.size + additions.length > 10) {
+      return res.status(400).json({ error: 'Group messages support up to 10 people' })
+    }
+    if (additions.length === 0) return res.json(conversation)
+
+    const { data: validUsers, error: usersError } = await supabase
+      .from('users')
+      .select('id')
+      .in('id', additions)
+    if (usersError) throw usersError
+    if ((validUsers || []).length !== additions.length) {
+      return res.status(400).json({ error: 'One or more selected users no longer exist' })
+    }
+
+    const { error } = await supabase.from('dm_participants').insert(
+      additions.map((memberId) => ({ conversation_id: id, user_id: memberId }))
+    )
+    if (error) throw error
+    await supabase.from('dm_conversations').update({ updated_at: new Date().toISOString() }).eq('id', id)
+    return res.json(await getConversationForUser(id, userId))
+  } catch (err) {
+    console.error('Group DM add members error:', err)
+    return res.status(500).json({ error: 'Failed to add people to group message' })
+  }
+})
+
+// Rename an existing group DM.
+dmRouter.patch('/conversations/:id', async (req, res) => {
+  const { id } = req.params
+  const { userId, name } = req.body
+  const cleanName = typeof name === 'string' ? name.trim().slice(0, 80) : ''
+  if (!userId || !cleanName) return res.status(400).json({ error: 'userId and name required' })
+  try {
+    const conversation = await getConversationForUser(id, userId)
+    if (!conversation) return res.status(403).json({ error: 'Not a participant' })
+    if (!conversation.is_group) return res.status(400).json({ error: 'Only group messages can be renamed' })
+    const { error } = await supabase
+      .from('dm_conversations')
+      .update({ name: cleanName, updated_at: new Date().toISOString() })
+      .eq('id', id)
+    if (error) throw error
+    return res.json(await getConversationForUser(id, userId))
+  } catch (err) {
+    console.error('Group DM rename error:', err)
+    return res.status(500).json({ error: 'Failed to rename group message' })
+  }
+})
+
 // Create or get DM conversation between two users
 dmRouter.post('/conversations', async (req, res) => {
   const { userId, targetUserId } = req.body
@@ -356,32 +511,25 @@ dmRouter.post('/conversations', async (req, res) => {
           .select('user_id')
           .eq('conversation_id', convId)
         const userIds = conv?.map((c) => c.user_id) ?? []
-        if (userIds.includes(userId) && userIds.includes(targetUserId)) {
-          const { data: other } = await supabase.from('users').select('id, username, display_name, avatar_url').eq('id', targetUserId).single()
-          const dn = other ? ((other.display_name && other.display_name.trim()) || other.username) : 'Unknown'
-          return res.json({
-            id: convId,
-            created_at: new Date().toISOString(),
-            other_user: other ? { id: other.id, username: dn, avatar_url: other.avatar_url } : { id: targetUserId, username: 'Unknown', avatar_url: null },
-          })
+        if (userIds.length === 2 && userIds.includes(userId) && userIds.includes(targetUserId)) {
+          return res.json(await getConversationForUser(convId, userId))
         }
       }
     }
 
     // Create new conversation
     const id = `dm_${randomUUID()}`
-    await supabase.from('dm_conversations').insert({ id })
+    await supabase.from('dm_conversations').insert({
+      id,
+      is_group: false,
+      created_by: userId,
+      updated_at: new Date().toISOString(),
+    })
     await supabase.from('dm_participants').insert([
       { conversation_id: id, user_id: userId },
       { conversation_id: id, user_id: targetUserId },
     ])
-    const { data: other } = await supabase.from('users').select('id, username, display_name, avatar_url').eq('id', targetUserId).single()
-    const dn = other ? ((other.display_name && other.display_name.trim()) || other.username) : 'Unknown'
-    return res.json({
-      id,
-      created_at: new Date().toISOString(),
-      other_user: other ? { id: other.id, username: dn, avatar_url: other.avatar_url } : { id: targetUserId, username: 'Unknown', avatar_url: null },
-    })
+    return res.json(await getConversationForUser(id, userId))
   } catch (err) {
     console.error('DM create error:', err)
     if (isTableMissingError(err)) {
