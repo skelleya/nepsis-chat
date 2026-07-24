@@ -102,6 +102,11 @@ export function SoundboardDropdown({ userId, onPlay, anchorRef, isOpen, onClose 
 
     try {
       const duration = await checkDuration()
+      if (!Number.isFinite(duration) || duration <= 0) {
+        setError('Could not read audio duration. Try converting the file to MP3 or WAV.')
+        e.target.value = ''
+        return
+      }
       if (duration > MAX_DURATION_SECONDS) {
         const url = URL.createObjectURL(file)
         setClipSource({ file, url, duration })
@@ -210,7 +215,7 @@ export function SoundboardDropdown({ userId, onPlay, anchorRef, isOpen, onClose 
       <input
         ref={fileInputRef}
         type="file"
-        accept=".mp3,.wav,.ogg,.webm,.m4a,.mp4,audio/mpeg,audio/mp3,audio/wav,audio/ogg,audio/webm,audio/mp4"
+        accept=".mp3,.wav,.ogg,.webm,.m4a,.mp4,.aac,.flac,audio/mpeg,audio/mp3,audio/wav,audio/ogg,audio/webm,audio/mp4,audio/aac,audio/flac"
         className="hidden"
         onChange={handleFileChange}
       />
