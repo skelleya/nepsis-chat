@@ -414,3 +414,9 @@ A major UI overhaul to match Discord's layout and interaction patterns.
 - Supabase advisors reported pre-existing project-wide RLS/index notices; this bucket metadata migration introduced no table, policy, or index changes.
 - `npm ci` audit reported 11 existing dependency advisories (2 low, 1 moderate, 8 high); dependency upgrades were not mixed into this feature pass.
 - Build warnings remain for optional Everett font files, large bundle size, stale Browserslist data, and modules that are both static/dynamic imports. They do not fail the build and are outside this fix set.
+
+### Soundboard duration parser correction (2026-07-24)
+
+`music-metadata` v11 defaults to a fast metadata pass. Valid MP3/AAC files without a duration header could therefore return `format.duration = undefined`, and the API incorrectly reported `0.0s`. The soundboard route now supplies the uploaded buffer size and enables full duration scanning with `{ duration: true }`. Unknown duration and over-ten-second files have separate error messages.
+
+Verification: generated a three-second constant-bitrate MP3 without a Xing header (`ffmpeg -write_xing 0`) and parsed it with the production options; detected duration was `3.030s`. `node --check src/routes/soundboard.js` also passed.

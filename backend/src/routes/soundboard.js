@@ -70,15 +70,28 @@ soundboardRouter.post('/', upload.single('file'), async (req, res) => {
   try {
     let durationSeconds = 0
     try {
-      const metadata = await parseBuffer(req.file.buffer, { mimeType: req.file.mimetype })
+      // music-metadata v11 skips full duration scanning by default. MP3 files
+      // without a Xing/VBR header therefore parsed successfully but returned no
+      // duration, which was presented to users as 0.0 seconds.
+      const metadata = await parseBuffer(
+        req.file.buffer,
+        { mimeType: req.file.mimetype, size: req.file.size },
+        { duration: true }
+      )
       durationSeconds = metadata.format.duration ?? 0
     } catch (parseErr) {
+      console.warn('Soundboard metadata parse failed:', parseErr)
       return res.status(400).json({ error: 'Could not read audio file. Use MP3, WAV, OGG, WebM, M4A, AAC, or FLAC.' })
     }
 
-    if (durationSeconds <= 0 || durationSeconds > MAX_DURATION_SECONDS) {
+    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
       return res.status(400).json({
-        error: `Audio must be between 1 and ${MAX_DURATION_SECONDS} seconds. Your file is ${durationSeconds.toFixed(1)}s.`,
+        error: 'Could not determine audio duration. Try converting the file to MP3 or WAV.',
+      })
+    }
+    if (durationSeconds > MAX_DURATION_SECONDS) {
+      return res.status(400).json({
+        error: `Audio must be ${MAX_DURATION_SECONDS} seconds or less. Your file is ${durationSeconds.toFixed(1)}s.`,
       })
     }
 
