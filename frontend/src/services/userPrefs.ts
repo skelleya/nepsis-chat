@@ -29,6 +29,8 @@ export interface VoicePrefs {
   autoGainControl: boolean
   cameraQuality: CameraQualityId
   screenQuality: ScreenQualityId
+  /** Mirror only the local self-preview; transmitted/remote video stays natural. */
+  mirrorCameraPreview: boolean
 }
 
 export interface NotificationPrefs {
@@ -67,6 +69,7 @@ export const DEFAULT_PREFS: UserPrefs = {
     autoGainControl: true,
     cameraQuality: '1080p',
     screenQuality: '1440p',
+    mirrorCameraPreview: false,
   },
   notifications: {
     messageSounds: true,

@@ -426,3 +426,7 @@ Verification: generated a three-second constant-bitrate MP3 without a Xing heade
 The camera-freeze guard initially excluded `MediaStreamTrack.muted` tracks from the remote video count. Browsers may keep a newly negotiated receiver muted until RTP begins and a video element is attached, creating a deadlock where the tile never mounted. Remote camera tiles now mount for every live track. `TileVideo` continues to hide its frame on mute/end/removal and shows the avatar until `playing`, so camera-off still cannot leave a frozen frame.
 
 Verification: `frontend npm run build` passed TypeScript and the Vite production build. Existing font, bundle-size, Browserslist, and mixed-import warnings remain non-fatal.
+
+### Camera orientation (2026-07-24)
+
+Camera self-previews now default to natural/unmirrored orientation. Voice & Video settings includes “Mirror my camera preview” for users who prefer a mirror. The preference updates local voice tiles, maximized self camera, self PiP, and DM call PiP immediately. It is intentionally display-only: remote viewers continue to see the natural camera orientation, and screen shares are never mirrored.

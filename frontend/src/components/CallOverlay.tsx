@@ -8,9 +8,10 @@
  *  - idle:     Nothing rendered
  */
 
-import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import gsap from 'gsap'
 import { useCall } from '../contexts/CallContext'
+import { loadPrefs, subscribePrefs } from '../services/userPrefs'
 
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60)
@@ -78,6 +79,13 @@ function AnimatedCallPanel({
 
 export function CallOverlay() {
   const call = useCall()
+  const [mirrorCameraPreview, setMirrorCameraPreview] = useState(
+    () => loadPrefs().voice.mirrorCameraPreview
+  )
+  useEffect(
+    () => subscribePrefs((prefs) => setMirrorCameraPreview(prefs.voice.mirrorCameraPreview)),
+    []
+  )
 
   if (call.callState === 'idle') {
     if (call.unavailableReason) {
@@ -227,7 +235,7 @@ export function CallOverlay() {
                   <CallVideo
                     stream={call.localVideoStream}
                     muted
-                    mirror
+                    mirror={mirrorCameraPreview}
                     className="w-full h-full object-cover"
                   />
                 </div>

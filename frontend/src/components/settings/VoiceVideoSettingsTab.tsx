@@ -203,6 +203,17 @@ export function VoiceVideoSettingsTab() {
         <p className="sm:col-span-2 text-xs text-app-muted">
           The browser and camera may choose a lower resolution when the device or connection cannot sustain the selected quality.
         </p>
+        <div className="sm:col-span-2 flex items-center justify-between gap-3 pt-3 border-t border-app-hover/50">
+          <div>
+            <p className="text-sm text-app-text">Mirror my camera preview</p>
+            <p className="text-xs text-app-muted">Only changes what you see; other users always see the natural orientation.</p>
+          </div>
+          <SettingsToggle
+            checked={prefs.mirrorCameraPreview}
+            onChange={(value) => persist({ mirrorCameraPreview: value })}
+            aria-label="Mirror my camera preview"
+          />
+        </div>
       </div>
 
       <div className="bg-app-channel rounded-lg p-4 mb-4 space-y-4">

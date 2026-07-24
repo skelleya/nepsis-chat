@@ -9,6 +9,7 @@ import {
   getParticipantVideoStream,
   hasLiveVideo,
 } from '../utils/mediaTracks'
+import { loadPrefs, subscribePrefs } from '../services/userPrefs'
 
 interface VoiceViewProps {
   channel: Channel
@@ -79,6 +80,7 @@ function StageVideo({
   objectFit = 'contain',
   avatarUrl,
   username,
+  mirror = false,
 }: {
   stream: MediaStream
   muted?: boolean
@@ -88,6 +90,7 @@ function StageVideo({
   objectFit?: 'contain' | 'cover'
   avatarUrl?: string
   username: string
+  mirror?: boolean
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [hasFrame, setHasFrame] = useState(false)
@@ -118,7 +121,7 @@ function StageVideo({
         onPlaying={() => setHasFrame(true)}
         className={`flex-1 w-full h-full min-h-0 transition-opacity duration-200 ${
           objectFit === 'cover' ? 'object-cover' : 'object-contain'
-        } ${hasFrame ? 'opacity-100' : 'opacity-0'}`}
+        } ${hasFrame ? 'opacity-100' : 'opacity-0'} ${mirror ? 'scale-x-[-1]' : ''}`}
       />
       <div className="absolute top-3 left-3 flex items-center gap-2 z-[2]">
         {badge === 'live' && (
@@ -229,11 +232,13 @@ function TileVideo({
   muted = false,
   username,
   avatarUrl,
+  mirror = false,
 }: {
   stream: MediaStream
   muted?: boolean
   username: string
   avatarUrl?: string
+  mirror?: boolean
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [hasFrame, setHasFrame] = useState(false)
@@ -288,7 +293,7 @@ function TileVideo({
         muted={muted}
         onLoadedData={() => setHasFrame(true)}
         onPlaying={() => setHasFrame(true)}
-        className={`w-full h-full object-cover transition-opacity duration-200 ${hasFrame ? 'opacity-100' : 'opacity-0'}`}
+        className={`w-full h-full object-cover transition-opacity duration-200 ${hasFrame ? 'opacity-100' : 'opacity-0'} ${mirror ? 'scale-x-[-1]' : ''}`}
       />
     </div>
   )
@@ -301,6 +306,7 @@ function ParticipantCard({
   localStream,
   localVideoStream,
   participantVideoStream,
+  mirrorLocalPreview,
   isMuted,
   isDeafened,
   isCameraOn,
@@ -321,6 +327,7 @@ function ParticipantCard({
   localStream: MediaStream | null
   localVideoStream: MediaStream | null
   participantVideoStream: MediaStream | null
+  mirrorLocalPreview: boolean
   isMuted: boolean
   isDeafened: boolean
   isCameraOn: boolean
@@ -383,6 +390,7 @@ function ParticipantCard({
             muted={isLocal || isDeafened}
             username={participant.username}
             avatarUrl={avatarUrl}
+            mirror={isLocal && mirrorLocalPreview}
           />
         ) : (
           <div className="w-full h-full bg-app-channel flex items-center justify-center">
@@ -502,6 +510,7 @@ function ParticipantCard({
               muted={isLocal || isDeafened}
               username={participant.username}
               avatarUrl={avatarUrl}
+              mirror={isLocal && mirrorLocalPreview}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-app-channel">
@@ -610,7 +619,15 @@ export function VoiceView({
   const [soundboardOpen, setSoundboardOpen] = useState(false)
   const soundboardButtonRef = useRef<HTMLButtonElement>(null)
   const [maximizedCameraUserId, setMaximizedCameraUserId] = useState<string | null>(null)
+  const [mirrorCameraPreview, setMirrorCameraPreview] = useState(
+    () => loadPrefs().voice.mirrorCameraPreview
+  )
   const autoFocusedCameraRef = useRef(false)
+
+  useEffect(
+    () => subscribePrefs((prefs) => setMirrorCameraPreview(prefs.voice.mirrorCameraPreview)),
+    []
+  )
 
   const isInThisChannel = voiceChannelId === channel.id
 
@@ -788,6 +805,7 @@ export function VoiceView({
             : getParticipantVideoStream(p.stream, {
                 knownScreenSharing: screenShareUserIds.includes(p.userId),
               }),
+        mirrorLocalPreview: mirrorCameraPreview,
         isMuted: isLocal ? isMuted : remoteState?.muted ?? p.isMuted ?? false,
         isDeafened,
         isCameraOn,
@@ -820,6 +838,7 @@ export function VoiceView({
       maximizedCameraUserId,
       handleWatchShare,
       handleMaximizeCamera,
+      mirrorCameraPreview,
     ]
   )
 
@@ -887,6 +906,7 @@ export function VoiceView({
                 username={maximizedCameraUsername}
                 avatarUrl={maximizedCameraUserId ? avatarByUserId.get(maximizedCameraUserId) : undefined}
                 objectFit="cover"
+                mirror={maximizedCameraUserId === currentUserId && mirrorCameraPreview}
                 onClose={() => setMaximizedCameraUserId(null)}
               />
             </div>
@@ -917,6 +937,7 @@ export function VoiceView({
                   muted
                   username={currentUsername}
                   avatarUrl={currentUserAvatarUrl}
+                  mirror={mirrorCameraPreview}
                 />
                 <div className="absolute bottom-1 left-1.5 text-[10px] text-white font-medium drop-shadow">
                   You
@@ -941,6 +962,7 @@ export function VoiceView({
               username={maximizedCameraUsername}
               avatarUrl={maximizedCameraUserId ? avatarByUserId.get(maximizedCameraUserId) : undefined}
               objectFit="cover"
+              mirror={maximizedCameraUserId === currentUserId && mirrorCameraPreview}
               onClose={() => setMaximizedCameraUserId(null)}
             />
             {showSelfPip && videoStream && (
@@ -950,6 +972,7 @@ export function VoiceView({
                   muted
                   username={currentUsername}
                   avatarUrl={currentUserAvatarUrl}
+                  mirror={mirrorCameraPreview}
                 />
               </div>
             )}
