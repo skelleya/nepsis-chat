@@ -668,3 +668,17 @@ Test study:
 3. Admin-mute then unmute, admin-deafen then undeafen a peer; labels and target state reverse correctly.
 4. Inspect filmstrip/gallery rings and minimized member dots for full borders.
 5. Save a bio in Profiles, then open that member/DM profile and confirm About Me appears for friends.
+
+### Desktop 0.1.6 release (2026-07-24)
+
+- Electron source version: `0.1.6`.
+- Release notes: [release-0.1.6.md](release-0.1.6.md).
+- Includes silent auto-update UX, Voice & Video dropdown hardening, mic noise presets, unmute/undeafen, bios, and camera/status border fixes.
+- Tag `v0.1.6` triggers `.github/workflows/desktop-release.yml`, which builds Windows and macOS installers and publishes their updater metadata on one GitHub Release.
+
+Release verification study:
+
+1. Confirm `electron/package.json` and lockfile root both report `0.1.6`.
+2. Run the frontend production build and validate the workflow YAML.
+3. Merge the release commit into `master`, then tag that exact commit `v0.1.6`.
+4. Confirm the Desktop Release workflow starts from the tag and its version job reports `0.1.6`.
