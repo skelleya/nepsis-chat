@@ -17,11 +17,7 @@ import {
 } from '../services/userPrefs'
 import { createPortal } from 'react-dom'
 import { RemoteAudio } from '../components/RemoteAudio'
-import {
-  getRemoteMicAudioStream,
-  getRemoteScreenAudioStream,
-  getScreenShareStream,
-} from '../utils/mediaTracks'
+import { getRemoteAudioStream, getScreenShareStream } from '../utils/mediaTracks'
 import { getCallBusy } from '../services/mediaSessionGate'
 import { smoothPing, type IcePathType, type PingSource } from '../services/connectionStats'
 import { formatMediaPermissionError } from '../utils/mediaPermissionError'
@@ -1228,47 +1224,40 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
             aria-hidden
             style={{
               position: 'fixed',
-              width: 0,
-              height: 0,
-              overflow: 'hidden',
+              width: 1,
+              height: 1,
+              opacity: 0,
               pointerEvents: 'none',
               left: 0,
               top: 0,
+              // Do not use overflow:hidden — some Chromium builds pause media in clipped trees.
             }}
           >
             {isConnected &&
               participants
                 .filter((participant) => participant.userId !== userId)
-                .flatMap((participant) => {
+                .map((participant) => {
                   const knownScreenSharing = screenShareUserIds.includes(participant.userId)
                   const watching = watchingShareUserId === participant.userId
                   const prefs = loadPrefs()
                   // volumePrefsTick keeps multipliers fresh after slider changes
                   void volumePrefsTick
-                  const micStream = getRemoteMicAudioStream(participant.stream, { knownScreenSharing })
-                  const screenStream =
-                    watching
-                      ? getRemoteScreenAudioStream(participant.stream, { knownScreenSharing })
-                      : null
-                  const nodes = [
+                  const audioStream = getRemoteAudioStream(participant.stream, {
+                    knownScreenSharing,
+                    includeScreenAudio: watching,
+                  })
+                  // Peer volume always; while watching a share, also apply stream volume.
+                  const volumeMultiplier =
+                    getPeerVolume(participant.userId, prefs) *
+                    (watching ? getStreamVolume(participant.userId, prefs) : 1)
+                  return (
                     <RemoteAudio
-                      key={`voice-audio-mic-${participant.userId}`}
-                      stream={micStream}
+                      key={`voice-audio-${participant.userId}`}
+                      stream={audioStream}
                       muted={isDeafened}
-                      volumeMultiplier={getPeerVolume(participant.userId, prefs)}
-                    />,
-                  ]
-                  if (screenStream) {
-                    nodes.push(
-                      <RemoteAudio
-                        key={`voice-audio-stream-${participant.userId}`}
-                        stream={screenStream}
-                        muted={isDeafened}
-                        volumeMultiplier={getStreamVolume(participant.userId, prefs)}
-                      />
-                    )
-                  }
-                  return nodes
+                      volumeMultiplier={volumeMultiplier}
+                    />
+                  )
                 })}
           </div>,
           document.body

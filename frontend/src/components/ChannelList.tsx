@@ -266,12 +266,15 @@ function VoiceUserRow({
 
   useEffect(() => {
     if (!ctx) return
-    const close = () => closeMenu()
-    window.addEventListener('click', close)
-    window.addEventListener('scroll', close, true)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeMenu()
+    }
+    const onScroll = () => closeMenu()
+    document.addEventListener('keydown', onKey, true)
+    window.addEventListener('scroll', onScroll, true)
     return () => {
-      window.removeEventListener('click', close)
-      window.removeEventListener('scroll', close, true)
+      document.removeEventListener('keydown', onKey, true)
+      window.removeEventListener('scroll', onScroll, true)
     }
   }, [ctx])
 
@@ -348,10 +351,21 @@ function VoiceUserRow({
       {shouldRenderMenu &&
         ctx &&
         createPortal(
+          <>
+            <div
+              className="fixed inset-0 z-[219]"
+              aria-hidden
+              onMouseDown={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                closeMenu()
+              }}
+            />
           <div
             ref={menuRef}
             className="fixed z-[220] min-w-[200px] rounded-xl border border-app-hover/50 bg-app-darker p-1 shadow-2xl"
             style={{ left: Math.min(ctx.x, window.innerWidth - 220), top: Math.min(ctx.y, window.innerHeight - 320) }}
+            onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
             onContextMenu={(e) => e.preventDefault()}
           >
@@ -569,7 +583,8 @@ function VoiceUserRow({
                 Ban
               </button>
             )}
-          </div>,
+          </div>
+          </>,
           document.body
         )}
 

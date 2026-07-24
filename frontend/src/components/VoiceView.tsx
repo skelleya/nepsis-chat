@@ -407,35 +407,19 @@ function ParticipantCard({
     !!(onMuteMember || onUnmuteMember || onDeafenMember || onUndeafenMember || onDisconnectMember)
   const showUserMenu = !isLocal
 
-  const menuRef = useRef<HTMLDivElement>(null)
-
   useEffect(() => {
     if (!showMenu) return
     setUserVolume(getPeerVolume(participant.userId))
     setStreamVol(getStreamVolume(participant.userId))
   }, [showMenu, participant.userId])
 
-  // Portal menu to body + document listeners so click-away works even inside transformed/scroll parents.
   useEffect(() => {
     if (!showMenu) return
-    const onPointerDown = (e: PointerEvent) => {
-      const target = e.target as Node | null
-      if (menuRef.current?.contains(target)) return
-      setShowMenu(false)
-    }
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setShowMenu(false)
     }
-    // Next frame so the opening click/contextmenu does not immediately close the menu.
-    const timer = window.setTimeout(() => {
-      document.addEventListener('pointerdown', onPointerDown, true)
-      document.addEventListener('keydown', onKeyDown, true)
-    }, 0)
-    return () => {
-      window.clearTimeout(timer)
-      document.removeEventListener('pointerdown', onPointerDown, true)
-      document.removeEventListener('keydown', onKeyDown, true)
-    }
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => document.removeEventListener('keydown', onKeyDown, true)
   }, [showMenu])
 
   const openUserMenu = (clientX: number, clientY: number) => {
@@ -449,15 +433,11 @@ function ParticipantCard({
     setShowMenu(true)
   }
 
-  const handleCardClick = (e: MouseEvent) => {
-    if (showUserMenu) {
-      e.preventDefault()
-      e.stopPropagation()
-      if (showMenu) {
-        setShowMenu(false)
-        return
-      }
-      openUserMenu(e.clientX, e.clientY)
+  // Left-click: watch / maximize (Discord-like). Right-click: volume + admin menu.
+  // Opening the menu on left-click raced with dismiss and made it feel "stuck".
+  const handleCardClick = () => {
+    if (showMenu) {
+      setShowMenu(false)
       return
     }
     if (isSharingScreen && onWatchShare) {
@@ -479,14 +459,25 @@ function ParticipantCard({
     showMenu &&
     typeof document !== 'undefined' &&
     createPortal(
-      <div
-        ref={menuRef}
-        className="fixed z-[200] bg-[#111214] rounded-lg shadow-xl py-2 min-w-[240px] max-w-[280px] border border-app-hover/30"
-        style={{ left: menuPos.x, top: menuPos.y }}
-        onClick={(e) => e.stopPropagation()}
-        onContextMenu={(e) => e.preventDefault()}
-        role="menu"
-      >
+      <>
+        {/* Full-screen backdrop above cards so click-away cannot reopen another menu */}
+        <div
+          className="fixed inset-0 z-[199]"
+          aria-hidden
+          onMouseDown={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            setShowMenu(false)
+          }}
+        />
+        <div
+          className="fixed z-[200] bg-[#111214] rounded-lg shadow-xl py-2 min-w-[240px] max-w-[280px] border border-app-hover/30"
+          style={{ left: menuPos.x, top: menuPos.y }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.preventDefault()}
+          role="menu"
+        >
         <div className="px-3 pb-1.5 text-xs font-semibold text-app-muted truncate">
           {participant.username}
         </div>
@@ -509,6 +500,9 @@ function ParticipantCard({
             className="w-full accent-app-accent"
             aria-label={`Volume for ${participant.username}`}
           />
+          <p className="text-[10px] text-app-muted leading-snug">
+            Right-click a user for this menu. 100% is normal; lower to quiet them.
+          </p>
         </div>
         {isSharingScreen && (
           <div className="px-3 py-2 space-y-1.5 border-b border-app-hover/30">
@@ -619,7 +613,8 @@ function ParticipantCard({
             )}
           </div>
         )}
-      </div>,
+        </div>
+      </>,
       document.body
     )
 
