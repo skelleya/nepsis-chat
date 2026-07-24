@@ -733,6 +733,19 @@ Test study:
 3. Confirm Settings shows the installed version and check status.
 4. Choose **Update later** on the ready modal; confirm the top-right badge appears and applying from it restarts into the new version.
 
+### Voice UI + camera restore after refresh (2026-07-24)
+
+- Rejoin payload includes `serverId` and `cameraOn`.
+- After refresh, the app reopens the voice channel view and re-enables the camera when it was on.
+- Clicking back into that server while still in voice selects the live voice channel.
+
+Test study:
+
+1. Join voice, turn camera on, hard refresh — land in that voice UI with camera on.
+2. Join voice, open Friends, refresh — still restore into the voice channel (not Friends).
+3. Leave voice intentionally — no auto-rejoin / no camera restore.
+4. While in voice, switch to another server then back — voice channel UI opens again.
+
 ### Desktop 0.1.7 release (2026-07-24)
 
 - Electron source version: `0.1.7`.
@@ -758,11 +771,4 @@ Release verification study:
 1. Confirm `electron/package.json` and lockfile root report `0.1.8`.
 2. Merge into `master`, tag `v0.1.8`, confirm Desktop Release version job reports `0.1.8`.
 3. After install: second shortcut click focuses one session; update path shows loader not the NSIS wizard.
-
-### Desktop 0.1.9 release (2026-07-24)
-
-- Electron source version: `0.1.9`.
-- Release notes: [release-0.1.9.md](release-0.1.9.md).
-- Includes voice channel UI + camera restore after refresh/rejoin.
-- Tag `v0.1.9` triggers Desktop Release.
 
