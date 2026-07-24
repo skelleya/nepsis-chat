@@ -1043,6 +1043,13 @@ function MainLayout({
       { opacity: 0 },
       { opacity: 1, duration: 0.2, ease: 'sine.out', overwrite: true }
     )
+    // Voice audio sinks live outside this node; nudge play after view swaps so
+    // browsers that paused sinks when VoiceView unmounted resume hearing peers.
+    try {
+      window.dispatchEvent(new Event('nepsis-voice-audio-nudge'))
+    } catch {
+      /* ignore */
+    }
     return () => {
       gsap.killTweensOf(el)
     }

@@ -394,11 +394,12 @@ function ParticipantCard({
     isAdminOrOwner &&
     (onMuteMember || onUnmuteMember || onDeafenMember || onUndeafenMember || onDisconnectMember)
 
+  // Inset rings stay inside the tile box so filmstrip overflow-x never clips them.
   const ringClass = isWatching
-    ? 'ring-2 ring-app-accent shadow-[0_0_12px_rgba(88,101,242,0.45)]'
+    ? 'ring-2 ring-inset ring-app-accent'
     : speaking
-      ? 'ring-2 ring-[#23a559] shadow-[0_0_12px_rgba(35,165,89,0.5)]'
-      : 'ring-1 ring-white/10'
+      ? 'ring-2 ring-inset ring-[#23a559]'
+      : 'ring-1 ring-inset ring-white/10'
 
   if (compact) {
     return (
@@ -419,7 +420,7 @@ function ParticipantCard({
           {showVideoShell && (isLocal ? localVideoStream : participantVideoStream) ? (
             <TileVideo
               stream={(isLocal ? localVideoStream : participantVideoStream)!}
-              muted={isLocal || isDeafened}
+              muted
               username={participant.username}
               avatarUrl={avatarUrl}
               mirror={isLocal && mirrorLocalPreview}
@@ -558,7 +559,7 @@ function ParticipantCard({
             {(isLocal ? localVideoStream : participantVideoStream) ? (
               <TileVideo
                 stream={(isLocal ? localVideoStream : participantVideoStream)!}
-                muted={isLocal || isDeafened}
+                muted
                 username={participant.username}
                 avatarUrl={avatarUrl}
                 mirror={isLocal && mirrorLocalPreview}
@@ -932,7 +933,8 @@ export function VoiceView({
 
   const renderFilmstrip = () => (
     <div className="shrink-0 px-3 py-3 border-b border-app-glass/[0.06] bg-app-panel/90 backdrop-blur">
-      <div className="flex gap-2.5 overflow-x-auto items-stretch pb-0.5 scrollbar-thin">
+      {/* Inner padding keeps inset rings fully visible inside the horizontal scroller. */}
+      <div className="flex gap-2.5 overflow-x-auto items-stretch p-1.5 scrollbar-thin">
         {allParticipants.map((p) => (
           <ParticipantCard key={p.userId} {...cardProps(p, { compact: true })} />
         ))}

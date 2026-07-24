@@ -51,12 +51,15 @@
         "nsis",
         "zip"
       ],
-      "signAndEditExecutable": false,
+      "signAndEditExecutable": true,
       "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": false,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
       "artifactName": "NepsisChat-Setup.${ext}"
     },
     "mac": {

@@ -13,6 +13,7 @@ import {
   updatePrefs,
   type MicProcessingLevel,
 } from '../services/userPrefs'
+import { createPortal } from 'react-dom'
 import { RemoteAudio } from '../components/RemoteAudio'
 import { getRemoteAudioStream, getScreenShareStream } from '../utils/mediaTracks'
 import { getCallBusy } from '../services/mediaSessionGate'
@@ -1104,27 +1105,42 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         setWatchingShareUserId,
       }}
     >
-      {/* Playback belongs to the session, not VoiceView. Keep it mounted while
-          navigating to Friends/Add Friend, DMs, Community, or settings. */}
-      {isConnected && (
-        <div aria-hidden className="contents">
-          {participants
-            .filter((participant) => participant.userId !== userId && participant.stream)
-            .map((participant) => {
-              const audioStream = getRemoteAudioStream(participant.stream, {
-                knownScreenSharing: screenShareUserIds.includes(participant.userId),
-                includeScreenAudio: watchingShareUserId === participant.userId,
-              })
-              return audioStream ? (
-                <RemoteAudio
-                  key={`voice-audio-${participant.userId}`}
-                  stream={audioStream}
-                  muted={isDeafened}
-                />
-              ) : null
-            })}
-        </div>
-      )}
+      {/* Playback is session-owned and portaled to document.body so Friends/DM/chat
+          view swaps (and GSAP opacity on main content) cannot pause or unmount sinks. */}
+      {typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            id="nepsis-voice-audio-root"
+            aria-hidden
+            style={{
+              position: 'fixed',
+              width: 0,
+              height: 0,
+              overflow: 'hidden',
+              pointerEvents: 'none',
+              left: 0,
+              top: 0,
+            }}
+          >
+            {isConnected &&
+              participants
+                .filter((participant) => participant.userId !== userId)
+                .map((participant) => {
+                  const audioStream = getRemoteAudioStream(participant.stream, {
+                    knownScreenSharing: screenShareUserIds.includes(participant.userId),
+                    includeScreenAudio: watchingShareUserId === participant.userId,
+                  })
+                  return (
+                    <RemoteAudio
+                      key={`voice-audio-${participant.userId}`}
+                      stream={audioStream}
+                      muted={isDeafened}
+                    />
+                  )
+                })}
+          </div>,
+          document.body
+        )}
       {children}
     </VoiceContext.Provider>
   )
