@@ -840,3 +840,20 @@ Test study:
 3. Click Open / a tile → VoiceView returns.
 4. Full VoiceView open → PiP hidden.
 
+### Voice PiP drag + screen stage (0.2.5) (2026-07-24)
+
+- **Screen share stage larger**: denser filmstrip while watching; dual-focus gives screen ~4× camera width; tighter stage padding.
+- **PiP drag release**: pointer listeners attach to `window` on drag start so release always ends the drag (no stuck-on-hold).
+- **Stable PiP tile order**: cameras stay in join order; speaking only updates the green ring (no reshuffle).
+- Floating PiP also shows live screen shares (wider panel, `object-contain`) so shared screens stay readable in text/DM.
+- Speaking avatar `scale-105` removed so gallery tiles do not jump when someone talks.
+- Electron `0.2.5`. Tag `v0.2.5`.
+
+Test study:
+
+1. Watch a screen share → stage fills most of the pane; filmstrip stays compact.
+2. Dual focus (screen + camera) → screen dominates; camera is a side/secondary pane.
+3. Open text while in voice → drag PiP, release mouse anywhere → snaps to a corner (not stuck).
+4. Multiple cameras on → speaking changes ring only; tile order does not reshuffle.
+5. Someone shares screen while you are in text → PiP shows a larger Live screen tile.
+

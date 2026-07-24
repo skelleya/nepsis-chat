@@ -256,6 +256,11 @@ html[data-density='compact'] {
   flex-direction: column;
 }
 
+.voice-stage-screen {
+  /* Give almost all remaining height to the shared screen */
+  min-height: 0;
+}
+
 @container (max-width: 900px) {
   .voice-participant-grid { --voice-grid-min: 260px; }
 }
@@ -267,5 +272,16 @@ html[data-density='compact'] {
 @container (min-width: 900px) {
   .voice-dual-focus {
     flex-direction: row;
+    align-items: stretch;
+  }
+
+  .voice-dual-focus-screen {
+    flex: 4 1 0;
+    min-height: 0;
+  }
+
+  .voice-dual-focus-camera {
+    flex: 1 1 0;
+    max-height: none;
   }
 }

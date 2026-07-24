@@ -58,7 +58,7 @@ frontend/src/
 | MessageContent | Shared server/DM message renderer: mentions, clickable links, media attachments, and `LinkEmbed` preview cards |
 | LinkEmbed | Open Graph preview card; fetches `POST /api/embeds/unfurl` |
 | YouTubeEmbed | Playable YouTube player for youtube.com / youtu.be / shorts links (poster → iframe) |
-| VoiceFloatingOverlay | Corner PiP of voice cameras while in text/DM/Friends; drag-snap to TL/TR/BL/BR; click returns to VoiceView |
+| VoiceFloatingOverlay | Corner PiP of voice cameras (+ live screens) while in text/DM/Friends; window-level drag-snap to TL/TR/BL/BR; stable tile order; click returns to VoiceView |
 | PatchNotesPanel | Help & Support → Patch notes (bundled history + GitHub Releases) |
 | EmailConfirmBanner | Top dropdown when a registered user’s Supabase email is not confirmed yet (Resend + dismiss for session) |
 | Server Settings ownership | `isAdminOrOwner` uses `servers.owner_id` **or** members role. Members/servers fetch errors keep prior state so the owner menu and modal do not disappear during polls. |
@@ -70,7 +70,7 @@ frontend/src/
 | DMView | Discord-style DM stream (left-aligned, grouped, date separators). Composer: + inside field, Enter to send, no send button. |
 | ChatView | Same Discord chat chrome for server channels — grouped messages, hover actions, integrated + composer. |
 | ChatInput | Shared Discord composer bar (`#383a40`): attach +, text, optional emoji; Enter submits. |
-| VoiceView | Avatar circles when cam off. **Camera/screen:** focus stage (auto-maximize camera) + top filmstrip; dual stage when screen + camera; self PiP when watching others. Tiles show avatar until first video frame (no black squares). Stream subsets cached in `mediaTracks.ts`. |
+| VoiceView | Avatar circles when cam off. **Camera/screen:** large focus stage (auto-maximize camera) + top filmstrip (dense while watching screen); dual stage gives screen majority space; self PiP when watching others. Tiles show avatar until first video frame (no black squares). Stream subsets cached in `mediaTracks.ts`. |
 | RemoteAudio | Plays remote WebRTC stream |
 | CallOverlay | DM call UI: outgoing/incoming/in-call states |
 | DMView | Direct message chat; Call + Video Call in header (expand if already in call with them); click a message to reply; reactions persisted + realtime via `dm_message_reactions`; reply preview bar; file/image/video links use `FileAttachment` with Download |
