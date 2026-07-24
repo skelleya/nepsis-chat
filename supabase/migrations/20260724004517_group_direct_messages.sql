@@ -21,6 +21,10 @@ CREATE INDEX IF NOT EXISTS idx_dm_conversations_group_updated
   ON public.dm_conversations(is_group, updated_at DESC)
   WHERE is_group = true;
 
+CREATE INDEX IF NOT EXISTS idx_dm_conversations_created_by
+  ON public.dm_conversations(created_by)
+  WHERE created_by IS NOT NULL;
+
 -- Protect against pre-existing manually-created multi-participant rows.
 UPDATE public.dm_conversations conversation
 SET is_group = true,
