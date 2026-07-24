@@ -70,7 +70,7 @@ function readObservedVoiceTab(userId: string): { channelId: string | null; chann
   try {
     const raw = localStorage.getItem(`nepsis_voice_tab_${userId}`)
     const owner = raw ? JSON.parse(raw) as { channelId?: string; channelName?: string; updatedAt?: number } : null
-    if (owner?.updatedAt && Date.now() - owner.updatedAt < 5_000) {
+    if (owner?.updatedAt && Date.now() - owner.updatedAt < 30_000) {
       return { channelId: owner.channelId || null, channelName: owner.channelName || null }
     }
   } catch { /* ignore */ }
@@ -149,7 +149,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
           channelName?: string
           updatedAt?: number
         } : null
-        const fresh = owner?.updatedAt && Date.now() - owner.updatedAt < 5_000
+        const fresh = owner?.updatedAt && Date.now() - owner.updatedAt < 30_000
         const isOther = owner?.tabId && owner.tabId !== tabIdRef.current
         setOtherTabVoiceChannelId(fresh && isOther ? owner?.channelId || null : null)
         setOtherTabVoiceChannelName(fresh && isOther ? owner?.channelName || null : null)
@@ -839,10 +839,9 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   // ─── Screen share toggle (sends screen over WebRTC) ───────────────
   const toggleScreenShare = useCallback(async () => {
     if (isScreenSharing && screenStream) {
-      for (const track of screenStream.getTracks()) {
-        await webrtcRef.current?.removeTrackFromAllPeers(track)
-        track.stop()
-      }
+      const tracks = screenStream.getTracks()
+      await webrtcRef.current?.removeTracksFromAllPeers(tracks)
+      tracks.forEach((track) => track.stop())
       emitScreenShareState(false)
       setScreenStream(null)
       setIsScreenSharing(false)
@@ -876,9 +875,7 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         }
         screenTrack?.addEventListener('ended', () => {
           // User stopped sharing via browser UI
-          stream.getTracks().forEach(async (track) => {
-            await webrtcRef.current?.removeTrackFromAllPeers(track)
-          })
+          void webrtcRef.current?.removeTracksFromAllPeers(stream.getTracks())
           emitScreenShareState(false)
           setScreenStream(null)
           setIsScreenSharing(false)
@@ -889,9 +886,9 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         emitScreenShareState(true)
         // Discord-like: sharer focuses their own share; others click to watch
         setWatchingShareUserId(userId)
-        for (const track of stream.getTracks()) {
-          await webrtcRef.current?.addTrackToAllPeers(track, stream)
-        }
+        await webrtcRef.current?.addTracksToAllPeers(
+          stream.getTracks().map((track) => ({ track, stream }))
+        )
       } catch (err) {
         if (err instanceof Error && err.name !== 'NotAllowedError') {
           setError('Failed to share screen')

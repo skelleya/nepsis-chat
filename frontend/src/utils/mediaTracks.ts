@@ -32,7 +32,7 @@ function getOrCreateSubset(source: MediaStream, tracks: MediaStreamTrack[]): Med
   }
   const existing = map.get(key)
   if (existing) {
-    const live = existing.getVideoTracks().filter((t) => t.readyState !== 'ended')
+    const live = existing.getTracks().filter((t) => t.readyState !== 'ended')
     if (live.length === tracks.length && tracks.every((t) => live.some((l) => l.id === t.id))) {
       return existing
     }
@@ -41,6 +41,21 @@ function getOrCreateSubset(source: MediaStream, tracks: MediaStreamTrack[]): Med
   tracks.forEach((t) => out.addTrack(t))
   map.set(key, out)
   return out
+}
+
+/** Keep microphone audio always; include additional screen-audio tracks only while watching. */
+export function getRemoteAudioStream(
+  stream: MediaStream | null,
+  opts?: { knownScreenSharing?: boolean; includeScreenAudio?: boolean }
+): MediaStream | null {
+  if (!stream) return null
+  const tracks = stream.getAudioTracks().filter((track) => track.readyState !== 'ended')
+  if (tracks.length === 0) return null
+  const selected =
+    opts?.knownScreenSharing && !opts.includeScreenAudio && tracks.length > 1
+      ? [tracks[0]]
+      : tracks
+  return getOrCreateSubset(stream, selected)
 }
 
 export type MediaTrackOpts = {

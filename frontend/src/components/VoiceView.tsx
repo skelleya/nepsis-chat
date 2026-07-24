@@ -7,6 +7,7 @@ import { SoundboardDropdown } from './SoundboardDropdown'
 import {
   getScreenShareStream,
   getParticipantVideoStream,
+  getRemoteAudioStream,
   hasLiveVideo,
 } from '../utils/mediaTracks'
 import { loadPrefs, subscribePrefs } from '../services/userPrefs'
@@ -307,6 +308,7 @@ function ParticipantCard({
   localVideoStream,
   participantVideoStream,
   mirrorLocalPreview,
+  presenceOnly = false,
   isMuted,
   isDeafened,
   isCameraOn,
@@ -328,6 +330,7 @@ function ParticipantCard({
   localVideoStream: MediaStream | null
   participantVideoStream: MediaStream | null
   mirrorLocalPreview: boolean
+  presenceOnly?: boolean
   isMuted: boolean
   isDeafened: boolean
   isCameraOn: boolean
@@ -572,7 +575,7 @@ function ParticipantCard({
         <div className="text-app-muted text-xs">
           {isLocal
             ? (isMuted ? 'Muted' : speaking ? 'Speaking' : 'Connected')
-            : (participant.stream ? 'Connected' : 'Connecting...')}
+            : (participant.stream || presenceOnly ? 'Connected' : 'Connecting...')}
         </div>
       </div>
     </div>
@@ -807,6 +810,7 @@ export function VoiceView({
                 knownScreenSharing: screenShareUserIds.includes(p.userId),
               }),
         mirrorLocalPreview: mirrorCameraPreview,
+        presenceOnly: !isInThisChannel,
         isMuted: isLocal ? isMuted : remoteState?.muted ?? p.isMuted ?? false,
         isDeafened,
         isCameraOn,
@@ -840,6 +844,7 @@ export function VoiceView({
       handleWatchShare,
       handleMaximizeCamera,
       mirrorCameraPreview,
+      isInThisChannel,
     ]
   )
 
@@ -1025,9 +1030,15 @@ export function VoiceView({
         <div aria-hidden className="contents">
           {allParticipants
             .filter((p) => p.userId !== currentUserId && p.stream)
-            .map((p) => (
-              <RemoteAudio key={`audio-${p.userId}`} stream={p.stream} muted={isDeafened} />
-            ))}
+            .map((p) => {
+              const audioStream = getRemoteAudioStream(p.stream, {
+                knownScreenSharing: screenShareUserIds.includes(p.userId),
+                includeScreenAudio: watchingShareUserId === p.userId,
+              })
+              return audioStream
+                ? <RemoteAudio key={`audio-${p.userId}`} stream={audioStream} muted={isDeafened} />
+                : null
+            })}
         </div>
       )}
 

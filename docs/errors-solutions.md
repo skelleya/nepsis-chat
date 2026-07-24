@@ -381,6 +381,8 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | Soundboard clip played twice for the sender | The sender played locally and the backend echoed `soundboard-play` back to the same socket | Relay with `socket.to(room)`, skip self events client-side, and centralize restart/dedup playback for local and remote clips |
 | Screen share could not include audio | `getDisplayMedia` hardcoded `audio: false` | Add “Include audio when sharing screen”; request unprocessed display audio when enabled and send captured audio tracks with a music content hint |
 | Voice gallery and chat looked dense/dated | Fixed video tiles, desktop-only dual-stage proportions, hardcoded chat colors, heavy row hover fills, and an unused density utility | Use responsive auto-fit camera cards, stack screen/camera stages on small screens, move self PiP to the lower right, and apply shared modern chat surface/header/row/composer utilities |
+| Screen audio/video could renegotiate inconsistently | Adding or removing display video and audio one track at a time created overlapping SDP offers | Batch all display tracks into one add/remove operation and create one offer per peer; play extra screen-audio tracks only for viewers watching that share |
+| Observer-tab participants stayed labeled “Connecting…” | Presence-only gallery entries intentionally have no WebRTC stream in the observer tab | Mark observer cards as presence-only and show Connected; reserve Connecting for a media-owning tab waiting for tracks |
 
 ---
 

@@ -332,17 +332,21 @@ export function createWebRTCClient(
 
   // ─── Video/Screen share: add/remove tracks + renegotiate ───────────
 
-  const addTrackToAllPeers = async (track: MediaStreamTrack, stream: MediaStream) => {
-    if (!extraOutbound.some((e) => e.track === track)) {
-      extraOutbound.push({ track, stream })
+  const addTracksToAllPeers = async (entries: { track: MediaStreamTrack; stream: MediaStream }[]) => {
+    for (const entry of entries) {
+      if (!extraOutbound.some((existing) => existing.track === entry.track)) {
+        extraOutbound.push(entry)
+      }
     }
     // Do NOT set contentHint='detail' on all video — that made remote cameras look like
     // screen shares (isScreenShareTrack). Screen tracks set contentHint in VoiceContext.
     for (const [peerId, { pc }] of peers) {
       try {
-        if (!pc.getSenders().some((s) => s.track === track)) {
-          const sender = pc.addTrack(track, stream)
-          void applySenderQuality(sender)
+        for (const { track, stream } of entries) {
+          if (!pc.getSenders().some((s) => s.track === track)) {
+            const sender = pc.addTrack(track, stream)
+            void applySenderQuality(sender)
+          }
         }
         tunePc(pc)
         const offer = await pc.createOffer()
@@ -355,23 +359,37 @@ export function createWebRTCClient(
     }
   }
 
-  const removeTrackFromAllPeers = async (track: MediaStreamTrack) => {
-    const idx = extraOutbound.findIndex((e) => e.track === track)
-    if (idx >= 0) extraOutbound.splice(idx, 1)
+  const addTrackToAllPeers = async (track: MediaStreamTrack, stream: MediaStream) =>
+    addTracksToAllPeers([{ track, stream }])
+
+  const removeTracksFromAllPeers = async (tracks: MediaStreamTrack[]) => {
+    for (const track of tracks) {
+      const idx = extraOutbound.findIndex((entry) => entry.track === track)
+      if (idx >= 0) extraOutbound.splice(idx, 1)
+    }
     for (const [peerId, { pc }] of peers) {
-      const sender = pc.getSenders().find((s) => s.track === track)
-      if (sender) {
-        try {
-          pc.removeTrack(sender)
+      try {
+        let removed = false
+        for (const track of tracks) {
+          const sender = pc.getSenders().find((candidate) => candidate.track === track)
+          if (sender) {
+            pc.removeTrack(sender)
+            removed = true
+          }
+        }
+        if (removed) {
           const offer = await pc.createOffer()
           await pc.setLocalDescription(offer)
           if (pc.localDescription) signaling.sendOffer(peerId, pc.localDescription)
-        } catch (err) {
-          console.error('Renegotiation (remove track) failed for', peerId, err)
         }
+      } catch (err) {
+        console.error('Renegotiation (remove tracks) failed for', peerId, err)
       }
     }
   }
+
+  const removeTrackFromAllPeers = async (track: MediaStreamTrack) =>
+    removeTracksFromAllPeers([track])
 
   // ─── Ping measurement via RTCPeerConnection stats ─────────────────
 
@@ -504,7 +522,9 @@ export function createWebRTCClient(
     addLocalStream,
     setLocalStream: (stream: MediaStream) => { currentLocalStream = stream },
     addTrackToAllPeers,
+    addTracksToAllPeers,
     removeTrackFromAllPeers,
+    removeTracksFromAllPeers,
     getPing,
     resetPeers,
     leave: () => {

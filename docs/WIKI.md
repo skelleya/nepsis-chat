@@ -480,3 +480,9 @@ Test study:
 4. Enable/disable screen audio, share a browser tab that supports audio, and confirm peers hear audio only when enabled and selected in the native picker.
 5. Exercise voice layouts with 1, 2, 4, and 8 participants, camera-only, screen-only, dual camera/screen, mobile width, and desktop width.
 6. Verify DM/server messages, replies, reactions, uploads, editing, compact density, white theme, mobile hover actions, and new-message scrolling after the visual revamp.
+
+Verification results:
+
+- `frontend npm run build` passed TypeScript and the Vite production build (181 modules).
+- Backend syntax checks passed for `soundboard.js`, `voice.js`, and `dm.js`; no backend test script is currently defined.
+- Existing non-fatal build notices remain: optional Everett font assets, stale Browserslist data, mixed static/dynamic imports, and the large main bundle.
