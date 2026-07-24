@@ -353,6 +353,7 @@ function ParticipantCard({
   onMaximizeCamera,
   large = false,
   compact = false,
+  dense = false,
 }: {
   participant: { userId: string; username: string; stream: MediaStream | null; isSpeaking: boolean; streamVersion?: number }
   avatarUrl?: string
@@ -380,6 +381,8 @@ function ParticipantCard({
   large?: boolean
   /** Filmstrip / sidebar tile */
   compact?: boolean
+  /** Smaller filmstrip tiles when a screen share owns the stage */
+  dense?: boolean
 }) {
   const [showMenu, setShowMenu] = useState(false)
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
@@ -626,9 +629,12 @@ function ParticipantCard({
       : 'ring-1 ring-inset ring-white/10'
 
   if (compact) {
+    const sizeClass = dense
+      ? 'w-[5.5rem] sm:w-[6.5rem] h-[3.5rem] sm:h-16'
+      : 'w-[7.5rem] sm:w-36 h-[4.75rem] sm:h-[5.5rem]'
     return (
       <div
-        className={`relative shrink-0 w-[7.5rem] sm:w-36 h-[4.75rem] sm:h-[5.5rem] rounded-lg ${ringClass} ${
+        className={`relative shrink-0 ${sizeClass} rounded-lg ${ringClass} ${
           showUserMenu || (isSharingScreen && onWatchShare) || (showVideoShell && onMaximizeCamera)
             ? 'cursor-pointer'
             : ''
@@ -754,7 +760,7 @@ function ParticipantCard({
               isWatching
                 ? 'ring-4 ring-app-accent shadow-[0_0_16px_rgba(88,101,242,0.4)]'
                 : speaking
-                  ? 'ring-4 ring-[#23a559] shadow-[0_0_16px_rgba(35,165,89,0.55)] scale-105'
+                  ? 'ring-4 ring-[#23a559] shadow-[0_0_16px_rgba(35,165,89,0.55)]'
                   : 'ring-2 ring-white/10'
             }`}
           >
@@ -1019,7 +1025,7 @@ export function VoiceView({
         isMuted?: boolean
         isDeafened?: boolean
       },
-      opts: { large?: boolean; compact?: boolean } = {}
+      opts: { large?: boolean; compact?: boolean; dense?: boolean } = {}
     ) => {
       const isLocal = p.userId === currentUserId
       const remoteState = remoteVoiceStates[p.userId]
@@ -1054,6 +1060,7 @@ export function VoiceView({
         onMaximizeCamera: handleMaximizeCamera,
         large: opts.large,
         compact: opts.compact,
+        dense: opts.dense,
       }
     },
     [
@@ -1091,12 +1098,20 @@ export function VoiceView({
     maximizedCameraUserId !== currentUserId &&
     !(isWatchingShare && maximizedCameraUserId === currentUserId)
 
-  const renderFilmstrip = () => (
-    <div className="shrink-0 px-3 py-3 border-b border-app-glass/[0.06] bg-app-panel/90 backdrop-blur">
+  const renderFilmstrip = (dense = false) => (
+    <div
+      className={`shrink-0 border-b border-app-glass/[0.06] bg-app-panel/90 backdrop-blur ${
+        dense ? 'px-2 py-1.5' : 'px-3 py-3'
+      }`}
+    >
       {/* Inner padding keeps inset rings fully visible inside the horizontal scroller. */}
-      <div className="flex gap-2.5 overflow-x-auto items-stretch p-1.5 scrollbar-thin">
+      <div
+        className={`flex items-stretch overflow-x-auto scrollbar-thin ${
+          dense ? 'gap-1.5 p-1' : 'gap-2.5 p-1.5'
+        }`}
+      >
         {allParticipants.map((p) => (
-          <ParticipantCard key={p.userId} {...cardProps(p, { compact: true })} />
+          <ParticipantCard key={p.userId} {...cardProps(p, { compact: true, dense })} />
         ))}
       </div>
     </div>
@@ -1124,9 +1139,9 @@ export function VoiceView({
     if (showDualFocus && watchingStream && maximizedCameraStream) {
       return (
         <div className="flex-1 flex flex-col min-h-0">
-          {renderFilmstrip()}
-          <div className="voice-dual-focus flex-1 flex flex-col gap-2.5 p-2.5 min-h-0 overflow-auto">
-            <div className="flex-[1.65] min-w-0 min-h-[220px]">
+          {renderFilmstrip(true)}
+          <div className="voice-dual-focus flex-1 flex flex-col gap-1.5 p-1 sm:p-1.5 min-h-0 overflow-hidden">
+            <div className="voice-dual-focus-screen flex-[3.5] min-w-0 min-h-[280px] sm:min-h-[320px]">
               <StageVideo
                 stream={watchingStream}
                 muted
@@ -1138,7 +1153,7 @@ export function VoiceView({
                 onClose={() => setWatchingShareUserId(null)}
               />
             </div>
-            <div className="flex-1 min-w-0 min-h-[200px]">
+            <div className="voice-dual-focus-camera flex-1 min-w-0 min-h-[140px] max-h-[40%] sm:max-h-none sm:max-w-[280px] lg:max-w-[320px]">
               <StageVideo
                 stream={maximizedCameraStream}
                 muted
@@ -1159,8 +1174,8 @@ export function VoiceView({
     if (isWatchingShare && watchingStream) {
       return (
         <div className="flex-1 flex flex-col min-h-0">
-          {renderFilmstrip()}
-          <div className="flex-1 p-2 min-h-0 relative">
+          {renderFilmstrip(true)}
+          <div className="voice-stage-screen relative min-h-0 flex-1 p-0.5 sm:p-1">
             <StageVideo
               stream={watchingStream}
               muted
@@ -1172,7 +1187,7 @@ export function VoiceView({
               onClose={() => setWatchingShareUserId(null)}
             />
             {showSelfPip && videoStream && (
-              <div className="absolute bottom-4 right-4 w-36 sm:w-48 aspect-video rounded-xl overflow-hidden ring-1 ring-white/20 shadow-2xl z-[3]">
+              <div className="absolute bottom-3 right-3 z-[3] aspect-video w-28 overflow-hidden rounded-lg ring-1 ring-white/20 shadow-2xl sm:bottom-4 sm:right-4 sm:w-40 sm:rounded-xl">
                 <TileVideo
                   stream={videoStream}
                   muted
@@ -1180,7 +1195,7 @@ export function VoiceView({
                   avatarUrl={currentUserAvatarUrl}
                   mirror={mirrorCameraPreview}
                 />
-                <div className="absolute bottom-1 left-1.5 text-[10px] text-white font-medium drop-shadow">
+                <div className="absolute bottom-1 left-1.5 text-[10px] font-medium text-white drop-shadow">
                   You
                 </div>
               </div>

@@ -397,6 +397,9 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | Member profile popout flickered when clicking the right sidebar | Portaled popout treated its anchor row as an outside mousedown, starting GSAP close before the row click reopened it | Track/pass the current anchor element, exclude it from outside clicks, set it on row mousedown, and reset the GSAP closing guard on member changes |
 | Theme/sidebar verification initially failed TS6133 | `isOwner` remained destructured after edit permissions moved to `isAdminOrOwner` | Remove the unused destructure and rebuild |
 | Video resize retry could run after a tile unmounted | ResizeObserver scheduled untracked animation frames | Coalesce/cancel the resize RAF during cleanup and detach only that video element’s matching `srcObject` |
+| Floating voice PiP felt stuck on hold after drag | React `pointerup`/`pointermove` on the header closed over `dragging` state and missed release outside the element | Attach `window` `pointermove`/`pointerup`/`pointercancel` on pointerdown; use a movement threshold so Open/click still works (0.2.5) |
+| PiP camera tiles jumped whenever someone spoke | Overlay sorted tiles by speaking priority | Keep stable join order (local + participant list); speaking only drives the green ring (0.2.5) |
+| Hard to see shared screens | Filmstrip + dual-focus split stole stage height/width; PiP used cover-cropped camera tiles only | Dense filmstrip + majority screen flex in dual focus; show Live screens in PiP with contain-fit (0.2.5) |
 
 ---
 
