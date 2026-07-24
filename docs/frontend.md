@@ -58,6 +58,7 @@ frontend/src/
 | MessageContent | Shared server/DM message renderer: mentions, clickable links, media attachments, and `LinkEmbed` preview cards |
 | LinkEmbed | Open Graph preview card; fetches `POST /api/embeds/unfurl` |
 | PatchNotesPanel | Help & Support → Patch notes (bundled history + GitHub Releases) |
+| EmailConfirmBanner | Top dropdown when a registered user’s Supabase email is not confirmed yet (Resend + dismiss for session) |
 | Server Settings ownership | `isAdminOrOwner` uses `servers.owner_id` **or** members role. Members/servers fetch errors keep prior state so the owner menu and modal do not disappear during polls. |
 | DownloadPage | OS-detect primary **Install for Mac/Windows** (Apple/Windows logos); click starts installer download immediately; **Other Installers** reveals the rest + Linux Coming soon. |
 | SoundboardDropdown | Server soundboard: custom-named clips with emoji; uploads attach to `serverId` so every member sees the same list; rename (double-click / pencil); share legacy personal sounds; admin/uploader delete; plays to all voice peers. |

@@ -8,6 +8,16 @@ export type PatchNote = {
 /** In-app patch notes shown under User Settings → Help & Support. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.2.1',
+    date: '2026-07-24',
+    title: 'Voice audio fix, menu dismiss, email banner',
+    highlights: [
+      'Fixed not being able to hear other users after per-user volume controls.',
+      'Voice card menus close when you click away or press Escape.',
+      'Unconfirmed accounts see a Confirm your email banner with Resend.',
+    ],
+  },
+  {
     version: '0.2.0',
     date: '2026-07-24',
     title: 'Link embeds & patch notes',
