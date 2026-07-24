@@ -8,6 +8,15 @@ export type PatchNote = {
 /** In-app patch notes shown under User Settings → Help & Support. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.2.9',
+    date: '2026-07-24',
+    title: 'Discord-style update progress',
+    highlights: [
+      'Updates show a modern Applying update N of 5 progress box with a filling bar.',
+      'A matching splash appears while the app restarts and finishes loading the new version.',
+    ],
+  },
+  {
     version: '0.2.8',
     date: '2026-07-24',
     title: 'Support tickets, Nous subscription & keybindings',

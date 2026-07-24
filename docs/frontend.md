@@ -102,7 +102,8 @@ frontend/src/
 | CommunityPage | Explore page: invite code entry; community list shows online/member counts; **click a server** opens details panel (members, online, channels, owner, Join/Open). **GSAP:** fade+slide-in on mount |
 | InvitePage | Public invite join page — server banner/icon/name, inviter, **member count**, Join Server. **Log In to Join** stores `nepsis_pending_invite` then returns after auth. Successful join sets `joinServerId` + `nepsis_last_view: server` before `navigate('/')`. |
 | AppContent auth gate | `showApp` / `showLogin` initialize from current `user` so remounting `/` after `/invite/:code` (session already set) opens the main app instead of a stuck login shell. |
-| UpdateButton | Electron: green download control in the title bar (left of minimize); click downloads then shows Discord-style **Updating your software** modal |
+| UpdateButton | Electron: green download control in the title bar; download % then Discord-style **Applying update N of 5** modal |
+| UpdateApplyingPanel | Shared stepped apply/finish progress UI for desktop updates |
 | TitleBar | Electron chrome; Support (?) then Update, then min/max/close |
 | DesktopUpdatesPanel | Settings → Help & Support: version + Check for updates (desktop only) |
 | DownloadBanner | Centered top tab: short prompt (“Prefer the desktop app?”) + clear Download button + subtle dismiss; `rounded-b-xl`; dismissible (localStorage); sets `--download-banner-height`; hidden on `/download` and in Electron. **GSAP:** slide/fade in/out |

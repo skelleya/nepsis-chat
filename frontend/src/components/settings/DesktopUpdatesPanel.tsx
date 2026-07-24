@@ -22,7 +22,7 @@ export function DesktopUpdatesPanel() {
   const busy = checkStatus.status === 'checking' || downloading || installing
   const statusText =
     installing
-      ? 'Updating your software…'
+      ? 'Applying update — stepped progress is on screen. The app will restart automatically.'
       : downloading && !updateDownloaded
         ? `Downloading update${availableVersion ? ` v${availableVersion}` : ''}… ${downloadPercent}%`
         : checkStatus.message ||

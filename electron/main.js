@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, session, systemPreferences } = require('electron')
 const path = require('path')
 const fs = require('fs')
+const { pathToFileURL } = require('url')
 const { autoUpdater } = require('electron-updater')
 
 const isDev = process.env.NODE_ENV === 'development'
@@ -27,8 +28,14 @@ if (!gotSingleInstanceLock) {
 }
 
 let mainWindow = null
+let updatingWindow = null
 let tray = null
 let updateReady = false
+/** When true, mainWindow stays hidden until the finishing splash completes. */
+let holdMainUntilSplashDone = false
+
+const PENDING_UPDATE_FINISH_FILE = () =>
+  path.join(app.getPath('userData'), 'nepsis-pending-update-finish.json')
 
 // Updates from GitHub Releases (same channel for Windows + macOS)
 if (!isDev && app.isPackaged) {
@@ -76,6 +83,95 @@ function focusMainWindow() {
     mainWindow.setAlwaysOnTop(true)
     mainWindow.setAlwaysOnTop(false)
   }
+}
+
+function markPendingUpdateFinish(version) {
+  try {
+    fs.writeFileSync(
+      PENDING_UPDATE_FINISH_FILE(),
+      JSON.stringify({ version: version || app.getVersion(), at: Date.now() }),
+      'utf8'
+    )
+  } catch (err) {
+    console.warn('Failed to write pending update marker', err?.message || err)
+  }
+}
+
+function consumePendingUpdateFinish() {
+  const file = PENDING_UPDATE_FINISH_FILE()
+  try {
+    if (!fs.existsSync(file)) return null
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'))
+    fs.unlinkSync(file)
+    if (!data?.at || Date.now() - Number(data.at) > 15 * 60 * 1000) return null
+    return data
+  } catch {
+    try {
+      fs.unlinkSync(file)
+    } catch {
+      /* ignore */
+    }
+    return null
+  }
+}
+
+function isUpdatedRelaunchArg() {
+  return process.argv.some((arg) => arg === '--updated' || arg.startsWith('--updated='))
+}
+
+function closeUpdatingWindow() {
+  if (updatingWindow && !updatingWindow.isDestroyed()) {
+    try {
+      updatingWindow.close()
+    } catch {
+      /* ignore */
+    }
+  }
+  updatingWindow = null
+}
+
+/**
+ * Discord-style frameless splash: stepped “Applying update N of M” progress.
+ * phase: 'applying' (pre-quit) | 'finishing' (post-relaunch)
+ */
+function showUpdatingSplash({ phase = 'applying', version = '' } = {}) {
+  closeUpdatingWindow()
+  const icon = loadIcon()
+  updatingWindow = new BrowserWindow({
+    width: 460,
+    height: 340,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    frame: false,
+    show: false,
+    center: true,
+    alwaysOnTop: true,
+    skipTaskbar: false,
+    backgroundColor: '#111214',
+    icon,
+    title: 'Updating Nepsis Chat',
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  })
+  if (icon) updatingWindow.setIcon(icon)
+
+  const htmlPath = path.join(__dirname, 'updating.html')
+  const qs = new URLSearchParams({
+    phase: phase === 'finishing' ? 'finishing' : 'applying',
+    version: String(version || '').replace(/^v/i, ''),
+  })
+  updatingWindow.loadURL(`${pathToFileURL(htmlPath).href}?${qs.toString()}`)
+  updatingWindow.once('ready-to-show', () => {
+    if (updatingWindow && !updatingWindow.isDestroyed()) updatingWindow.show()
+  })
+  updatingWindow.on('closed', () => {
+    updatingWindow = null
+  })
+  return updatingWindow
 }
 
 /** Compare dotted versions; true if remote is strictly newer than local. */
@@ -150,6 +246,7 @@ function createWindow() {
   Menu.setApplicationMenu(null)
 
   mainWindow.once('ready-to-show', () => {
+    if (holdMainUntilSplashDone) return
     mainWindow.show()
   })
 
@@ -291,13 +388,30 @@ ipcMain.handle('quit-and-install', async () => {
     console.warn('quit-and-install: updateReady was false; attempting quitAndInstall anyway')
   }
 
+  // So the next launch shows the finishing splash even if `--updated` is missing.
+  markPendingUpdateFinish(app.getVersion())
+
   // Detach close-to-tray handlers so quitAndInstall is not blocked
   for (const win of BrowserWindow.getAllWindows()) {
     win.removeAllListeners('close')
   }
 
-  // Brief delay lets the renderer paint its blocking "Applying update" modal.
-  await new Promise((r) => setTimeout(r, 400))
+  try {
+    // Dedicated splash survives briefly while the main window hides / process exits.
+    showUpdatingSplash({ phase: 'applying', version: app.getVersion() })
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      try {
+        mainWindow.hide()
+      } catch {
+        /* ignore */
+      }
+    }
+  } catch (err) {
+    console.warn('Updating splash failed', err?.message || err)
+  }
+
+  // Let the splash animate a couple of steps before NSIS takes over.
+  await new Promise((r) => setTimeout(r, 1400))
 
   try {
     // Silent NSIS update (/S --updated) reuses InstallLocation and never shows the
@@ -350,8 +464,41 @@ if (gotSingleInstanceLock) {
 
   app.whenReady().then(() => {
     setupMediaPermissions()
-    createWindow()
-    createTray()
+
+    const pendingFinish = consumePendingUpdateFinish()
+    const updatedRelaunch = isUpdatedRelaunchArg() || !!pendingFinish
+    if (updatedRelaunch) {
+      holdMainUntilSplashDone = true
+      const splashStarted = Date.now()
+      showUpdatingSplash({
+        phase: 'finishing',
+        version: app.getVersion(),
+      })
+      createWindow()
+      createTray()
+
+      const revealMain = () => {
+        const minMs = 3800
+        const wait = Math.max(0, minMs - (Date.now() - splashStarted))
+        setTimeout(() => {
+          holdMainUntilSplashDone = false
+          closeUpdatingWindow()
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.show()
+            focusMainWindow()
+          }
+        }, wait)
+      }
+
+      if (mainWindow?.webContents.isLoading()) {
+        mainWindow.webContents.once('did-finish-load', revealMain)
+      } else {
+        revealMain()
+      }
+    } else {
+      createWindow()
+      createTray()
+    }
   })
 
   app.on('window-all-closed', () => {

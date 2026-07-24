@@ -175,8 +175,9 @@ export function useDesktopUpdate() {
     setInstalling(true)
     setInstallError(null)
     try {
-      // Give React time to paint the blocking applying modal before Electron exits.
-      await new Promise((resolve) => window.setTimeout(resolve, 650))
+      // Let the Discord-style “Applying update N of M” steps advance before Electron exits.
+      // The main process also shows an updating splash during quitAndInstall / relaunch.
+      await new Promise((resolve) => window.setTimeout(resolve, 3200))
       await window.electronAPI?.quitAndInstall()
       // Process should exit; keep the applying state visible until it does.
     } catch (err) {

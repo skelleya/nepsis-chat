@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { useDesktopUpdate } from '../hooks/useDesktopUpdate'
+import { UpdateApplyingPanel } from './UpdateApplyingPanel'
 
 /** Neon download/apply glyph for the update-available badge. */
 function UpdateDownloadIcon({ className = '', size = 22 }: { className?: string; size?: number }) {
@@ -38,8 +39,8 @@ function UpdateDownloadIcon({ className = '', size = 22 }: { className?: string;
 
 /**
  * Desktop update UI (Discord-style):
- * - Compact green download control for the title bar (left of minimize)
- * - Click downloads, then shows “Updating your software” modal and restarts
+ * - Compact green download control for the title bar
+ * - Download progress, then stepped “Applying update N of M” before restart
  */
 export function UpdateButton({ variant = 'titlebar' }: { variant?: 'titlebar' | 'floating' }) {
   const {
@@ -71,6 +72,7 @@ export function UpdateButton({ variant = 'titlebar' }: { variant?: 'titlebar' | 
   const showBadge =
     updateAvailable && !userStarted && !installing && !downloading
   const showModal = userStarted || installing || downloading
+  const showApplying = installing || (updateDownloaded && userStarted && !downloading)
 
   const startUpdateFromBadge = () => {
     setUserStarted(true)
@@ -83,14 +85,14 @@ export function UpdateButton({ variant = 'titlebar' }: { variant?: 'titlebar' | 
     void downloadUpdate()
   }
 
-  const title = installing
+  const title = installing || showApplying
     ? 'Updating your software'
     : downloading && !updateDownloaded
       ? 'Downloading update…'
       : 'Preparing update…'
 
-  const subtitle = installing
-    ? 'Nepsis Chat is installing the update. This window will reopen automatically.'
+  const subtitle = installing || showApplying
+    ? 'Nepsis Chat is applying the update and will reopen automatically.'
     : downloading && !updateDownloaded
       ? `${versionLabel} is downloading. Keep this window open.`
       : `${versionLabel} will install next.`
@@ -123,60 +125,55 @@ export function UpdateButton({ variant = 'titlebar' }: { variant?: 'titlebar' | 
     showModal && typeof document !== 'undefined'
       ? createPortal(
           <div
-            className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-[300] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md"
             style={noDrag}
             role="dialog"
             aria-modal="true"
             aria-label={title}
           >
             <div className="w-full max-w-md overflow-hidden rounded-2xl border border-app-glass/10 bg-app-darker text-app-text shadow-2xl">
-              <div className="flex items-center gap-4 border-b border-app-glass/10 p-5">
-                <img
-                  src="./logo.png"
-                  alt=""
-                  className="h-12 w-12 rounded-xl bg-white/95 object-contain p-1"
+              <div className="relative overflow-hidden border-b border-app-glass/10 p-5">
+                <div
+                  className="pointer-events-none absolute inset-0 opacity-80"
+                  style={{
+                    background:
+                      'radial-gradient(120% 90% at 0% 0%, rgba(255,90,31,0.18), transparent 55%), radial-gradient(80% 70% at 100% 100%, rgba(35,165,89,0.08), transparent 50%)',
+                  }}
                 />
-                <div className="min-w-0">
-                  <h2 className="text-lg font-bold">{title}</h2>
-                  <p className="text-sm text-app-muted">{subtitle}</p>
+                <div className="relative flex items-center gap-4">
+                  <img
+                    src="./logo.png"
+                    alt=""
+                    className="h-12 w-12 rounded-xl bg-white/95 object-contain p-1"
+                  />
+                  <div className="min-w-0">
+                    <h2 className="text-lg font-bold tracking-tight">{title}</h2>
+                    <p className="text-sm text-app-muted">{subtitle}</p>
+                  </div>
                 </div>
               </div>
 
               <div className="space-y-4 p-5">
-                {installing || updateDownloaded ? (
-                  <>
-                    <p className="text-sm text-app-muted">
-                      Installing silently with your existing settings. Do not close the app.
-                    </p>
-                    <div className="h-2 overflow-hidden rounded-full bg-app-glass/10">
-                      <div className="h-full w-1/3 animate-[updateApplying_1.1s_ease-in-out_infinite] rounded-full bg-app-accent" />
-                    </div>
-                    <style>{`
-                      @keyframes updateApplying {
-                        0% { transform: translateX(-110%); }
-                        100% { transform: translateX(410%); }
-                      }
-                    `}</style>
-                    {installError && (
-                      <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-300" role="alert">
-                        {installError}
-                      </p>
-                    )}
-                  </>
+                {showApplying ? (
+                  <UpdateApplyingPanel
+                    active={installing || showApplying}
+                    versionLabel={availableVersion ? `v${availableVersion}` : null}
+                    error={installError}
+                  />
                 ) : (
                   <>
                     <div className="flex items-center justify-between text-xs text-app-muted">
                       <span>Downloading</span>
-                      <span>{downloadPercent}%</span>
+                      <span className="tabular-nums">{downloadPercent}%</span>
                     </div>
                     <div className="h-2 overflow-hidden rounded-full bg-app-glass/10">
                       <div
-                        className="h-full rounded-full bg-app-accent transition-[width] duration-200"
+                        className="h-full rounded-full bg-gradient-to-r from-[#ff7a3d] to-app-accent transition-[width] duration-200"
                         style={{ width: `${Math.max(4, downloadPercent)}%` }}
                       />
                     </div>
                     <p className="text-sm text-app-muted">
-                      When the download finishes, Nepsis will restart and finish updating.
+                      When the download finishes, Nepsis will apply the update and restart.
                     </p>
                     {installError && (
                       <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-300" role="alert">

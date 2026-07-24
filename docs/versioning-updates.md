@@ -7,19 +7,20 @@ Desktop updates use **electron-updater** with **GitHub Releases** as the feed (W
 ## How users get updates
 
 1. App launches (and every 30 minutes) → checks GitHub Releases for a newer version (`autoDownload = false` — nothing is downloaded yet).
-2. If a newer release is found → only a **green download arrow** appears at the **top right** (no auto modal, no background download).
-3. User clicks the badge → download starts with a progress modal, then the app restarts with an **Updating your software** loading modal.
-4. Install is a **silent** one-click NSIS update (`quitAndInstall(true, true)` → `/S --updated`) that reuses the existing install location.
-5. The app relaunches on the new version.
+2. If a newer release is found → only a **green download arrow** appears in the title bar (no auto modal, no background download).
+3. User clicks the badge → **download** progress modal (real %), then a Discord-style **Applying update N of 5** panel with a filling bar and step list.
+4. Electron shows a frameless **updating splash** (`updating.html`) while quitting to install; install is a silent NSIS update (`quitAndInstall(true, true)` → `/S --updated`).
+5. On relaunch (`--updated` and/or a pending-finish marker), the splash returns in **Finishing update** mode (steps 1–5) until the main window is ready, then the app appears.
 6. **User Settings → Help & Support → Check for updates** can also surface availability; **Download update** / **Restart and update** match the badge flow.
 
-Files: `electron/main.js`, `frontend/src/components/UpdateButton.tsx`, `frontend/src/hooks/useDesktopUpdate.ts`, `frontend/src/components/settings/DesktopUpdatesPanel.tsx`.
+Files: `electron/main.js`, `electron/updating.html`, `frontend/src/components/UpdateButton.tsx`, `frontend/src/components/UpdateApplyingPanel.tsx`, `frontend/src/hooks/useDesktopUpdate.ts`, `frontend/src/components/settings/DesktopUpdatesPanel.tsx`.
 
 Notes:
 
-- Download progress is real; the applying bar is indeterminate because NSIS install progress is not exposed to the renderer.
+- Download progress is real. Apply/finish steps are timed UX (NSIS does not report install progress to Electron).
 - Packaged Windows builds use `nsis.oneClick: true`. In-app updates never ask “who should this application be installed for?”.
 - Only one desktop session is allowed (`requestSingleInstanceLock`); a second launch focuses the existing window.
+- `updating.html` must be listed in electron-builder `files` so it ships inside the asar.
 
 ---
 

@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:;" />
+  <title>Updating Nepsis Chat</title>
+  <style>
+    :root {
+      --bg: #111214;
+      --panel: #1e1f22;
+      --text: #f2f3f5;
+      --muted: #949ba4;
+      --accent: #ff5a1f;
+      --accent-soft: rgba(255, 90, 31, 0.18);
+      --track: rgba(255, 255, 255, 0.08);
+      --ok: #23a559;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      user-select: none;
+      -webkit-app-region: drag;
+    }
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        radial-gradient(120% 80% at 10% 0%, rgba(255, 90, 31, 0.16), transparent 55%),
+        radial-gradient(90% 70% at 100% 100%, rgba(35, 165, 89, 0.08), transparent 50%),
+        var(--bg);
+    }
+    .card {
+      width: min(420px, calc(100% - 32px));
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: linear-gradient(180deg, rgba(30, 31, 34, 0.96), rgba(17, 18, 20, 0.98));
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+      padding: 28px 28px 24px;
+      -webkit-app-region: no-drag;
+    }
+    .header {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      margin-bottom: 22px;
+    }
+    .logo {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: #fff;
+      object-fit: contain;
+      padding: 4px;
+      flex-shrink: 0;
+    }
+    .logo-fallback {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: var(--accent);
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      font-size: 18px;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .sub {
+      margin: 4px 0 0;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    .step-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 10px;
+      font-size: 13px;
+    }
+    .step-label strong { font-weight: 600; }
+    .step-count {
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .bar {
+      height: 8px;
+      border-radius: 999px;
+      background: var(--track);
+      overflow: hidden;
+      position: relative;
+    }
+    .bar > i {
+      display: block;
+      height: 100%;
+      width: 8%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #ff7a3d, var(--accent));
+      transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+      box-shadow: 0 0 18px rgba(255, 90, 31, 0.45);
+    }
+    .steps {
+      margin: 18px 0 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 8px;
+    }
+    .steps li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12.5px;
+      color: var(--muted);
+      transition: color 0.2s ease;
+    }
+    .steps li.active { color: var(--text); }
+    .steps li.done { color: var(--ok); }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.14);
+      flex-shrink: 0;
+      transition: background 0.2s ease, box-shadow 0.2s ease;
+    }
+    .steps li.active .dot {
+      background: var(--accent);
+      box-shadow: 0 0 0 4px var(--accent-soft);
+    }
+    .steps li.done .dot { background: var(--ok); box-shadow: none; }
+    .foot {
+      margin-top: 18px;
+      font-size: 11px;
+      color: var(--muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="card" role="dialog" aria-live="polite" aria-busy="true">
+    <div class="header">
+      <img class="logo" src="./icon.png" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'logo-fallback',textContent:'N'}))" />
+      <div>
+        <h1 id="title">Updating Nepsis Chat</h1>
+        <p class="sub" id="subtitle">Hang tight — this only takes a moment.</p>
+      </div>
+    </div>
+
+    <div class="step-label">
+      <strong id="currentStep">Preparing update…</strong>
+      <span class="step-count" id="stepCount">0 of 5</span>
+    </div>
+    <div class="bar" aria-hidden="true"><i id="fill"></i></div>
+
+    <ul class="steps" id="stepList"></ul>
+    <p class="foot" id="foot">Do not close this window.</p>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(location.search)
+    const phase = params.get('phase') || 'applying'
+    const version = params.get('version') || ''
+
+    const APPLYING = [
+      'Preparing update packages',
+      'Verifying downloaded files',
+      'Installing application files',
+      'Applying configuration',
+      'Restarting Nepsis Chat',
+    ]
+    const FINISHING = [
+      'Loading new version',
+      'Restoring your session',
+      'Warming up voice services',
+      'Applying final touches',
+      'Almost ready',
+    ]
+
+    const steps = phase === 'finishing' ? FINISHING : APPLYING
+    const titleEl = document.getElementById('title')
+    const subtitleEl = document.getElementById('subtitle')
+    const currentEl = document.getElementById('currentStep')
+    const countEl = document.getElementById('stepCount')
+    const fillEl = document.getElementById('fill')
+    const listEl = document.getElementById('stepList')
+    const footEl = document.getElementById('foot')
+
+    titleEl.textContent = phase === 'finishing' ? 'Finishing update' : 'Updating your software'
+    subtitleEl.textContent = version
+      ? (phase === 'finishing' ? `Starting Nepsis Chat v${version}` : `Installing v${version}`)
+      : (phase === 'finishing' ? 'Starting your updated app…' : 'Installing the latest Nepsis Chat…')
+    footEl.textContent = phase === 'finishing'
+      ? 'Thanks for updating — opening the app next.'
+      : 'Do not close this window. Nepsis will reopen automatically.'
+
+    listEl.innerHTML = steps.map((label, i) =>
+      `<li data-i="${i}"><span class="dot"></span><span>${label}</span></li>`
+    ).join('')
+
+    let index = 0
+    const total = steps.length
+
+    function render() {
+      const pct = Math.max(6, Math.round(((index + 1) / total) * 100))
+      currentEl.textContent = steps[Math.min(index, total - 1)]
+      countEl.textContent = `${Math.min(index + 1, total)} of ${total}`
+      fillEl.style.width = pct + '%'
+      listEl.querySelectorAll('li').forEach((li) => {
+        const i = Number(li.dataset.i)
+        li.classList.toggle('done', i < index)
+        li.classList.toggle('active', i === index)
+      })
+    }
+
+    render()
+    const tickMs = phase === 'finishing' ? 700 : 850
+    const timer = setInterval(() => {
+      if (index >= total - 1) {
+        clearInterval(timer)
+        fillEl.style.width = '100%'
+        return
+      }
+      index += 1
+      render()
+    }, tickMs)
+  </script>
+</body>
+</html>

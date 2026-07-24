@@ -900,3 +900,15 @@ Test study:
 3. Settings → Keybindings → rebind Toggle mute → combo saves; in voice, new combo toggles mute.
 4. Guest account → Support form explains sign-in is required.
 
+### Discord-style update applying UI (0.2.9) (2026-07-24)
+
+- In-app modal: download % → **Applying update N of 5** stepped bar (`UpdateApplyingPanel`).
+- Electron `updating.html` splash during `quitAndInstall` and again on relaunch (`--updated` / pending-finish marker).
+- Electron `0.2.9`. Tag `v0.2.9`.
+
+Test study:
+
+1. On an older desktop build, click the green update arrow → download bar fills with real %.
+2. After download → stepped Applying update 1–5 UI appears; splash window shows while restarting.
+3. After relaunch → Finishing update splash briefly, then the app opens on the new version.
+
