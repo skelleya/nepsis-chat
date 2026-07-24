@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useDesktopUpdate } from '../hooks/useDesktopUpdate'
 
-/** Neon download/apply glyph for the deferred-update badge. */
+/** Neon download/apply glyph for the update-available badge. */
 function UpdateDownloadIcon({ className = '' }: { className?: string }) {
   return (
     <svg
@@ -36,10 +36,9 @@ function UpdateDownloadIcon({ className = '' }: { className?: string }) {
 }
 
 /**
- * Desktop update UI:
- * - Modal for download / ready / applying
- * - "Update later" dismisses the ready modal and leaves a top-right badge
- * - Badge click applies the staged update
+ * Desktop update UI (Discord-style):
+ * - When an update is available, only show a green download badge (no auto-download)
+ * - Badge click downloads, then restarts with an “Updating your software” loading modal
  */
 export function UpdateButton() {
   const {
@@ -51,57 +50,49 @@ export function UpdateButton() {
     installError,
     availableVersion,
     downloadPercent,
+    downloadUpdate,
     installUpdate,
   } = useDesktopUpdate()
-  const [dismissed, setDismissed] = useState(false)
-  const lastAnnouncedVersionRef = useRef<string | null>(null)
+  const [userStarted, setUserStarted] = useState(false)
+  const autoInstallRef = useRef(false)
 
-  // Re-show the modal only when a new version becomes ready/download starts —
-  // not every render while `updateDownloaded` stays true (that would ignore Later).
+  // After the user starts an update from the badge, install as soon as download finishes.
   useEffect(() => {
-    if (!isElectron) return
-    const key = availableVersion || (updateDownloaded ? 'ready' : downloading ? 'downloading' : null)
-    if (!key) return
-    if (installing) {
-      setDismissed(false)
-      return
-    }
-    if (key !== lastAnnouncedVersionRef.current) {
-      lastAnnouncedVersionRef.current = key
-      setDismissed(false)
-    }
-  }, [isElectron, availableVersion, updateDownloaded, downloading, installing])
+    if (!userStarted || !updateDownloaded || installing || autoInstallRef.current) return
+    autoInstallRef.current = true
+    void installUpdate()
+  }, [userStarted, updateDownloaded, installing, installUpdate])
 
   if (!isElectron) return null
 
   const versionLabel = availableVersion ? `v${availableVersion}` : 'Update'
   const noDrag = { WebkitAppRegion: 'no-drag' } as CSSProperties
-  const updateReady = updateAvailable && updateDownloaded
-  const showModal =
-    !dismissed && (installing || downloading || updateReady)
   const showBadge =
-    dismissed && !installing && (updateReady || downloading)
+    updateAvailable && !userStarted && !installing && !downloading
+  const showModal = userStarted || installing || downloading
 
-  const openModal = () => setDismissed(false)
-
-  const applyFromBadge = () => {
-    setDismissed(false)
+  const startUpdateFromBadge = () => {
+    setUserStarted(true)
+    autoInstallRef.current = false
     if (updateDownloaded) {
+      autoInstallRef.current = true
       void installUpdate()
+      return
     }
+    void downloadUpdate()
   }
 
   const title = installing
-    ? 'Applying update…'
+    ? 'Updating your software'
     : downloading && !updateDownloaded
       ? 'Downloading update…'
-      : 'Update ready'
+      : 'Preparing update…'
 
   const subtitle = installing
-    ? 'Nepsis Chat will reopen automatically.'
+    ? 'Nepsis Chat is installing the update. This window will reopen automatically.'
     : downloading && !updateDownloaded
-      ? `${versionLabel} is downloading in the background.`
-      : `${versionLabel} downloaded and is ready to install silently.`
+      ? `${versionLabel} is downloading. Keep this window open.`
+      : `${versionLabel} will install next.`
 
   return (
     <>
@@ -127,7 +118,7 @@ export function UpdateButton() {
             </div>
 
             <div className="space-y-4 p-5">
-              {installing ? (
+              {installing || updateDownloaded ? (
                 <>
                   <p className="text-sm text-app-muted">
                     Installing silently with your existing settings. Do not close the app.
@@ -141,8 +132,13 @@ export function UpdateButton() {
                       100% { transform: translateX(410%); }
                     }
                   `}</style>
+                  {installError && (
+                    <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-300" role="alert">
+                      {installError}
+                    </p>
+                  )}
                 </>
-              ) : downloading && !updateDownloaded ? (
+              ) : (
                 <>
                   <div className="flex items-center justify-between text-xs text-app-muted">
                     <span>Downloading</span>
@@ -155,46 +151,13 @@ export function UpdateButton() {
                     />
                   </div>
                   <p className="text-sm text-app-muted">
-                    You can keep using Nepsis Chat. We will ask you to restart when the download
-                    finishes.
-                  </p>
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setDismissed(true)}
-                      className="rounded-lg px-4 py-2 text-sm font-semibold text-app-muted hover:bg-app-glass/10 hover:text-app-text"
-                    >
-                      Update later
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-app-muted">
-                    Restart to apply the update. There is no install wizard — the same install
-                    location and account scope are reused automatically.
+                    When the download finishes, Nepsis will restart and finish updating.
                   </p>
                   {installError && (
                     <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-300" role="alert">
                       {installError}
                     </p>
                   )}
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setDismissed(true)}
-                      className="rounded-lg px-4 py-2 text-sm font-semibold text-app-muted hover:bg-app-glass/10 hover:text-app-text"
-                    >
-                      Update later
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void installUpdate()}
-                      className="rounded-lg bg-app-accent px-4 py-2 text-sm font-semibold text-white hover:bg-app-accent-hover"
-                    >
-                      Restart and update
-                    </button>
-                  </div>
                 </>
               )}
             </div>
@@ -205,26 +168,13 @@ export function UpdateButton() {
       {showBadge && (
         <button
           type="button"
-          onClick={() => (updateDownloaded ? applyFromBadge() : openModal())}
-          title={
-            updateDownloaded
-              ? `Apply update${availableVersion ? ` ${versionLabel}` : ''}`
-              : `Update downloading${availableVersion ? ` ${versionLabel}` : ''} — click for progress`
-          }
-          aria-label={
-            updateDownloaded
-              ? `Apply update${availableVersion ? ` ${versionLabel}` : ''}`
-              : 'Show update download progress'
-          }
+          onClick={startUpdateFromBadge}
+          title={`Update available${availableVersion ? ` ${versionLabel}` : ''} — click to install`}
+          aria-label={`Update available${availableVersion ? ` ${versionLabel}` : ''} — click to install`}
           className="fixed top-10 right-3 z-[70] flex h-10 w-10 items-center justify-center rounded-xl border border-[#23d18c]/40 bg-black/85 text-[#23d18c] shadow-lg shadow-black/40 hover:bg-black hover:border-[#23d18c] hover:scale-105 transition-transform"
           style={noDrag}
         >
           <UpdateDownloadIcon />
-          {downloading && !updateDownloaded && (
-            <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[9px] font-bold text-[#23d18c]">
-              {downloadPercent}%
-            </span>
-          )}
         </button>
       )}
     </>

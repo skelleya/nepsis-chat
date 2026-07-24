@@ -30,8 +30,8 @@ export function useDesktopUpdate() {
         status: 'available',
         version: info?.version,
         message: info?.version
-          ? `Update ${info.version} is downloading…`
-          : 'An update is downloading…',
+          ? `Update v${info.version} is available. Click the green arrow to install.`
+          : 'An update is available. Click the green arrow to install.',
       })
     })
 
@@ -121,7 +121,7 @@ export function useDesktopUpdate() {
         const next: DesktopUpdateCheckResult = {
           status: 'available',
           version: result?.version || availableVersion,
-          message: `Update v${result?.version || availableVersion || ''} is ready to install.`,
+          message: `Update v${result?.version || availableVersion || ''} is ready. Click Restart and update or the green arrow.`,
         }
         setCheckStatus(next)
         return next
@@ -129,14 +129,13 @@ export function useDesktopUpdate() {
       if (result?.isUpdateAvailable && result.version) {
         setUpdateAvailable(true)
         setAvailableVersion(result.version)
-        // autoDownload is on — progress events will follow
+        // Manual download — badge only until the user starts the update
         const next: DesktopUpdateCheckResult = {
           status: 'available',
           version: result.version,
-          message: `Update v${result.version} found. Downloading…`,
+          message: `Update v${result.version} is available. Click the green arrow (or Download below) to install.`,
         }
         setCheckStatus(next)
-        setDownloading(true)
         return next
       }
       const next: DesktopUpdateCheckResult = {
@@ -158,7 +157,7 @@ export function useDesktopUpdate() {
     }
   }, [availableVersion, updateDownloaded, version])
 
-  const downloadUpdate = async () => {
+  const downloadUpdate = useCallback(async () => {
     if (!updateAvailable || updateDownloaded || downloading) return
     setDownloading(true)
     setDownloadPercent(0)
@@ -169,9 +168,9 @@ export function useDesktopUpdate() {
       setInstallError(result.error)
       console.error(result.error)
     }
-  }
+  }, [updateAvailable, updateDownloaded, downloading])
 
-  const installUpdate = async () => {
+  const installUpdate = useCallback(async () => {
     if (!updateDownloaded || installing) return
     setInstalling(true)
     setInstallError(null)
@@ -186,7 +185,7 @@ export function useDesktopUpdate() {
       setInstalling(false)
       console.error(err)
     }
-  }
+  }, [updateDownloaded, installing])
 
   return {
     isElectron: !!window.electronAPI?.isElectron,

@@ -8,6 +8,8 @@ import {
   getAudioConstraints,
   getScreenConstraints,
   getVideoConstraints,
+  getPeerVolume,
+  getStreamVolume,
   loadPrefs,
   subscribePrefs,
   updatePrefs,
@@ -15,7 +17,11 @@ import {
 } from '../services/userPrefs'
 import { createPortal } from 'react-dom'
 import { RemoteAudio } from '../components/RemoteAudio'
-import { getRemoteAudioStream, getScreenShareStream } from '../utils/mediaTracks'
+import {
+  getRemoteMicAudioStream,
+  getRemoteScreenAudioStream,
+  getScreenShareStream,
+} from '../utils/mediaTracks'
 import { getCallBusy } from '../services/mediaSessionGate'
 import { smoothPing, type IcePathType, type PingSource } from '../services/connectionStats'
 import { formatMediaPermissionError } from '../utils/mediaPermissionError'
@@ -150,6 +156,12 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   const pingSourceRef = useRef<PingSource>('none')
   const [leftUserIds, setLeftUserIds] = useState<Set<string>>(new Set())
   const [watchingShareUserId, setWatchingShareUserId] = useState<string | null>(null)
+  /** Bumps when per-user / stream volumes change so audio sinks re-read prefs. */
+  const [volumePrefsTick, setVolumePrefsTick] = useState(0)
+
+  useEffect(() => {
+    return subscribePrefs(() => setVolumePrefsTick((n) => n + 1))
+  }, [])
   /** Explicit screen-share signals from peers (remote tracks often lack labels) */
   const [remoteScreenShareIds, setRemoteScreenShareIds] = useState<Set<string>>(new Set())
   const [remoteVoiceStates, setRemoteVoiceStates] = useState<Record<string, RemoteVoiceState>>({})
@@ -1227,18 +1239,36 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
             {isConnected &&
               participants
                 .filter((participant) => participant.userId !== userId)
-                .map((participant) => {
-                  const audioStream = getRemoteAudioStream(participant.stream, {
-                    knownScreenSharing: screenShareUserIds.includes(participant.userId),
-                    includeScreenAudio: watchingShareUserId === participant.userId,
-                  })
-                  return (
+                .flatMap((participant) => {
+                  const knownScreenSharing = screenShareUserIds.includes(participant.userId)
+                  const watching = watchingShareUserId === participant.userId
+                  const prefs = loadPrefs()
+                  // volumePrefsTick keeps multipliers fresh after slider changes
+                  void volumePrefsTick
+                  const micStream = getRemoteMicAudioStream(participant.stream, { knownScreenSharing })
+                  const screenStream =
+                    watching
+                      ? getRemoteScreenAudioStream(participant.stream, { knownScreenSharing })
+                      : null
+                  const nodes = [
                     <RemoteAudio
-                      key={`voice-audio-${participant.userId}`}
-                      stream={audioStream}
+                      key={`voice-audio-mic-${participant.userId}`}
+                      stream={micStream}
                       muted={isDeafened}
-                    />
-                  )
+                      volumeMultiplier={getPeerVolume(participant.userId, prefs)}
+                    />,
+                  ]
+                  if (screenStream) {
+                    nodes.push(
+                      <RemoteAudio
+                        key={`voice-audio-stream-${participant.userId}`}
+                        stream={screenStream}
+                        muted={isDeafened}
+                        volumeMultiplier={getStreamVolume(participant.userId, prefs)}
+                      />
+                    )
+                  }
+                  return nodes
                 })}
           </div>,
           document.body

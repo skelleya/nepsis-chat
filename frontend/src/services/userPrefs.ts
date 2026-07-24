@@ -49,6 +49,10 @@ export interface UserPrefs {
   appearance: AppearancePrefs
   voice: VoicePrefs
   notifications: NotificationPrefs
+  /** Per-peer mic volume multipliers (0–2 → 0%–200%). Default 1 (100%). */
+  peerVolumes: Record<string, number>
+  /** Per-peer screen-share audio multipliers (0–2 → 0%–200%). Default 1 (100%). */
+  streamVolumes: Record<string, number>
 }
 
 const STORAGE_KEY = 'nepsis_user_prefs'
@@ -84,6 +88,25 @@ export const DEFAULT_PREFS: UserPrefs = {
     browserCallNotifications: true,
     browserDmNotifications: false,
   },
+  peerVolumes: {},
+  streamVolumes: {},
+}
+
+/** Clamp user/stream volume sliders to 0–200% (stored as 0–2). */
+export function clampUserVolume(value: number): number {
+  if (!Number.isFinite(value)) return 1
+  return Math.min(2, Math.max(0, value))
+}
+
+function normalizeVolumeMap(raw: unknown): Record<string, number> {
+  if (!raw || typeof raw !== 'object') return {}
+  const out: Record<string, number> = {}
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      out[key] = clampUserVolume(value)
+    }
+  }
+  return out
 }
 
 /** Hex → "R G B" channel string for Tailwind `rgb(var(--x) / <alpha-value>)`. */
@@ -207,6 +230,8 @@ function mergePrefs(raw: unknown): UserPrefs {
     appearance,
     voice: normalizeVoicePrefs(r.voice, base.voice),
     notifications: { ...base.notifications, ...(r.notifications || {}) },
+    peerVolumes: normalizeVolumeMap(r.peerVolumes),
+    streamVolumes: normalizeVolumeMap(r.streamVolumes),
   }
 }
 
@@ -237,12 +262,22 @@ export function updatePrefs(patch: {
   appearance?: Partial<AppearancePrefs>
   voice?: Partial<VoicePrefs>
   notifications?: Partial<NotificationPrefs>
+  peerVolumes?: Record<string, number>
+  streamVolumes?: Record<string, number>
 }): UserPrefs {
   const current = loadPrefs()
   const next: UserPrefs = {
     appearance: { ...current.appearance, ...patch.appearance },
     voice: normalizeVoicePrefs({ ...current.voice, ...patch.voice }, current.voice),
     notifications: { ...current.notifications, ...patch.notifications },
+    peerVolumes:
+      patch.peerVolumes !== undefined
+        ? normalizeVolumeMap(patch.peerVolumes)
+        : current.peerVolumes,
+    streamVolumes:
+      patch.streamVolumes !== undefined
+        ? normalizeVolumeMap(patch.streamVolumes)
+        : current.streamVolumes,
   }
   savePrefs(next)
   return next
@@ -251,6 +286,30 @@ export function updatePrefs(patch: {
 export function subscribePrefs(fn: Listener): () => void {
   listeners.add(fn)
   return () => listeners.delete(fn)
+}
+
+export function getPeerVolume(userId: string, prefs: UserPrefs = loadPrefs()): number {
+  const v = prefs.peerVolumes[userId]
+  return typeof v === 'number' ? clampUserVolume(v) : 1
+}
+
+export function getStreamVolume(userId: string, prefs: UserPrefs = loadPrefs()): number {
+  const v = prefs.streamVolumes[userId]
+  return typeof v === 'number' ? clampUserVolume(v) : 1
+}
+
+export function setPeerVolume(userId: string, volume: number): UserPrefs {
+  const current = loadPrefs()
+  return updatePrefs({
+    peerVolumes: { ...current.peerVolumes, [userId]: clampUserVolume(volume) },
+  })
+}
+
+export function setStreamVolume(userId: string, volume: number): UserPrefs {
+  const current = loadPrefs()
+  return updatePrefs({
+    streamVolumes: { ...current.streamVolumes, [userId]: clampUserVolume(volume) },
+  })
 }
 
 export function applyAppearancePrefs(appearance: AppearancePrefs = loadPrefs().appearance): void {
