@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import * as api from '../services/api'
+import { isYouTubeUrl } from '../utils/messageLinks'
+import { YouTubeEmbed } from './YouTubeEmbed'
 
 export type LinkEmbedData = {
   url: string
@@ -127,9 +129,13 @@ export function LinkEmbedList({ urls }: LinkEmbedListProps) {
   if (!urls.length) return null
   return (
     <div className="space-y-2">
-      {urls.map((url) => (
-        <LinkEmbed key={url} url={url} />
-      ))}
+      {urls.map((url) =>
+        isYouTubeUrl(url) ? (
+          <YouTubeEmbed key={url} url={url} />
+        ) : (
+          <LinkEmbed key={url} url={url} />
+        )
+      )}
     </div>
   )
 }

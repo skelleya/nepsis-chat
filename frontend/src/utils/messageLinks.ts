@@ -22,6 +22,53 @@ export function extractUrls(content: string): string[] {
   return found
 }
 
+/** Extract an 11-char YouTube video id from common watch / short / share URLs. */
+export function getYouTubeVideoId(rawUrl: string): string | null {
+  try {
+    const url = new URL(rawUrl)
+    const host = url.hostname.replace(/^www\./, '').toLowerCase()
+    if (host === 'youtu.be') {
+      const id = url.pathname.split('/').filter(Boolean)[0] || ''
+      return /^[\w-]{11}$/.test(id) ? id : null
+    }
+    if (
+      host === 'youtube.com' ||
+      host === 'm.youtube.com' ||
+      host === 'music.youtube.com' ||
+      host === 'youtube-nocookie.com'
+    ) {
+      const v = url.searchParams.get('v')
+      if (v && /^[\w-]{11}$/.test(v)) return v
+      const parts = url.pathname.split('/').filter(Boolean)
+      // /embed/ID, /shorts/ID, /live/ID, /v/ID
+      if (
+        parts.length >= 2 &&
+        (parts[0] === 'embed' || parts[0] === 'shorts' || parts[0] === 'live' || parts[0] === 'v') &&
+        /^[\w-]{11}$/.test(parts[1])
+      ) {
+        return parts[1]
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
+export function isYouTubeUrl(url: string): boolean {
+  return !!getYouTubeVideoId(url)
+}
+
+export function getYouTubeEmbedSrc(videoId: string, autoplay = false): string {
+  const params = new URLSearchParams({
+    rel: '0',
+    modestbranding: '1',
+    playsinline: '1',
+  })
+  if (autoplay) params.set('autoplay', '1')
+  return `https://www.youtube-nocookie.com/embed/${videoId}?${params.toString()}`
+}
+
 /** Non-media http(s) links that should get an Open Graph-style embed card. */
 export function extractEmbeddableUrls(content: string, limit = 3): string[] {
   return extractUrls(content)

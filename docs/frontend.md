@@ -57,6 +57,7 @@ frontend/src/
 | VoiceView | Voice participants in a responsive gallery (larger camera cards). Click/right-click a remote card for **User volume** (0–200%), **Stream volume** (while sharing), Watch/Maximize, and **Admin** Mute/Deafen/Disconnect. Soundboard + screen stage. Presence merge always includes channel users (even after peer-left). |
 | MessageContent | Shared server/DM message renderer: mentions, clickable links, media attachments, and `LinkEmbed` preview cards |
 | LinkEmbed | Open Graph preview card; fetches `POST /api/embeds/unfurl` |
+| YouTubeEmbed | Playable YouTube player for youtube.com / youtu.be / shorts links (poster → iframe) |
 | PatchNotesPanel | Help & Support → Patch notes (bundled history + GitHub Releases) |
 | EmailConfirmBanner | Top dropdown when a registered user’s Supabase email is not confirmed yet (Resend + dismiss for session) |
 | Server Settings ownership | `isAdminOrOwner` uses `servers.owner_id` **or** members role. Members/servers fetch errors keep prior state so the owner menu and modal do not disappear during polls. |
