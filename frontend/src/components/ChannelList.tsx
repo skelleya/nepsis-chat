@@ -26,6 +26,7 @@ import { MicOffIcon, HeadphonesOffIcon } from './icons/VoiceIcons'
 import { useApp } from '../contexts/AppContext'
 import * as api from '../services/api'
 import type { DMConversation, ProfileType } from '../services/api'
+import type { PingSource } from '../services/connectionStats'
 import { useGsapMenu } from '../hooks/useGsapMenu'
 import { MemberProfilePanel } from './MemberProfilePanel'
 import type { ServerMember } from './MembersSidebar'
@@ -49,6 +50,7 @@ interface VoiceConnectionInfo {
   isCameraOn: boolean
   isScreenSharing: boolean
   ping: number | null
+  pingSource: PingSource
   onToggleMute: () => void
   onToggleDeafen: () => void
   onToggleCamera: () => void
@@ -1763,7 +1765,11 @@ export function ChannelList({
                 {/* Ping bars: 3 green (<100ms), 2 yellow (<200ms), 1 red (≥200ms). Hover shows ms. */}
                 <div
                   className="relative group flex items-end gap-0.5 h-4 w-fit cursor-default mb-1"
-                  title={voiceConnection.ping != null ? `${voiceConnection.ping}ms` : 'Measuring ping…'}
+                  title={
+                    voiceConnection.ping != null
+                      ? `${voiceConnection.ping}ms — ${voiceConnection.pingSource === 'webrtc' ? 'your peer connection (slowest path)' : 'signaling server latency (no peers)'}`
+                      : 'Measuring your connection…'
+                  }
                   aria-label={voiceConnection.ping != null ? `Ping ${voiceConnection.ping} milliseconds` : 'Measuring ping'}
                 >
                   {(() => {
@@ -1782,7 +1788,9 @@ export function ChannelList({
                           role="tooltip"
                           className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 whitespace-nowrap rounded bg-app-panel px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 z-20"
                         >
-                          {ping != null ? `${ping}ms` : 'Measuring…'}
+                          {ping != null
+                            ? `${ping}ms · ${voiceConnection.pingSource === 'webrtc' ? 'your voice RTT' : 'server RTT'}`
+                            : 'Measuring…'}
                         </span>
                       </>
                     )

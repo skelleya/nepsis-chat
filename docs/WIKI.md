@@ -486,3 +486,40 @@ Verification results:
 - `frontend npm run build` passed TypeScript and the Vite production build (181 modules).
 - Backend syntax checks passed for `soundboard.js`, `voice.js`, and `dm.js`; no backend test script is currently defined.
 - Existing non-fatal build notices remain: optional Everett font assets, stale Browserslist data, mixed static/dynamic imports, and the large main bundle.
+
+### Accurate ping, GIF picker, and desktop 0.1.4 (2026-07-24)
+
+Ping:
+
+- `connectionStats.ts` prefers selected/nominated ICE candidate-pair RTT, falls back to RTCP media RTT, and only then a succeeded pair.
+- Voice mesh displays the slowest active peer path so one poor connection is not hidden. It never substitutes signaling-server latency while a peer exists.
+- Alone-in-channel latency is labeled server RTT. DM calls now sample the same WebRTC stats locally on both parties and display ping beside call duration.
+- Different values on each party are expected and accurate for asymmetric network routes.
+
+GIFs:
+
+- Server and DM composers have a GIF button backed by `GifPicker`.
+- Search is proxied through `/api/gifs/search`, keeping `TENOR_API_KEY` server-side.
+- Selected GIFs are downloaded only from Tenor media hosts, validated as GIF bytes with an 8 MiB cap, and copied to public Supabase storage before sending.
+- Direct `.gif` upload remains available when Tenor is not configured.
+
+Release:
+
+- Electron source version is `0.1.4`.
+- Release notes: [release-0.1.4.md](release-0.1.4.md).
+- Pushing tag `v0.1.4` triggers the Desktop Release workflow to build Windows/macOS artifacts and publish the GitHub Release.
+
+Test study:
+
+1. Two voice users compare local ping values and tooltips; verify selected WebRTC RTT, no server fallback during ICE, smoothing, clearing after disconnect, and slowest-path behavior with 3+ users.
+2. Start a DM audio/video call; verify both parties independently show ping and clear it after hanging up.
+3. Search/select GIFs in a server and DM; verify Tenor key stays backend-only, imported URLs use Supabase, animation renders, and invalid/non-Tenor/oversized inputs are rejected.
+4. Remove `TENOR_API_KEY`; verify the picker explains configuration and direct GIF upload still works.
+
+Verification results:
+
+- Frontend TypeScript and Vite production build passed (183 modules) after active ICE-pair selection and source-aware smoothing.
+- Backend syntax checks passed for GIF routes, app mounting, voice, calls, soundboard, and group DMs.
+- Electron dependencies installed successfully for version 0.1.4; the repository has no separate Electron build script outside the packaging workflow.
+- GIF import review added manual redirect validation, streamed byte limits, known-user checks, and per-user/IP rate limits before release.
+- Existing dependency audit reports remain documented and are not silently auto-fixed because forced upgrades would change Electron/build compatibility.

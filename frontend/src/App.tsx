@@ -930,6 +930,7 @@ function MainLayout({
     isCameraOn: voice.isCameraOn,
     isScreenSharing: voice.isScreenSharing,
     ping: voice.ping,
+    pingSource: voice.pingSource,
     onToggleMute: () => voice.setIsMuted(!voice.isMuted),
     onToggleDeafen: () => voice.setIsDeafened(!voice.isDeafened),
     onToggleCamera: () => voice.toggleCamera(),
