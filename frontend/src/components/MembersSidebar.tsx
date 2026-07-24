@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { MemberProfilePanel } from './MemberProfilePanel'
 import { CoolIcon } from './icons/CoolIcon'
 import type { Channel } from '../types'
@@ -68,6 +68,7 @@ export function MembersSidebar({
   const [minimized, setMinimized] = useState(false)
   const [selectedMember, setSelectedMember] = useState<ServerMember | null>(null)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
+  const profileAnchorRef = useRef<HTMLElement | null>(null)
   const [contextMenu, setContextMenu] = useState<{
     x: number
     y: number
@@ -123,11 +124,13 @@ export function MembersSidebar({
 
   const openProfile = (member: ServerMember, el: HTMLElement) => {
     setContextMenu(null)
+    profileAnchorRef.current = el
     setAnchorRect(el.getBoundingClientRect())
     setSelectedMember(member)
   }
 
   const closeProfile = () => {
+    profileAnchorRef.current = null
     setSelectedMember(null)
     setAnchorRect(null)
   }
@@ -197,6 +200,7 @@ export function MembersSidebar({
         key={member.userId}
         type="button"
         onClick={(e) => openProfile(member, e.currentTarget)}
+        onMouseDown={(e) => { profileAnchorRef.current = e.currentTarget }}
         onContextMenu={(e) => handleContextMenu(e, member)}
         className={`w-full px-2.5 py-1.5 flex items-center gap-2.5 rounded-xl text-left transition-colors ${
           isSelected ? 'bg-app-glass/[0.08]' : 'hover:bg-app-glass/[0.05]'
@@ -477,6 +481,7 @@ export function MembersSidebar({
           currentUserId={currentUserId}
           voiceChannels={voiceChannels}
           anchorRect={anchorRect}
+          anchorRef={profileAnchorRef}
           canKick={canKick(selectedMember)}
           canBan={canBan(selectedMember)}
           onClose={closeProfile}
