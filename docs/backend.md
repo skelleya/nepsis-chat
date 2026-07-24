@@ -181,6 +181,19 @@ Desktop clients sometimes submit MP3 as `application/octet-stream`; the route ac
 
 ---
 
+## GIF search and import
+
+Set `TENOR_API_KEY` to enable the GIF button’s search:
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/api/gifs/search?q=` | Server-side Tenor v2 search with medium content filtering |
+| POST | `/api/gifs/import` | Download a selected Tenor GIF, validate host/MIME/GIF signature/8 MiB limit, and store it in `attachments/gifs/` |
+
+The API key never reaches the browser. Import permits HTTPS Tenor media hosts only, preventing arbitrary URL fetching. Server messages store the imported URL in attachments; DMs embed the Supabase GIF URL in content.
+
+---
+
 ## Group direct messages
 
 The existing `dm_participants` join table supports multiple users. Group metadata is additive, so old two-person conversations remain `is_group=false`.

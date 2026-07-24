@@ -237,6 +237,9 @@ When `VITE_API_URL` is set, voice uses Socket.io instead of BroadcastChannel. IC
 - Voice gallery cards use an auto-fit grid rather than fixed wrapped sizes.
 - Screen + camera dual focus stacks vertically on small displays and splits into a wide screen stage plus camera stage on desktop.
 - Self camera PiP is consistently placed at the lower right so it does not obscure screen-share labels.
+- Voice ping shows the slowest selected WebRTC peer path; the tooltip distinguishes local voice RTT from signaling-server RTT when alone.
+- DM call overlays show each party’s own locally measured WebRTC RTT.
+- `GifPicker.tsx` provides debounced Tenor search; selected GIFs are imported by the backend before being attached to a server or DM message.
 
 ---
 
