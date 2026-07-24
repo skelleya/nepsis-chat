@@ -794,3 +794,17 @@ Test study:
 - Includes per-user/stream volume menus, larger gallery cards, manual update UX.
 - Tag `v0.1.10` triggers Desktop Release.
 
+### Link embeds + patch notes (0.2.0) (2026-07-24)
+
+- Server chat and DMs render clickable links plus Open Graph embed cards (`MessageContent` / `LinkEmbed` → `POST /api/embeds/unfurl`).
+- Settings → Help & Support → **Patch notes** (installed version highlights + earlier releases).
+- Electron source version: `0.2.0`. Release notes: [release-0.2.0.md](release-0.2.0.md).
+- Tag `v0.2.0` triggers Desktop Release.
+
+Test study:
+
+1. Send `https://example.com` in a server channel and a DM — link is clickable and a preview card appears.
+2. Send an image URL — still shows as media attachment (no OG card).
+3. Open Settings → Help & Support — Patch notes panel lists v0.2.0 (and earlier).
+4. After desktop install of 0.2.0, Help shows “you’re on v0.2.0”.
+

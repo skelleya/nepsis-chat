@@ -426,6 +426,27 @@ export async function searchGifs(userId: string, query: string, limit = 24): Pro
   return res.json()
 }
 
+export type LinkEmbedResult = {
+  url: string
+  title?: string
+  description?: string
+  image?: string
+  siteName?: string
+  favicon?: string
+}
+
+/** Open Graph / HTML metadata preview for a URL (server-side unfurl). */
+export async function unfurlLink(url: string): Promise<LinkEmbedResult> {
+  const res = await fetch(`${API_BASE}/embeds/unfurl`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || 'Could not load link preview')
+  return data as LinkEmbedResult
+}
+
 export async function importGif(userId: string, sourceUrl: string): Promise<{ url: string; path: string }> {
   const res = await fetch(`${API_BASE}/gifs/import`, {
     method: 'POST',

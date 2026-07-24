@@ -13,6 +13,7 @@ import { AppearanceSettingsTab } from './settings/AppearanceSettingsTab'
 import { VoiceVideoSettingsTab } from './settings/VoiceVideoSettingsTab'
 import { NotificationsSettingsTab } from './settings/NotificationsSettingsTab'
 import { DesktopUpdatesPanel } from './settings/DesktopUpdatesPanel'
+import { PatchNotesPanel } from './settings/PatchNotesPanel'
 
 type ProfilePreview = {
   display_name: string
@@ -75,6 +76,7 @@ function HelpTab({ user }: { user: { id: string; username: string; is_guest?: bo
     <div>
       <h3 className="text-xl font-bold text-app-text mb-4">Help & Support</h3>
       <DesktopUpdatesPanel />
+      <PatchNotesPanel />
       <div className="bg-app-channel rounded-lg p-4 space-y-4">
         <h4 className="font-semibold text-app-text">Report a Bug</h4>
         {isGuest ? (

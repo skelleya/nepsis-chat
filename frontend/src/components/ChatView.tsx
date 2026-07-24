@@ -6,32 +6,12 @@ import { EmojiPicker } from './EmojiPicker'
 import { ChatInput } from './ChatInput'
 import { FileAttachment } from './FileAttachment'
 import { GifPicker } from './GifPicker'
+import { MessageContent } from './MessageContent'
 
 interface ServerEmoji {
   id: string
   name: string
   image_url: string
-}
-
-/** Render message content with @mentions highlighted */
-function renderContentWithMentions(content: string, currentUsername: string): React.ReactNode {
-  const parts = content.split(/(@\w+)/g)
-  if (parts.length === 1) return content
-  return parts.map((part, i) => {
-    if (part.startsWith('@') && part.length > 1) {
-      const mentionName = part.slice(1).toLowerCase()
-      const isMe = mentionName === currentUsername.toLowerCase() || mentionName === 'everyone'
-      return (
-        <span
-          key={i}
-          className={`rounded px-1 py-0.5 font-medium ${isMe ? 'bg-yellow-500/25 text-yellow-200' : 'bg-app-accent/20 text-app-accent'}`}
-        >
-          {part}
-        </span>
-      )
-    }
-    return part
-  })
 }
 
 interface ChatViewProps {
@@ -359,9 +339,12 @@ export function ChatView({
                       </div>
                     </div>
                   ) : (
-                    <p className={`text-app-text text-[15px] leading-[1.5] whitespace-pre-wrap break-words ${isGrouped ? '' : 'mt-0.5'}`}>
-                      {renderContentWithMentions(message.content, currentUsername)}
-                    </p>
+                    <MessageContent
+                      content={message.content}
+                      currentUsername={currentUsername}
+                      highlightMentions
+                      className={isGrouped ? '' : 'mt-0.5'}
+                    />
                   )}
 
                   {message.attachments?.length ? (
