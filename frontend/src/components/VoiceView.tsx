@@ -642,7 +642,7 @@ export function VoiceView({
   voiceUsersInChannel = [],
   onInvitePeople,
   isAdminOrOwner,
-  serverId: _serverId,
+  serverId,
   onMuteMember,
   onUnmuteMember,
   onDeafenMember,
@@ -1144,6 +1144,8 @@ export function VoiceView({
             <div className="relative">
               <SoundboardDropdown
                 userId={currentUserId}
+                serverId={serverId}
+                canModerate={!!isAdminOrOwner}
                 onPlay={playSoundboardSound}
                 anchorRef={soundboardButtonRef}
                 isOpen={soundboardOpen}

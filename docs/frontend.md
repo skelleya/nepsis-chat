@@ -57,7 +57,7 @@ frontend/src/
 | VoiceView | Voice participants as **circle frames** (no boxed tiles); mute badge outside avatar clip; Mic/MicOff control bar. Soundboard + Discord screenshare (click LIVE to watch; resizable stage). Presence merge always includes channel users (even after peer-left). **Admin:** right-click for Mute / Disconnect. |
 | Server Settings ownership | `isAdminOrOwner` uses `servers.owner_id` **or** members role. Members/servers fetch errors keep prior state so the owner menu and modal do not disappear during polls. |
 | DownloadPage | OS-detect primary **Install for Mac/Windows** (Apple/Windows logos); click starts installer download immediately; **Other Installers** reveals the rest + Linux Coming soon. |
-| SoundboardDropdown | Soundboard UI: list sounds with emoji; add (pick emoji for new sound); edit emoji per sound; delete; plays to all peers. Spam-click restarts playback. |
+| SoundboardDropdown | Server soundboard: custom-named clips with emoji; uploads attach to `serverId` so every member sees the same list; rename (double-click / pencil); share legacy personal sounds; admin/uploader delete; plays to all voice peers. |
 | MembersSidebar | Grouped **In Voice / Online / Offline**. Click for profile popout. Minimized: avatar stack + count + CoolIcons chevron. Context menu uses CoolIcons. **Admin:** Kick/Ban / Mute / Disconnect / Move. |
 | CoolIcon | Iconify `ci` (CoolIcons Free Iconset from Figma). Use `<CoolIcon name="users" />` instead of inline SVGs. |
 | MemberProfilePanel | Floating user card (portal + GSAP); Message/Call/Add Friend; owner/admin Kick & Ban with confirm. |
