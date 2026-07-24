@@ -590,3 +590,17 @@ Test study:
 2. Click repeatedly at different points within avatar, username, status, and row padding.
 3. Keep a profile open while members move between status sections; close it by outside click and Escape.
 4. Verify context menus and minimized member rail still work.
+
+### Desktop 0.1.5 release (2026-07-24)
+
+- Electron source version: `0.1.5`.
+- Release notes: [release-0.1.5.md](release-0.1.5.md).
+- Includes appearance/sidebar/layout work, stable member interaction, ICE path visibility, and actionable OS media-permission handling.
+- Tag `v0.1.5` triggers `.github/workflows/desktop-release.yml`, which builds Windows and macOS installers and publishes their updater metadata on one GitHub Release.
+
+Release verification study:
+
+1. Confirm `electron/package.json` and lockfile root both report `0.1.5`.
+2. Run the frontend production build and validate the workflow YAML.
+3. Merge the release commit into `master`, then tag that exact commit `v0.1.5`.
+4. Confirm the Desktop Release workflow starts from the tag and its version job reports `0.1.5`.
