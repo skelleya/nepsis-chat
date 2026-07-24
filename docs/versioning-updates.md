@@ -8,10 +8,11 @@ Desktop updates use **electron-updater** with **GitHub Releases** as the feed (W
 
 1. App launches (and every 30 minutes) → checks GitHub Releases for a newer version.
 2. If a newer release is found, the desktop shell **downloads it in the background** (`autoDownload = true`) and can show a **download progress modal**.
-3. When the package is staged → a modal asks only whether to **Restart and update** (or Later).
-4. Restart shows an **Applying update…** modal with an indeterminate loading bar, then runs a **silent** one-click NSIS install (`quitAndInstall(true, true)` → `/S --updated`) that reuses the existing install location — no install-scope / directory wizard.
-5. The app relaunches on the new version.
-6. **User Settings → Help & Support → Check for updates** runs the same check on demand.
+3. When the package is staged → a modal asks whether to **Restart and update** or **Update later**.
+4. **Update later** dismisses the modal and leaves a neon download icon at the **top right**; click it anytime to apply the staged update.
+5. Restart / badge apply shows an **Applying update…** modal with an indeterminate loading bar, then runs a **silent** one-click NSIS install (`quitAndInstall(true, true)` → `/S --updated`).
+6. The app relaunches on the new version.
+7. **User Settings → Help & Support → Check for updates** runs the same check on demand.
 
 Files: `electron/main.js`, `frontend/src/components/UpdateButton.tsx`, `frontend/src/hooks/useDesktopUpdate.ts`, `frontend/src/components/settings/DesktopUpdatesPanel.tsx`.
 

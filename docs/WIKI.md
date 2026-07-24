@@ -724,12 +724,14 @@ Test study:
 - Only one desktop session: second launches focus the existing window.
 - Update UX: download progress modal → restart prompt → applying loader; NSIS runs silent (`oneClick` + `/S --updated`).
 - User Settings → Help & Support → **Check for updates**.
+- **Update later** leaves a neon top-right download badge; click it to apply the staged update.
 
 Test study:
 
 1. Launch Nepsis Chat, click the desktop shortcut again — one session, window focuses; Task Manager shows a single app group.
 2. Trigger an update (or Check for updates) — progress modal, then Restart; no install-scope wizard.
 3. Confirm Settings shows the installed version and check status.
+4. Choose **Update later** on the ready modal; confirm the top-right badge appears and applying from it restarts into the new version.
 
 ### Desktop 0.1.7 release (2026-07-24)
 
