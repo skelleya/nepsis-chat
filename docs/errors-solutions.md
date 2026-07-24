@@ -375,6 +375,7 @@ Replace `<pid>` with the number from the last column. Or use a different port: `
 | Other users could not see a newly enabled camera | The camera-freeze fix counted only live **and unmuted** remote tracks. WebRTC receivers can stay muted until a video element is attached/RTP starts, so the UI never mounted the element needed to display the camera | Mount `TileVideo` for every live track regardless of `track.muted`; its frame lifecycle still replaces muted/ended video with the avatar, preventing stale frames |
 | Self camera preview looked flipped | DM calls always forced `scaleX(-1)` while voice previews used natural orientation, with no user control | Add Voice & Video → “Mirror my camera preview”; default to natural/unmirrored and apply consistently to local voice tiles, stages, PiP, and DM calls. Remote users always receive natural orientation |
 | DMs could not create groups or add people | The database had a participant join table, but API responses, sidebar rows, `DMView`, and calls all assumed one `other_user` | Add group conversation metadata, participant arrays, exact-pair 1:1 dedupe, create/add APIs, a friend multi-select modal, group-aware sidebar/chat UI, and keep calls disabled for groups |
+| Group DM build failed on nullable avatar URLs | Supabase participant avatars may be `null`, while `ServerMember` and call APIs accept `string | undefined` | Normalize nullable API avatar fields to `undefined` at the profile/call boundaries |
 
 ---
 

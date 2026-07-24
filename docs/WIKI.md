@@ -452,3 +452,11 @@ Manual test study:
 3. Click **Add people**, confirm existing members are excluded, add another friend, and verify the header/sidebar update.
 4. Confirm a normal 1:1 DM still opens separately and Call/Video remains available only there.
 5. Attempt creation with fewer than two friends, duplicate IDs, missing users, or more than 10 total members; the API must reject invalid input.
+
+Verification study:
+
+- `frontend npm run build` passed TypeScript and the Vite production build after normalizing nullable participant avatars.
+- `backend node --check src/routes/dm.js` passed; no backend test script is currently defined.
+- Supabase migrations `group_direct_messages` and `group_dm_created_by_index` were applied successfully.
+- Remote schema verification confirmed all group columns and three new indexes (`participant user`, `group updated`, and `created_by`).
+- Supabase advisors were rerun. The new creator foreign key warning was resolved with the follow-up index; remaining security/performance notices predate this feature and are documented project-wide issues.
