@@ -5,7 +5,8 @@ import { createWebRTCClient } from '../services/webrtc'
 import { ensureIceServers } from '../services/iceConfig'
 import { sounds } from '../services/sounds'
 import { getAudioConstraints, getScreenConstraints, getVideoConstraints, loadPrefs } from '../services/userPrefs'
-import { getScreenShareStream } from '../utils/mediaTracks'
+import { RemoteAudio } from '../components/RemoteAudio'
+import { getRemoteAudioStream, getScreenShareStream } from '../utils/mediaTracks'
 import { getCallBusy } from '../services/mediaSessionGate'
 import { smoothPing, type IcePathType, type PingSource } from '../services/connectionStats'
 import { formatMediaPermissionError } from '../utils/mediaPermissionError'
@@ -1025,6 +1026,27 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         setWatchingShareUserId,
       }}
     >
+      {/* Playback belongs to the session, not VoiceView. Keep it mounted while
+          navigating to Friends/Add Friend, DMs, Community, or settings. */}
+      {isConnected && (
+        <div aria-hidden className="contents">
+          {participants
+            .filter((participant) => participant.userId !== userId && participant.stream)
+            .map((participant) => {
+              const audioStream = getRemoteAudioStream(participant.stream, {
+                knownScreenSharing: screenShareUserIds.includes(participant.userId),
+                includeScreenAudio: watchingShareUserId === participant.userId,
+              })
+              return audioStream ? (
+                <RemoteAudio
+                  key={`voice-audio-${participant.userId}`}
+                  stream={audioStream}
+                  muted={isDeafened}
+                />
+              ) : null
+            })}
+        </div>
+      )}
       {children}
     </VoiceContext.Provider>
   )

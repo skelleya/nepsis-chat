@@ -77,7 +77,19 @@ Node.js + Express + Socket.io + Supabase (Postgres). Legacy `src/db/init.js` (SQ
 
 ---
 
-## Database Schema (SQLite)
+## Database Schema (Supabase Postgres)
+
+### Administrative data study — 2026-07-24
+
+Requested cleanup was executed transactionally against Supabase:
+
+- Verified one registered target account named `arrogamer`.
+- Preserved the two guest accounts `Test` and `antilink`; removed the other 10 guest `users` rows and their dependent memberships, messages, DM participation/messages, friend requests, invites, and audit references.
+- Preserved all four servers and assigned `servers.owner_id` plus the matching `server_members.role = 'owner'` rows to `arrogamer`.
+- Former non-target owner memberships were demoted to admin instead of deleting the account.
+- Post-operation verification returned exactly two guests, four servers owned by `arrogamer`, and one matching owner membership per server.
+
+Deletion ordering matters because several user foreign keys use `NO ACTION`: clear reply references first; delete friend requests/audit/invites/emojis/messages/DM participation; remove participant-less conversations; then delete users. Server ownership must transfer before any owner cleanup.
 
 | Table | Columns |
 |-------|---------|

@@ -604,3 +604,31 @@ Release verification study:
 2. Run the frontend production build and validate the workflow YAML.
 3. Merge the release commit into `master`, then tag that exact commit `v0.1.5`.
 4. Confirm the Desktop Release workflow starts from the tag and its version job reports `0.1.5`.
+
+### Stable settings menus, persistent voice navigation, and account cleanup (2026-07-24)
+
+Settings:
+
+- Dropdown position updates no longer replay their GSAP enter animation while the settings pane or menu scrolls.
+- Redundant position state updates are skipped, menu-internal scroll is ignored, and outside-click registration is deferred past the opening event.
+- Voice & Video’s `DeviceSelect` is module-scoped, so mic-meter renders cannot remount an open dropdown.
+
+Voice while adding friends:
+
+- The voice session already survived Friends navigation, but the hidden `RemoteAudio` elements were inside `VoiceView` and disappeared.
+- Remote playback now lives in `VoiceProvider`, alongside the WebRTC session. Users can continue hearing and transmitting while using Friends → Add Friend, DMs, Community, or settings.
+- `VoiceView` no longer renders duplicate audio sinks.
+
+Supabase data operation:
+
+- Inspected 14 users, including 12 guests; protected `Test` and `antilink`.
+- Transactionally removed the other 10 guest accounts and dependent references.
+- Transferred all four existing servers to the registered `arrogamer` account and synchronized owner membership roles.
+- Verified two guests remain and every server has `arrogamer` as both `owner_id` and its owner-role member.
+
+Test study:
+
+1. Open every settings dropdown, scroll the settings pane and menu, run the live mic meter, and select options without flicker or lost clicks.
+2. Join server voice with another member, navigate to Friends → Add Friend, search/send a request, and confirm two-way audio throughout.
+3. Navigate through DMs, Community, and settings while connected; verify one copy of remote audio and working mute/deafen/output-device controls.
+4. Re-query guests and server owner/member roles; verify only `Test`/`antilink` guests and four `arrogamer`-owned servers.

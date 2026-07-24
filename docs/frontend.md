@@ -122,6 +122,14 @@ frontend/src/
 | sounds.ts | Web Audio API notification/call/voice sounds (no external files). Includes mute/unmute/deafen/undeafen cues gated by Notifications → Voice sounds. |
 | iceConfig.ts | STUN + optional TURN for P2P voice/calls (`ensureIceServers`) |
 
+### Persistent voice playback
+
+`VoiceProvider` owns the WebRTC session, microphone, and hidden `RemoteAudio` sinks. Playback therefore survives navigation away from `VoiceView` to Friends/Add Friend, DMs, Community, or settings. `VoiceView` renders the visual voice layout only and must not create duplicate remote-audio elements.
+
+### Settings dropdown stability
+
+`SettingsDropdown` is portaled above the settings modal. Scroll/resize updates only its fixed position and do not replay the GSAP entrance. Reusable selector wrappers such as `DeviceSelect` must remain at module scope; defining them inside a frequently rendering tab remounts and closes their menus.
+
 ---
 
 ## Direct Messages (DM)

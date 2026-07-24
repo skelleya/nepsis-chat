@@ -38,6 +38,7 @@ export function SettingsDropdown({
   const [mounted, setMounted] = useState(false)
   const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number; openUp: boolean } | null>(null)
   const closingRef = useRef(false)
+  const openUpRef = useRef(false)
 
   const selected = options.find((o) => o.value === value)
   const label = selected?.label ?? placeholder
@@ -50,11 +51,24 @@ export function SettingsDropdown({
     const spaceBelow = window.innerHeight - rect.bottom - 8
     const openUp = spaceBelow < menuHeight && rect.top > spaceBelow
     const width = Math.max(rect.width, fullWidth ? rect.width : 148)
-    setMenuPos({
+    const next = {
       top: openUp ? rect.top - 6 : rect.bottom + 6,
       left: Math.min(rect.left, window.innerWidth - width - 8),
       width,
       openUp,
+    }
+    openUpRef.current = openUp
+    setMenuPos((previous) => {
+      if (
+        previous &&
+        previous.top === next.top &&
+        previous.left === next.left &&
+        previous.width === next.width &&
+        previous.openUp === next.openUp
+      ) {
+        return previous
+      }
+      return next
     })
   }, [fullWidth, options.length])
 
@@ -70,7 +84,7 @@ export function SettingsDropdown({
     gsap.killTweensOf(menu)
     gsap.to(menu, {
       opacity: 0,
-      y: menuPos?.openUp ? 6 : -6,
+      y: openUpRef.current ? 6 : -6,
       scale: 0.96,
       duration: 0.16,
       ease: 'power2.in',
@@ -80,7 +94,7 @@ export function SettingsDropdown({
         setMounted(false)
       },
     })
-  }, [mounted, menuPos?.openUp])
+  }, [mounted])
 
   const openMenu = () => {
     if (disabled || closingRef.current) return
@@ -113,7 +127,10 @@ export function SettingsDropdown({
     return () => {
       gsap.killTweensOf(menu)
     }
-  }, [mounted, open, menuPos])
+    // Position changes are applied by inline styles and must not restart the
+    // enter animation while the settings pane or menu itself is scrolling.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, open])
 
   useEffect(() => {
     if (!open) return
@@ -124,7 +141,11 @@ export function SettingsDropdown({
         triggerRef.current?.focus()
       }
     }
-    const onScroll = () => updatePosition()
+    const onScroll = (event: Event) => {
+      const target = event.target
+      if (target instanceof Node && menuRef.current?.contains(target)) return
+      updatePosition()
+    }
     const onResize = () => updatePosition()
     window.addEventListener('keydown', onKey)
     window.addEventListener('resize', onResize)
@@ -145,8 +166,13 @@ export function SettingsDropdown({
       if (triggerRef.current?.contains(t) || menuRef.current?.contains(t)) return
       close()
     }
-    document.addEventListener('mousedown', onPointer)
-    return () => document.removeEventListener('mousedown', onPointer)
+    // Defer registration so the interaction that opened the portaled menu
+    // cannot also be interpreted as an outside click.
+    const timer = window.setTimeout(() => document.addEventListener('mousedown', onPointer), 0)
+    return () => {
+      window.clearTimeout(timer)
+      document.removeEventListener('mousedown', onPointer)
+    }
   }, [open, close])
 
   const pick = (next: string) => {

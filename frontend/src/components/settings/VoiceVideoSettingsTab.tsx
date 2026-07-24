@@ -5,6 +5,37 @@ import { SettingsToggle } from './SettingsToggle'
 
 type DeviceOption = { deviceId: string; label: string }
 
+interface DeviceSelectProps {
+  label: string
+  value: string
+  options: DeviceOption[]
+  onChange: (id: string) => void
+  emptyLabel: string
+}
+
+/**
+ * Module-level component identity is important here: mic meter updates can
+ * render the parent every animation frame, but must not remount an open menu.
+ */
+function DeviceSelect({ label, value, options, onChange, emptyLabel }: DeviceSelectProps) {
+  return (
+    <div className="space-y-1.5">
+      <label className="block text-xs font-bold uppercase text-app-muted">{label}</label>
+      <SettingsDropdown
+        fullWidth
+        value={value}
+        onChange={onChange}
+        aria-label={label}
+        placeholder={emptyLabel}
+        options={[
+          { value: '', label: emptyLabel },
+          ...options.map((option) => ({ value: option.deviceId, label: option.label })),
+        ]}
+      />
+    </div>
+  )
+}
+
 export function VoiceVideoSettingsTab() {
   const [prefs, setPrefs] = useState<VoicePrefs>(() => loadPrefs().voice)
   const [mics, setMics] = useState<DeviceOption[]>([])
@@ -111,35 +142,6 @@ export function VoiceVideoSettingsTab() {
     }
   }
 
-  const Select = ({
-    label,
-    value,
-    options,
-    onChange,
-    emptyLabel,
-  }: {
-    label: string
-    value: string
-    options: DeviceOption[]
-    onChange: (id: string) => void
-    emptyLabel: string
-  }) => (
-    <div className="space-y-1.5">
-      <label className="block text-xs font-bold uppercase text-app-muted">{label}</label>
-      <SettingsDropdown
-        fullWidth
-        value={value}
-        onChange={onChange}
-        aria-label={label}
-        placeholder={emptyLabel}
-        options={[
-          { value: '', label: emptyLabel },
-          ...options.map((o) => ({ value: o.deviceId, label: o.label })),
-        ]}
-      />
-    </div>
-  )
-
   return (
     <div>
       <h3 className="text-xl font-bold text-app-text mb-1">Voice & Video</h3>
@@ -149,21 +151,21 @@ export function VoiceVideoSettingsTab() {
       </p>
 
       <div className="bg-app-channel rounded-lg p-4 mb-4 space-y-4">
-        <Select
+        <DeviceSelect
           label="Input device (microphone)"
           value={prefs.audioInputId}
           options={mics}
           onChange={(id) => persist({ audioInputId: id })}
           emptyLabel="System default"
         />
-        <Select
+        <DeviceSelect
           label="Output device (speakers)"
           value={prefs.audioOutputId}
           options={speakers}
           onChange={(id) => persist({ audioOutputId: id })}
           emptyLabel="System default"
         />
-        <Select
+        <DeviceSelect
           label="Camera"
           value={prefs.videoInputId}
           options={cameras}

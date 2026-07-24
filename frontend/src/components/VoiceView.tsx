@@ -1,13 +1,11 @@
 import { useState, useRef, useEffect, useMemo, useCallback, type RefObject } from 'react'
 import type { Channel } from '../types'
 import { useVoice, type VoiceParticipant } from '../contexts/VoiceContext'
-import { RemoteAudio } from './RemoteAudio'
 import { MicIcon, MicOffIcon, HeadphonesIcon, HeadphonesOffIcon } from './icons/VoiceIcons'
 import { SoundboardDropdown } from './SoundboardDropdown'
 import {
   getScreenShareStream,
   getParticipantVideoStream,
-  getRemoteAudioStream,
   hasLiveVideo,
 } from '../utils/mediaTracks'
 import { loadPrefs, subscribePrefs } from '../services/userPrefs'
@@ -1041,23 +1039,6 @@ export function VoiceView({
 
       {error && (
         <div className="mx-4 mt-2 p-2 rounded bg-red-900/50 text-red-200 text-sm shrink-0">{error}</div>
-      )}
-
-      {/* Persistent remote audio — outside focus/filmstrip so layout remounts don't kill playback */}
-      {isInThisChannel && (
-        <div aria-hidden className="contents">
-          {allParticipants
-            .filter((p) => p.userId !== currentUserId && p.stream)
-            .map((p) => {
-              const audioStream = getRemoteAudioStream(p.stream, {
-                knownScreenSharing: screenShareUserIds.includes(p.userId),
-                includeScreenAudio: watchingShareUserId === p.userId,
-              })
-              return audioStream
-                ? <RemoteAudio key={`audio-${p.userId}`} stream={audioStream} muted={isDeafened} />
-                : null
-            })}
-        </div>
       )}
 
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
