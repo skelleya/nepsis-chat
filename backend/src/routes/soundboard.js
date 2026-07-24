@@ -23,15 +23,18 @@ const ALLOWED_TYPES = [
   'audio/aac',
   'audio/flac',
 ]
+const ALLOWED_EXTENSIONS = new Set(['mp3', 'wav', 'ogg', 'webm', 'm4a', 'mp4', 'aac', 'flac'])
 
 const storage = multer.memoryStorage()
 const upload = multer({
   storage,
   limits: { fileSize: MAX_SIZE },
   fileFilter: (req, file, cb) => {
+    const ext = (file.originalname.split('.').pop() || '').toLowerCase()
     const allowed =
       ALLOWED_TYPES.includes(file.mimetype) ||
-      file.mimetype.startsWith('audio/')
+      file.mimetype.startsWith('audio/') ||
+      (file.mimetype === 'application/octet-stream' && ALLOWED_EXTENSIONS.has(ext))
     if (allowed) cb(null, true)
     else cb(new Error('Only audio files allowed (MP3, WAV, OGG, WebM, M4A, AAC, FLAC)'), false)
   },
@@ -59,8 +62,15 @@ soundboardRouter.get('/', async (req, res) => {
   }
 })
 
+const receiveSoundboardFile = (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message || 'Invalid audio upload' })
+    next()
+  })
+}
+
 // Upload soundboard sound (max 10 seconds)
-soundboardRouter.post('/', upload.single('file'), async (req, res) => {
+soundboardRouter.post('/', receiveSoundboardFile, async (req, res) => {
   const { userId, name, emoji } = req.body
   if (!userId || !name || !req.file) {
     return res.status(400).json({ error: 'userId, name, and file required' })

@@ -161,7 +161,8 @@ export function registerVoiceHandlers(io) {
     socket.on('soundboard-play', ({ soundUrl, userId: fromUserId, username: fromUsername }) => {
       if (!socket.voiceChannel) return
       const room = `voice:${socket.voiceChannel}`
-      io.to(room).emit('soundboard-play', {
+      // Sender plays immediately on the client; only relay to peers.
+      socket.to(room).emit('soundboard-play', {
         soundUrl,
         userId: fromUserId ?? socket.userId,
         username: fromUsername ?? socket.username,

@@ -99,6 +99,8 @@ Node.js + Express + Socket.io + Supabase (Postgres). Legacy `src/db/init.js` (SQ
 | server_audit_log | id, server_id, user_id, action, details (JSONB), created_at — see migration `20250211000004_server_invites_audit.sql` |
 | bug_reports | id, user_id, username, email, title, description, url, user_agent, status (pending/reviewed/resolved/wontfix), created_at — see migration `20250211000008_bug_reports.sql` |
 | soundboard_sounds | id, user_id, name, url, duration_seconds, storage_path, emoji, created_at — max 10s audio; emoji shown on each sound; migration `20250211000009_soundboard_sounds.sql`, `20250211000014_soundboard_emoji.sql` |
+| dm_conversations | id, created_at, is_group, name, created_by, updated_at — 1:1 and group DM metadata; group fields added by `20260724004517_group_direct_messages.sql`, creator FK index follow-up `20260724005105_group_dm_created_by_index.sql` |
+| dm_participants | conversation_id, user_id, joined_at — many-to-many DM membership; groups support up to 10 members through the API |
 
 **File:** `backend/data.sqlite` (legacy) — Supabase Postgres used in production
 
@@ -172,6 +174,26 @@ Handlers are registered with the **Namespace** (`io.of('/voice')`, etc.), not th
 `POST /api/soundboard` accepts MP3/MPEG, WAV, OGG, WebM, M4A/MP4, AAC, and FLAC audio up to 10 MB. `music-metadata` must confirm a duration greater than zero and no more than ten seconds. Long source files are clipped in the frontend before this request; the API and Postgres check remain defense in depth.
 
 Storage uses `attachments/soundboard/{userId}/`. Migration `20260723234108_allow_soundboard_audio_formats.sql` extends a configured bucket MIME allowlist while preserving an unrestricted (`NULL`) allowlist.
+
+Desktop clients sometimes submit MP3 as `application/octet-stream`; the route accepts that MIME only when the filename has a supported audio extension, then relies on metadata parsing to reject invalid content. Multer validation errors return 400 instead of a generic 500.
+
+`soundboard-play` is sent with `socket.to(room)`: the clicker plays locally for immediate feedback, and the backend sends exactly one event to each peer.
+
+---
+
+## Group direct messages
+
+The existing `dm_participants` join table supports multiple users. Group metadata is additive, so old two-person conversations remain `is_group=false`.
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/api/dm/conversations/group` | Create a group with the creator plus 2–9 selected friends |
+| POST | `/api/dm/conversations/:id/members` | Add people; requester must already participate |
+| PATCH | `/api/dm/conversations/:id` | Rename a group; requester must already participate |
+
+Conversation responses include `participants[]`; 1:1 responses retain `other_user` for compatibility. Creating a 1:1 conversation now requires an exact two-member match, preventing a group containing both users from being returned as their private DM. Group calls are intentionally unsupported; the existing `/calls` namespace remains 1:1.
+
+Security note: these endpoints enforce conversation membership, validate target user IDs, and require every invited user to have an accepted friendship with the inviter. Like the pre-existing REST API, identity is still supplied as `userId` rather than bound by auth middleware; replacing that legacy trust model requires a separate API-wide authentication migration.
 
 ---
 

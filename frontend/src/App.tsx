@@ -18,6 +18,7 @@ import { DownloadBanner } from './components/DownloadBanner'
 import { TitleBar } from './components/TitleBar'
 import { UserPanel } from './components/UserPanel'
 import { ServerSettingsModal } from './components/ServerSettingsModal'
+import { GroupDMModal } from './components/GroupDMModal'
 import { mockChannels } from './data/mockData'
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 
@@ -49,6 +50,8 @@ function AppContent() {
     channelUnreadCounts,
     channelMentionCounts,
     openDM,
+    createGroupDM,
+    addGroupDMMembers,
     sendDMMessage,
     toggleDMReaction,
     setCurrentServer,
@@ -174,6 +177,8 @@ function AppContent() {
               channelUnreadCounts={channelUnreadCounts}
               channelMentionCounts={channelMentionCounts}
               openDM={openDM}
+              createGroupDM={createGroupDM}
+              addGroupDMMembers={addGroupDMMembers}
               sendDMMessage={sendDMMessage}
               toggleDMReaction={toggleDMReaction}
               setCurrentServer={setCurrentServer}
@@ -214,7 +219,7 @@ interface MainLayoutProps {
   messages: Record<string, { id: string; channel_id: string; user_id: string; content: string; created_at: string; edited_at?: string; username?: string; reply_to_id?: string; reply_to?: { username?: string; content?: string }; attachments?: { url: string; type: string; filename?: string }[]; reactions?: { user_id: string; emoji: string }[] }[]>
   currentServerId: string | null
   currentChannelId: string | null
-  dmConversations: { id: string; created_at: string; other_user: { id: string; username: string; avatar_url?: string } }[]
+  dmConversations: api.DMConversation[]
   dmMessages: Record<string, { id: string; conversation_id: string; user_id: string; content: string; created_at: string; username: string }[]>
   currentDMId: string | null
   setCurrentDM: (id: string | null) => void
@@ -222,6 +227,8 @@ interface MainLayoutProps {
   channelUnreadCounts: Record<string, number>
   channelMentionCounts: Record<string, number>
   openDM: (targetUserId: string, targetUsername: string) => Promise<string | undefined>
+  createGroupDM: (memberIds: string[], name?: string) => Promise<string | undefined>
+  addGroupDMMembers: (conversationId: string, memberIds: string[]) => Promise<void>
   sendDMMessage: (
     conversationId: string,
     content: string,
@@ -262,6 +269,8 @@ function MainLayout({
   channelUnreadCounts,
   channelMentionCounts,
   openDM,
+  createGroupDM,
+  addGroupDMMembers,
   sendDMMessage,
   toggleDMReaction,
   setCurrentServer,
@@ -287,6 +296,7 @@ function MainLayout({
   const [showServerSettings, setShowServerSettings] = useState(false)
   const [channelNavOpen, setChannelNavOpen] = useState(false)
   const [membersOpen, setMembersOpen] = useState(false)
+  const [groupDMModal, setGroupDMModal] = useState<{ mode: 'create' | 'add'; conversationId?: string } | null>(null)
   const [blockedRevision, setBlockedRevision] = useState(0)
   const savedView = (() => {
     try {
@@ -436,10 +446,11 @@ function MainLayout({
   // Track in-flight refresh; allow a follow-up load if presence changed mid-fetch
   const membersRefreshRef = useRef(false)
   const membersNeedsReloadRef = useRef(false)
-  const voiceChannelIdRef = useRef(voice.voiceChannelId)
+  const effectiveVoiceChannelId = voice.voiceChannelId ?? voice.otherTabVoiceChannelId
+  const voiceChannelIdRef = useRef(effectiveVoiceChannelId)
   const userStatusRef = useRef(userStatus)
   const serverOwnerIdRef = useRef<string | null>(null)
-  voiceChannelIdRef.current = voice.voiceChannelId
+  voiceChannelIdRef.current = effectiveVoiceChannelId
   userStatusRef.current = userStatus
   serverOwnerIdRef.current = currentServer?.owner_id ?? null
 
@@ -559,7 +570,7 @@ function MainLayout({
     })
 
     // Fallback poll (presence realtime covers most cases)
-    const ms = voice.voiceChannelId ? 3000 : 10000
+    const ms = effectiveVoiceChannelId ? 3000 : 10000
     const interval = setInterval(load, ms)
 
     return () => {
@@ -567,13 +578,13 @@ function MainLayout({
       unsubscribe(membersChannel)
       unsubscribe(presenceChannel)
     }
-  }, [currentServerId, user?.id, user?.avatar_url, voice.voiceChannelId, withLiveSelfPresence])
+  }, [currentServerId, user?.id, user?.avatar_url, effectiveVoiceChannelId, withLiveSelfPresence])
 
   // Update presence (online / in-voice / away / dnd) — optimistic local patch first
   useEffect(() => {
     if (!user) return
-    const status = voice.voiceChannelId ? 'in-voice' : userStatus
-    const voiceChannelId = voice.voiceChannelId ?? null
+    const status = effectiveVoiceChannelId ? 'in-voice' : userStatus
+    const voiceChannelId = effectiveVoiceChannelId ?? null
 
     setServerMembers((prev) =>
       withLiveSelfPresence(
@@ -599,7 +610,7 @@ function MainLayout({
       })
     }
     push()
-  }, [user?.id, voice.voiceChannelId, userStatus, withLiveSelfPresence])
+  }, [user?.id, effectiveVoiceChannelId, userStatus, withLiveSelfPresence])
 
   // Heartbeat so other devices see you as online even if a single upsert was dropped
   useEffect(() => {
@@ -617,6 +628,9 @@ function MainLayout({
   useEffect(() => {
     if (!user) return
     const markOffline = () => {
+      // Another same-account tab owns voice; closing this observer must not
+      // erase that session's global presence.
+      if (voiceChannelIdRef.current && !voice.voiceChannelId) return
       const base = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
       try {
         fetch(`${base}/users/${user.id}/presence`, {
@@ -629,7 +643,7 @@ function MainLayout({
     }
     window.addEventListener('pagehide', markOffline)
     return () => window.removeEventListener('pagehide', markOffline)
-  }, [user?.id])
+  }, [user?.id, voice.voiceChannelId])
 
   const handleKick = useCallback(
     async (targetUserId: string) => {
@@ -736,12 +750,16 @@ function MainLayout({
       localStorage.setItem('nepsis_last_view', JSON.stringify({ view: 'server' }))
     } catch { /* ignore */ }
     if (channel.type === 'voice') {
-      voice.joinVoice(channel.id, channel.name)
+      // Opening the room already owned by another tab is observer-only. The
+      // existing session keeps its mic/WebRTC connection instead of being kicked.
+      if (voice.otherTabVoiceChannelId !== channel.id) {
+        voice.joinVoice(channel.id, channel.name)
+      }
     }
   }, [setCurrentChannel, setCurrentDM, voice, mustAcceptRules, rulesAcceptanceKnown, hasAcceptedRules, rulesChannelId])
 
   const visibleDmConversations = dmConversations.filter(
-    (c) => !c.other_user?.id || !isUserBlocked(c.other_user.id)
+    (c) => c.is_group || !c.other_user?.id || !isUserBlocked(c.other_user.id)
   )
   void blockedRevision // re-filter when block list changes
 
@@ -799,7 +817,15 @@ function MainLayout({
   const mobileTitle = showFriends && !currentDMId
     ? 'Friends'
     : currentDMId
-      ? (dmConversations.find((c) => c.id === currentDMId)?.other_user?.username || 'Direct Message')
+      ? (() => {
+          const conversation = dmConversations.find((entry) => entry.id === currentDMId)
+          if (!conversation) return 'Direct Message'
+          if (!conversation.is_group) return conversation.other_user?.username || 'Direct Message'
+          return conversation.name?.trim() || conversation.participants
+            .filter((participant) => participant.id !== user.id)
+            .map((participant) => participant.username)
+            .join(', ') || 'Group message'
+        })()
       : showCommunity
         ? 'Community'
         : showOnboarding
@@ -832,33 +858,33 @@ function MainLayout({
         isScreenSharing: voice.screenShareUserIds.includes(member.userId),
       })
     }
-    // Always inject self from LIVE voice state (never depend on API presence alone)
-    if (voice.voiceChannelId) {
-      const chInServer = displayChannels.find((c) => c.id === voice.voiceChannelId)
+    // Inject self from this tab's live session or another same-account tab.
+    if (effectiveVoiceChannelId) {
+      const chInServer = displayChannels.find((c) => c.id === effectiveVoiceChannelId)
       // Show under this channel when it belongs to the current server, or until channels finish loading
       const belongsHere = !chInServer || !chInServer.server_id || chInServer.server_id === currentServerId
       if (belongsHere) {
-        const chId = voice.voiceChannelId
+        const chId = effectiveVoiceChannelId
         if (!voiceUsers[chId]) voiceUsers[chId] = []
         if (!voiceUsers[chId].some((u) => u.userId === user.id)) {
           voiceUsers[chId].unshift({
             userId: user.id,
             username: currentDisplayName,
             avatar_url: user.avatar_url,
-            isMuted: voice.isMuted,
-            isDeafened: voice.isDeafened,
-            isSpeaking: voice.isSpeaking,
-            isScreenSharing: voice.isScreenSharing,
+            isMuted: voice.voiceChannelId ? voice.isMuted : false,
+            isDeafened: voice.voiceChannelId ? voice.isDeafened : false,
+            isSpeaking: voice.voiceChannelId ? voice.isSpeaking : false,
+            isScreenSharing: voice.voiceChannelId ? voice.isScreenSharing : false,
           })
         } else {
           const selfIdx = voiceUsers[chId].findIndex((u) => u.userId === user.id)
           if (selfIdx >= 0) {
             voiceUsers[chId][selfIdx] = {
               ...voiceUsers[chId][selfIdx],
-              isMuted: voice.isMuted,
-              isDeafened: voice.isDeafened,
-              isSpeaking: voice.isSpeaking,
-              isScreenSharing: voice.isScreenSharing,
+              isMuted: voice.voiceChannelId ? voice.isMuted : voiceUsers[chId][selfIdx].isMuted,
+              isDeafened: voice.voiceChannelId ? voice.isDeafened : voiceUsers[chId][selfIdx].isDeafened,
+              isSpeaking: voice.voiceChannelId ? voice.isSpeaking : false,
+              isScreenSharing: voice.voiceChannelId ? voice.isScreenSharing : voiceUsers[chId][selfIdx].isScreenSharing,
             }
           }
         }
@@ -915,7 +941,7 @@ function MainLayout({
   useEffect(() => {
     if (!currentDMId) return
     const conv = dmConversations.find((c) => c.id === currentDMId)
-    if (!conv?.other_user) setCurrentDM(null)
+    if (!conv || (!conv.is_group && !conv.other_user)) setCurrentDM(null)
   }, [currentDMId, dmConversations, setCurrentDM])
 
   const mainViewKey =
@@ -1123,6 +1149,7 @@ function MainLayout({
               )
             } catch { /* ignore */ }
           }}
+          onCreateGroupDM={() => setGroupDMModal({ mode: 'create' })}
         />
         <UserPanel
           user={user}
@@ -1195,7 +1222,7 @@ function MainLayout({
         (() => {
           const conv = visibleDmConversations.find((c) => c.id === currentDMId) || dmConversations.find((c) => c.id === currentDMId)
           const dmMsgs = dmMessages[currentDMId] || []
-          if (!conv?.other_user) return null
+          if (!conv || (!conv.is_group && !conv.other_user)) return null
           return (
             <DMView
               conversation={conv}
@@ -1215,6 +1242,11 @@ function MainLayout({
               }}
               onBlockUser={handleBlockUser}
               onReportUser={handleReportUser}
+              onAddPeople={
+                conv.is_group && conv.participants.length < 10
+                  ? () => setGroupDMModal({ mode: 'add', conversationId: conv.id })
+                  : undefined
+              }
             />
           )
         })()
@@ -1394,6 +1426,32 @@ function MainLayout({
         }}
       />
       </div>
+      )}
+
+      {groupDMModal && (
+        <GroupDMModal
+          userId={user.id}
+          mode={groupDMModal.mode}
+          excludedUserIds={
+            groupDMModal.conversationId
+              ? dmConversations.find((entry) => entry.id === groupDMModal.conversationId)?.participants.map((participant) => participant.id) || []
+              : []
+          }
+          onClose={() => setGroupDMModal(null)}
+          onConfirm={async (memberIds, name) => {
+            if (groupDMModal.mode === 'create') {
+              const id = await createGroupDM(memberIds, name)
+              if (id) {
+                setShowCommunity(false)
+                setShowFriends(true)
+                setChannelNavOpen(false)
+              }
+            } else if (groupDMModal.conversationId) {
+              await addGroupDMMembers(groupDMModal.conversationId, memberIds)
+              showNotification('People added to group message')
+            }
+          }}
+        />
       )}
 
       {/* DM Call overlay */}

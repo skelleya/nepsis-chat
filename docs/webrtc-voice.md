@@ -117,8 +117,8 @@ Users can play custom audio clips (max 10 seconds) to all peers in a voice chann
    - Sources longer than ten seconds open the clip editor; the selected segment is exported as WAV before upload.
 2. Each sound has an emoji (default 🔊; pick when adding or click to edit)
 3. In voice, user clicks a sound → `emitSoundboardPlay(soundUrl)` via Socket.io
-4. Backend broadcasts `soundboard-play` to room (including sender)
-5. All peers receive event → play audio locally (unless deafened or soundboard muted)
+4. Sender plays once immediately; backend relays `soundboard-play` to other room members only
+5. Peers receive one event and restart that URL cleanly (unless deafened or soundboard muted)
 6. Spam-click restarts the sound from the beginning
 7. Per-user soundboard mute (🔊/🔇) in voice bar — lets users stop hearing soundboard without deafening
 8. Works only with Socket.io signaling (BroadcastChannel has no soundboard)
@@ -129,6 +129,16 @@ Users can play custom audio clips (max 10 seconds) to all peers in a voice chann
 - Screen presets: 1920×1080, 2560×1440, or 3840×2160, up to 60 capture fps.
 - Sender ceilings adapt to the captured track: up to 8 Mbps camera and 16 Mbps screen.
 - Constraints are ideals/maximums, not a guarantee. The browser can return a lower resolution or bitrate for unsupported cameras, displays, encoders, or network conditions.
+- **Include screen audio** is device-local under Voice & Video. When enabled, `getDisplayMedia` requests tab/system audio without voice processing. Browser/OS picker support still determines availability. Screen audio is included for viewers watching that share; microphone audio remains available to the whole voice channel.
+
+### Same-account tabs
+
+Only one tab owns microphone/WebRTC media. The owner publishes a short-lived heartbeat in `localStorage` and `BroadcastChannel`; other tabs become observers:
+
+- They preserve the owner’s `in-voice` database presence.
+- They display the account under the correct channel and can browse its gallery.
+- Opening that same channel does not emit `join-voice`, so it cannot trigger session replacement.
+- Starting/joining a different voice session remains an explicit transfer and the backend single-session guard still prevents duplicate microphones and echo.
 
 ### Resizable Voice Layout (Voice UI v6 / Discord watch)
 

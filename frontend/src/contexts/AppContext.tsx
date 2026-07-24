@@ -120,6 +120,9 @@ interface AppContextValue {
   channelMentionCounts: Record<string, number>
   loadDMConversations: () => Promise<void>
   openDM: (targetUserId: string, targetUsername: string) => Promise<string | undefined>
+  createGroupDM: (memberIds: string[], name?: string) => Promise<string | undefined>
+  addGroupDMMembers: (conversationId: string, memberIds: string[]) => Promise<void>
+  renameGroupDM: (conversationId: string, name: string) => Promise<void>
   sendDMMessage: (
     conversationId: string,
     content: string,
@@ -482,6 +485,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return conv.id
     },
     [user?.id, loadDMMessages]
+  )
+
+  const createGroupDM = useCallback(
+    async (memberIds: string[], name?: string): Promise<string | undefined> => {
+      if (!user) return
+      const conversation = await api.createGroupDM(user.id, memberIds, name)
+      setDMConversations((current) => [
+        conversation,
+        ...current.filter((entry) => entry.id !== conversation.id),
+      ])
+      setCurrentDM(conversation.id)
+      setDMMessages((current) => ({ ...current, [conversation.id]: [] }))
+      return conversation.id
+    },
+    [user?.id]
+  )
+
+  const addGroupDMMembers = useCallback(
+    async (conversationId: string, memberIds: string[]) => {
+      if (!user) return
+      const conversation = await api.addGroupDMMembers(conversationId, user.id, memberIds)
+      setDMConversations((current) =>
+        current.map((entry) => (entry.id === conversationId ? conversation : entry))
+      )
+    },
+    [user?.id]
+  )
+
+  const renameGroupDM = useCallback(
+    async (conversationId: string, name: string) => {
+      if (!user) return
+      const conversation = await api.renameGroupDM(conversationId, user.id, name)
+      setDMConversations((current) =>
+        current.map((entry) => (entry.id === conversationId ? conversation : entry))
+      )
+    },
+    [user?.id]
   )
 
   const sendDMMessage = useCallback(
@@ -1317,6 +1357,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         channelMentionCounts,
         loadDMConversations,
         openDM,
+        createGroupDM,
+        addGroupDMMembers,
+        renameGroupDM,
         sendDMMessage,
         toggleDMReaction,
         loadChannels,

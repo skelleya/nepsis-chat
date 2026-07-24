@@ -22,6 +22,7 @@ interface DMViewProps {
   onClose?: () => void
   onBlockUser?: (userId: string) => void
   onReportUser?: (userId: string) => void
+  onAddPeople?: () => void
 }
 
 function formatMessageTime(iso: string): string {
@@ -76,6 +77,7 @@ export function DMView({
   onClose,
   onBlockUser,
   onReportUser,
+  onAddPeople,
 }: DMViewProps) {
   const call = useCall()
   const [input, setInput] = useState('')
@@ -101,17 +103,22 @@ export function DMView({
     setReplyTo(null)
   }, [conversation.id])
 
-  const username = conversation.other_user?.username ?? 'Unknown'
+  const isGroup = conversation.is_group
+  const otherParticipants = conversation.participants.filter((participant) => participant.id !== currentUserId)
+  const username = isGroup
+    ? conversation.name?.trim() || otherParticipants.map((participant) => participant.username).join(', ') || 'Group message'
+    : conversation.other_user?.username ?? 'Unknown'
   const otherUserId = conversation.other_user?.id
   const otherAvatarUrl = conversation.other_user?.avatar_url
+  const participantById = new Map(conversation.participants.map((participant) => [participant.id, participant]))
   const inCallWithThem =
     call.callState === 'in-call' && call.remoteUserId === otherUserId
 
-  const profileMember: ServerMember | null = otherUserId
+  const profileMember: ServerMember | null = !isGroup && otherUserId
     ? {
         userId: otherUserId,
         username,
-        avatarUrl: otherAvatarUrl,
+        avatarUrl: otherAvatarUrl || undefined,
         role: 'member',
         status: 'online',
       }
@@ -166,25 +173,27 @@ export function DMView({
       return
     }
     if (call.callState !== 'idle') return
-    call.initiateCall(otherUserId, username, otherAvatarUrl, { video })
+    call.initiateCall(otherUserId, username, otherAvatarUrl || undefined, { video })
   }
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-app-dark">
+    <div className="chat-shell flex-1 flex flex-col min-w-0">
       {/* Header — Discord DM top bar */}
-      <div className="h-12 px-4 flex items-center gap-3 border-b border-app-darker shadow-sm flex-shrink-0 z-10">
+      <div className="chat-header-modern h-12 px-4 flex items-center gap-3 flex-shrink-0 z-10">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-app-offline flex-shrink-0">
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c1.19 0 2.34-.21 3.41-.6.3-.11.49-.4.49-.72v-.28c0-.32-.19-.61-.48-.73A8.96 8.96 0 0112 20c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8c0 .66-.08 1.3-.23 1.91-.07.3.02.61.24.82l.2.2c.28.28.75.2.91-.16.4-.9.63-1.9.63-2.96C22 6.48 17.52 2 12 2zm0 4c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3zm0 14c-2.67 0-5.33-.84-7.2-2.4.03-1.99 4.8-3.1 7.2-3.1 2.4 0 7.17 1.1 7.2 3.1A11.94 11.94 0 0112 20z" />
         </svg>
         <button
           ref={nameBtnRef}
           type="button"
-          onClick={(e) => openProfile(e.currentTarget)}
-          className="flex items-center gap-2 min-w-0 flex-1 text-left rounded-md px-1.5 py-1 -mx-1.5 hover:bg-app-hover/50 transition-colors"
-          title={`View ${username}'s profile`}
+          onClick={(e) => { if (!isGroup) openProfile(e.currentTarget) }}
+          className={`flex items-center gap-2 min-w-0 flex-1 text-left rounded-md px-1.5 py-1 -mx-1.5 transition-colors ${isGroup ? 'cursor-default' : 'hover:bg-app-hover/50'}`}
+          title={isGroup ? `${conversation.participants.length} members` : `View ${username}'s profile`}
         >
           <div className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 bg-app-accent flex items-center justify-center text-white text-[10px] font-bold">
-            {otherAvatarUrl ? (
+            {isGroup ? (
+              <span className="text-sm">👥</span>
+            ) : otherAvatarUrl ? (
               <img src={otherAvatarUrl} alt="" className="w-full h-full object-cover" />
             ) : (
               username.charAt(0).toUpperCase()
@@ -194,7 +203,17 @@ export function DMView({
         </button>
 
         <div className="flex items-center gap-1">
-          {inCallWithThem ? (
+          {isGroup && onAddPeople && (
+            <button
+              type="button"
+              onClick={onAddPeople}
+              className="px-2.5 py-1.5 rounded text-sm font-medium text-app-text bg-app-hover/70 hover:bg-app-hover"
+              title="Add people"
+            >
+              Add people
+            </button>
+          )}
+          {!isGroup && (inCallWithThem ? (
             <button
               type="button"
               onClick={() => call.expandCall()}
@@ -228,7 +247,7 @@ export function DMView({
                 </svg>
               </button>
             </>
-          )}
+          ))}
           <div className="relative">
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
@@ -253,18 +272,22 @@ export function DMView({
                       Close DM
                     </button>
                   )}
-                  <button
-                    onClick={() => { onBlockUser?.(otherUserId); setShowUserMenu(false) }}
-                    className="w-full px-3 py-2 text-left text-sm text-[#f23f43] hover:bg-[#f23f43] hover:text-white"
-                  >
-                    Block User
-                  </button>
-                  <button
-                    onClick={() => { onReportUser?.(otherUserId); setShowUserMenu(false) }}
-                    className="w-full px-3 py-2 text-left text-sm text-app-text hover:bg-app-accent hover:text-white"
-                  >
-                    Report User
-                  </button>
+                  {!isGroup && (
+                    <>
+                      <button
+                        onClick={() => { if (otherUserId) onBlockUser?.(otherUserId); setShowUserMenu(false) }}
+                        className="w-full px-3 py-2 text-left text-sm text-[#f23f43] hover:bg-[#f23f43] hover:text-white"
+                      >
+                        Block User
+                      </button>
+                      <button
+                        onClick={() => { if (otherUserId) onReportUser?.(otherUserId); setShowUserMenu(false) }}
+                        className="w-full px-3 py-2 text-left text-sm text-app-text hover:bg-app-accent hover:text-white"
+                      >
+                        Report User
+                      </button>
+                    </>
+                  )}
                 </div>
               </>
             )}
@@ -273,17 +296,19 @@ export function DMView({
       </div>
 
       {/* Messages — Discord left-aligned stream */}
-      <div className="flex-1 overflow-y-auto min-h-0 px-0 py-4">
+      <div className="scrollbar-thin flex-1 overflow-y-auto min-h-0 px-0 py-4">
         {messages.length === 0 ? (
           <div className="flex flex-col justify-end h-full px-4 pb-4">
             <button
               type="button"
-              onClick={(e) => openProfile(e.currentTarget)}
-              className="text-left rounded-xl hover:bg-app-hover/30 p-2 -m-2 transition-colors w-fit"
-              title={`View ${username}'s profile`}
+              onClick={(e) => { if (!isGroup) openProfile(e.currentTarget) }}
+              className={`text-left rounded-xl p-2 -m-2 transition-colors w-fit ${isGroup ? 'cursor-default' : 'hover:bg-app-hover/30'}`}
+              title={isGroup ? `${conversation.participants.length} members` : `View ${username}'s profile`}
             >
               <div className="w-20 h-20 rounded-full bg-app-accent flex items-center justify-center text-white text-3xl font-bold mb-3 overflow-hidden">
-                {otherAvatarUrl ? (
+                {isGroup ? (
+                  <span>👥</span>
+                ) : otherAvatarUrl ? (
                   <img src={otherAvatarUrl} alt="" className="w-full h-full object-cover" />
                 ) : (
                   username.charAt(0).toUpperCase()
@@ -292,7 +317,9 @@ export function DMView({
               <h3 className="text-2xl font-bold text-white mb-1">{username}</h3>
             </button>
             <p className="text-app-muted text-sm max-w-md">
-              This is the beginning of your direct message history with <strong className="text-app-text">@{username}</strong>.
+              {isGroup
+                ? <>This is the beginning of <strong className="text-app-text">{username}</strong>.</>
+                : <>This is the beginning of your direct message history with <strong className="text-app-text">@{username}</strong>.</>}
             </p>
           </div>
         ) : (
@@ -305,7 +332,7 @@ export function DMView({
                 sameDay(prev.created_at, msg.created_at) &&
                 new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime() < 7 * 60 * 1000
               const isMe = msg.user_id === currentUserId
-              const avatarUrl = isMe ? currentUserAvatarUrl : otherAvatarUrl
+              const avatarUrl = isMe ? currentUserAvatarUrl : participantById.get(msg.user_id)?.avatar_url
               const showDateSep = !prev || !sameDay(prev.created_at, msg.created_at)
 
               const reactions = msg.reactions || []
@@ -321,21 +348,21 @@ export function DMView({
               return (
                 <div key={msg.id} id={`dm-msg-${msg.id}`}>
                   {showDateSep && (
-                    <div className="flex items-center gap-2 mx-4 my-3">
-                      <div className="flex-1 h-px bg-[#3f4147]" />
-                      <span className="text-[12px] font-semibold text-app-muted uppercase tracking-wide">
+                    <div className="flex items-center gap-3 mx-5 my-5">
+                      <div className="flex-1 h-px bg-app-glass/[0.07]" />
+                      <span className="text-[10px] font-semibold text-app-muted uppercase tracking-[0.12em]">
                         {new Date(msg.created_at).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })}
                       </span>
-                      <div className="flex-1 h-px bg-[#3f4147]" />
+                      <div className="flex-1 h-px bg-app-glass/[0.07]" />
                     </div>
                   )}
                   <div
-                    className={`group relative flex gap-4 px-4 hover:bg-app-channel/60 cursor-pointer ${
-                      isGrouped ? 'py-0.5 min-h-[1.375rem]' : 'mt-4 py-0.5'
+                    className={`chat-msg-row chat-message-modern group relative flex gap-3.5 px-5 cursor-pointer ${
+                      isGrouped ? 'min-h-[1.375rem]' : 'mt-3'
                     } ${replyTo?.id === msg.id ? 'bg-app-accent/10' : ''}`}
                     onClick={() => selectReply(msg)}
                   >
-                    <div className="absolute right-4 -top-3 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 z-10 flex items-center bg-app-dark border border-app-darker rounded shadow-lg overflow-hidden">
+                    <div className="absolute right-5 -top-3 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 z-10 flex items-center bg-app-panel/95 border border-app-glass/[0.08] rounded-lg shadow-xl overflow-hidden backdrop-blur">
                       <button
                         type="button"
                         onClick={(e) => {
@@ -366,10 +393,10 @@ export function DMView({
                     <div className="flex-1 min-w-0">
                       {!isGrouped && (
                         <div className="flex items-baseline gap-2 flex-wrap leading-tight">
-                          <span className="font-medium text-app-text text-[16px] hover:underline cursor-default">
+                          <span className="font-semibold text-app-text text-[15px] hover:underline cursor-default">
                             {msg.username ?? 'Unknown'}
                           </span>
-                          <span className="text-[12px] text-app-muted">
+                          <span className="text-[11px] tabular-nums text-app-muted/80">
                             {formatMessageTime(msg.created_at)}
                           </span>
                         </div>
@@ -383,11 +410,11 @@ export function DMView({
                           }}
                           className="mt-0.5 mb-1 flex items-center gap-1.5 text-xs text-app-muted hover:text-white border-l-2 border-app-hover pl-2"
                         >
-                          <span className="font-semibold text-[#c9cdfb]">{msg.reply_to.username}</span>
+                          <span className="font-semibold text-app-accent">{msg.reply_to.username}</span>
                           <span className="truncate max-w-[240px]">{msg.reply_to.content}</span>
                         </button>
                       )}
-                      <div className={`text-app-text text-[16px] leading-[1.375] break-words whitespace-pre-wrap ${isGrouped ? '' : 'mt-0.5'}`}>
+                      <div className={`text-app-text text-[15px] leading-[1.5] break-words whitespace-pre-wrap ${isGrouped ? '' : 'mt-0.5'}`}>
                         {(() => {
                           const parts = renderMessageContent(msg.content)
                           if (parts.length === 0) return msg.content
@@ -460,12 +487,12 @@ export function DMView({
       </div>
 
       {/* Composer */}
-      <div className="px-4 pb-6 pt-2 flex-shrink-0">
+      <div className="chat-composer-wrap px-4 sm:px-5 pb-5 pt-3 flex-shrink-0">
         {replyTo && (
           <div className="mb-2 flex items-center justify-between gap-2 px-3 py-2 rounded-t-lg bg-app-channel border-l-4 border-app-accent">
             <div className="min-w-0 text-sm">
               <span className="text-app-muted">Replying to </span>
-              <span className="text-[#c9cdfb] font-semibold">{replyTo.username}</span>
+              <span className="text-app-accent font-semibold">{replyTo.username}</span>
               <p className="text-app-muted truncate">{replyTo.content}</p>
             </div>
             <button
@@ -510,8 +537,8 @@ export function DMView({
           value={input}
           onChange={setInput}
           onSubmit={doSend}
-          placeholder={replyTo ? `Reply to @${replyTo.username}` : `Message @${username}`}
-          members={conversation.other_user ? [{ id: conversation.other_user.id, username }] : []}
+          placeholder={replyTo ? `Reply to @${replyTo.username}` : `Message ${isGroup ? username : `@${username}`}`}
+          members={otherParticipants.map((participant) => ({ id: participant.id, username: participant.username }))}
           uploading={uploading}
           onAttachClick={() => setShowAttachMenu((v) => !v)}
           attachOpen={showAttachMenu}

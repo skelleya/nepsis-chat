@@ -7,8 +7,10 @@ import { SoundboardDropdown } from './SoundboardDropdown'
 import {
   getScreenShareStream,
   getParticipantVideoStream,
+  getRemoteAudioStream,
   hasLiveVideo,
 } from '../utils/mediaTracks'
+import { loadPrefs, subscribePrefs } from '../services/userPrefs'
 
 interface VoiceViewProps {
   channel: Channel
@@ -79,6 +81,7 @@ function StageVideo({
   objectFit = 'contain',
   avatarUrl,
   username,
+  mirror = false,
 }: {
   stream: MediaStream
   muted?: boolean
@@ -88,6 +91,7 @@ function StageVideo({
   objectFit?: 'contain' | 'cover'
   avatarUrl?: string
   username: string
+  mirror?: boolean
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [hasFrame, setHasFrame] = useState(false)
@@ -118,7 +122,7 @@ function StageVideo({
         onPlaying={() => setHasFrame(true)}
         className={`flex-1 w-full h-full min-h-0 transition-opacity duration-200 ${
           objectFit === 'cover' ? 'object-cover' : 'object-contain'
-        } ${hasFrame ? 'opacity-100' : 'opacity-0'}`}
+        } ${hasFrame ? 'opacity-100' : 'opacity-0'} ${mirror ? 'scale-x-[-1]' : ''}`}
       />
       <div className="absolute top-3 left-3 flex items-center gap-2 z-[2]">
         {badge === 'live' && (
@@ -229,11 +233,13 @@ function TileVideo({
   muted = false,
   username,
   avatarUrl,
+  mirror = false,
 }: {
   stream: MediaStream
   muted?: boolean
   username: string
   avatarUrl?: string
+  mirror?: boolean
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [hasFrame, setHasFrame] = useState(false)
@@ -288,7 +294,7 @@ function TileVideo({
         muted={muted}
         onLoadedData={() => setHasFrame(true)}
         onPlaying={() => setHasFrame(true)}
-        className={`w-full h-full object-cover transition-opacity duration-200 ${hasFrame ? 'opacity-100' : 'opacity-0'}`}
+        className={`w-full h-full object-cover transition-opacity duration-200 ${hasFrame ? 'opacity-100' : 'opacity-0'} ${mirror ? 'scale-x-[-1]' : ''}`}
       />
     </div>
   )
@@ -301,6 +307,8 @@ function ParticipantCard({
   localStream,
   localVideoStream,
   participantVideoStream,
+  mirrorLocalPreview,
+  presenceOnly = false,
   isMuted,
   isDeafened,
   isCameraOn,
@@ -321,6 +329,8 @@ function ParticipantCard({
   localStream: MediaStream | null
   localVideoStream: MediaStream | null
   participantVideoStream: MediaStream | null
+  mirrorLocalPreview: boolean
+  presenceOnly?: boolean
   isMuted: boolean
   isDeafened: boolean
   isCameraOn: boolean
@@ -383,6 +393,7 @@ function ParticipantCard({
             muted={isLocal || isDeafened}
             username={participant.username}
             avatarUrl={avatarUrl}
+            mirror={isLocal && mirrorLocalPreview}
           />
         ) : (
           <div className="w-full h-full bg-app-channel flex items-center justify-center">
@@ -414,17 +425,17 @@ function ParticipantCard({
   }
 
   const circleSize = large
-    ? 'w-36 h-36 sm:w-44 sm:h-44 text-4xl sm:text-5xl'
-    : 'w-24 h-24 sm:w-28 sm:h-28 text-2xl sm:text-3xl'
+    ? 'w-32 h-32 sm:w-40 sm:h-40 text-4xl sm:text-5xl'
+    : 'w-20 h-20 sm:w-24 sm:h-24 text-2xl sm:text-3xl'
   const videoTileSize = large
-    ? 'w-64 h-48 sm:w-80 sm:h-56'
-    : 'w-52 h-40 sm:w-64 sm:h-48'
+    ? 'w-full aspect-video min-h-[220px]'
+    : 'w-full aspect-video min-h-[150px]'
   const muteBadgeSize = large ? 'w-9 h-9' : 'w-7 h-7'
   const muteIconSize = large ? 16 : 14
 
   return (
     <div
-      className={`relative flex flex-col items-center justify-center gap-2 px-2 py-3 select-none ${
+      className={`relative w-full min-w-0 min-h-[190px] flex flex-col items-center justify-center gap-3 p-3 sm:p-4 rounded-2xl border border-app-glass/[0.06] bg-app-channel/35 hover:bg-app-channel/55 transition-colors select-none ${
         (isSharingScreen && onWatchShare) || (showVideoShell && onMaximizeCamera) ? 'cursor-pointer' : ''
       }`}
       onClick={() => {
@@ -502,6 +513,7 @@ function ParticipantCard({
               muted={isLocal || isDeafened}
               username={participant.username}
               avatarUrl={avatarUrl}
+              mirror={isLocal && mirrorLocalPreview}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-app-channel">
@@ -553,7 +565,7 @@ function ParticipantCard({
           )}
         </div>
       )}
-      <div className="text-center max-w-[160px] sm:max-w-[200px]">
+      <div className="text-center w-full min-w-0">
         <div className="font-semibold text-app-text text-sm truncate">
           {participant.username}
           {participant.userId === currentUserId && (
@@ -563,7 +575,7 @@ function ParticipantCard({
         <div className="text-app-muted text-xs">
           {isLocal
             ? (isMuted ? 'Muted' : speaking ? 'Speaking' : 'Connected')
-            : (participant.stream ? 'Connected' : 'Connecting...')}
+            : (participant.stream || presenceOnly ? 'Connected' : 'Connecting...')}
         </div>
       </div>
     </div>
@@ -599,6 +611,7 @@ export function VoiceView({
     screenStream,
     leaveVoice,
     voiceChannelId,
+    otherTabVoiceChannelId,
     localStream,
     playSoundboardSound,
     error,
@@ -610,7 +623,15 @@ export function VoiceView({
   const [soundboardOpen, setSoundboardOpen] = useState(false)
   const soundboardButtonRef = useRef<HTMLButtonElement>(null)
   const [maximizedCameraUserId, setMaximizedCameraUserId] = useState<string | null>(null)
+  const [mirrorCameraPreview, setMirrorCameraPreview] = useState(
+    () => loadPrefs().voice.mirrorCameraPreview
+  )
   const autoFocusedCameraRef = useRef(false)
+
+  useEffect(
+    () => subscribePrefs((prefs) => setMirrorCameraPreview(prefs.voice.mirrorCameraPreview)),
+    []
+  )
 
   const isInThisChannel = voiceChannelId === channel.id
 
@@ -788,6 +809,8 @@ export function VoiceView({
             : getParticipantVideoStream(p.stream, {
                 knownScreenSharing: screenShareUserIds.includes(p.userId),
               }),
+        mirrorLocalPreview: mirrorCameraPreview,
+        presenceOnly: !isInThisChannel,
         isMuted: isLocal ? isMuted : remoteState?.muted ?? p.isMuted ?? false,
         isDeafened,
         isCameraOn,
@@ -820,6 +843,8 @@ export function VoiceView({
       maximizedCameraUserId,
       handleWatchShare,
       handleMaximizeCamera,
+      mirrorCameraPreview,
+      isInThisChannel,
     ]
   )
 
@@ -834,8 +859,8 @@ export function VoiceView({
     !(isWatchingShare && maximizedCameraUserId === currentUserId)
 
   const renderFilmstrip = () => (
-    <div className="shrink-0 px-3 py-2 border-b border-white/5 bg-[#111214]/80">
-      <div className="flex gap-2 overflow-x-auto items-stretch pb-0.5 scrollbar-thin">
+    <div className="shrink-0 px-3 py-2.5 border-b border-app-glass/[0.06] bg-app-panel/90 backdrop-blur">
+      <div className="flex gap-2.5 overflow-x-auto items-stretch pb-0.5 scrollbar-thin">
         {allParticipants.map((p) => (
           <ParticipantCard key={p.userId} {...cardProps(p, { compact: true })} />
         ))}
@@ -846,10 +871,10 @@ export function VoiceView({
   const renderAvatarGrid = () => {
     if (allParticipants.length === 0) return null
     return (
-      <div className="flex-1 overflow-auto p-6 min-h-0 flex items-center justify-center">
+      <div className="flex-1 overflow-auto p-3 sm:p-5 min-h-0">
         <div
-          className={`flex flex-wrap items-start justify-center gap-6 sm:gap-8 ${
-            isAlone ? 'max-w-md' : 'max-w-5xl'
+          className={`grid w-full mx-auto gap-3 sm:gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))] ${
+            isAlone ? 'max-w-2xl' : 'max-w-7xl'
           }`}
         >
           {allParticipants.map((p) => (
@@ -865,8 +890,8 @@ export function VoiceView({
       return (
         <div className="flex-1 flex flex-col min-h-0">
           {renderFilmstrip()}
-          <div className="flex-1 flex gap-2 p-2 min-h-0">
-            <div className="flex-[1.4] min-w-0 min-h-0">
+          <div className="flex-1 flex flex-col md:flex-row gap-2.5 p-2.5 min-h-0 overflow-auto">
+            <div className="md:flex-[1.65] min-w-0 min-h-[260px]">
               <StageVideo
                 stream={watchingStream}
                 muted
@@ -878,7 +903,7 @@ export function VoiceView({
                 onClose={() => setWatchingShareUserId(null)}
               />
             </div>
-            <div className="flex-1 min-w-0 min-h-0">
+            <div className="md:flex-1 min-w-0 min-h-[220px] md:min-h-0">
               <StageVideo
                 stream={maximizedCameraStream}
                 muted
@@ -887,6 +912,7 @@ export function VoiceView({
                 username={maximizedCameraUsername}
                 avatarUrl={maximizedCameraUserId ? avatarByUserId.get(maximizedCameraUserId) : undefined}
                 objectFit="cover"
+                mirror={maximizedCameraUserId === currentUserId && mirrorCameraPreview}
                 onClose={() => setMaximizedCameraUserId(null)}
               />
             </div>
@@ -911,12 +937,13 @@ export function VoiceView({
               onClose={() => setWatchingShareUserId(null)}
             />
             {showSelfPip && videoStream && (
-              <div className="absolute bottom-4 left-4 w-40 sm:w-52 aspect-video rounded-lg overflow-hidden ring-2 ring-white/20 shadow-2xl z-[3]">
+              <div className="absolute bottom-4 right-4 w-36 sm:w-48 aspect-video rounded-xl overflow-hidden ring-1 ring-white/20 shadow-2xl z-[3]">
                 <TileVideo
                   stream={videoStream}
                   muted
                   username={currentUsername}
                   avatarUrl={currentUserAvatarUrl}
+                  mirror={mirrorCameraPreview}
                 />
                 <div className="absolute bottom-1 left-1.5 text-[10px] text-white font-medium drop-shadow">
                   You
@@ -941,15 +968,17 @@ export function VoiceView({
               username={maximizedCameraUsername}
               avatarUrl={maximizedCameraUserId ? avatarByUserId.get(maximizedCameraUserId) : undefined}
               objectFit="cover"
+              mirror={maximizedCameraUserId === currentUserId && mirrorCameraPreview}
               onClose={() => setMaximizedCameraUserId(null)}
             />
             {showSelfPip && videoStream && (
-              <div className="absolute bottom-4 left-4 w-36 sm:w-44 aspect-video rounded-lg overflow-hidden ring-2 ring-white/20 shadow-2xl z-[3]">
+              <div className="absolute bottom-4 right-4 w-36 sm:w-44 aspect-video rounded-xl overflow-hidden ring-1 ring-white/20 shadow-2xl z-[3]">
                 <TileVideo
                   stream={videoStream}
                   muted
                   username={currentUsername}
                   avatarUrl={currentUserAvatarUrl}
+                  mirror={mirrorCameraPreview}
                 />
               </div>
             )}
@@ -963,7 +992,7 @@ export function VoiceView({
 
   return (
     <div className="flex-1 flex flex-col bg-app-darker min-h-0">
-      <div className="h-12 px-4 flex items-center justify-between border-b border-app-dark shadow-sm shrink-0">
+      <div className="h-12 px-4 flex items-center justify-between border-b border-app-glass/[0.06] bg-app-dark/85 backdrop-blur shrink-0">
         <div className="flex items-center">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-app-muted">
             <path d="M11.383 3.07904C11.009 2.92504 10.579 3.01004 10.293 3.29604L6.586 7.00304H4C3.45 7.00304 3 7.45304 3 8.00304V16.003C3 16.553 3.45 17.003 4 17.003H6.586L10.293 20.71C10.579 20.996 11.009 21.082 11.383 20.927C11.757 20.772 12 20.407 12 20.003V4.00304C12 3.59904 11.757 3.23404 11.383 3.07904Z"/>
@@ -971,7 +1000,7 @@ export function VoiceView({
             <path d="M17 7.00304C17 7.00304 20 9.00304 20 12.003C20 15.003 17 17.003 17 17.003" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none"/>
           </svg>
           <span className="ml-2 font-semibold text-app-text">{channel.name}</span>
-          {isInThisChannel && (
+          {allParticipants.length > 0 && (
             <span className="ml-2 text-xs text-app-muted">/ {allParticipants.length} connected</span>
           )}
         </div>
@@ -1001,9 +1030,15 @@ export function VoiceView({
         <div aria-hidden className="contents">
           {allParticipants
             .filter((p) => p.userId !== currentUserId && p.stream)
-            .map((p) => (
-              <RemoteAudio key={`audio-${p.userId}`} stream={p.stream} muted={isDeafened} />
-            ))}
+            .map((p) => {
+              const audioStream = getRemoteAudioStream(p.stream, {
+                knownScreenSharing: screenShareUserIds.includes(p.userId),
+                includeScreenAudio: watchingShareUserId === p.userId,
+              })
+              return audioStream
+                ? <RemoteAudio key={`audio-${p.userId}`} stream={audioStream} muted={isDeafened} />
+                : null
+            })}
         </div>
       )}
 
@@ -1020,7 +1055,7 @@ export function VoiceView({
           </div>
         )}
 
-        {isInThisChannel && renderFocusStage()}
+        {(isInThisChannel || allParticipants.length > 0) && renderFocusStage()}
       </div>
 
       <div className="p-4 border-t border-app-dark shrink-0">
@@ -1109,7 +1144,9 @@ export function VoiceView({
           </div>
         ) : (
           <div className="text-center text-app-muted text-sm">
-            Click to join this voice channel
+            {otherTabVoiceChannelId === channel.id
+              ? 'Connected in another tab — viewing this channel without moving your microphone.'
+              : 'Select this voice channel to join'}
           </div>
         )}
       </div>

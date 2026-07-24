@@ -208,8 +208,8 @@ export function ChatView({
   }
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-app-dark">
-      <div className="h-12 px-4 flex items-center gap-2 border-b border-app-darker shadow-sm flex-shrink-0 z-10">
+    <div className="chat-shell flex-1 flex flex-col min-w-0">
+      <div className="chat-header-modern h-12 px-4 flex items-center gap-2 flex-shrink-0 z-10">
         {channel.type === 'rules' ? (
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="text-app-offline">
             <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/>
@@ -226,7 +226,7 @@ export function ChatView({
 
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto relative min-h-0 py-4"
+        className="scrollbar-thin flex-1 overflow-y-auto relative min-h-0 py-4"
         onScroll={handleScroll}
       >
         {messages.map((message, idx) => {
@@ -245,22 +245,22 @@ export function ChatView({
           return (
             <div key={message.id}>
               {showDateSep && (
-                <div className="flex items-center gap-2 mx-4 my-3">
-                  <div className="flex-1 h-px bg-[#3f4147]" />
-                  <span className="text-[12px] font-semibold text-app-muted uppercase tracking-wide">
+                <div className="flex items-center gap-3 mx-5 my-5">
+                  <div className="flex-1 h-px bg-app-glass/[0.07]" />
+                  <span className="text-[10px] font-semibold text-app-muted uppercase tracking-[0.12em]">
                     {new Date(message.createdAt).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })}
                   </span>
-                  <div className="flex-1 h-px bg-[#3f4147]" />
+                  <div className="flex-1 h-px bg-app-glass/[0.07]" />
                 </div>
               )}
               <div
                 id={`msg-${message.id}`}
-                className={`group relative flex gap-4 px-4 hover:bg-app-channel/60 ${
-                  isGrouped ? 'py-0.5 min-h-[1.375rem]' : 'mt-4 py-0.5'
+                className={`chat-msg-row chat-message-modern group relative flex gap-3.5 px-5 ${
+                  isGrouped ? 'min-h-[1.375rem]' : 'mt-3'
                 }`}
               >
                 {/* Hover action bar */}
-                <div className="absolute right-4 -top-3 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 z-10 flex items-center bg-app-dark border border-app-darker rounded shadow-lg overflow-hidden">
+                <div className="absolute right-5 -top-3 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-lg:opacity-100 z-10 flex items-center bg-app-panel/95 border border-app-glass/[0.08] rounded-lg shadow-xl overflow-hidden backdrop-blur">
                   <button
                     type="button"
                     onClick={() => setReplyTo(message)}
@@ -306,8 +306,8 @@ export function ChatView({
                 <div className="flex-1 min-w-0">
                   {!isGrouped && (
                     <div className="flex items-baseline gap-2 flex-wrap leading-tight">
-                      <span className="font-medium text-app-text text-[16px]">{username}</span>
-                      <span className="text-[12px] text-app-muted">
+                      <span className="font-semibold text-app-text text-[15px]">{username}</span>
+                      <span className="text-[11px] tabular-nums text-app-muted/80">
                         {formatChatTime(message.createdAt)}
                         {message.editedAt && ' (edited)'}
                       </span>
@@ -324,7 +324,7 @@ export function ChatView({
                       role="button"
                       tabIndex={0}
                     >
-                      <span className="font-medium text-[#c9cdfb]">{message.replyTo.username ?? 'Unknown'}</span>
+                      <span className="font-medium text-app-accent">{message.replyTo.username ?? 'Unknown'}</span>
                       <span className="truncate max-w-md">{message.replyTo.content || '[deleted]'}</span>
                     </div>
                   )}
@@ -344,7 +344,7 @@ export function ChatView({
                       </div>
                     </div>
                   ) : (
-                    <p className={`text-app-text text-[16px] leading-[1.375] whitespace-pre-wrap break-words ${isGrouped ? '' : 'mt-0.5'}`}>
+                    <p className={`text-app-text text-[15px] leading-[1.5] whitespace-pre-wrap break-words ${isGrouped ? '' : 'mt-0.5'}`}>
                       {renderContentWithMentions(message.content, currentUsername)}
                     </p>
                   )}
@@ -438,7 +438,7 @@ export function ChatView({
 
       {canSendMessages && (
       <form
-        className="px-4 pb-6 pt-2 flex-shrink-0"
+        className="chat-composer-wrap px-4 sm:px-5 pb-5 pt-3 flex-shrink-0"
         onSubmit={(e) => {
           e.preventDefault()
           const text = input.trim()
@@ -454,7 +454,7 @@ export function ChatView({
         {replyTo && (
           <div className="mb-2 flex items-start gap-2 px-3 py-2 rounded-t-lg bg-app-channel border-l-2 border-app-accent text-sm">
             <div className="flex-1 min-w-0">
-              <span className="text-[#c9cdfb] font-medium">Replying to {replyTo.username ?? getUser(replyTo.userId).username}</span>
+              <span className="text-app-accent font-medium">Replying to {replyTo.username ?? getUser(replyTo.userId).username}</span>
               <p className="text-app-muted mt-0.5 truncate max-w-md">{replyTo.content || '[no preview]'}</p>
             </div>
             <button type="button" onClick={() => setReplyTo(null)} className="text-app-muted hover:text-white p-1">×</button>

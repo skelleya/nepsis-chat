@@ -141,7 +141,8 @@ frontend/src/
 |------|---------|
 | `AppContext.tsx` | dmUnreadCounts, setCurrentDM, subscribeToAllDMMessages |
 | `ChannelList.tsx` | DM items with unread badge, glow animation, header count |
-| `DMView.tsx` | Chat UI for 1-on-1 conversations |
+| `DMView.tsx` | Chat UI for 1-on-1 and group conversations; group member management |
+| `GroupDMModal.tsx` | Friend multi-select for creating groups and adding participants |
 | `realtime.ts` | subscribeToDMMessages (current), subscribeToAllDMMessages (all) |
 
 ---
@@ -226,3 +227,24 @@ When `VITE_API_URL` is set, voice uses Socket.io instead of BroadcastChannel. IC
 - `audioClip.ts` uses Web Audio to decode a long sound and writes the selected, at-most-10-second segment as PCM WAV.
 - `SoundboardDropdown.tsx` owns clip selection and preview; the backend remains the final duration/type validator.
 - `UserPanel.tsx` combines presence and quick Personal/Work switching. The full profile editor remains under User Settings → Profiles.
+- Same-account voice tabs coordinate through an owner heartbeat in `VoiceContext`; observer tabs render presence without creating duplicate WebRTC sessions.
+- Screen-share audio is optional in Voice & Video settings and is captured only when supported/selected by the browser.
+
+### Modern chat and voice surfaces
+
+- `chat-shell`, `chat-header-modern`, `chat-message-modern`, and `chat-composer-wrap` provide a shared minimal visual language for server channels and DMs.
+- Message density now flows through `.chat-msg-row` and the Appearance density preference.
+- Voice gallery cards use an auto-fit grid rather than fixed wrapped sizes.
+- Screen + camera dual focus stacks vertically on small displays and splits into a wide screen stage plus camera stage on desktop.
+- Self camera PiP is consistently placed at the lower right so it does not obscure screen-share labels.
+
+---
+
+## Group direct messages
+
+- The plus button beside **Direct Messages** opens the group creator.
+- Creation requires at least two friends in addition to the current user; groups are capped at 10 members.
+- An open group header exposes **Add people**, filtering out existing participants.
+- `DMConversation.participants` drives group titles, mentions, and per-sender message avatars.
+- Group rows use their configured name or participant names. Calls and user-specific Block/Report actions stay hidden because those flows remain 1:1.
+- `AppContext.createGroupDM` and `addGroupDMMembers` update conversation state immediately after backend validation.

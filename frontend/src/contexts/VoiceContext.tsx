@@ -4,7 +4,7 @@ import { createSocketSignaling } from '../services/socketSignaling'
 import { createWebRTCClient } from '../services/webrtc'
 import { ensureIceServers } from '../services/iceConfig'
 import { sounds } from '../services/sounds'
-import { getAudioConstraints, getScreenConstraints, getVideoConstraints } from '../services/userPrefs'
+import { getAudioConstraints, getScreenConstraints, getVideoConstraints, loadPrefs } from '../services/userPrefs'
 import { getScreenShareStream } from '../utils/mediaTracks'
 import { getCallBusy } from '../services/mediaSessionGate'
 
@@ -27,6 +27,9 @@ export interface RemoteVoiceState {
 interface VoiceContextValue {
   voiceChannelId: string | null
   voiceChannelName: string | null
+  /** Voice session owned by another same-account browser tab (observer state). */
+  otherTabVoiceChannelId: string | null
+  otherTabVoiceChannelName: string | null
   isConnected: boolean
   isMuted: boolean
   isDeafened: boolean
@@ -63,6 +66,17 @@ const VoiceContext = createContext<VoiceContextValue | null>(null)
 
 const USE_SOCKET = !!import.meta.env.VITE_API_URL
 
+function readObservedVoiceTab(userId: string): { channelId: string | null; channelName: string | null } {
+  try {
+    const raw = localStorage.getItem(`nepsis_voice_tab_${userId}`)
+    const owner = raw ? JSON.parse(raw) as { channelId?: string; channelName?: string; updatedAt?: number } : null
+    if (owner?.updatedAt && Date.now() - owner.updatedAt < 30_000) {
+      return { channelId: owner.channelId || null, channelName: owner.channelName || null }
+    }
+  } catch { /* ignore */ }
+  return { channelId: null, channelName: null }
+}
+
 interface VoiceProviderProps {
   children: React.ReactNode
   userId: string
@@ -70,8 +84,11 @@ interface VoiceProviderProps {
 }
 
 export function VoiceProvider({ children, userId, username }: VoiceProviderProps) {
+  const initialObservedRef = useRef(readObservedVoiceTab(userId))
   const [voiceChannelId, setVoiceChannelId] = useState<string | null>(null)
   const [voiceChannelName, setVoiceChannelName] = useState<string | null>(null)
+  const [otherTabVoiceChannelId, setOtherTabVoiceChannelId] = useState<string | null>(initialObservedRef.current.channelId)
+  const [otherTabVoiceChannelName, setOtherTabVoiceChannelName] = useState<string | null>(initialObservedRef.current.channelName)
   const [participants, setParticipants] = useState<VoiceParticipant[]>([])
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
   const [isMuted, setIsMutedState] = useState(false)
@@ -107,9 +124,74 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   const mutedBeforeDeafenRef = useRef(false)
   const isSoundboardMutedRef = useRef(false)
   const playingSoundboardRef = useRef<Map<string, HTMLAudioElement>>(new Map())
+  const tabIdRef = useRef(crypto.randomUUID())
   isMutedRef.current = isMuted
   isDeafenedRef.current = isDeafened
   participantsRef.current = participants
+
+  // Share the active voice owner across tabs without creating a second WebRTC
+  // session. Observer tabs can render presence and avoid overwriting it.
+  useEffect(() => {
+    const key = `nepsis_voice_tab_${userId}`
+    const channelName = `nepsis-voice-tab-${userId}`
+    const broadcast = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(channelName) : null
+    const readOwner = () => {
+      if (voiceChannelId) {
+        setOtherTabVoiceChannelId(null)
+        setOtherTabVoiceChannelName(null)
+        return
+      }
+      try {
+        const raw = localStorage.getItem(key)
+        const owner = raw ? JSON.parse(raw) as {
+          tabId?: string
+          channelId?: string
+          channelName?: string
+          updatedAt?: number
+        } : null
+        const fresh = owner?.updatedAt && Date.now() - owner.updatedAt < 30_000
+        const isOther = owner?.tabId && owner.tabId !== tabIdRef.current
+        setOtherTabVoiceChannelId(fresh && isOther ? owner?.channelId || null : null)
+        setOtherTabVoiceChannelName(fresh && isOther ? owner?.channelName || null : null)
+      } catch {
+        setOtherTabVoiceChannelId(null)
+        setOtherTabVoiceChannelName(null)
+      }
+    }
+    const publish = () => {
+      if (!voiceChannelId) return
+      const owner = {
+        tabId: tabIdRef.current,
+        channelId: voiceChannelId,
+        channelName: voiceChannelName,
+        updatedAt: Date.now(),
+      }
+      localStorage.setItem(key, JSON.stringify(owner))
+      broadcast?.postMessage(owner)
+    }
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === key) readOwner()
+    }
+    const onBroadcast = () => readOwner()
+    window.addEventListener('storage', onStorage)
+    broadcast?.addEventListener('message', onBroadcast)
+    readOwner()
+    publish()
+    const interval = window.setInterval(voiceChannelId ? publish : readOwner, 1_500)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener('storage', onStorage)
+      broadcast?.removeEventListener('message', onBroadcast)
+      broadcast?.close()
+      if (voiceChannelId) {
+        try {
+          const raw = localStorage.getItem(key)
+          const owner = raw ? JSON.parse(raw) : null
+          if (owner?.tabId === tabIdRef.current) localStorage.removeItem(key)
+        } catch { /* ignore */ }
+      }
+    }
+  }, [userId, voiceChannelId, voiceChannelName])
   isSoundboardMutedRef.current = isSoundboardMuted
 
   /** Unmute also undeafens */
@@ -647,19 +729,39 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     return () => unsub?.()
   }, [voiceChannelId, leaveVoice])
 
+  const playSoundboardAudio = useCallback((soundUrl: string) => {
+    if (isDeafenedRef.current || isSoundboardMutedRef.current) return
+    const existing = playingSoundboardRef.current.get(soundUrl)
+    if (existing) {
+      existing.pause()
+      existing.currentTime = 0
+    }
+    const audio = new Audio(soundUrl)
+    audio.volume = 0.8
+    playingSoundboardRef.current.set(soundUrl, audio)
+    const clear = () => {
+      if (playingSoundboardRef.current.get(soundUrl) === audio) {
+        playingSoundboardRef.current.delete(soundUrl)
+      }
+    }
+    audio.addEventListener('ended', clear, { once: true })
+    audio.addEventListener('error', clear, { once: true })
+    void audio.play().catch(clear)
+  }, [])
+
   // ─── Soundboard play listener (receive and play sounds from peers) ─
   useEffect(() => {
     const signaling = signalingRef.current
-    const sig = signaling as { onSoundboardPlay?: (cb: (d: { soundUrl: string }) => void) => () => void }
+    const sig = signaling as {
+      onSoundboardPlay?: (cb: (d: { soundUrl: string; userId?: string }) => void) => () => void
+    }
     if (!sig?.onSoundboardPlay) return
-    const unsub = sig.onSoundboardPlay(({ soundUrl }) => {
-      if (isDeafenedRef.current || isSoundboardMutedRef.current) return
-      const audio = new Audio(soundUrl)
-      audio.volume = 0.8
-      audio.play().catch(() => {})
+    const unsub = sig.onSoundboardPlay(({ soundUrl, userId: fromUserId }) => {
+      if (fromUserId === userId) return
+      playSoundboardAudio(soundUrl)
     })
     return () => unsub?.()
-  }, [voiceChannelId])
+  }, [voiceChannelId, userId, playSoundboardAudio])
 
   // ─── Ping measurement (WebRTC RTT, else socket RTT) ───────────────
   useEffect(() => {
@@ -737,10 +839,9 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
   // ─── Screen share toggle (sends screen over WebRTC) ───────────────
   const toggleScreenShare = useCallback(async () => {
     if (isScreenSharing && screenStream) {
-      for (const track of screenStream.getTracks()) {
-        await webrtcRef.current?.removeTrackFromAllPeers(track)
-        track.stop()
-      }
+      const tracks = screenStream.getTracks()
+      await webrtcRef.current?.removeTracksFromAllPeers(tracks)
+      tracks.forEach((track) => track.stop())
       emitScreenShareState(false)
       setScreenStream(null)
       setIsScreenSharing(false)
@@ -749,7 +850,13 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
       try {
         const stream = await navigator.mediaDevices.getDisplayMedia({
           video: getScreenConstraints(),
-          audio: false,
+          audio: loadPrefs().voice.includeScreenShareAudio
+            ? {
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false,
+              }
+            : false,
         })
         const screenTrack = stream.getVideoTracks()[0]
         if (screenTrack) {
@@ -759,11 +866,16 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
             /* ignore */
           }
         }
+        for (const audioTrack of stream.getAudioTracks()) {
+          try {
+            audioTrack.contentHint = 'music'
+          } catch {
+            /* ignore */
+          }
+        }
         screenTrack?.addEventListener('ended', () => {
           // User stopped sharing via browser UI
-          stream.getTracks().forEach(async (track) => {
-            await webrtcRef.current?.removeTrackFromAllPeers(track)
-          })
+          void webrtcRef.current?.removeTracksFromAllPeers(stream.getTracks())
           emitScreenShareState(false)
           setScreenStream(null)
           setIsScreenSharing(false)
@@ -774,9 +886,9 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
         emitScreenShareState(true)
         // Discord-like: sharer focuses their own share; others click to watch
         setWatchingShareUserId(userId)
-        for (const track of stream.getTracks()) {
-          await webrtcRef.current?.addTrackToAllPeers(track, stream)
-        }
+        await webrtcRef.current?.addTracksToAllPeers(
+          stream.getTracks().map((track) => ({ track, stream }))
+        )
       } catch (err) {
         if (err instanceof Error && err.name !== 'NotAllowedError') {
           setError('Failed to share screen')
@@ -830,27 +942,17 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
     const sig = signalingRef.current as { emitSoundboardPlay?: (url: string) => void } | null
     if (sig?.emitSoundboardPlay) {
       sig.emitSoundboardPlay(soundUrl)
-      if (!isDeafenedRef.current && !isSoundboardMutedRef.current) {
-        // Restart on spam-click: stop any existing playback for this URL
-        const existing = playingSoundboardRef.current.get(soundUrl)
-        if (existing) {
-          existing.pause()
-          existing.currentTime = 0
-        }
-        const audio = new Audio(soundUrl)
-        audio.volume = 0.8
-        playingSoundboardRef.current.set(soundUrl, audio)
-        audio.addEventListener('ended', () => playingSoundboardRef.current.delete(soundUrl))
-        audio.play().catch(() => {})
-      }
+      playSoundboardAudio(soundUrl)
     }
-  }, [])
+  }, [playSoundboardAudio])
 
   return (
     <VoiceContext.Provider
       value={{
         voiceChannelId,
         voiceChannelName,
+        otherTabVoiceChannelId,
+        otherTabVoiceChannelName,
         isConnected,
         isMuted,
         isDeafened,

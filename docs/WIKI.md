@@ -426,3 +426,63 @@ Verification: generated a three-second constant-bitrate MP3 without a Xing heade
 The camera-freeze guard initially excluded `MediaStreamTrack.muted` tracks from the remote video count. Browsers may keep a newly negotiated receiver muted until RTP begins and a video element is attached, creating a deadlock where the tile never mounted. Remote camera tiles now mount for every live track. `TileVideo` continues to hide its frame on mute/end/removal and shows the avatar until `playing`, so camera-off still cannot leave a frozen frame.
 
 Verification: `frontend npm run build` passed TypeScript and the Vite production build. Existing font, bundle-size, Browserslist, and mixed-import warnings remain non-fatal.
+
+### Camera orientation (2026-07-24)
+
+Camera self-previews now default to natural/unmirrored orientation. Voice & Video settings includes “Mirror my camera preview” for users who prefer a mirror. The preference updates local voice tiles, maximized self camera, self PiP, and DM call PiP immediately. It is intentionally display-only: remote viewers continue to see the natural camera orientation, and screen shares are never mirrored.
+
+Verification: `frontend npm run build` passed TypeScript and the Vite production build.
+
+### Group direct messages (2026-07-24)
+
+Users can create a group from the **+** beside Direct Messages and add more friends from the open group header. Groups require the creator plus at least two friends and support at most 10 participants.
+
+Architecture:
+
+- Migration `20260724004517_group_direct_messages.sql` adds `is_group`, optional `name`, `created_by`, `updated_at`, participant `joined_at`, and lookup indexes.
+- Backend conversation responses now contain `participants[]`; `other_user` remains for 1:1 compatibility.
+- New APIs create groups, add validated users, and rename groups after participant checks.
+- `GroupDMModal` loads the existing friends list and supports multi-select creation/add flows.
+- `DMView` uses participant-specific avatars and mention data. Group calls, Block, and Report are intentionally not presented as group-wide actions.
+
+Manual test study:
+
+1. Click Direct Messages **+**, select two friends, optionally name the group, and create it.
+2. Verify all three users see the group, sender names/avatars are correct, mentions list all other participants, and unread notifications identify the actual sender.
+3. Click **Add people**, confirm existing members are excluded, add another friend, and verify the header/sidebar update.
+4. Confirm a normal 1:1 DM still opens separately and Call/Video remains available only there.
+5. Attempt creation with fewer than two friends, duplicate IDs, missing users, or more than 10 total members; the API must reject invalid input.
+
+Verification study:
+
+- `frontend npm run build` passed TypeScript and the Vite production build after normalizing nullable participant avatars.
+- `backend node --check src/routes/dm.js` passed; no backend test script is currently defined.
+- Supabase migrations `group_direct_messages` and `group_dm_created_by_index` were applied successfully.
+- Remote schema verification confirmed all group columns and three new indexes (`participant user`, `group updated`, and `created_by`).
+- Supabase advisors were rerun. The new creator foreign key warning was resolved with the follow-up index; remaining security/performance notices predate this feature and are documented project-wide issues.
+
+### Multi-tab voice, soundboard, screen audio, and modern media/chat UI (2026-07-24)
+
+Features and fixes:
+
+- One browser tab remains the voice-media owner; same-account tabs observe its channel through a heartbeat and show the account in the correct room without replacing the live mic session.
+- Soundboard MP3 uploads accept desktop `application/octet-stream` when the extension is a supported audio format; metadata remains mandatory.
+- Sound clips play once: local sender playback plus peer-only socket relay, with shared restart/dedup behavior.
+- Voice & Video settings can request tab/system audio during screen sharing.
+- Camera galleries use responsive modern cards; screen/camera dual focus stacks on mobile and uses a wide stage split on desktop; self PiP sits at the lower right.
+- DMs and server channels share cleaner translucent headers, lighter dividers, lower-noise hover states, compact-density row spacing, 15px message typography, and a bordered modern composer.
+
+Test study:
+
+1. Join voice in tab A, open the same account in tab B, and verify both tabs show self in the same channel while tab A keeps its microphone.
+2. Close tab B and verify tab A stays `in-voice`; open the room in tab B and verify it remains observer-only.
+3. Upload MP3 as both `audio/mpeg` and `application/octet-stream`; play from A and verify A/B each hear exactly one instance.
+4. Enable/disable screen audio, share a browser tab that supports audio, and confirm peers hear audio only when enabled and selected in the native picker.
+5. Exercise voice layouts with 1, 2, 4, and 8 participants, camera-only, screen-only, dual camera/screen, mobile width, and desktop width.
+6. Verify DM/server messages, replies, reactions, uploads, editing, compact density, white theme, mobile hover actions, and new-message scrolling after the visual revamp.
+
+Verification results:
+
+- `frontend npm run build` passed TypeScript and the Vite production build (181 modules).
+- Backend syntax checks passed for `soundboard.js`, `voice.js`, and `dm.js`; no backend test script is currently defined.
+- Existing non-fatal build notices remain: optional Everett font assets, stale Browserslist data, mixed static/dynamic imports, and the large main bundle.
