@@ -198,6 +198,8 @@ This is **not** a Nepsis server membership / ACL error. Chromium/Electron throws
   3. Both users connect to the same backend URL
 - **Same machine, 2 tabs:** BroadcastChannel works; ensure both tabs join the same voice channel
 - **Microphone permissions:** Both users must allow microphone access (see above)
+- **Silent both ways after join (ICE race):** The offerer’s trickle ICE can arrive before the answerer has a peer connection. Those candidates must be buffered and flushed after `setRemoteDescription` (`webrtc.ts`). Dropping them fails ICE → nobody hears anybody.
+- **Strict NAT:** Production `/api/webrtc/ice` should report `hasTurn: true`. Without TURN, some networks cannot complete P2P even with correct signaling.
 
 ### Cannot see friend's camera/screen share
 

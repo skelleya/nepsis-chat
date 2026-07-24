@@ -912,3 +912,26 @@ Test study:
 2. After download → stepped Applying update 1–5 UI appears; splash window shows while restarting.
 3. After relaunch → Finishing update splash briefly, then the app opens on the new version.
 
+### Voice silent both ways — ICE buffer fix (0.2.10) (2026-07-24)
+
+Issue:
+
+- Joining a voice channel showed peers, but nobody could hear anybody (mic + speakers both dead).
+- Mesh uses one offerer (lower socket id). The offerer starts trickle ICE immediately after `setLocalDescription(offer)`.
+- Those candidates often reached the answerer **before** `handleOffer` created a peer connection.
+- `handleIceCandidate` used to `return` when `!peers.get(from)`, permanently dropping the candidates → ICE failed → no media either direction.
+
+Fix:
+
+- Buffer trickle ICE per peer until a PC exists **and** remote description is set; flush after `setRemoteDescription` (same pattern DM calls already used).
+- Answerer creates/attaches local tracks on `peer-joined` / `room-peers` so the offer path only completes SDP.
+- Electron `0.2.10`. Tag `v0.2.10`.
+- Note: production `/api/webrtc/ice` still reports `hasTurn: false`; configure backend `TURN_*` for strict-NAT peers.
+
+Test study:
+
+1. Two users on different networks join the same voice channel → two-way audio within a few seconds.
+2. Third user joins an active room → hears existing members; they hear the newcomer.
+3. Toggle camera/screen after join → renegotiation still works; audio does not drop.
+4. `cd frontend && npm run test:unit` passes (includes ICE queue checks).
+

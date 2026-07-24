@@ -300,14 +300,21 @@ export function createWebRTCClient(
     }
   }
 
+  const queueIceCandidate = (from: string, candidate: RTCIceCandidateInit) => {
+    const buf = pendingCandidates.get(from) || []
+    buf.push(candidate)
+    pendingCandidates.set(from, buf)
+  }
+
   const handleIceCandidate = async (from: string, candidate: RTCIceCandidateInit) => {
+    if (!candidate) return
     const entry = peers.get(from)
-    if (!entry) return
-    // Buffer if remote description isn't set yet
-    if (!entry.pc.remoteDescription) {
-      const buf = pendingCandidates.get(from) || []
-      buf.push(candidate)
-      pendingCandidates.set(from, buf)
+    // Answerer often has no PC yet when the offerer's first trickle ICE arrives
+    // (offer + candidates race). Dropping them here caused silent two-way voice
+    // on strict NAT / slow signaling — buffer until handleOffer creates the PC
+    // and setRemoteDescription flushes via flushCandidates().
+    if (!entry || !entry.pc.remoteDescription) {
+      queueIceCandidate(from, candidate)
       return
     }
     try {
@@ -326,9 +333,20 @@ export function createWebRTCClient(
     // on every 2-person join (dual offer + always-rollback broke all media).
     const myId = signaling.getSocketId?.() ?? localId
     const shouldInitiate = myId < remotePeerId
-    if (currentLocalStream && shouldInitiate) {
+    if (!currentLocalStream) return
+    if (shouldInitiate) {
       connectToPeer(remotePeerId, currentLocalStream, userId, username)
+      return
     }
+    // Answerer: create PC + attach mic now so handleOffer only needs SDP.
+    // Early remote ICE stays in pendingCandidates until setRemoteDescription.
+    const pc = createPeerConnection(remotePeerId, userId, username)
+    currentLocalStream.getTracks().forEach((track) => {
+      const sender = pc.addTrack(track, currentLocalStream!)
+      void applySenderQuality(sender)
+    })
+    attachExtraTracks(pc)
+    tunePc(pc)
   }
 
   const connectToPeer = async (remotePeerId: string, localStream: MediaStream, userId?: string, username?: string) => {

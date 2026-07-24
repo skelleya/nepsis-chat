@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test:unit": "node scripts/test-drag-and-patch-notes.mjs"
+    "test:unit": "node scripts/test-drag-and-patch-notes.mjs && node scripts/test-ice-candidate-queue.mjs"
   },
   "devDependencies": {
     "@types/react": "^19.2.14",

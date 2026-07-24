@@ -273,7 +273,7 @@ When `VITE_API_URL` is set, voice uses Socket.io instead of BroadcastChannel. IC
 - `chat-shell`, `chat-header-modern`, `chat-message-modern`, and `chat-composer-wrap` provide a shared minimal visual language for server channels and DMs.
 - Message density now flows through `.chat-msg-row` and the Appearance density preference.
 - Voice gallery cards use an auto-fit grid (`--voice-grid-min` ~320/260/200) rather than fixed wrapped sizes.
-- Per-user / stream volumes live in `userPrefs.peerVolumes` / `streamVolumes` (0–2); `RemoteAudio` applies them via Web Audio `GainNode` (supports >100%).
+- Per-user / stream volumes live in `userPrefs.peerVolumes` / `streamVolumes` (0–2); `RemoteAudio` applies them via HTML `audio.volume` (capped at 100% — Web Audio gain was reverted after it silenced peers).
 - Screen share uses a full stage with cameras in the top filmstrip and a single bottom-right camera PiP (no side camera pane).
 - Self camera PiP is consistently placed at the lower right so it does not obscure screen-share labels.
 - Voice ping shows the slowest selected WebRTC peer path; the tooltip distinguishes local voice RTT from signaling-server RTT when alone.

@@ -8,6 +8,15 @@ export type PatchNote = {
 /** In-app patch notes shown under User Settings → Help & Support. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.2.10',
+    date: '2026-07-24',
+    title: 'Voice hear-each-other fix',
+    highlights: [
+      'Fixed a WebRTC ICE race that left voice channels silent both ways after joining.',
+      'Early connection candidates are buffered until the peer session is ready, so you can hear others and they can hear you.',
+    ],
+  },
+  {
     version: '0.2.9',
     date: '2026-07-24',
     title: 'Discord-style update progress',
