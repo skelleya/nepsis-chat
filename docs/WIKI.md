@@ -432,3 +432,23 @@ Verification: `frontend npm run build` passed TypeScript and the Vite production
 Camera self-previews now default to natural/unmirrored orientation. Voice & Video settings includes “Mirror my camera preview” for users who prefer a mirror. The preference updates local voice tiles, maximized self camera, self PiP, and DM call PiP immediately. It is intentionally display-only: remote viewers continue to see the natural camera orientation, and screen shares are never mirrored.
 
 Verification: `frontend npm run build` passed TypeScript and the Vite production build.
+
+### Group direct messages (2026-07-24)
+
+Users can create a group from the **+** beside Direct Messages and add more friends from the open group header. Groups require the creator plus at least two friends and support at most 10 participants.
+
+Architecture:
+
+- Migration `20260724004517_group_direct_messages.sql` adds `is_group`, optional `name`, `created_by`, `updated_at`, participant `joined_at`, and lookup indexes.
+- Backend conversation responses now contain `participants[]`; `other_user` remains for 1:1 compatibility.
+- New APIs create groups, add validated users, and rename groups after participant checks.
+- `GroupDMModal` loads the existing friends list and supports multi-select creation/add flows.
+- `DMView` uses participant-specific avatars and mention data. Group calls, Block, and Report are intentionally not presented as group-wide actions.
+
+Manual test study:
+
+1. Click Direct Messages **+**, select two friends, optionally name the group, and create it.
+2. Verify all three users see the group, sender names/avatars are correct, mentions list all other participants, and unread notifications identify the actual sender.
+3. Click **Add people**, confirm existing members are excluded, add another friend, and verify the header/sidebar update.
+4. Confirm a normal 1:1 DM still opens separately and Call/Video remains available only there.
+5. Attempt creation with fewer than two friends, duplicate IDs, missing users, or more than 10 total members; the API must reject invalid input.
