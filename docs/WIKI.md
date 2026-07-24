@@ -523,3 +523,23 @@ Verification results:
 - Electron dependencies installed successfully for version 0.1.4; the repository has no separate Electron build script outside the packaging workflow.
 - GIF import review added manual redirect validation, streamed byte limits, known-user checks, and per-user/IP rate limits before release.
 - Existing dependency audit reports remain documented and are not silently auto-fixed because forced upgrades would change Electron/build compatibility.
+
+### Theme-complete shell, collapsible channels, adaptive cameras, and stable member profiles (2026-07-24)
+
+Changes:
+
+- UserPanel, status border, EmojiPicker footer, server tooltips/active pills, update banner, profile panel, and settings scrollbars now use appearance tokens across Dark, Midnight, AMOLED, and White.
+- Desktop channel sidebar collapses to a persistent 56px icon rail. Mobile remains a full 288px drawer.
+- The compact rail retains DMs/unreads, channel icons, selected channel, active voice indicator, and compact user controls.
+- Voice gallery uses container-width tiers and dual-stage container queries, so cameras adapt when channel/member rails expand or collapse.
+- Video playback is retried after resize with stable stream objects and participant keys, protecting remote viewers from black/frozen remount glitches.
+- Channel drag collision filtering and cross-category moves allow text/voice channels and whole categories to be arranged naturally. Admins and owners can use rename/delete controls.
+- Member profile popouts exclude their clicked anchor from outside-click handling and reset GSAP close state, removing right-rail flicker.
+
+Test study:
+
+1. Switch every theme/accent and inspect ServerBar, ChannelList, UserPanel, chats, VoiceView, MembersSidebar, profile popout, settings, emoji picker, update banner, and white-theme contrast.
+2. Collapse/expand the channel rail, refresh to verify persistence, then test mobile drawer behavior.
+3. With both sidebars in every state, test 1/2/4/8 cameras, screen share, dual stage, self PiP, camera on/off, and remote viewer playback.
+4. Drag categories above/below one another; move channels within/across categories by row and header; rename/delete channels and categories as owner/admin.
+5. Repeatedly click the same/different member rows, scroll, open/close with Escape/outside click, and verify the profile panel never flickers or becomes stuck.
