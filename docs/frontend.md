@@ -51,7 +51,7 @@ frontend/src/
 | Component | Purpose |
 |-----------|---------|
 | VoiceIcons | Shared mic/mic-off/headphones/headphones-off SVGs (prevents clipping/snipping) |
-| ServerBar | Server list (left sidebar); click-hold-and-drag to reorder servers. **GSAP:** Friends + Community bubbles scale-punch on click |
+| ServerBar | Server list (left sidebar); click-hold-and-drag to reorder servers. **GSAP:** Friends, Community, and **+** (Add Server) bubbles scale-punch on click |
 | ChannelList | Text + voice channels in a **Nepsis rail** (rounded rows, chat/wave icons, orange selected accent). **Voice users:** right-click for Profile / Roles / Move to / Message / Call / Server Mute / Server Deafen / Disconnect / Kick / Ban; drag-drop onto the whole voice channel row (highlighted targets + drag overlay chip). **Channels:** hover gear — Rename, Copy ID, Move to Category, Delete. **Create:** chat + / voice + (or server menu) opens centered name-only modal with type locked. Server dropdown portaled with solid background. |
 | ChatView | Messages, input; scrolls to bottom on load; shows "New messages" indicator when scrolled up and new messages arrive; click to jump to new messages |
 | VoiceView | Voice participants in a responsive gallery (larger camera cards). Click/right-click a remote card for **User volume** (0–200%), **Stream volume** (while sharing), Watch/Maximize, and **Admin** Mute/Deafen/Disconnect. Soundboard + screen stage. Presence merge always includes channel users (even after peer-left). |
