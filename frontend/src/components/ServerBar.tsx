@@ -109,6 +109,7 @@ export function ServerBar({ servers, currentServerId, onSelectServer, onCreateSe
   const [showCreateModal, setShowCreateModal] = useState(false)
   const friendsBtnRef = useRef<HTMLButtonElement>(null)
   const communityBtnRef = useRef<HTMLButtonElement>(null)
+  const addServerBtnRef = useRef<HTMLButtonElement>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -123,6 +124,11 @@ export function ServerBar({ servers, currentServerId, onSelectServer, onCreateSe
   const handleOpenCommunity = () => {
     punchBubble(communityBtnRef.current)
     onOpenCommunity?.()
+  }
+
+  const handleOpenCreateServer = () => {
+    punchBubble(addServerBtnRef.current)
+    setShowCreateModal(true)
   }
 
   const handleDragEnd = useCallback(
@@ -219,8 +225,11 @@ export function ServerBar({ servers, currentServerId, onSelectServer, onCreateSe
         {canCreateServer && (
         <div className="relative group">
           <button
-            onClick={() => setShowCreateModal(true)}
+            ref={addServerBtnRef}
+            type="button"
+            onClick={handleOpenCreateServer}
             className="w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-app-channel hover:bg-[#23a559] flex items-center justify-center cursor-pointer transition-all duration-200 group"
+            title="Add a Server"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-[#23a559] group-hover:text-white transition-colors">
               <path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>

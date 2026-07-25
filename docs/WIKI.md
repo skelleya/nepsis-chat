@@ -912,6 +912,12 @@ Test study:
 2. After download → stepped Applying update 1–5 UI appears; splash window shows while restarting.
 3. After relaunch → Finishing update splash briefly, then the app opens on the new version.
 
+### Typing indicators + instant send + Add Server GSAP (2026-07-24)
+
+- Server channels and DMs show “X is typing…” via Socket.io `/chat` (`typing` / `typing-stop`); rooms use channel id or DM conversation id.
+- Message send is optimistic: the bubble appears immediately; temp ids are swapped/deduped when the API or Realtime confirms.
+- Left rail **+** (Add Server) uses the same GSAP punch as Friends / Community.
+
 ### Voice silent both ways — ICE buffer fix (0.2.10) (2026-07-24)
 
 Issue:

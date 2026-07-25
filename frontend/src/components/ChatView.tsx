@@ -7,6 +7,8 @@ import { ChatInput } from './ChatInput'
 import { FileAttachment } from './FileAttachment'
 import { GifPicker } from './GifPicker'
 import { MessageContent } from './MessageContent'
+import { TypingIndicator } from './TypingIndicator'
+import { useChatTyping } from '../hooks/useChatTyping'
 
 interface ServerEmoji {
   id: string
@@ -43,6 +45,10 @@ export function ChatView({
 }: ChatViewProps) {
   const { user: appUser, editMessage, deleteMessage, toggleReaction } = useApp()
   const currentUsername = appUser?.display_name || appUser?.username || ''
+  const { typingUsers, notifyTyping, stopTyping } = useChatTyping(
+    channel.id,
+    appUser ? { userId: appUser.id, username: currentUsername } : null
+  )
   const [input, setInput] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
@@ -442,6 +448,7 @@ export function ChatView({
           const text = input.trim()
           const hasAttach = attachments.length > 0
           if ((text || hasAttach) && onSendMessage) {
+            stopTyping()
             onSendMessage(text || ' ', { replyToId: replyTo?.id, attachments: attachments.length ? attachments : undefined })
             setInput('')
             setReplyTo(null)
@@ -490,11 +497,16 @@ export function ChatView({
         />
         <ChatInput
           value={input}
-          onChange={setInput}
+          onChange={(value) => {
+            setInput(value)
+            if (value.trim()) notifyTyping()
+            else stopTyping()
+          }}
           onSubmit={() => {
             const text = input.trim()
             const hasAttach = attachments.length > 0
             if ((text || hasAttach) && onSendMessage) {
+              stopTyping()
               onSendMessage(text || ' ', { replyToId: replyTo?.id, attachments: attachments.length ? attachments : undefined })
               setInput('')
               setReplyTo(null)
@@ -568,6 +580,7 @@ export function ChatView({
             </>
           }
         />
+        <TypingIndicator users={typingUsers} />
       </form>
       )}
       {showGifPicker && (

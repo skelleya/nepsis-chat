@@ -139,8 +139,10 @@ Handlers are registered with the **Namespace** (`io.of('/voice')`, etc.), not th
 | leave-channel | Client → Server | channelId |
 | message | Client → Server | channelId, userId, username, content |
 | message | Server → Client | message object |
-| typing | Client → Server | channelId, userId, username |
+| typing | Client → Server | channelId (text channel **or** DM conversation id), userId, username |
 | typing | Server → Client | userId, username |
+| typing-stop | Client → Server | channelId, userId |
+| typing-stop | Server → Client | userId |
 
 ### `/voice`
 

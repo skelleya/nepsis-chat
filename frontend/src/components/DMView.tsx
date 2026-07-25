@@ -6,12 +6,15 @@ import { useState, useRef, useEffect } from 'react'
 import type { DMConversation, DMMessage } from '../services/api'
 import * as api from '../services/api'
 import { useCall } from '../contexts/CallContext'
+import { useApp } from '../contexts/AppContext'
 import { ChatInput } from './ChatInput'
 import { EmojiPicker } from './EmojiPicker'
 import { MessageContent } from './MessageContent'
 import { MemberProfilePanel } from './MemberProfilePanel'
 import type { ServerMember } from './MembersSidebar'
 import { GifPicker } from './GifPicker'
+import { TypingIndicator } from './TypingIndicator'
+import { useChatTyping } from '../hooks/useChatTyping'
 
 interface DMViewProps {
   conversation: DMConversation
@@ -55,6 +58,14 @@ export function DMView({
   onAddPeople,
 }: DMViewProps) {
   const call = useCall()
+  const { user: appUser } = useApp()
+  const typingSelf = appUser
+    ? {
+        userId: appUser.id,
+        username: (appUser.display_name && appUser.display_name.trim()) || appUser.username,
+      }
+    : { userId: currentUserId, username: 'You' }
+  const { typingUsers, notifyTyping, stopTyping } = useChatTyping(conversation.id, typingSelf)
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<{ url: string; type: string; filename?: string }[]>([])
   const [uploading, setUploading] = useState(false)
@@ -108,15 +119,19 @@ export function DMView({
     if (rect) setProfileAnchor(rect)
   }
 
-  const doSend = async () => {
+  const doSend = () => {
     const text = input.trim()
     const urls = attachments.map((a) => a.url).filter(Boolean)
     const content = urls.length > 0 ? (text ? `${text}\n\n${urls.join('\n')}` : urls.join('\n')) : text
     if (!content) return
-    await onSendMessage(content, replyTo ? { replyToId: replyTo.id } : undefined)
+    const reply = replyTo ? { replyToId: replyTo.id } : undefined
+    stopTyping()
     setInput('')
     setAttachments([])
     setReplyTo(null)
+    void onSendMessage(content, reply).catch(() => {
+      /* optimistic send rolls back in AppContext */
+    })
   }
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -513,7 +528,11 @@ export function DMView({
         />
         <ChatInput
           value={input}
-          onChange={setInput}
+          onChange={(value) => {
+            setInput(value)
+            if (value.trim()) notifyTyping()
+            else stopTyping()
+          }}
           onSubmit={doSend}
           placeholder={replyTo ? `Reply to @${replyTo.username}` : `Message ${isGroup ? username : `@${username}`}`}
           members={otherParticipants.map((participant) => ({ id: participant.id, username: participant.username }))}
@@ -586,6 +605,7 @@ export function DMView({
             </>
           }
         />
+        <TypingIndicator users={typingUsers} />
       </div>
 
       {showGifPicker && (

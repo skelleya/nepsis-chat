@@ -25,8 +25,18 @@ export function registerChatHandlers(io) {
 
     socket.on('typing', (data) => {
       const { channelId, userId, username } = data
-      if (!channelId) return
-      socket.to(`channel:${channelId}`).emit('typing', { userId, username })
+      if (!channelId || !userId) return
+      // Rooms are shared by text channel id or DM conversation id
+      socket.to(`channel:${channelId}`).emit('typing', {
+        userId,
+        username: username || 'Someone',
+      })
+    })
+
+    socket.on('typing-stop', (data) => {
+      const { channelId, userId } = data || {}
+      if (!channelId || !userId) return
+      socket.to(`channel:${channelId}`).emit('typing-stop', { userId })
     })
   })
 }

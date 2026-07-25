@@ -75,6 +75,7 @@ frontend/src/
 | ChatView | Same Discord chat chrome for server channels — grouped messages, hover actions, integrated + composer. |
 | ChatInput | Shared Discord composer bar (`#383a40`): attach +, text, optional emoji; Enter submits. |
 | VoiceView | Avatar circles when cam off. **Camera/screen:** watching a share fills the stage (`object-contain`); active cameras stay in the top filmstrip; one live camera PiP sits bottom-right (sharer → self → first cam). No side-by-side dual stage. Camera maximize still uses a focus stage when not watching a share. |
+| TypingIndicator | “X is typing…” under channel/DM composers |
 | RemoteAudio | Plays remote WebRTC stream |
 | CallOverlay | DM call UI: outgoing/incoming/in-call states |
 | DMView | Direct message chat; Call + Video Call in header (expand if already in call with them); click a message to reply; reactions persisted + realtime via `dm_message_reactions`; reply preview bar; file/image/video links use `FileAttachment` with Download |

@@ -575,19 +575,47 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const sendDMMessage = useCallback(
     async (conversationId: string, content: string, options?: { replyToId?: string }) => {
       if (!user) return
+      const displayName = (user.display_name && user.display_name.trim()) || user.username
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      const optimistic: api.DMMessage = {
+        id: tempId,
+        conversation_id: conversationId,
+        user_id: user.id,
+        content,
+        created_at: new Date().toISOString(),
+        username: displayName,
+        reply_to_id: options?.replyToId,
+        reactions: [],
+      }
+      setDMMessages((prev) => ({
+        ...prev,
+        [conversationId]: [...(prev[conversationId] || []), optimistic],
+      }))
       try {
         const msg = await api.sendDMMessage(conversationId, user.id, content, options)
         setDMMessages((prev) => {
           const list = prev[conversationId] || []
-          if (list.some((m) => m.id === msg.id)) return prev
-          return { ...prev, [conversationId]: [...list, msg] }
+          if (list.some((m) => m.id === msg.id)) {
+            return {
+              ...prev,
+              [conversationId]: list.filter((m) => m.id !== tempId),
+            }
+          }
+          return {
+            ...prev,
+            [conversationId]: list.map((m) => (m.id === tempId ? msg : m)),
+          }
         })
       } catch (err) {
+        setDMMessages((prev) => ({
+          ...prev,
+          [conversationId]: (prev[conversationId] || []).filter((m) => m.id !== tempId),
+        }))
         console.error('Send DM error:', err)
         throw err
       }
     },
-    [user?.id]
+    [user]
   )
 
   const toggleDMReaction = useCallback(
@@ -641,28 +669,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       options?: { replyToId?: string; attachments?: { url: string; type: string; filename?: string }[] }
     ) => {
       if (!user) return
+      const displayName = (user.display_name && user.display_name.trim()) || user.username
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      const optimistic: Message = {
+        id: tempId,
+        channel_id: channelId,
+        user_id: user.id,
+        content,
+        created_at: new Date().toISOString(),
+        username: displayName,
+        reply_to_id: options?.replyToId,
+        attachments: options?.attachments,
+        reactions: [],
+      }
+      setMessages((prev) => ({
+        ...prev,
+        [channelId]: [...(prev[channelId] || []), optimistic],
+      }))
       try {
         const msg = await api.sendMessage(channelId, user.id, content, options)
+        setMessages((prev) => {
+          const list = prev[channelId] || []
+          if (list.some((m) => m.id === msg.id)) {
+            return {
+              ...prev,
+              [channelId]: list.filter((m) => m.id !== tempId),
+            }
+          }
+          return {
+            ...prev,
+            [channelId]: list.map((m) => (m.id === tempId ? msg : m)),
+          }
+        })
+      } catch (err) {
         setMessages((prev) => ({
           ...prev,
-          [channelId]: [...(prev[channelId] || []), msg],
+          [channelId]: (prev[channelId] || []).filter((m) => m.id !== tempId),
         }))
-      } catch {
-        const displayName = (user.display_name && user.display_name.trim()) || user.username
-        const tempMsg: Message = {
-          id: 'temp-' + Date.now(),
-          channel_id: channelId,
-          user_id: user.id,
-          content,
-          created_at: new Date().toISOString(),
-          username: displayName,
-          reply_to_id: options?.replyToId,
-          attachments: options?.attachments,
-        }
-        setMessages((prev) => ({
-          ...prev,
-          [channelId]: [...(prev[channelId] || []), tempMsg],
-        }))
+        console.error('Send message error:', err)
       }
     },
     [user]
@@ -1055,7 +1099,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setMessages((prev) => {
             const list = prev[currentChannelId] || []
             if (list.some((m) => m.id === msg.id)) return prev
-            return { ...prev, [currentChannelId]: [...list, msg] }
+            // Drop matching optimistic temp from the same sender/content
+            const withoutTemp = list.filter(
+              (m) =>
+                !(
+                  m.id.startsWith('temp-') &&
+                  m.user_id === msg.user_id &&
+                  m.content === msg.content
+                )
+            )
+            return { ...prev, [currentChannelId]: [...withoutTemp, msg] }
           })
         } catch {
           // Fallback: reload channel
@@ -1291,16 +1344,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setDMMessages((prev) => {
             const list = prev[currentDMId] || []
             if (list.some((m) => m.id === msg.id)) return prev
-            return { ...prev, [currentDMId]: [...list, msg] }
+            const withoutTemp = list.filter(
+              (m) =>
+                !(
+                  m.id.startsWith('temp-') &&
+                  m.user_id === msg.user_id &&
+                  m.content === msg.content
+                )
+            )
+            return { ...prev, [currentDMId]: [...withoutTemp, msg] }
           })
         } catch {
           setDMMessages((prev) => {
             const list = prev[currentDMId] || []
             if (list.some((m) => m.id === payload.new.id)) return prev
+            const withoutTemp = list.filter(
+              (m) =>
+                !(
+                  m.id.startsWith('temp-') &&
+                  m.user_id === payload.new.user_id &&
+                  m.content === payload.new.content
+                )
+            )
             return {
               ...prev,
               [currentDMId]: [
-                ...list,
+                ...withoutTemp,
                 {
                   id: payload.new.id,
                   conversation_id: payload.new.conversation_id,
