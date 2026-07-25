@@ -620,6 +620,12 @@ export function VoiceProvider({ children, userId, username }: VoiceProviderProps
               }))
             }
           },
+          onPeerConnectionFailed: (pUserId, pUsername) => {
+            if (!pUserId || pUserId === userId) return
+            setError(
+              `Could not connect voice to ${pUsername}. Leave and rejoin the channel (or check VPN/firewall).`
+            )
+          },
         },
         iceServers
       )

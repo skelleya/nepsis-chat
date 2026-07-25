@@ -52,11 +52,15 @@ export async function ensureIceServers(): Promise<RTCIceServer[]> {
     const fallback = envIceServers()
     try {
       const base = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
-      const res = await fetch(`${base}/webrtc/ice`)
+      // Bust CDN/proxy caches — TURN credentials are short-lived HMAC tokens
+      const res = await fetch(`${base}/webrtc/ice?t=${Date.now()}`, { cache: 'no-store' })
       if (res.ok) {
-        const data = (await res.json()) as { iceServers?: RTCIceServer[] }
+        const data = (await res.json()) as { iceServers?: RTCIceServer[]; hasTurn?: boolean }
         if (Array.isArray(data.iceServers) && data.iceServers.length > 0) {
           cached = data.iceServers
+          if (!data.hasTurn) {
+            console.warn('[ice] API returned STUN-only ICE list (hasTurn=false)')
+          }
           return cached
         }
       }

@@ -18,6 +18,16 @@ export interface WebRTCHandlers {
     userId: string,
     metadata: { screenSharing?: boolean; muted?: boolean; deafened?: boolean }
   ) => void
+  /** Fired when ICE fails even after one restart attempt. */
+  onPeerConnectionFailed?: (userId: string, username: string) => void
+}
+
+type PeerEntry = {
+  pc: RTCPeerConnection
+  userId?: string
+  username?: string
+  remoteStream: MediaStream
+  iceRestarted?: boolean
 }
 
 export interface SignalingBridge {
@@ -42,7 +52,7 @@ export function createWebRTCClient(
   handlers: WebRTCHandlers,
   iceServers: RTCIceServer[] = DEFAULT_ICE_SERVERS
 ) {
-  const peers = new Map<string, { pc: RTCPeerConnection; userId?: string; username?: string; remoteStream: MediaStream }>()
+  const peers = new Map<string, PeerEntry>()
   // Reverse map: userId → socketId, so we can look up peers by either key
   const userIdToSocketId = new Map<string, string>()
   // Buffer ICE candidates that arrive before the remote description is set
@@ -51,6 +61,16 @@ export function createWebRTCClient(
   /** Camera/screen tracks that must also be sent to peers who join after share started */
   const extraOutbound: { track: MediaStreamTrack; stream: MediaStream }[] = []
   const resolvedIceServers = iceServers.length > 0 ? iceServers : DEFAULT_ICE_SERVERS
+  const hasTurnRelay = resolvedIceServers.some((s) => {
+    const u = s.urls
+    const list = Array.isArray(u) ? u : [u]
+    return list.some((url) => String(url).startsWith('turn'))
+  })
+  if (!hasTurnRelay) {
+    console.warn(
+      '[webrtc] No TURN in ICE list — peers behind strict NAT may stay silent. Check GET /api/webrtc/ice hasTurn.'
+    )
+  }
 
   const attachExtraTracks = (pc: RTCPeerConnection) => {
     for (const { track, stream } of extraOutbound) {
@@ -151,16 +171,45 @@ export function createWebRTCClient(
       if (e.candidate) signaling.sendIceCandidate(remotePeerId, e.candidate.toJSON())
     }
 
+    const tryIceRestart = async () => {
+      const entry = peers.get(remotePeerId)
+      if (!entry || entry.pc !== pc) return
+      if (entry.iceRestarted) {
+        const failedUser = entry.userId
+        const failedName = entry.username || 'User'
+        retireSocketPeer(remotePeerId, true)
+        if (failedUser) handlers.onPeerConnectionFailed?.(failedUser, failedName)
+        return
+      }
+      entry.iceRestarted = true
+      try {
+        if (pc.signalingState === 'closed') return
+        const offer = await pc.createOffer({ iceRestart: true })
+        await pc.setLocalDescription(offer)
+        void applyPeerConnectionQuality(pc)
+        if (pc.localDescription) signaling.sendOffer(remotePeerId, pc.localDescription)
+      } catch (err) {
+        console.warn('ICE restart failed for', remotePeerId, err)
+        const failedUser = entry.userId
+        const failedName = entry.username || 'User'
+        retireSocketPeer(remotePeerId, true)
+        if (failedUser) handlers.onPeerConnectionFailed?.(failedUser, failedName)
+      }
+    }
+
     const markPeerFailed = () => {
       const entry = peers.get(remotePeerId)
       if (!entry || entry.pc !== pc) return
-      retireSocketPeer(remotePeerId, true)
+      void tryIceRestart()
     }
 
     pc.onconnectionstatechange = () => {
-      // Ignore transient "disconnected" (ICE restart may recover). Always close PC when removing.
-      if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+      // Ignore transient "disconnected" (ICE restart may recover).
+      if (pc.connectionState === 'failed') {
         markPeerFailed()
+      } else if (pc.connectionState === 'closed') {
+        const entry = peers.get(remotePeerId)
+        if (entry?.pc === pc) retireSocketPeer(remotePeerId, true)
       }
     }
 
@@ -170,7 +219,7 @@ export function createWebRTCClient(
       }
     }
 
-    peers.set(remotePeerId, { pc, userId, username, remoteStream })
+    peers.set(remotePeerId, { pc, userId, username, remoteStream, iceRestarted: false })
     if (userId) userIdToSocketId.set(userId, remotePeerId)
     return pc
   }

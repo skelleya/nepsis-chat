@@ -912,6 +912,13 @@ Test study:
 2. After download → stepped Applying update 1–5 UI appears; splash window shows while restarting.
 3. After relaunch → Finishing update splash briefly, then the app opens on the new version.
 
+### Voice TURN fallback (Open Relay) (2026-07-25)
+
+- Production had `hasTurn: false` (STUN only) → friends on different NATs joined the channel but stayed silent both ways.
+- `/api/webrtc/ice` now mints free Open Relay static-auth TURN credentials when `TURN_URLS` is unset (`turnSource: "openrelay"`).
+- Mesh clients retry once with `iceRestart` before giving up; VoiceView shows a connect-failed hint.
+- Custom `TURN_*` still wins; `TURN_FALLBACK=0` disables Open Relay.
+
 ### Typing indicators + instant send + Add Server GSAP (2026-07-24)
 
 - Server channels and DMs show “X is typing…” via Socket.io `/chat` (`typing` / `typing-stop`); rooms use channel id or DM conversation id.

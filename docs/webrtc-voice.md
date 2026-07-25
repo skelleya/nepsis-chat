@@ -56,9 +56,11 @@ Voice channels and DM calls stay **P2P**. STUN finds a public address; **TURN** 
 
 | Source | Priority | Config |
 |--------|----------|--------|
-| `GET /api/webrtc/ice` | Preferred | Backend `TURN_URLS`, `TURN_USERNAME`, `TURN_CREDENTIAL` |
+| `GET /api/webrtc/ice` | Preferred | Custom `TURN_*` env, else free **Open Relay** static-auth TURN |
 | Vite env | Fallback | `VITE_TURN_URLS`, `VITE_TURN_USERNAME`, `VITE_TURN_CREDENTIAL` |
 | Built-in | Always | Google STUN (`stun.l.google.com`, `stun1.l.google.com`) |
+
+When `TURN_URLS` is empty, the API mints short-lived Open Relay credentials (`staticauth.openrelay.metered.ca`, secret `openrelayprojectsecret`) so friends on different networks can still hear each other. Set `TURN_FALLBACK=0` to disable. Prefer your own coturn / Metered credential for production scale.
 
 Shared helper: `frontend/src/services/iceConfig.ts` → used by `VoiceContext`, `CallContext`, `useVoiceChannel`, `webrtc.ts`.
 
